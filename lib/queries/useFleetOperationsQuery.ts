@@ -6,12 +6,13 @@
  * data fetching (3 timeline queries + 1 presence query total, not
  * per-trip) so this scales with fleet size instead of query count.
  *
- * Deliberately polling (short staleTime + refetchInterval), not a realtime
- * subscription per trip — N active trips would mean N realtime channels,
- * which is exactly the kind of background-scheduler-shaped infrastructure
- * this stage of the platform doesn't need yet.
+ * Catalog rows come from `queryKeys.trips.finite` (same RPC as the Trips
+ * tab). Live extras (timeline, presence, phones, checkpoint distance) still
+ * poll — N active trips would mean N realtime channels, which is exactly
+ * the kind of background-scheduler-shaped infrastructure this stage of the
+ * platform doesn't need yet.
  */
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getTripsForOrg, type TripRow } from '@/features/trips/services/trips.service';
 import { getDriverPresenceForTrips } from '@/features/tracking/services/driverPresence.service';
 import type { DriverPresenceRow } from '@/features/tracking/services/driverPresence.service';
@@ -28,6 +29,8 @@ import {
   type JourneyMetrics,
   type OperationalAlert,
 } from '@/features/trips/domain';
+import { queryKeys } from '@/lib/queryKeys';
+import { useTripsQuery } from '@/lib/queries/useTripsQuery';
 
 const TERMINAL_STATUSES = new Set(['completed', 'delivered', 'done', 'cancelled']);
 
@@ -49,17 +52,28 @@ export interface FleetTripOperations {
 
 const POLL_MS = 30_000;
 
+async function loadFiniteTrips(orgId: string): Promise<TripRow[]> {
+  const res = await getTripsForOrg(orgId);
+  if (res.error) throw res.error;
+  return res.trips;
+}
+
 export function useFleetOperationsQuery(orgId: string | null): {
   trips: FleetTripOperations[];
   isLoading: boolean;
   error: Error | null;
   refetch: () => void;
 } {
+  const queryClient = useQueryClient();
+  const tripsQuery = useTripsQuery(orgId);
+
   const query = useQuery({
-    queryKey: ['q', 'trips', 'fleet-operations', orgId ?? ''],
+    queryKey: ['q', 'trips', 'fleet-operations', orgId ?? '', tripsQuery.dataUpdatedAt],
     queryFn: async (): Promise<FleetTripOperations[]> => {
-      const { trips, error: tripsError } = await getTripsForOrg(orgId!);
-      if (tripsError) throw tripsError;
+      const trips = await queryClient.ensureQueryData({
+        queryKey: queryKeys.trips.finite(orgId!),
+        queryFn: () => loadFiniteTrips(orgId!),
+      });
 
       const activeTrips = trips.filter((t) => isActiveTripStatus(t.status));
       if (activeTrips.length === 0) return [];
@@ -111,15 +125,22 @@ export function useFleetOperationsQuery(orgId: string | null): {
         };
       });
     },
-    enabled: !!orgId,
+    enabled: !!orgId && tripsQuery.isSuccess,
     staleTime: POLL_MS,
     refetchInterval: POLL_MS,
+    placeholderData: (previousData) => previousData,
   });
+
+  const catalogError = tripsQuery.error instanceof Error ? tripsQuery.error : null;
+  const derivedError = query.error instanceof Error ? query.error : null;
 
   return {
     trips: query.data ?? [],
-    isLoading: query.isLoading,
-    error: query.error instanceof Error ? query.error : null,
-    refetch: query.refetch,
+    isLoading: tripsQuery.isPending || query.isLoading,
+    error: catalogError ?? derivedError,
+    refetch: () => {
+      void tripsQuery.refetch();
+      void query.refetch();
+    },
   };
 }
