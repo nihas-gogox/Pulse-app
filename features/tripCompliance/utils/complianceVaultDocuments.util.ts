@@ -54,6 +54,12 @@ export function complianceStoragePathCandidates(input: {
     const parsed = parseComplianceStorageRef(raw);
     if (parsed.kind === "url") return { url: parsed.value, paths: [] };
     if (parsed.value) paths.push(parsed.value);
+    // Stored object paths already identify the file. Guessing extra
+    // extensions signs 5×4 missing objects per preview and times out
+    // storage RLS while the DB is degraded.
+    if (parsed.value && /\.[A-Za-z0-9]+$/.test(parsed.value)) {
+      return { url: null, paths };
+    }
   }
   const orgId = input.organizationId?.trim();
   const entityId = input.entityId?.trim();

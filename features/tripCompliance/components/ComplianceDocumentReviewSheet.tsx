@@ -39,6 +39,7 @@ import {
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { PdfViewer } from "@/components/PdfViewer";
+import { describeStopProofDocument } from "@/features/driver/job-card/deliveryProof";
 import { uploadTripDocument, type TripDocumentType } from "@/features/trips/services/tripDocuments.service";
 import * as DocumentPicker from "expo-document-picker";
 import { ChevronLeft, Eye, X } from "lucide-react-native";
@@ -132,6 +133,14 @@ export function ComplianceDocumentReviewSheet({
   const { open: openDocPreview, node: docPreviewNode } = useDocumentPreview();
 
   const selected: ComplianceDocRow | null = rows.find((r) => r.key === selectedKey) ?? null;
+  const selectedStopProof = selected
+    ? describeStopProofDocument({
+        fileName: selected.doc?.file_name ?? selected.entityDoc?.notes,
+        mimeType: selected.doc?.mime_type,
+        documentNumber: selected.doc?.document_number,
+        storagePath: selected.doc?.storage_path ?? selected.entityDoc?.storage_path,
+      })
+    : null;
   const canModerateSelected =
     scope === "trip"
       ? Boolean(selected?.doc)
@@ -177,7 +186,7 @@ export function ComplianceDocumentReviewSheet({
 
   useEffect(() => {
     let cancelled = false;
-    if (!selected) {
+    if (!selected || selectedStopProof) {
       setPreviewUrl(null);
       return () => {
         cancelled = true;
@@ -189,7 +198,7 @@ export function ComplianceDocumentReviewSheet({
     return () => {
       cancelled = true;
     };
-  }, [resolveRowViewUrl, selected]);
+  }, [resolveRowViewUrl, selected, selectedStopProof?.code, selectedStopProof?.kind]);
 
   const handleOpenDocument = useCallback(() => {
     if (!previewUrl || !selected) return;
@@ -203,6 +212,16 @@ export function ComplianceDocumentReviewSheet({
   const handleViewRow = useCallback(
     async (row: ComplianceDocRow) => {
       const path = row.doc?.storage_path ?? row.entityDoc?.storage_path ?? null;
+      const stopProof = describeStopProofDocument({
+        fileName: row.doc?.file_name ?? row.entityDoc?.notes,
+        mimeType: row.doc?.mime_type,
+        documentNumber: row.doc?.document_number,
+        storagePath: path,
+      });
+      if (stopProof) {
+        setSelectedKey(row.key);
+        return;
+      }
       if (!path && !(organizationId && entityId && row.type)) {
         alertMessage("No document", `${labelForDocType(row.type)} has not been uploaded yet.`);
         return;
@@ -454,7 +473,16 @@ export function ComplianceDocumentReviewSheet({
             <ScrollView style={styles.previewScroll}>
               <View style={styles.previewBox}>
                 <Text style={styles.previewBoxLabel}>DOCUMENT PREVIEW</Text>
-                {previewUrl ? (
+                {selectedStopProof ? (
+                  <View style={styles.placeProofBox}>
+                    <Text style={styles.placeProofLabel}>{selectedStopProof.label}</Text>
+                    <Text style={styles.placeProofHint}>
+                      {selectedStopProof.kind === "pickup"
+                        ? "Pickup place was recorded without a photo."
+                        : "Delivery place was recorded without a photo."}
+                    </Text>
+                  </View>
+                ) : previewUrl ? (
                   <>
                     {guessCompliancePreviewMime(selected.doc?.storage_path ?? selected.entityDoc?.storage_path ?? previewUrl) === "application/pdf" ? (
                       <View style={styles.inlinePreview}>
@@ -580,6 +608,9 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.cardWhite,
   },
   previewBoxLabel: { fontSize: 10, fontWeight: "700", color: Theme.textMuted, letterSpacing: 0.5 },
+  placeProofBox: { width: "100%", alignItems: "center", gap: 6, paddingVertical: 12 },
+  placeProofLabel: { fontSize: 16, fontWeight: "700", color: Theme.textPrimary, textAlign: "center" },
+  placeProofHint: { fontSize: 12, color: Theme.textMuted, textAlign: "center", lineHeight: 16 },
   openDocBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: Theme.buttonDark },
   openDocBtnText: { fontSize: 12, fontWeight: "700", color: Theme.buttonDarkText },
   docTitle: { fontSize: 15, fontWeight: "700", color: Theme.textPrimary },

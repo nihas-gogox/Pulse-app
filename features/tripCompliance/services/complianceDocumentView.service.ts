@@ -16,15 +16,10 @@ export type ComplianceViewSource = "vehicle-vault" | "driver-kyc" | "entity" | "
 type StorageBucket = "vehicle-documents" | "compliance-documents" | "driver-documents" | "trip-documents";
 
 function bucketsForSource(source: ComplianceViewSource): StorageBucket[] {
-  if (source === "trip") {
-    return ["trip-documents", "vehicle-documents", "compliance-documents", "driver-documents"];
-  }
-  if (source === "driver-kyc") {
-    return ["driver-documents", "vehicle-documents", "compliance-documents", "trip-documents"];
-  }
-  if (source === "entity") {
-    return ["compliance-documents", "vehicle-documents", "driver-documents", "trip-documents"];
-  }
+  if (source === "trip") return ["trip-documents"];
+  if (source === "driver-kyc") return ["driver-documents"];
+  if (source === "entity") return ["compliance-documents"];
+  if (source === "vehicle-vault") return ["vehicle-documents"];
   return ["vehicle-documents", "compliance-documents", "driver-documents", "trip-documents"];
 }
 
@@ -76,9 +71,10 @@ export async function resolveComplianceDocumentViewUrl(input: {
       if (signed) return signed;
     }
   }
-  for (const path of paths) {
-    for (const bucket of buckets) {
-      const blobUrl = await downloadFromBucket(bucket, path);
+  const primary = buckets[0];
+  if (primary) {
+    for (const path of paths) {
+      const blobUrl = await downloadFromBucket(primary, path);
       if (blobUrl) return blobUrl;
     }
   }
@@ -91,5 +87,6 @@ export function guessCompliancePreviewMime(pathOrName: string | null | undefined
   if (value.endsWith(".png") || value.includes(".png?")) return "image/png";
   if (value.endsWith(".webp") || value.includes(".webp?")) return "image/webp";
   if (/\.jpe?g(\?|$)/.test(value)) return "image/jpeg";
+  if (value.endsWith(".txt") || value.includes(".txt?")) return "text/plain";
   return null;
 }

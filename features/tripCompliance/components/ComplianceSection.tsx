@@ -10,6 +10,7 @@ import Theme from "@/constants/Theme";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { supabase } from "@/lib/supabase";
 import { PAYMENT_MODES } from "@/lib/paymentModes";
+import { describeStopProofDocument } from "@/features/driver/job-card/deliveryProof";
 import { getDocumentViewUrl, type TripDocumentRow } from "@/features/trips/services/tripDocuments.service";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import {
@@ -189,6 +190,8 @@ export function ComplianceSection({
         verified_by: complianceById[d.id]?.verified_by ?? null,
         verified_at: complianceById[d.id]?.verified_at ?? null,
         rejection_reason: complianceById[d.id]?.rejection_reason ?? null,
+        mime_type: d.mime_type,
+        document_number: d.document_number,
       })),
     [tripDocuments, complianceById],
   );
@@ -196,6 +199,21 @@ export function ComplianceSection({
   const verifyCheck = canMarkComplianceVerified(documents);
 
   const handlePreview = useCallback(async (doc: ComplianceDocumentRow) => {
+    const stopProof = describeStopProofDocument({
+      fileName: doc.file_name,
+      mimeType: doc.mime_type,
+      documentNumber: doc.document_number,
+      storagePath: doc.storage_path,
+    });
+    if (stopProof) {
+      alertMessage(
+        stopProof.label,
+        stopProof.kind === "pickup"
+          ? "Pickup place was recorded without a photo."
+          : "Delivery place was recorded without a photo.",
+      );
+      return;
+    }
     const url = await getDocumentViewUrl(doc.storage_path);
     if (url) void Linking.openURL(url);
   }, []);

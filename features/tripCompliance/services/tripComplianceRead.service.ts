@@ -52,6 +52,8 @@ type RawTripDocRow = {
   verified_by?: string | null;
   verified_at?: string | null;
   rejection_reason?: string | null;
+  mime_type?: string | null;
+  document_number?: string | null;
 };
 
 async function fetchTripDocumentsForTrips(
@@ -64,7 +66,7 @@ async function fetchTripDocumentsForTrips(
   const withStatus = await supabase()
     .from("trip_documents")
     .select(
-      "id, trip_id, document_type, file_name, storage_path, uploaded_at, status, verified_by, verified_at, rejection_reason",
+      "id, trip_id, document_type, file_name, storage_path, uploaded_at, status, verified_by, verified_at, rejection_reason, mime_type, document_number",
     )
     .in("trip_id", tripIds);
 
@@ -95,6 +97,8 @@ async function fetchTripDocumentsForTrips(
       verified_by: r.verified_by ?? null,
       verified_at: r.verified_at ?? null,
       rejection_reason: r.rejection_reason ?? null,
+      mime_type: r.mime_type ?? null,
+      document_number: r.document_number ?? null,
     };
     const list = byTrip.get(doc.trip_id) ?? [];
     list.push(doc);

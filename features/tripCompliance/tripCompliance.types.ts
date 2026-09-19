@@ -80,6 +80,8 @@ export type ComplianceDocumentRow = {
   verified_by: string | null;
   verified_at: string | null;
   rejection_reason: string | null;
+  mime_type?: string | null;
+  document_number?: string | null;
 };
 
 /** Vehicle/driver docs shown on Compliance — vault JSONB, KYC, or entity_documents. */
