@@ -240,7 +240,8 @@ async function fetchRatingsByRatedIds(
     const chunk = unique.slice(i, i + RATINGS_IN_CHUNK);
     const { data, error } = await supabase()
       .from('ratings')
-      .select('*')
+      // Bulk callers only use id (dedupe), rated_id (group), and score (avg/count).
+      .select('id, rated_id, score')
       .eq('rated_type', ratedType)
       .in('rated_id', chunk)
       .order('created_at', { ascending: false });
