@@ -8,7 +8,10 @@ import { syncDomainRows } from "@/lib/cache/domainSync";
 import { mergeDeltaRows } from "@/lib/cache/mergeDelta";
 import type { DeltaResponse } from "@/lib/cache/deltaTypes";
 import { supabase } from "@/lib/supabase";
-import { normalizeInfrastructureErrorMessage } from "@/lib/supabaseHttp.util";
+import {
+  isServiceUnavailableError,
+  normalizeInfrastructureErrorMessage,
+} from "@/lib/supabaseHttp.util";
 import type { RatingRow } from "@/features/ratings";
 import type { SalaryRequestRow } from "@/features/drivers/services/salaryRequests.service";
 import type { LedgerRow } from "@/features/finance";
@@ -792,6 +795,15 @@ let syncLinkedDriversInflight: Promise<{
 }> | null = null;
 let syncLinkedDriversLastDoneAt = 0;
 const SYNC_LINKED_DRIVERS_COOLDOWN_MS = 5_000;
+/**
+ * Set when the RPC last failed because PostgREST/Postgres was unavailable.
+ * This sync only links roster rows opportunistically — nothing in the boot path
+ * depends on it — so while the origin is down we skip it entirely rather than
+ * re-queue work onto a failing instance (2026-09-19 08:02: 8 calls in 30s from
+ * a dispatcher login while every REST request was 503ing). Cleared by the next
+ * successful call, so this is a circuit, not another timer.
+ */
+let syncLinkedDriversOriginDown = false;
 let syncLinkedDriversLastResult: {
   error: Error | null;
   linkedCount: number;
@@ -802,6 +814,7 @@ export async function syncLinkedDriverRowsForCurrentUser(): Promise<{
   linkedCount: number;
 }> {
   if (syncLinkedDriversInflight) return syncLinkedDriversInflight;
+  if (syncLinkedDriversOriginDown) return syncLinkedDriversLastResult;
   const now = Date.now();
   if (now - syncLinkedDriversLastDoneAt < SYNC_LINKED_DRIVERS_COOLDOWN_MS) {
     return syncLinkedDriversLastResult;
@@ -810,8 +823,10 @@ export async function syncLinkedDriverRowsForCurrentUser(): Promise<{
     try {
       const { data, error } = await supabase().rpc("sync_my_driver_rows_user_id");
       if (error) {
+        syncLinkedDriversOriginDown = isServiceUnavailableError(error);
         syncLinkedDriversLastResult = { error: new Error(error.message), linkedCount: 0 };
       } else {
+        syncLinkedDriversOriginDown = false;
         syncLinkedDriversLastResult = {
           error: null,
           linkedCount: typeof data === "number" ? data : 0,
@@ -830,6 +845,7 @@ export async function syncLinkedDriverRowsForCurrentUser(): Promise<{
 export function __resetSyncLinkedDriversDedupeForTests(): void {
   syncLinkedDriversInflight = null;
   syncLinkedDriversLastDoneAt = 0;
+  syncLinkedDriversOriginDown = false;
   syncLinkedDriversLastResult = { error: null, linkedCount: 0 };
 }
 

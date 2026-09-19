@@ -1619,14 +1619,14 @@ export async function refreshSession(): Promise<{
       const base = mapSupabaseUserToAuth(user);
 
       // Fetch from public.profiles and merge with metadata so stale DB values don't hide fresh updates.
-      const { data: profile } = await supabase()
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
+      // Routed through getProfile so this shares the per-uid single-flight with
+      // AuthContext instead of issuing its own `select=*`: during the 2026-09-19
+      // 08:02 storm this call and getProfile hit profiles independently, turning
+      // one boot into two query shapes per cycle. getProfile selects exactly the
+      // columns mapDbProfileToAuth reads, so `select=*` fetched nothing extra.
+      const dbProfile = await getProfile(user.id);
 
-      if (profile) {
-        const dbProfile = mapDbProfileToAuth(profile);
+      if (dbProfile) {
         const meta = user.user_metadata ?? {};
         const opModel = meta.operating_model as string | undefined;
         // Prefer auth metadata operating_model over stale profiles.aggregated/asset.

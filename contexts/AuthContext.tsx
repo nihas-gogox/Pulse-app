@@ -336,6 +336,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const dbProfile = await authService.getProfile(uid);
           if (dbProfile) return dbProfile;
 
+          // A null profile means "no row" only when the read actually reached
+          // the database. On PGRST002/PGRST003/5xx it means the API layer is
+          // down, and provisioning would add an upsert plus a second read to an
+          // instance that is already failing — the 2026-09-19 08:02 storm, where
+          // one user produced three profiles query shapes in a 30s loop.
+          if (authService.lastProfileFetchWasServiceUnavailable(uid)) return null;
+
           const provision = await authService.ensureCurrentUserProfile();
           if (provision.error) return null;
 
