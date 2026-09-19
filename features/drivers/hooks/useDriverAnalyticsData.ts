@@ -42,16 +42,22 @@ export function useDriverAnalyticsData(driverId: string) {
     if (!isRefreshingRef.current && !initialLoadDoneRef.current) setLoading(true);
     setError(null);
     const orgId = currentOrganization.id;
-    const cachedTrips = queryClient.getQueryData<TripRow[]>(queryKeys.trips.finite(orgId));
+    // Reuse Trips tab cache — avoid a second get_trips_for_org round-trip.
+    const tripsPromise = queryClient.ensureQueryData({
+      queryKey: queryKeys.trips.finite(orgId),
+      queryFn: async () => {
+        const res = await getTripsForOrg(orgId);
+        if (res.error) throw res.error;
+        return res.trips;
+      },
+    });
 
     Promise.all([
       getDriverDetailBundle(orgId, driverId),
-      cachedTrips !== undefined
-        ? Promise.resolve({ error: null, trips: cachedTrips })
-        : getTripsForOrg(orgId),
+      tripsPromise,
       getDriverOffersByOrganization(orgId),
     ])
-      .then(([bundleRes, tripsRes, offersRes]) => {
+      .then(([bundleRes, allTrips, offersRes]) => {
         const driverRow = bundleRes.error ? null : (bundleRes.driver ?? null);
         if (bundleRes.error) {
           setError(bundleRes.error.message);
@@ -61,7 +67,6 @@ export function useDriverAnalyticsData(driverId: string) {
           return;
         }
         setDriver(driverRow);
-        const allTrips = tripsRes.error ? [] : (tripsRes.trips ?? []);
         const txs = (bundleRes.transactions ?? []) as LedgerRow[];
         const tripIdsFromDriverTx = new Set(
           txs
