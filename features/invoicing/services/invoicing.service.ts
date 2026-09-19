@@ -99,7 +99,7 @@ export interface PodReconciliationSummary {
 const LIVE_TRIP_SELECT =
   "id, organization_id, trip_operational_code, trip_code, display_trip_id, trip_number, booking_ref, supplier_id, client_id, client_name, client_price, status, pickup_date, pickup_area, drop_location, notes, created_at, pod_received_at";
 
-const POD_IN_CHUNK = 200;
+const POD_IN_CHUNK = 40;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
