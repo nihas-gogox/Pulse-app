@@ -70,6 +70,13 @@ export type BidConfirmModalProps = {
   weight?: string;
   material?: string;
   targetRate?: number | null;
+  /** e.g. "/MT" — shown on the target line and amount. */
+  targetSuffix?: string | null;
+  amountSuffix?: string | null;
+  /** Gold highlighter, e.g. "Per MT". */
+  rateBasisLabel?: string | null;
+  /** Expected trip line under a ₹/MT offer, e.g. "≈ ₹46,800 at 9T". */
+  expectedTripLabel?: string | null;
   note?: string;
   submitting?: boolean;
   /** Marketplace-only. Omit entirely for Reach/relationship bidding. */
@@ -127,6 +134,10 @@ export const BidConfirmModal = memo(function BidConfirmModal({
   weight,
   material,
   targetRate,
+  targetSuffix,
+  amountSuffix,
+  rateBasisLabel,
+  expectedTripLabel,
   note,
   submitting = false,
   marketplaceFee,
@@ -271,8 +282,11 @@ export const BidConfirmModal = memo(function BidConfirmModal({
       : null;
 
   const amountVsTarget = useMemo(
-    () => resolveBidVsTarget(amount, targetRate),
-    [amount, targetRate],
+    () =>
+      resolveBidVsTarget(amount, targetRate, {
+        unit: amountSuffix ?? targetSuffix ?? undefined,
+      }),
+    [amount, targetRate, amountSuffix, targetSuffix],
   );
 
   const confirmLabel = submitting
@@ -455,7 +469,7 @@ export const BidConfirmModal = memo(function BidConfirmModal({
                     amountVsTarget?.tone === "under" && styles.successAmountUnder,
                   ]}
                 >
-                  {formatINR(amount)}
+                  {formatINR(amount)}{amountSuffix ?? ""}
                 </Text>
                 {amountVsTarget ? (
                   <BidVsTargetHint
@@ -511,6 +525,13 @@ export const BidConfirmModal = memo(function BidConfirmModal({
                   <Text style={styles.modeLabel}>
                     {isEditMode ? "Update bid" : "Place bid"}
                   </Text>
+                  {rateBasisLabel ? (
+                    <View style={styles.rateBasisPill}>
+                      <Text style={styles.rateBasisPillText}>
+                        {rateBasisLabel}
+                      </Text>
+                    </View>
+                  ) : null}
                   {vsTarget ? (
                     <View
                       style={[
@@ -541,8 +562,11 @@ export const BidConfirmModal = memo(function BidConfirmModal({
                   style={[styles.heroAmount, { color: heroAmountColor }]}
                   accessibilityRole="header"
                 >
-                  {formatINR(amount)}
+                  {formatINR(amount)}{amountSuffix ?? ""}
                 </Text>
+                {expectedTripLabel ? (
+                  <Text style={styles.expectedTrip}>{expectedTripLabel}</Text>
+                ) : null}
                 {amountVsTarget ? (
                   <BidVsTargetHint
                     caption={amountVsTarget.caption}
@@ -551,7 +575,7 @@ export const BidConfirmModal = memo(function BidConfirmModal({
                   />
                 ) : targetRate != null && targetRate > 0 ? (
                   <Text style={styles.heroTarget}>
-                    Target {formatINR(targetRate)}
+                    Target {formatINR(targetRate)}{targetSuffix ?? amountSuffix ?? ""}
                   </Text>
                 ) : (
                   <Text style={styles.heroTarget}>
@@ -825,6 +849,25 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
     color: Theme.textPrimaryDark,
     lineHeight: 40,
+  },
+  expectedTrip: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: "600",
+    color: Theme.textSecondary,
+  },
+  rateBasisPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: Theme.accentGold,
+  },
+  rateBasisPillText: {
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: Theme.textPrimary,
   },
   heroDelta: {
     marginTop: 6,

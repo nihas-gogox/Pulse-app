@@ -14,6 +14,15 @@ import {
   BidConfirmModal,
   type BidConfirmPhase,
 } from "@/features/network/components/bidding/BidConfirmModal";
+import { PerMtBidGuidance } from "@/features/network/components/bidding/PerMtBidGuidance";
+import {
+  resolveExpectedTripValue,
+  resolveVehiclePayloadTonnes,
+  storedBidFromUnitRate,
+  unitRateFromStoredBid,
+} from "@/features/network/utils/bidding/perMtBidPresentation.util";
+import { resolveCommercialPricing } from "@/features/marketplace/domain/commercialPricing";
+import { formatINR } from "@/lib/format";
 
 export interface IndentBidAmountEntryProps {
   visible: boolean;
@@ -35,7 +44,14 @@ export interface IndentBidAmountEntryProps {
   material?: string | null;
   /** Load owner / client shown on confirm card. */
   ownerName?: string | null;
+  /**
+   * Supplier target as stored on the indent. When `saleRateBasis` is
+   * `"per_mt"` this is the ₹/MT unit rate, not a trip total.
+   */
   targetRateInr?: number;
+  saleRateBasis?: "per_mt" | "per_trip" | string | null;
+  /** Indent weight in KG — expands a per-MT target and stored bid. */
+  weightKg?: number | null;
   /** Pre-fill when updating an existing quote. */
   initialAmount?: number | null;
   isUpdate?: boolean;
@@ -75,6 +91,8 @@ export function IndentBidAmountEntry({
   material,
   ownerName,
   targetRateInr,
+  saleRateBasis,
+  weightKg,
   initialAmount,
   isUpdate = false,
   validationError,
@@ -87,29 +105,56 @@ export function IndentBidAmountEntry({
   const [confirmPhase, setConfirmPhase] = useState<BidConfirmPhase>("review");
   const [pendingAmount, setPendingAmount] = useState(0);
   const [confirmSubmitting, setConfirmSubmitting] = useState(false);
+  const [estimateTonnes, setEstimateTonnes] = useState<number | null>(null);
+  const [liveRaw, setLiveRaw] = useState("");
   const celebrationLockRef = useRef(false);
 
+  const isPerMt = saleRateBasis === "per_mt";
+  const pricing = useMemo(
+    () =>
+      resolveCommercialPricing({
+        supplierTarget: targetRateInr,
+        saleRateBasis: saleRateBasis ?? null,
+        weightKg: weightKg ?? null,
+        bidCount: 0,
+      }),
+    [targetRateInr, saleRateBasis, weightKg],
+  );
+  const unitRateInr = isPerMt ? pricing.unitRateInr : null;
+  const indentTonnes = isPerMt ? pricing.tonnes : null;
+  const compareTarget = isPerMt ? unitRateInr : targetRateInr;
+
   useEffect(() => {
-    if (visible) return;
-    celebrationLockRef.current = false;
-    setConfirmOpen(false);
-    setConfirmPhase("review");
-    setConfirmSubmitting(false);
-    setPendingAmount(0);
-  }, [visible]);
+    if (!visible) {
+      celebrationLockRef.current = false;
+      setConfirmOpen(false);
+      setConfirmPhase("review");
+      setConfirmSubmitting(false);
+      setPendingAmount(0);
+      setEstimateTonnes(null);
+      setLiveRaw("");
+      return;
+    }
+    setEstimateTonnes(resolveVehiclePayloadTonnes(vehicleType) ?? null);
+  }, [visible, vehicleType]);
 
   const initialValue = useMemo(() => {
     if (initialAmount != null && Number(initialAmount) > 0) {
-      return toRawString(initialAmount);
+      const stored = Math.round(Number(initialAmount));
+      const seed = isPerMt
+        ? unitRateFromStoredBid(stored, indentTonnes)
+        : stored;
+      return seed > 0 ? toRawString(seed) : "";
     }
     return "";
-  }, [visible, initialAmount]);
+  }, [visible, initialAmount, isPerMt, indentTonnes]);
 
   const partyPreview = useMemo((): NumericEntryPartyPreview | undefined => {
     const route = routeSubtitle(origin, destination);
     const specParts = [
       cleanSpec(vehicleType),
-      cleanSpec(weightLabel),
+      cleanSpec(weightLabel) ??
+        (isPerMt ? "Weight at loading" : undefined),
       cleanSpec(material),
     ].filter(Boolean) as string[];
     const displayName =
@@ -129,12 +174,14 @@ export function IndentBidAmountEntry({
     weightLabel,
     material,
     ownerName,
+    isPerMt,
   ]);
 
   const originCity = cleanSpec(origin);
   const destinationCity = cleanSpec(destination);
   const vehicle = cleanSpec(vehicleType);
-  const weight = cleanSpec(weightLabel);
+  const weight =
+    cleanSpec(weightLabel) ?? (isPerMt ? "Weight at loading" : undefined);
   const materialClean = cleanSpec(material);
   const owner =
     (ownerName ?? "").trim() ||
@@ -158,10 +205,14 @@ export function IndentBidAmountEntry({
 
   const handleConfirm = useCallback(async () => {
     if (confirmSubmitting || pendingAmount <= 0) return;
+    const stored = isPerMt
+      ? storedBidFromUnitRate(pendingAmount, indentTonnes)
+      : pendingAmount;
+    if (!Number.isFinite(stored) || stored <= 0) return;
     setConfirmSubmitting(true);
     onClearValidationError?.();
     try {
-      const ok = await onSubmitAmount(pendingAmount);
+      const ok = await onSubmitAmount(stored);
       if (!ok) {
         celebrationLockRef.current = false;
         setConfirmOpen(false);
@@ -178,6 +229,8 @@ export function IndentBidAmountEntry({
     pendingAmount,
     onClearValidationError,
     onSubmitAmount,
+    isPerMt,
+    indentTonnes,
   ]);
 
   const finishAfterSuccess = useCallback(() => {
@@ -201,6 +254,34 @@ export function IndentBidAmountEntry({
     onClose();
   }, [confirmSubmitting, onClose]);
 
+  const expectedTrip = useMemo(() => {
+    if (!isPerMt) return null;
+    const typed = parseRawToNumber(liveRaw);
+    const rateForMath =
+      typed > 0 ? typed : pendingAmount > 0 ? pendingAmount : unitRateInr;
+    return resolveExpectedTripValue({
+      unitRateInr: rateForMath,
+      indentTonnes,
+      vehicleType: vehicle,
+      estimateTonnes,
+    });
+  }, [
+    isPerMt,
+    liveRaw,
+    pendingAmount,
+    unitRateInr,
+    indentTonnes,
+    vehicle,
+    estimateTonnes,
+  ]);
+
+  const expectedTripLabel =
+    expectedTrip != null
+      ? `${expectedTrip.source === "indent_weight" ? "" : "≈ "}${formatINR(expectedTrip.amountInr)} at ${expectedTrip.tonnes}T`
+      : undefined;
+
+  const typedUnitRate = parseRawToNumber(liveRaw);
+
   return (
     <>
       <FullscreenNumericEntry
@@ -213,6 +294,7 @@ export function IndentBidAmountEntry({
         partyPreview={partyPreview}
         type="currency"
         prefix="₹"
+        suffix={isPerMt ? "/MT" : undefined}
         placeholder="0"
         allowDecimal={false}
         maxDecimalPlaces={0}
@@ -225,7 +307,37 @@ export function IndentBidAmountEntry({
             : validationError
         }
         targetRate={
-          targetRateInr != null && targetRateInr > 0 ? targetRateInr : null
+          compareTarget != null && compareTarget > 0 ? compareTarget : null
+        }
+        targetSuffix={isPerMt ? "/MT" : undefined}
+        onValueChange={setLiveRaw}
+        aboveAmount={
+          isPerMt ? (
+            <PerMtBidGuidance
+              parts="banner"
+              targetUnitRateInr={unitRateInr}
+              typedUnitRateInr={typedUnitRate}
+              expected={expectedTrip}
+              showEstimateChips={false}
+              estimateTonnes={estimateTonnes}
+              vehicleType={vehicle}
+              onEstimateTonnesChange={setEstimateTonnes}
+            />
+          ) : null
+        }
+        belowAmount={
+          isPerMt ? (
+            <PerMtBidGuidance
+              parts="estimate"
+              targetUnitRateInr={unitRateInr}
+              typedUnitRateInr={typedUnitRate}
+              expected={expectedTrip}
+              showEstimateChips={false}
+              estimateTonnes={estimateTonnes}
+              vehicleType={vehicle}
+              onEstimateTonnesChange={setEstimateTonnes}
+            />
+          ) : null
         }
       />
 
@@ -241,8 +353,12 @@ export function IndentBidAmountEntry({
         weight={weight}
         material={materialClean}
         targetRate={
-          targetRateInr != null && targetRateInr > 0 ? targetRateInr : null
+          compareTarget != null && compareTarget > 0 ? compareTarget : null
         }
+        targetSuffix={isPerMt ? "/MT" : undefined}
+        amountSuffix={isPerMt ? "/MT" : undefined}
+        rateBasisLabel={isPerMt ? "Per MT" : undefined}
+        expectedTripLabel={expectedTripLabel}
         submitting={confirmSubmitting}
         onCancel={handleCancelConfirm}
         onConfirm={() => {

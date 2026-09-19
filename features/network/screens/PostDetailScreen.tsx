@@ -6,6 +6,7 @@ import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { PartyAvatar } from "@/components/PartyAvatar";
 import Theme from '@/constants/Theme';
 import { BidSheet } from '@/features/network/components/bidding/BidSheet';
+import { formatWeightChip } from '@/features/network/utils/bidding/perMtBidPresentation.util';
 import { useVerifiedActionGuard } from '@/features/network/utils/verifiedActionGuard';
 import { useNetworkFeedQuery, useAfterPostDeleted } from '@/lib/queries/usePostsQuery';
 import {
@@ -390,12 +391,14 @@ export default function PostDetailScreen() {
                     <Text style={styles.chipText}>{post.vehicle_type}</Text>
                   </View>
                 )}
-                {post.weight_tonnes != null && (
+                {formatWeightChip(post.weight_tonnes) ? (
                   <View style={styles.chip}>
                     <Package size={10} color={Theme.textSecondary} />
-                    <Text style={styles.chipText}>{post.weight_tonnes}T</Text>
+                    <Text style={styles.chipText}>
+                      {formatWeightChip(post.weight_tonnes)}
+                    </Text>
                   </View>
-                )}
+                ) : null}
                 {post.material && (
                   <View style={styles.chip}>
                     <Text style={styles.chipText}>{post.material}</Text>

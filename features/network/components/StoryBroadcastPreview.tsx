@@ -6,6 +6,7 @@ import Layout from "@/constants/Layout";
 import Theme from "@/constants/Theme";
 import { RouteEndpointStack } from "@/features/network/components/RouteEndpointStack";
 import type { PostRow } from "@/features/network/services/posts.service";
+import { formatWeightChip } from "@/features/network/utils/bidding/perMtBidPresentation.util";
 import { formatINR } from "@/lib/format";
 import { ArrowRight, Package } from "lucide-react-native";
 import { useEffect, useRef } from "react";
@@ -32,6 +33,8 @@ export type StoryBroadcastPreviewProps = {
   origin: string | null | undefined;
   destination: string | null | undefined;
   loadTargetRate: number | null;
+  /** e.g. "/MT" so a unit rate is not read as a trip total. */
+  loadRateSuffix?: string | null;
   isDesktopPreview?: boolean;
   storyKey: string;
   /** Defaults to "Load broadcast". FO capacity uses "Open capacity". */
@@ -44,6 +47,7 @@ export function StoryBroadcastPreview({
   origin,
   destination,
   loadTargetRate,
+  loadRateSuffix,
   isDesktopPreview = false,
   storyKey,
   kicker = "Load broadcast",
@@ -106,9 +110,10 @@ export function StoryBroadcastPreview({
 
   const lottieSize = isDesktopPreview ? 88 : 72;
   const vehicleHero = post.vehicle_type?.trim() || "Any vehicle";
+  const weightChip = formatWeightChip(post.weight_tonnes);
   const showMetaRow =
     Boolean(loadMaterial?.trim()) ||
-    post.weight_tonnes != null ||
+    weightChip != null ||
     loadTargetRate != null;
 
   return (
@@ -180,14 +185,16 @@ export function StoryBroadcastPreview({
                 </Text>
               </View>
             ) : null}
-            {post.weight_tonnes != null ? (
+            {weightChip ? (
               <View style={styles.metaChip}>
-                <Text style={styles.metaChipText}>{post.weight_tonnes}T</Text>
+                <Text style={styles.metaChipText}>{weightChip}</Text>
               </View>
             ) : null}
             {loadTargetRate != null ? (
               <View style={[styles.metaChip, styles.metaChipRate]}>
-                <Text style={styles.metaChipRateText}>{formatINR(loadTargetRate)}</Text>
+                <Text style={styles.metaChipRateText}>
+                  {formatINR(loadTargetRate)}{loadRateSuffix ?? ""}
+                </Text>
               </View>
             ) : null}
           </View>

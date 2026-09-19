@@ -7,7 +7,7 @@
  *
  * Uses a custom DecimalKeypad — no native keyboard for financial inputs.
  */
-import React, { useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import {
   Modal,
   View,
@@ -72,6 +72,12 @@ export interface FullscreenNumericEntryProps {
    * and a tiny ± vs target caption appears under the value.
    */
   targetRate?: number | null;
+  /** e.g. "/MT" on the target chip and fallback line. */
+  targetSuffix?: string;
+  /** Shown above the amount (e.g. per-MT highlighter). */
+  aboveAmount?: ReactNode;
+  /** Shown under the amount (e.g. expected-trip estimate). */
+  belowAmount?: ReactNode;
   /**
    * Tiny one-tap fill (e.g. "Match counter · ₹36,000") under the amount.
    * Sets the keypad value to `amount` without submitting.
@@ -79,6 +85,8 @@ export interface FullscreenNumericEntryProps {
   quickFill?: { label: string; amount: number } | null;
   /** Drawn above the keypad inside this modal (e.g. confirm sheet). Avoids a second RN Modal. */
   overlay?: ReactNode;
+  /** Fires on every keypad change so parents can live-update guidance. */
+  onValueChange?: (raw: string) => void;
 }
 
 export function FullscreenNumericEntry({
@@ -98,12 +106,18 @@ export function FullscreenNumericEntry({
   submitLabel = 'Apply',
   validationError,
   targetRate = null,
+  targetSuffix,
+  aboveAmount = null,
+  belowAmount = null,
   quickFill = null,
   overlay = null,
+  onValueChange,
 }: FullscreenNumericEntryProps) {
   const [raw, setRaw] = useState(initialValue);
   /** Value before quick-fill; second tap restores it. */
   const [preQuickFillRaw, setPreQuickFillRaw] = useState<string | null>(null);
+  const onValueChangeRef = useRef(onValueChange);
+  onValueChangeRef.current = onValueChange;
   const platform = useInputPlatform();
   const insets = useSafeAreaInsets();
   const isDesktop = platform === 'desktop';
@@ -134,12 +148,17 @@ export function FullscreenNumericEntry({
     if (visible) {
       setRaw(initialValue);
       setPreQuickFillRaw(null);
+      onValueChangeRef.current?.(initialValue);
     }
   }, [visible, initialValue]);
 
   const handleKey = useCallback((key: KeypadKey) => {
     setPreQuickFillRaw(null);
-    setRaw((prev) => applyKeypadPress(prev, key, keypadOpts));
+    setRaw((prev) => {
+      const next = applyKeypadPress(prev, key, keypadOpts);
+      onValueChangeRef.current?.(next);
+      return next;
+    });
   }, [keypadOpts]);
 
   const handleSubmit = useCallback(() => {
@@ -169,10 +188,13 @@ export function FullscreenNumericEntry({
       if (preQuickFillRaw == null) return;
       setRaw(preQuickFillRaw);
       setPreQuickFillRaw(null);
+      onValueChangeRef.current?.(preQuickFillRaw);
       return;
     }
     setPreQuickFillRaw(raw);
-    setRaw(toRawString(quickFillAmount));
+    const next = toRawString(quickFillAmount);
+    setRaw(next);
+    onValueChangeRef.current?.(next);
   }, [quickFillAmount, quickFillAlreadyMatched, preQuickFillRaw, raw]);
 
   usePhysicalKeypadInput({
@@ -192,11 +214,14 @@ export function FullscreenNumericEntry({
 
   const vsTarget = useMemo(() => {
     if (type !== 'currency') return null;
-    return resolveBidVsTarget(parseRawToNumber(raw), targetRate);
-  }, [raw, targetRate, type]);
+    return resolveBidVsTarget(parseRawToNumber(raw), targetRate, {
+      unit: targetSuffix,
+    });
+  }, [raw, targetRate, type, targetSuffix]);
 
   const amountDisplay = (
     <View style={styles.amountStack}>
+      {aboveAmount}
       <NumericDisplay
         rawValue={raw}
         type={type}
@@ -208,9 +233,12 @@ export function FullscreenNumericEntry({
       />
       {vsTarget ? (
         <BidVsTargetHint caption={vsTarget.caption} tone={vsTarget.tone} />
-      ) : targetRate != null && targetRate > 0 && type === 'currency' ? (
-        <Text style={styles.targetFallback}>Target {formatINR(targetRate)}</Text>
+      ) : !belowAmount && targetRate != null && targetRate > 0 && type === 'currency' ? (
+        <Text style={styles.targetFallback}>
+          Target {formatINR(targetRate)}{targetSuffix ?? ''}
+        </Text>
       ) : null}
+      {belowAmount}
       {quickFillAmount != null ? (
         <TouchableOpacity
           style={[
@@ -385,7 +413,9 @@ export function FullscreenNumericEntry({
           {targetRate != null && targetRate > 0 ? (
             <View style={styles.targetChip}>
               <Text style={styles.targetChipLabel}>Target</Text>
-              <Text style={styles.targetChipValue}>{formatINR(targetRate)}</Text>
+              <Text style={styles.targetChipValue}>
+                {formatINR(targetRate)}{targetSuffix ?? ''}
+              </Text>
             </View>
           ) : null}
         </View>

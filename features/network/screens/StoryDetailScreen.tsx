@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
     getIndentDisplayNumber,
-    getVisibleIndentById,
+    getIndentTargetForBidder,
 } from "@/features/indents/services/indents.service";
 import { resolveCommercialOpportunity } from "@/features/marketplace/domain";
 import { StoryBroadcastPreview } from "@/features/network/components/StoryBroadcastPreview";
@@ -346,9 +346,9 @@ export default function StoryDetailScreen() {
     }).start();
   }, [post?.id, footerFade, post]);
   const linkedIndentQ = useQuery({
-    queryKey: ["q", "indents", "story-target", myOrgId, post?.source_indent_id],
+    queryKey: ["q", "indents", "story-target", "v2-basis", myOrgId, post?.source_indent_id],
     queryFn: async () => {
-      const { indent, error } = await getVisibleIndentById(
+      const { indent, error } = await getIndentTargetForBidder(
         myOrgId,
         post!.source_indent_id!,
       );
@@ -413,6 +413,8 @@ export default function StoryDetailScreen() {
         postIsActive: post?.is_active,
         bidCount: Math.max(post?.bid_count ?? 0, hasSubmittedBid ? 1 : 0),
         supplierTarget: linkedIndentQ.data?.supplier_target,
+        saleRateBasis: linkedIndentQ.data?.supplier_rate_basis ?? null,
+        weightKg: linkedIndentQ.data?.weight ?? null,
         rateOffer: post?.rate_offer,
         myBidAmount: submittedBidAmount > 0 ? submittedBidAmount : null,
         myBidStatus: hasSubmittedBid ? bidStatus : null,
@@ -433,6 +435,8 @@ export default function StoryDetailScreen() {
       isLoad,
       linkedIndentQ.data?.status,
       linkedIndentQ.data?.supplier_target,
+      linkedIndentQ.data?.supplier_rate_basis,
+      linkedIndentQ.data?.weight,
       hasSubmittedBid,
       submittedBidAmount,
       bidStatus,
@@ -442,6 +446,12 @@ export default function StoryDetailScreen() {
     ],
   );
   const loadDisplayPrice = commercialOpportunity.pricing.displayPrice;
+  const loadCardRate =
+    commercialOpportunity.pricing.basis === "per_mt"
+      ? commercialOpportunity.pricing.unitRateInr
+      : loadDisplayPrice;
+  const loadCardRateSuffix =
+    commercialOpportunity.pricing.basis === "per_mt" ? "/MT" : undefined;
   const canBidOnLoad =
     commercialOpportunity.permissions.canBid ||
     commercialOpportunity.permissions.canEditBid ||
@@ -708,7 +718,8 @@ export default function StoryDetailScreen() {
             loadMaterial={loadMaterial}
             origin={post.origin}
             destination={post.destination}
-            loadTargetRate={loadDisplayPrice}
+            loadTargetRate={loadCardRate}
+            loadRateSuffix={loadCardRateSuffix}
             isDesktopPreview={isDesktopPreview}
             storyKey={post.id}
           />

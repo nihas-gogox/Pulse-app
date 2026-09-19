@@ -4,6 +4,9 @@ import { IndentDetailScreen } from '@/features/indents/components/IndentDetailSc
 
 export const getIndentsByOrganization = indentsService.getIndentsByOrganization;
 export const getIndentById = indentsService.getIndentById;
+export const getVisibleIndentById = indentsService.getVisibleIndentById;
+export const getBroadcastIndentTarget = indentsService.getBroadcastIndentTarget;
+export const getIndentTargetForBidder = indentsService.getIndentTargetForBidder;
 export const getIndentDisplayNumber = indentsService.getIndentDisplayNumber;
 export const resolveSupplierTargetDisplayRate =
   indentsService.resolveSupplierTargetDisplayRate;

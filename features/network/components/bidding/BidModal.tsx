@@ -142,7 +142,7 @@ export function BidModal({
 
   if (!load) return null;
 
-  const targetRate = Number(load.supplier_target ?? load.client_price ?? 0);
+  const targetRate = Number(load.supplier_target ?? 0);
   const vehicleType = (load.vehicle_type ?? "").trim() || undefined;
   const weightLabel =
     load.weight != null && Number(load.weight) > 0
@@ -168,6 +168,8 @@ export function BidModal({
       material={material}
       ownerName={ownerName}
       targetRateInr={targetRate > 0 ? targetRate : undefined}
+      saleRateBasis={load.supplier_rate_basis}
+      weightKg={load.weight}
       initialAmount={
         activeBidQuote?.amount != null ? Number(activeBidQuote.amount) : null
       }

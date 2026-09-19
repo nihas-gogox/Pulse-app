@@ -14,6 +14,7 @@ import {
   type CommercialAction,
 } from '@/features/marketplace/domain';
 import { type PostRow } from '@/features/network/services/posts.service';
+import { formatWeightChip } from '@/features/network/utils/bidding/perMtBidPresentation.util';
 import { formatINR } from '@/lib/format';
 import { PartyAvatar } from '@/components/PartyAvatar';
 import { useRouter } from 'expo-router';
@@ -208,12 +209,14 @@ function LoadCard({
               <Text style={styles.darkChipText}>{post.vehicle_type}</Text>
             </View>
           )}
-          {post.weight_tonnes != null && (
+          {formatWeightChip(post.weight_tonnes) ? (
             <View style={styles.darkChip}>
               <Package size={9} color="rgba(255,255,255,0.45)" />
-              <Text style={styles.darkChipText}>{post.weight_tonnes}T</Text>
+              <Text style={styles.darkChipText}>
+                {formatWeightChip(post.weight_tonnes)}
+              </Text>
             </View>
-          )}
+          ) : null}
           {post.material && (
             <View style={styles.darkChip}>
               <Text style={styles.darkChipText}>{post.material}</Text>

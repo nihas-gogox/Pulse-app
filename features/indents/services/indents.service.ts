@@ -4,6 +4,10 @@
  */
 import { getClientById } from "@/features/clients/services/clients.service";
 import { findIndentInMarketList } from "@/features/indents/utils/findIndentInList.util";
+import {
+  bidderIndentNeedsBroadcastFallback,
+  mergeBidderIndentTarget,
+} from "@/features/indents/utils/indentTargetForBidder.util";
 import { createSharedIndentCopiesWithOps } from "@/features/indents/utils/indentShareCopies.util";
 import {
   deactivatePostsForIndent,
@@ -722,6 +726,27 @@ export async function getBroadcastIndentTarget(
     supplier_rate_basis: row.supplier_rate_basis ?? null,
     weight: row.weight ?? null,
   };
+}
+
+/**
+ * Indent pricing for a bidder: market rows often have supplier_target but no
+ * supplier_rate_basis. Fill the basis from indent_target_for_broadcast so a
+ * ₹/MT target is never shown as a trip total.
+ */
+export async function getIndentTargetForBidder(
+  orgId: string | null,
+  indentId: string | null | undefined,
+): Promise<{ error: Error | null; indent: IndentRow | null }> {
+  const id = (indentId ?? "").trim();
+  if (!id) return { error: null, indent: null };
+  const { indent, error } = await getVisibleIndentById(orgId, id);
+  if (error) return { error, indent: null };
+  if (!bidderIndentNeedsBroadcastFallback(indent)) {
+    return { error: null, indent };
+  }
+  const target = await getBroadcastIndentTarget(id);
+  const merged = mergeBidderIndentTarget(indent, target);
+  return { error: null, indent: (merged as IndentRow | null) ?? indent };
 }
 
 /** Supplier-facing target rate (not load-giver client sales price). */

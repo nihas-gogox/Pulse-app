@@ -1756,7 +1756,9 @@ export function IndentDetailScreen({
           (indent?.creator_organization_name ?? "").trim() ||
           undefined
         }
-        targetRateInr={supplierNum > 0 ? supplierNum : undefined}
+        targetRateInr={supplierTargetNum > 0 ? supplierTargetNum : undefined}
+        saleRateBasis={indent?.supplier_rate_basis}
+        weightKg={indent?.weight ?? null}
         initialAmount={
           isCounteredPending
             ? myCounterAmount

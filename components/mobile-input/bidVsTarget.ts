@@ -19,22 +19,24 @@ export type BidVsTargetDelta = {
 export function resolveBidVsTarget(
   amount: number,
   target: number | null | undefined,
+  options?: { unit?: string },
 ): BidVsTargetDelta | null {
   if (target == null || !(target > 0)) return null;
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
+  const unit = options?.unit?.trim() ? ` ${options.unit.trim()}` : "";
   const diff = amount - target;
   if (Math.abs(diff) < 0.5) {
-    return { tone: "match", caption: "At target" };
+    return { tone: "match", caption: `At target${unit}` };
   }
   if (diff > 0) {
     return {
       tone: "over",
-      caption: `+${formatINR(diff)} vs target`,
+      caption: `+${formatINR(diff)} vs target${unit}`,
     };
   }
   return {
     tone: "under",
-    caption: `−${formatINR(Math.abs(diff))} vs target`,
+    caption: `−${formatINR(Math.abs(diff))} vs target${unit}`,
   };
 }

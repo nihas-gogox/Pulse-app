@@ -25,14 +25,19 @@ import { PersonNameKeypad } from '@/components/party/keypad/PersonNameKeypad';
 import Theme from '@/constants/Theme';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { createDirectQuote } from '@/features/indents/services/direct-quotes.service';
-import {
-  getBroadcastIndentTarget,
-  getVisibleIndentById,
-} from '@/features/indents/services/indents.service';
+import { getIndentTargetForBidder } from '@/features/indents/services/indents.service';
 import { resolveCommercialOpportunity } from '@/features/marketplace/domain';
 import { BidConfirmModal, type BidConfirmPhase } from '@/features/network/components/bidding/BidConfirmModal';
+import { PerMtBidGuidance } from '@/features/network/components/bidding/PerMtBidGuidance';
 import { type BidRow } from '@/features/network/services/bids.service';
 import { type PostRow } from '@/features/network/services/posts.service';
+import {
+  formatWeightChip,
+  resolveVehiclePayloadTonnes,
+  resolveExpectedTripValue,
+  storedBidFromUnitRate,
+  unitRateFromStoredBid,
+} from '@/features/network/utils/bidding/perMtBidPresentation.util';
 import { formatINR } from '@/lib/format';
 import { useSubmitBidMutation, useUpdateBidMutation } from '@/lib/queries/useBidsQuery';
 import { queryKeys } from '@/lib/queryKeys';
@@ -113,6 +118,8 @@ export function BidSheet({
   const [confirmPhase, setConfirmPhase] = useState<BidConfirmPhase>('review');
   /** Freeze edit vs place for the confirm/success card while celebration runs. */
   const [confirmIsEditMode, setConfirmIsEditMode] = useState(false);
+  /** Display-only tonnage for the expected-trip estimate. Never stored. */
+  const [estimateTonnes, setEstimateTonnes] = useState<number | null>(null);
   const pendingQuoteInvalidateRef = useRef<string | null>(null);
   /**
    * Blocks form reseed while review/success is showing. A ref (not only
@@ -120,25 +127,21 @@ export function BidSheet({
    * the next paint commits confirmOpen=true.
    */
   const celebrationLockRef = useRef(false);
+  /** Skip reseeding when indent pricing arrives after the bidder started typing. */
+  const amountDirtyRef = useRef(false);
 
   const isEditMode = !!existingBid;
   const sourceIndentId = post?.source_indent_id ?? null;
 
   const linkedIndentQ = useQuery({
-    queryKey: ['q', 'indents', 'bid-sheet-target', orgId, sourceIndentId],
+    queryKey: ['q', 'indents', 'bid-sheet-target', 'v2-basis', orgId, sourceIndentId],
     queryFn: async () => {
-      const { indent, error } = await getVisibleIndentById(orgId, sourceIndentId!);
+      const { indent, error } = await getIndentTargetForBidder(
+        orgId,
+        sourceIndentId!,
+      );
       if (error) throw error;
-      if (indent?.supplier_target && Number(indent.supplier_target) > 0) return indent;
-      const target = await getBroadcastIndentTarget(sourceIndentId);
-      if (!target) return indent;
-      return {
-        ...(indent ?? {}),
-        supplier_target: target.supplier_target,
-        supplier_rate_basis:
-          target.supplier_rate_basis ?? indent?.supplier_rate_basis ?? null,
-        weight: target.weight ?? indent?.weight ?? null,
-      };
+      return indent;
     },
     enabled: visible && !!sourceIndentId && !!orgId,
     staleTime: 60_000,
@@ -181,21 +184,11 @@ export function BidSheet({
   );
 
   const targetRate = opportunity.pricing.displayPrice;
-
-  /**
-   * Per-MT targets reach the bidder already multiplied out to a trip total, so
-   * the bare figure hides the basis it was quoted on. Spell the multiply out —
-   * the bid itself stays a trip total, which is what every comparison surface
-   * and the award RPC treat it as.
-   */
-  const targetBasisNote = useMemo(() => {
-    const { basis, unitRateInr, tonnes } = opportunity.pricing;
-    if (basis !== "per_mt" || unitRateInr == null) return null;
-    const perMt = `${formatINR(unitRateInr)}/MT`;
-    return tonnes == null
-      ? `Quoted ${perMt} — weight not set on this load`
-      : `${perMt} × ${tonnes}T`;
-  }, [opportunity.pricing]);
+  const isPerMt = opportunity.pricing.basis === 'per_mt';
+  const unitRateInr = opportunity.pricing.unitRateInr;
+  /** Indent weight only — the one figure we may multiply into a stored bid. */
+  const indentTonnes = opportunity.pricing.tonnes;
+  const compareTarget = isPerMt ? unitRateInr : targetRate;
   const biddingAllowed =
     opportunity.permissions.canBid ||
     opportunity.permissions.canEditBid ||
@@ -209,10 +202,20 @@ export function BidSheet({
   useEffect(() => {
     if (!visible) {
       celebrationLockRef.current = false;
+      amountDirtyRef.current = false;
       setConfirmOpen(false);
       setConfirmPhase('review');
       setConfirmIsEditMode(false);
       setSubmitting(false);
+      setEstimateTonnes(null);
+      return;
+    }
+    setEstimateTonnes(resolveVehiclePayloadTonnes(post?.vehicle_type) ?? null);
+    amountDirtyRef.current = false;
+  }, [visible, post?.id, post?.vehicle_type]);
+
+  useEffect(() => {
+    if (!visible) {
       return;
     }
     /**
@@ -233,13 +236,18 @@ export function BidSheet({
     setSubmitting(false);
     setConfirmPhase('review');
     setConfirmIsEditMode(false);
-    const seed =
+    if (amountDirtyRef.current) return;
+    const stored =
       initialAmount && initialAmount > 0
         ? Math.round(initialAmount)
         : existingBid?.amount
           ? Math.round(existingBid.amount)
           : null;
-    setAmountRaw(seed != null ? toRawString(seed) : '');
+    const seed =
+      stored != null && isPerMt
+        ? unitRateFromStoredBid(stored, indentTonnes)
+        : stored;
+    setAmountRaw(seed != null && seed > 0 ? toRawString(seed) : '');
     setNote(existingBid?.note ?? initialNote ?? '');
   }, [
     visible,
@@ -250,6 +258,8 @@ export function BidSheet({
     existingBid?.note,
     initialAmount,
     initialNote,
+    isPerMt,
+    indentTonnes,
   ]);
 
   const origin = cityPart(post?.origin);
@@ -260,17 +270,25 @@ export function BidSheet({
       : origin || destination || undefined;
   const vehicle = post?.vehicle_type?.trim() || undefined;
   const weight =
-    post?.weight_tonnes != null ? `${post.weight_tonnes}T` : undefined;
+    formatWeightChip(post?.weight_tonnes) ??
+    (indentTonnes != null ? formatWeightChip(indentTonnes) : undefined);
   const material = post?.material?.trim() || undefined;
 
   const partySubtitle = useMemo(() => {
     const parts: string[] = [];
     if (route) parts.push(route);
-    const specs = [vehicle, weight, material].filter(Boolean);
+    const specs = [
+      vehicle,
+      weight,
+      !weight && isPerMt ? 'Weight at loading' : undefined,
+      material,
+    ].filter(Boolean);
     if (specs.length > 0) parts.push(specs.join(' · '));
-    if (targetRate != null) parts.push(`Target ${formatINR(targetRate)}`);
+    if (!isPerMt && targetRate != null) {
+      parts.push(`Target ${formatINR(targetRate)}`);
+    }
     return parts.length > 0 ? parts.join(' · ') : undefined;
-  }, [route, vehicle, weight, material, targetRate]);
+  }, [route, vehicle, weight, material, targetRate, isPerMt]);
 
   const partyPreview = useMemo((): NumericEntryPartyPreview | undefined => {
     if (!post) return undefined;
@@ -311,6 +329,7 @@ export function BidSheet({
     !submitting;
 
   const handleAmountKey = useCallback((key: KeypadKey) => {
+    amountDirtyRef.current = true;
     setAmountRaw((prev) => applyKeypadPress(prev, key, { maxDecimalPlaces: 0 }));
     setValidationError(undefined);
   }, []);
@@ -358,8 +377,8 @@ export function BidSheet({
 
   const handleSubmit = useCallback(async () => {
     if (!post || !canSubmit) return;
-    const amount = parseRawToNumber(amountRaw);
-    if (!Number.isFinite(amount) || amount <= 0) {
+    const typedAmount = parseRawToNumber(amountRaw);
+    if (!Number.isFinite(typedAmount) || typedAmount <= 0) {
       celebrationLockRef.current = false;
       setConfirmOpen(false);
       setConfirmPhase('review');
@@ -375,6 +394,18 @@ export function BidSheet({
         'Cannot place bid',
         'This story is not linked to a load indent. Use Get Load to quote, or ask the publisher to broadcast from an indent.',
       );
+      return;
+    }
+
+    const amount = isPerMt
+      ? storedBidFromUnitRate(typedAmount, indentTonnes)
+      : typedAmount;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      celebrationLockRef.current = false;
+      setConfirmOpen(false);
+      setConfirmPhase('review');
+      setValidationError('Enter an amount greater than 0.');
+      setActiveField('amount');
       return;
     }
 
@@ -439,6 +470,8 @@ export function BidSheet({
     submitMutation,
     orgId,
     currentOrganization?.name,
+    isPerMt,
+    indentTonnes,
   ]);
 
   usePhysicalKeypadInput({
@@ -494,9 +527,33 @@ export function BidSheet({
   // previous render."
   const confirmAmount = parseRawToNumber(amountRaw);
   const vsTarget = useMemo(
-    () => resolveBidVsTarget(confirmAmount, targetRate),
-    [confirmAmount, targetRate],
+    () =>
+      resolveBidVsTarget(confirmAmount, compareTarget, {
+        unit: isPerMt ? '/MT' : undefined,
+      }),
+    [confirmAmount, compareTarget, isPerMt],
   );
+  const expectedTrip = useMemo(() => {
+    if (!isPerMt) return null;
+    const rateForMath = confirmAmount > 0 ? confirmAmount : unitRateInr;
+    return resolveExpectedTripValue({
+      unitRateInr: rateForMath,
+      indentTonnes,
+      vehicleType: vehicle,
+      estimateTonnes,
+    });
+  }, [
+    isPerMt,
+    confirmAmount,
+    unitRateInr,
+    indentTonnes,
+    vehicle,
+    estimateTonnes,
+  ]);
+  const expectedTripLabel =
+    expectedTrip != null
+      ? `${expectedTrip.source === 'indent_weight' ? '' : '≈ '}${formatINR(expectedTrip.amountInr)} at ${expectedTrip.tonnes}T`
+      : undefined;
 
   if (!post) return null;
 
@@ -526,9 +583,13 @@ export function BidSheet({
       origin={origin || undefined}
       destination={destination || undefined}
       vehicle={vehicle}
-      weight={weight}
+      weight={weight ?? (isPerMt ? 'Weight at loading' : undefined)}
       material={material}
-      targetRate={targetRate}
+      targetRate={compareTarget}
+      targetSuffix={isPerMt ? '/MT' : undefined}
+      amountSuffix={isPerMt ? '/MT' : undefined}
+      rateBasisLabel={isPerMt ? 'Per MT' : undefined}
+      expectedTripLabel={expectedTripLabel}
       note={notePreview || undefined}
       submitting={submitting}
       onCancel={() => {
@@ -553,10 +614,23 @@ export function BidSheet({
         !isMobile && styles.valueStageElevated,
       ]}
     >
+      {isPerMt ? (
+        <PerMtBidGuidance
+          parts="banner"
+          targetUnitRateInr={unitRateInr}
+          typedUnitRateInr={confirmAmount > 0 ? confirmAmount : 0}
+          expected={expectedTrip}
+          showEstimateChips={false}
+          estimateTonnes={estimateTonnes}
+          vehicleType={vehicle}
+          onEstimateTonnesChange={setEstimateTonnes}
+        />
+      ) : null}
+
       <Pressable
         onPress={() => setActiveField('amount')}
         accessibilityRole="button"
-        accessibilityLabel="Edit bid amount"
+        accessibilityLabel={isPerMt ? 'Edit bid rate per MT' : 'Edit bid amount'}
         style={({ pressed }) => [
           styles.amountPress,
           pressed && activeField !== 'amount' && styles.amountPressDim,
@@ -566,26 +640,41 @@ export function BidSheet({
           rawValue={amountRaw}
           type="currency"
           prefix="₹"
+          suffix={isPerMt ? '/MT' : undefined}
           placeholder="0"
           variant={isMobile ? 'hero' : 'default'}
           tone={vsTarget?.tone ?? 'default'}
         />
       </Pressable>
 
+      {isPerMt ? (
+        <PerMtBidGuidance
+          parts="estimate"
+          targetUnitRateInr={unitRateInr}
+          typedUnitRateInr={confirmAmount > 0 ? confirmAmount : 0}
+          expected={expectedTrip}
+          showEstimateChips={false}
+          estimateTonnes={estimateTonnes}
+          vehicleType={vehicle}
+          onEstimateTonnesChange={setEstimateTonnes}
+        />
+      ) : null}
+
       {validationError ? (
         <Text style={styles.error} accessibilityRole="alert">
           {validationError}
         </Text>
-      ) : vsTarget ? (
+      ) : vsTarget && !isPerMt ? (
         <BidVsTargetHint caption={vsTarget.caption} tone={vsTarget.tone} />
-      ) : targetRate != null ? (
+      ) : !isPerMt && targetRate != null ? (
         <Text style={styles.hint}>
           Target {formatINR(targetRate)}
-          {targetBasisNote ? ` (${targetBasisNote})` : ""}
         </Text>
-      ) : (
+      ) : !isPerMt ? (
         <View style={styles.hintSpacer} />
-      )}
+      ) : vsTarget ? (
+        <BidVsTargetHint caption={vsTarget.caption} tone={vsTarget.tone} />
+      ) : null}
 
       <Pressable
         style={[
@@ -823,7 +912,7 @@ export function BidSheet({
               >
                 {submitLabel}
                 {canSubmit && isKeypadValueSubmittable(amountRaw)
-                  ? ` · ${formatINR(parseRawToNumber(amountRaw))}`
+                  ? ` · ${formatINR(parseRawToNumber(amountRaw))}${isPerMt ? '/MT' : ''}`
                   : ''}
               </Text>
             </>
