@@ -1,13 +1,17 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useClientsQuery, useTripsQuery } from "@/lib/queries";
 import { useCustomerLedgerInputsQuery } from "@/lib/queries/useLedgerAggregationQuery";
 import { useIssuedInvoicesQuery } from "@/lib/queries/useInvoicingExecuteQueries";
+import { loadHubPodReceiptFlags } from "@/features/trips/services/tripDocumentLrPod.service";
+import { STALE } from "@/lib/queryClient";
 import { buildFinanceProModel } from "../model/buildFinanceProModel";
+import { financeProTripCompleted, financeProTripPodReceived } from "../model/tripLens.util";
 
 /**
- * Shared F1 data plane: 4 existing TanStack queries, no extra per-tab fetch.
- * Cross-filter is client-side on the returned model.
+ * Shared F1 data plane. Digital POD is loaded only for completed trips that
+ * still lack a physical stamp — not a full-org trip_documents scan.
  */
 export function useFinanceProModel() {
   const { currentOrganization } = useOrganization();
@@ -18,6 +22,35 @@ export function useFinanceProModel() {
   const tripsQ = useTripsQuery(orgId);
   const invoicesQ = useIssuedInvoicesQuery(orgId);
 
+  const digitalPodCandidateIds = useMemo(() => {
+    const trips = tripsQ.data ?? [];
+    return trips
+      .filter(
+        (t) =>
+          financeProTripCompleted(t) &&
+          !financeProTripPodReceived(t) &&
+          Boolean(t.id),
+      )
+      .map((t) => t.id)
+      .sort();
+  }, [tripsQ.data]);
+
+  const digitalPodKey = digitalPodCandidateIds.join(",");
+  const digitalPodQ = useQuery({
+    queryKey: ["q", "finance-pro", "digital-pod", orgId ?? "", digitalPodKey],
+    enabled: !!orgId && digitalPodCandidateIds.length > 0,
+    staleTime: STALE.moderate,
+    queryFn: async () => {
+      const flags = await loadHubPodReceiptFlags(digitalPodCandidateIds);
+      return flags.softTripIds;
+    },
+  });
+
+  const digitalPodTripIds = useMemo(
+    () => new Set(digitalPodQ.data ?? []),
+    [digitalPodQ.data],
+  );
+
   const model = useMemo(
     () =>
       buildFinanceProModel({
@@ -25,8 +58,9 @@ export function useFinanceProModel() {
         inputs: ledgerQ.data,
         trips: tripsQ.data ?? [],
         issuedInvoices: invoicesQ.data ?? [],
+        digitalPodTripIds,
       }),
-    [clientsQ.data, ledgerQ.data, tripsQ.data, invoicesQ.data],
+    [clientsQ.data, ledgerQ.data, tripsQ.data, invoicesQ.data, digitalPodTripIds],
   );
 
   const hasCachedCore =
@@ -47,10 +81,19 @@ export function useFinanceProModel() {
       ledgerQ.isFetching ||
       tripsQ.isFetching);
   const documentsLoading =
-    !!orgId && invoicesQ.isPending && invoicesQ.data === undefined;
+    !!orgId &&
+    ((invoicesQ.isPending && invoicesQ.data === undefined) ||
+      (digitalPodCandidateIds.length > 0 &&
+        digitalPodQ.isPending &&
+        digitalPodQ.data === undefined));
 
   const error =
-    clientsQ.error ?? ledgerQ.error ?? tripsQ.error ?? invoicesQ.error ?? null;
+    clientsQ.error ??
+    ledgerQ.error ??
+    tripsQ.error ??
+    invoicesQ.error ??
+    digitalPodQ.error ??
+    null;
 
   return { orgId, model, loading, documentsLoading, error };
 }

@@ -144,14 +144,14 @@ export function FinanceProAlertsPanel({ onClose }: { onClose: () => void }) {
               actorName={alert.clientName}
               actionText={
                 alert.kind === "pod_pending"
-                  ? "has a trip waiting on physical POD"
+                  ? "has a trip waiting on POD"
                   : "has overdue invoiced exposure on"
               }
               highlightText={alert.tripLabel}
               detailTitle={formatFinanceInr(alert.amount)}
               detailSubtitle={
                 alert.kind === "pod_pending"
-                  ? "Physical POD pending"
+                  ? "POD pending"
                   : `Open ${alert.daysOld ?? 0}d`
               }
               timeLabel={

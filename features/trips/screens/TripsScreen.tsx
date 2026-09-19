@@ -72,6 +72,7 @@ import {
   tripHasHubPodFlag,
   tripPodIsReceived,
 } from "@/features/trips/services/tripDocumentLrPod.service";
+import { shouldFetchHubDigitalPodFlags } from "@/features/trips/components/trip-detail/completedTripInitialLoad.util";
 import {
   classifyTripMetric,
   countTripsByMetric,
@@ -607,7 +608,10 @@ export default function TripsScreen() {
       orgId ?? "",
       podDocumentTripIdsSorted,
     ],
-    enabled: !!orgId && podDocumentTripIdsSorted.length > 0,
+    enabled:
+      !!orgId &&
+      shouldFetchHubDigitalPodFlags(showCompletedList) &&
+      podDocumentTripIdsSorted.length > 0,
     staleTime: 60_000,
     queryFn: async () => {
       const ids = podDocumentTripIdsSorted.split(",").filter(Boolean);

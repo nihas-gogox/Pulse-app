@@ -109,7 +109,7 @@ function TripBody({
     );
   }
   if (!trip.podReceived && !trip.invoiced) {
-    stories.push("Billing is blocked until physical POD is received.");
+    stories.push("Billing is blocked until POD is received.");
   }
 
   return (
@@ -139,7 +139,7 @@ function TripBody({
           <FinanceProFactGrid>
             <FinanceProMetric
               label="Physical POD"
-              value={trip.podReceived ? "Received" : "Pending"}
+              value={trip.physicalPodReceived ? "Received" : "Pending"}
             />
             <FinanceProMetric
               label="Digital POD"

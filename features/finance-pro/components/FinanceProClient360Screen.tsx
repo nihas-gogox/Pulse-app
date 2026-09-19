@@ -37,7 +37,7 @@ import { financeProRouteParam } from "./financeProRouteParam";
 function blocker(t: TripFinancialFact): string {
   if (t.remainingDue <= 0) return "—";
   if (!t.completed) return "Not completed";
-  if (!t.podReceived) return "Physical POD pending";
+  if (!t.podReceived) return "POD pending";
   if (!t.invoiced) return "Not invoiced";
   return "Open";
 }

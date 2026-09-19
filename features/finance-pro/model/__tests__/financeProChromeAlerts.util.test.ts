@@ -13,6 +13,7 @@ function trip(partial: Partial<TripFinancialFact> & { tripId: string }): TripFin
     daysOld: 10,
     ageBucket: "d1_15",
     podReceived: false,
+    physicalPodReceived: false,
     invoiced: false,
     completed: true,
     ...partial,

@@ -230,6 +230,34 @@ describe("buildFinanceProModel", () => {
     expect(model.issuedThisMonthValue).toBe(99999);
   });
 
+  it("counts digital POD as received when physical stamp is missing", () => {
+    const model = buildFinanceProModel({
+      clients,
+      now: NOW,
+      trips: [
+        {
+          id: "digital",
+          status: "completed",
+          completed_at: "2026-09-01",
+          pickup_date: "2026-09-01",
+          pod_received_at: null,
+        },
+      ],
+      issuedInvoices: [],
+      digitalPodTripIds: new Set(["digital"]),
+      inputs: inputs({
+        trip_inputs: [
+          { client_id: "aero", trip_id: "digital", sales: 400, initial_paid: 0 },
+        ],
+      }),
+    });
+    const fact = model.tripFacts.find((t) => t.tripId === "digital");
+    expect(fact?.physicalPodReceived).toBe(false);
+    expect(fact?.podReceived).toBe(true);
+    expect(model.pipeline.find((s) => s.id === "pod_pending")?.count).toBe(0);
+    expect(model.pipeline.find((s) => s.id === "ready_to_invoice")?.count).toBe(1);
+  });
+
   it("handles empty clients without throwing", () => {
     const model = buildFinanceProModel({
       clients: [],

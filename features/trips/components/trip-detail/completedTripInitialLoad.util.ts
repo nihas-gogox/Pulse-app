@@ -67,11 +67,18 @@ export function shouldFlushTripOutboxOnDetail(
   return !isTripCompleted(trip);
 }
 
-/** Storage/OCR viewer path: Docs tab only (metadata already in the light bundle). */
+/** Storage/OCR viewer path: Docs tab only (not first paint). */
 export function shouldLoadTripDocumentsForViewer(
   activeTab: TripDetailMainTab,
 ): boolean {
   return activeTab === "docs";
+}
+
+/** Hub digital-POD trip_documents scan — live ops list only, not History. */
+export function shouldFetchHubDigitalPodFlags(
+  showCompletedList: boolean,
+): boolean {
+  return !showCompletedList;
 }
 
 /** Subcontract rates: live trips only. */

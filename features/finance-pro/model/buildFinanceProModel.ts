@@ -176,6 +176,8 @@ export function buildFinanceProModel(args: {
   trips: readonly TripLens[];
   issuedInvoices?: readonly IssuedInvoiceListRow[];
   now?: Date;
+  /** Digital POD (trip_documents) for completed trips missing physical stamp. */
+  digitalPodTripIds?: ReadonlySet<string>;
 }): FinanceProModel {
   const now = args.now ?? new Date();
   const emptyInputs: CustomerLedgerInputs = {
@@ -188,6 +190,7 @@ export function buildFinanceProModel(args: {
   const agg = aggregateCustomersFromRpc(args.clients, inputs);
   const remaining = remainingDueByTripId(inputs);
   const invoicedIds = invoicedTripIdSet(args.issuedInvoices);
+  const digitalPodTripIds = args.digitalPodTripIds ?? new Set<string>();
   const tripById = new Map(args.trips.map((t) => [t.id, t]));
 
   const nameByClient = new Map(
@@ -218,7 +221,10 @@ export function buildFinanceProModel(args: {
       pickupDate: trip?.pickup_date ?? null,
       daysOld,
       ageBucket: daysOld == null ? null : obligationAgeBucket(daysOld),
-      podReceived: trip ? financeProTripPodReceived(trip) : false,
+      physicalPodReceived: trip ? financeProTripPodReceived(trip) : false,
+      podReceived: trip
+        ? financeProTripPodReceived(trip, digitalPodTripIds)
+        : digitalPodTripIds.has(ti.trip_id),
       invoiced: invoicedIds.has(ti.trip_id),
       completed: trip ? financeProTripCompleted(trip) : false,
     };

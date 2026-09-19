@@ -63,6 +63,7 @@ export type TripFinancialFact = {
   daysOld: number | null;
   ageBucket: ObligationAgeBucket | null;
   podReceived: boolean;
+  physicalPodReceived: boolean;
   invoiced: boolean;
   completed: boolean;
 };

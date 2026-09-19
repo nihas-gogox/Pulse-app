@@ -2,6 +2,7 @@ import {
   getTripExecutionModel,
   isAggregateExecutionTrip,
   isAssetExecutionTrip,
+  shouldShowTripExpenseHub,
 } from "@/features/trips/domain/tripExecutionModel";
 import type { TripRow } from "@/features/trips/services/trips.service";
 
@@ -141,6 +142,47 @@ describe("tripExecutionModel", () => {
     it("is case-insensitive and tolerant of whitespace", () => {
       const lower = trip({ supplier_id: "supplier-1", execution_type: "asset" as never });
       expect(getTripExecutionModel(lower)).toBe("asset");
+    });
+  });
+
+  describe("shouldShowTripExpenseHub", () => {
+    it("stays open for DCO trips with a vehicle even when execution model is aggregate", () => {
+      const dcoMarket = trip({
+        operating_mode: "DCO",
+        supplier_id: "supplier-1",
+        vehicle_id: "vehicle-1",
+        trip_payout_mode: "market",
+      });
+      expect(getTripExecutionModel(dcoMarket)).toBe("aggregate");
+      expect(shouldShowTripExpenseHub(dcoMarket)).toBe(true);
+    });
+
+    it("does not open for DCO trips without a vehicle", () => {
+      const dcoNoVehicle = trip({
+        operating_mode: "DCO",
+        supplier_id: "supplier-1",
+        trip_payout_mode: "market",
+      });
+      expect(shouldShowTripExpenseHub(dcoNoVehicle)).toBe(false);
+    });
+
+    it("stays open for commerce multi-order trips with a vehicle", () => {
+      const commerce = trip({
+        is_commerce: true,
+        supplier_id: "supplier-1",
+        vehicle_id: "vehicle-1",
+        trip_payout_mode: null,
+      });
+      expect(getTripExecutionModel(commerce)).toBe("aggregate");
+      expect(shouldShowTripExpenseHub(commerce)).toBe(true);
+    });
+
+    it("does not open for aggregate trips without DCO, commerce vehicle, or asset execution", () => {
+      const handedOff = trip({
+        supplier_id: "supplier-1",
+        driver_id: "driver-1",
+      });
+      expect(shouldShowTripExpenseHub(handedOff)).toBe(false);
     });
   });
 });

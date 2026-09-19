@@ -152,7 +152,7 @@ export function buildAttentionStories(model: FinanceProModel): AttentionStory[] 
     stories.push({
       id: "billing-blocked",
       badge: "Billing blocked",
-      title: "Physical POD pending",
+      title: "POD pending",
       amount: blocked.value,
       facts: [
         `${formatCount(blocked.count)} trips`,

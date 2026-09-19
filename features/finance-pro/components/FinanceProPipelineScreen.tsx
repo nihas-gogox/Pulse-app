@@ -35,7 +35,7 @@ import { View } from "react-native";
 
 function blocker(t: TripFinancialFact): string {
   if (t.invoiced) return "—";
-  if (t.completed && !t.podReceived) return "Physical POD pending";
+  if (t.completed && !t.podReceived) return "POD pending";
   if (t.completed && t.podReceived) return "Not billed";
   return "Not completed";
 }

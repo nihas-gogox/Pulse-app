@@ -227,7 +227,7 @@ const TripExpensesScreen = lazy(() =>
     (m) => ({ default: m.TripExpensesScreen }),
   ),
 );
-import { isAssetExecutionTrip } from "@/features/trips/domain/tripExecutionModel";
+import { isAssetExecutionTrip, shouldShowTripExpenseHub } from "@/features/trips/domain/tripExecutionModel";
 import { isDcoOperatingTrip } from "@/features/trips/domain/tripDcoOperating";
 import { getMoverAssetTripIdForIndent } from "@/features/trips/services/trips.service";
 import { tripIsDeliveredStatus } from "@/features/trips/services/tripDocumentLrPod.service";
@@ -745,7 +745,7 @@ export default function TripDetailScreen({
   // on asset deploys too, and using it here bounced the user straight back to
   // the trip tab even once the Expense Hub was visible.
   useEffect(() => {
-    if (!detail.trip || isAssetExecutionTrip(detail.trip)) return;
+    if (!detail.trip || shouldShowTripExpenseHub(detail.trip)) return;
     if (activeTab === "expenses") {
       setActiveTab("trip");
     }
@@ -2174,7 +2174,6 @@ export default function TripDetailScreen({
   }
 
   const { trip } = detail;
-  const expenseTabLabel = "Expense";
   const expenseHubLabel = "Expense Hub";
   const isAggregate = isAggregateTrip(trip);
   /**
@@ -2187,8 +2186,7 @@ export default function TripDetailScreen({
    * source, so gate on that instead. isAggregate is left untouched for OTP,
    * earnings, and ledger logic, which depend on its current meaning.
    */
-  const showExpenseHub =
-    isDcoOperatingTrip(trip) || isAssetExecutionTrip(trip);
+  const showExpenseHub = shouldShowTripExpenseHub(trip);
 
   const driverSummaryText = (() => {
     const name = detail.driverName?.trim();
@@ -3720,7 +3718,7 @@ export default function TripDetailScreen({
                       activeTab === "expenses" && styles.mobileOrderChipTextActive,
                     ]}
                   >
-                    {expenseTabLabel}
+                    {expenseHubLabel}
                   </Text>
                 </TouchableOpacity>
               ) : null}

@@ -6,6 +6,7 @@ import {
   shouldFetchManifestRefAssetInsights,
   shouldFetchTripSubcontractsOnDetail,
   shouldFlushTripOutboxOnDetail,
+  shouldFetchHubDigitalPodFlags,
   shouldFetchOperationsSummary,
   shouldLoadTripDocumentsForViewer,
   shouldSkipExpenseTabAutoSelect,
@@ -44,6 +45,11 @@ describe("completed trip initial load contract", () => {
     expect(shouldLoadTripDocumentsForViewer("finance")).toBe(false);
     expect(shouldAutoRunHistoricalLrOcr("docs", completed)).toBe(false);
     expect(shouldAutoRunHistoricalLrOcr("docs", inProgress)).toBe(true);
+  });
+
+  it("does not scan hub trip_documents while History is showing", () => {
+    expect(shouldFetchHubDigitalPodFlags(true)).toBe(false);
+    expect(shouldFetchHubDigitalPodFlags(false)).toBe(true);
   });
 
   it("live trip detail still runs ratings, manifest insights, subcontracts, and outbox flush", () => {

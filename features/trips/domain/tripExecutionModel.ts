@@ -1,4 +1,5 @@
 import type { TripRow } from "@/features/trips/services/trips.service";
+import { isDcoOperatingTrip } from "@/features/trips/domain/tripDcoOperating";
 
 export type TripExecutionModel = "asset" | "aggregate";
 
@@ -78,4 +79,17 @@ export function isAssetExecutionTrip(trip: TripRow): boolean {
 
 export function isAggregateExecutionTrip(trip: TripRow): boolean {
   return getTripExecutionModel(trip) === "aggregate";
+}
+
+/**
+ * Expense Hub is reachable for asset execution, and for DCO / Commerce
+ * multi-order trips that already have a vehicle (fuel/toll book on this trip).
+ */
+export function shouldShowTripExpenseHub(trip: TripRow): boolean {
+  if (isAssetExecutionTrip(trip)) return true;
+  const hasVehicle = String(trip.vehicle_id ?? "").trim().length > 0;
+  if (!hasVehicle) return false;
+  if (isDcoOperatingTrip(trip)) return true;
+  if (trip.is_commerce) return true;
+  return false;
 }
