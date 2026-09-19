@@ -432,7 +432,7 @@ export function normTripFinanceAdjustmentKey(id: string | null | undefined): str
   return id == null ? "" : String(id).trim().toLowerCase();
 }
 
-const ADJ_FETCH_CHUNK = 90;
+const ADJ_FETCH_CHUNK = 40;
 
 /**
  * Load persisted trip finance adjustments for many trips (batched `.in` queries).
