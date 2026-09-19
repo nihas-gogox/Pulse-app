@@ -8,6 +8,9 @@ import {
   type AwardEligibility,
 } from '@/features/connections/services/relationshipService';
 import { supabase } from '@/lib/supabase';
+import { runWithConcurrencyLimit } from '@/features/trips/services/tripDocumentLrPod.service';
+
+const DRIVER_AVAILABILITY_CONCURRENCY = 3;
 
 export type BidStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
 
@@ -103,13 +106,15 @@ export async function checkDriversAvailable(
   const availableByUserId = new Map<string, boolean>();
   if (unique.length === 0) return { error: null, availableByUserId };
 
-  const results = await Promise.all(
-    unique.map(async (id) => {
+  const results = await runWithConcurrencyLimit(
+    unique,
+    DRIVER_AVAILABILITY_CONCURRENCY,
+    async (id) => {
       const { data, error } = await supabase().rpc('is_driver_available', {
         p_user_id: id,
       });
       return { id, available: error ? null : Boolean(data), error };
-    }),
+    },
   );
   const firstError = results.find((r) => r.error)?.error;
   for (const row of results) {
