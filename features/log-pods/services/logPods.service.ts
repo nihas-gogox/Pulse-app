@@ -17,6 +17,7 @@ import {
   loadLrPodIndexByTripIds,
   markTripHardCopyPodReceived,
   receivedLrNumbersForTrip,
+  runWithConcurrencyLimit,
   tripPodIsReceived,
   type TripLrPodIndex,
 } from "@/features/trips/services/tripDocumentLrPod.service";
@@ -253,6 +254,14 @@ export async function fetchOrgDriversForLogPods(
   }
 }
 
+/**
+ * Max simultaneous per-trip writes/RPCs for the bulk POD-received flows below.
+ * A user can select an arbitrarily large batch of pending trips; matches the
+ * concurrency limit already established for the same class of fan-out in
+ * tripDocumentLrPod.service.ts / tripDocuments.service.ts.
+ */
+const LOG_PODS_CONCURRENCY = 3;
+
 export type MarkHardCopyPodsReceivedInput = {
   tripInternalIds: string[];
   receivedAt: string;
@@ -271,8 +280,10 @@ export async function markSelectedTripsHardCopyPodReceived(
     return { error: new Error("Select at least one pending trip."), updatedCount: 0 };
   }
   const receivedAt = str(input.receivedAt) || new Date().toISOString();
-  const results = await Promise.all(
-    ids.map((id) => markTripHardCopyPodReceived(id, receivedAt)),
+  const results = await runWithConcurrencyLimit(
+    ids,
+    LOG_PODS_CONCURRENCY,
+    (id) => markTripHardCopyPodReceived(id, receivedAt),
   );
   const firstError = results.find((r) => r.error != null)?.error;
   if (firstError) return { error: firstError, updatedCount: 0 };
@@ -281,22 +292,20 @@ export async function markSelectedTripsHardCopyPodReceived(
     input.method === "courier" ? str(input.courierName).trim() : "In hand";
   const trackingId =
     input.method === "courier" ? str(input.trackingId).trim() || null : null;
-  await Promise.all(
-    ids.map(async (tripInternalId) => {
-      const { error } = await supabase().rpc("log_activity", {
-        p_action: "POD_LOGGED",
-        p_entity_type: "trip",
-        p_entity_id: tripInternalId,
-        p_details: {
-          method: input.method,
-          courier_name: courierName || null,
-          tracking_id: trackingId,
-          received_at: receivedAt,
-        },
-      });
-      if (error) console.warn("[logPods] log_activity:", error.message);
-    }),
-  );
+  await runWithConcurrencyLimit(ids, LOG_PODS_CONCURRENCY, async (tripInternalId) => {
+    const { error } = await supabase().rpc("log_activity", {
+      p_action: "POD_LOGGED",
+      p_entity_type: "trip",
+      p_entity_id: tripInternalId,
+      p_details: {
+        method: input.method,
+        courier_name: courierName || null,
+        tracking_id: trackingId,
+        received_at: receivedAt,
+      },
+    });
+    if (error) console.warn("[logPods] log_activity:", error.message);
+  });
 
   return { error: null, updatedCount: ids.length };
 }
@@ -575,34 +584,37 @@ export async function executeLogIncomingPods(payload: LogPodsPayload): Promise<{
     .filter(([, lrs]) => lrs.length > 0)
     .map(([tripInternalId]) => tripInternalId);
 
-  const tripResults = await Promise.all(
-    tripIds.map((internalId) => markTripHardCopyPodReceived(internalId, receivedAt)),
+  const tripResults = await runWithConcurrencyLimit(
+    tripIds,
+    LOG_PODS_CONCURRENCY,
+    (internalId) => markTripHardCopyPodReceived(internalId, receivedAt),
   );
   const tripUpdateError = tripResults.find((r) => r.error != null)?.error;
   if (tripUpdateError) {
     return { error: tripUpdateError };
   }
 
-  await Promise.all(
-    Object.entries(selectedLRs)
-      .filter(([, lrs]) => lrs.length > 0)
-      .map(async ([tripInternalId, lrs]) => {
-        const attCount = mappedAttachments.filter(
-          (a) => a.trip_id === tripInternalId,
-        ).length;
-        const { error } = await supabase().rpc("log_activity", {
-          p_action: "POD_LOGGED",
-          p_entity_type: "trip",
-          p_entity_id: tripInternalId,
-          p_details: {
-            lr_numbers: lrs.filter((lr) => lr !== "N/A"),
-            courier_name: finalCourierName,
-            tracking_id: trackingId || null,
-            attachment_count: attCount,
-          },
-        });
-        if (error) console.warn("[logPods] log_activity:", error.message);
-      }),
+  const podLoggedEntries = Object.entries(selectedLRs).filter(([, lrs]) => lrs.length > 0);
+  await runWithConcurrencyLimit(
+    podLoggedEntries,
+    LOG_PODS_CONCURRENCY,
+    async ([tripInternalId, lrs]) => {
+      const attCount = mappedAttachments.filter(
+        (a) => a.trip_id === tripInternalId,
+      ).length;
+      const { error } = await supabase().rpc("log_activity", {
+        p_action: "POD_LOGGED",
+        p_entity_type: "trip",
+        p_entity_id: tripInternalId,
+        p_details: {
+          lr_numbers: lrs.filter((lr) => lr !== "N/A"),
+          courier_name: finalCourierName,
+          tracking_id: trackingId || null,
+          attachment_count: attCount,
+        },
+      });
+      if (error) console.warn("[logPods] log_activity:", error.message);
+    },
   );
 
   return { error: null };
