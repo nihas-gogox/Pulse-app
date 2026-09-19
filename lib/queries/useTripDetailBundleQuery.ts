@@ -252,11 +252,102 @@ async function fetchTripRowLight(
   return data as BundleTrip;
 }
 
-async function fetchTripDetailBundle(
+/** Matches get_trip_detail_bundle transactions[] / adjustments[] LIMIT. */
+export const LIGHT_BUNDLE_TX_LIMIT = 50;
+
+const BUNDLE_DOC_SELECT =
+  "id, trip_id, file_name, storage_path, mime_type, size_bytes, uploaded_at, uploaded_by, document_type";
+
+const BUNDLE_TX_SELECT =
+  "id, organization_id, trip_id, party_name, description, amount_in, amount_out, transaction_date, created_at, contact_id, contact_type, ledger_entity_type, ledger_flow_type, ledger_category";
+
+const BUNDLE_ADJ_SELECT =
+  "id, trip_id, organization_id, type, impact, amount, reason, mission_key, created_at, created_by, voided_at, void_reason";
+
+async function fetchTripDocumentsForLightBundle(
+  tripId: string,
+  signal?: AbortSignal,
+): Promise<BundleDocument[]> {
+  const { data, error } = await withAbortSignal(
+    supabase()
+      .from("trip_documents")
+      .select(BUNDLE_DOC_SELECT)
+      .eq("trip_id", tripId)
+      .order("uploaded_at", { ascending: false }),
+    signal,
+  );
+  throwIfCancelled(signal, error);
+  if (error || !data) return [];
+  return data as BundleDocument[];
+}
+
+async function fetchTripTransactionsForLightBundle(
+  tripId: string,
+  signal?: AbortSignal,
+): Promise<BundleTransaction[]> {
+  const { data, error } = await withAbortSignal(
+    supabase()
+      .from("transactions")
+      .select(BUNDLE_TX_SELECT)
+      .eq("trip_id", tripId)
+      .order("transaction_date", { ascending: false })
+      .limit(LIGHT_BUNDLE_TX_LIMIT),
+    signal,
+  );
+  throwIfCancelled(signal, error);
+  if (error || !data) return [];
+  return data as BundleTransaction[];
+}
+
+async function fetchTripAdjustmentsForLightBundle(
+  tripId: string,
+  signal?: AbortSignal,
+): Promise<BundleAdjustment[]> {
+  const { data, error } = await withAbortSignal(
+    supabase()
+      .from("trip_finance_adjustments")
+      .select(BUNDLE_ADJ_SELECT)
+      .eq("trip_id", tripId)
+      .order("created_at", { ascending: false })
+      .limit(LIGHT_BUNDLE_TX_LIMIT),
+    signal,
+  );
+  throwIfCancelled(signal, error);
+  if (error || !data) return [];
+  return data as BundleAdjustment[];
+}
+
+/** Table-only trip + documents + trip-scoped ledger. No get_trip_detail_bundle. */
+async function composeLightTripDetailBundle(
+  tripId: string,
+  signal?: AbortSignal,
+): Promise<TripDetailBundle | null> {
+  const light = await fetchTripRowLight(tripId, signal);
+  if (!light) return null;
+  const [documents, transactions, adjustments] = await Promise.all([
+    fetchTripDocumentsForLightBundle(tripId, signal),
+    fetchTripTransactionsForLightBundle(tripId, signal),
+    fetchTripAdjustmentsForLightBundle(tripId, signal),
+  ]);
+  return {
+    ...emptyBundleFromTrip(light),
+    documents,
+    transactions,
+    adjustments,
+  };
+}
+
+/** Exported for focused tests: light vs RPC vs RPC-failure fallback. */
+export async function fetchTripDetailBundle(
   tripId: string,
   viewerOrgId: string,
   signal?: AbortSignal,
+  preferLight?: boolean,
 ): Promise<TripDetailBundle | null> {
+  if (preferLight) {
+    return composeLightTripDetailBundle(tripId, signal);
+  }
+
   try {
     const { data, error } = await withAbortSignal(
       supabase().rpc('get_trip_detail_bundle', {
@@ -279,9 +370,7 @@ async function fetchTripDetailBundle(
     );
   }
 
-  const light = await fetchTripRowLight(tripId, signal);
-  if (light) return emptyBundleFromTrip(light);
-  return null;
+  return composeLightTripDetailBundle(tripId, signal);
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -304,19 +393,54 @@ export function prefetchTripDetailBundle(
   const org = viewerOrgId.trim();
   if (!id || !org || !isBundleEnabled(org)) return Promise.resolve();
   return queryClient.prefetchQuery({
-    queryKey: queryKeys.trips.bundle(id),
-    queryFn: ({ signal }) => fetchTripDetailBundle(id, org, signal),
+    queryKey: [...queryKeys.trips.bundle(id), "rpc"],
+    queryFn: ({ signal }) => fetchTripDetailBundle(id, org, signal, false),
     staleTime: 60_000,
   });
+}
+
+export function peekTripDetailBundleCache(
+  queryClient: QueryClient,
+  tripId: string,
+): TripDetailBundle | undefined {
+  return (
+    queryClient.getQueryData<TripDetailBundle>([
+      ...queryKeys.trips.bundle(tripId),
+      "light",
+    ]) ??
+    queryClient.getQueryData<TripDetailBundle>([
+      ...queryKeys.trips.bundle(tripId),
+      "rpc",
+    ]) ??
+    queryClient.getQueryData<TripDetailBundle>(queryKeys.trips.bundle(tripId))
+  );
+}
+
+export function patchTripDetailBundleCache(
+  queryClient: QueryClient,
+  tripId: string,
+  updater: (
+    old: TripDetailBundle | null | undefined,
+  ) => TripDetailBundle | null | undefined,
+): void {
+  const entries = queryClient.getQueriesData<TripDetailBundle>({
+    queryKey: queryKeys.trips.bundle(tripId),
+  });
+  for (const [key] of entries) {
+    queryClient.setQueryData(key, updater);
+  }
 }
 
 export function useTripDetailBundleQuery(
   tripId: string | null,
   viewerOrgId: string | null,
+  opts?: { preferLight?: boolean },
 ): { bundle: TripDetailBundle | null | undefined; isBundleLoading: boolean; bundleError: Error | null } {
+  const preferLight = Boolean(opts?.preferLight);
   const { data, isLoading, error } = useQuery({
-    queryKey: queryKeys.trips.bundle(tripId ?? ''),
-    queryFn: ({ signal }) => fetchTripDetailBundle(tripId!, viewerOrgId!, signal),
+    queryKey: [...queryKeys.trips.bundle(tripId ?? ''), preferLight ? "light" : "rpc"],
+    queryFn: ({ signal }) =>
+      fetchTripDetailBundle(tripId!, viewerOrgId!, signal, preferLight),
     enabled: isBundleEnabled(viewerOrgId) && !!tripId && !!viewerOrgId,
     staleTime: 60_000,
     gcTime: 5 * 60_000,

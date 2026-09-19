@@ -593,9 +593,9 @@ export default function TripsScreen() {
   }, [showCompletedList, tripsByStatus]);
 
   const podDocumentTripIdsSorted = useMemo(() => {
-    const ids = trips.map((t) => t.id).filter(Boolean).sort();
+    const ids = tripsByStatus.map((t) => t.id).filter(Boolean).sort();
     return [...new Set(ids)].join(",");
-  }, [trips]);
+  }, [tripsByStatus]);
 
   /** Persisted React Query cache is JSON — `Set` breaks after hydrate (`.has` missing). Store IDs as array, derive Set in memo. */
   const { data: hubPodFlagsRaw } = useQuery({
@@ -603,7 +603,7 @@ export default function TripsScreen() {
       "q",
       "trips",
       "doc-trip-ids",
-      "v4-pod-flags",
+      "v5-pod-flags",
       orgId ?? "",
       podDocumentTripIdsSorted,
     ],
@@ -627,17 +627,13 @@ export default function TripsScreen() {
     return new Set<string>();
   }, [hubPodFlagsRaw]);
   const hardPodTripIds = useMemo(() => {
-    const hard = hubPodFlagsRaw?.hardTripIds;
-    if (Array.isArray(hard)) {
-      return new Set(
-        hard
-          .filter((value): value is string => typeof value === "string")
-          .map((value) => value.trim().toLowerCase())
-          .filter(Boolean),
-      );
+    const set = new Set<string>();
+    for (const row of tripsByStatus) {
+      if (!tripPodIsReceived(row) || !row.id) continue;
+      set.add(row.id.trim().toLowerCase());
     }
-    return new Set<string>();
-  }, [hubPodFlagsRaw]);
+    return set;
+  }, [tripsByStatus]);
 
   const tripsForHubMetricCounts = useMemo(() => {
     let list = tripsByStatus.filter((t) =>

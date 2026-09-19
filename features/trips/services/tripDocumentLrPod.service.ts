@@ -247,8 +247,9 @@ export type HubPodReceiptFlags = {
 };
 
 /**
- * Pulse POD chip sources for the hub:
- * soft = trip_documents document_type pod; hard = trips.pod_received_at.
+ * Pulse hub digital-POD chip: trip_documents document_type pod (chunked,
+ * sequential). Hard-copy chips use already-loaded trips.pod_received_at —
+ * do not re-select trips for that stamp.
  */
 export async function loadHubPodReceiptFlags(
   tripIds: string[],
@@ -260,9 +261,8 @@ export async function loadHubPodReceiptFlags(
 
   const chunks = chunkIds(wanted);
   const soft = new Set<string>();
-  const hard = new Set<string>();
 
-  const docParts = await runWithConcurrencyLimit(chunks, CHUNK_CONCURRENCY, async (chunk) => {
+  const docParts = await runWithConcurrencyLimit(chunks, 1, async (chunk) => {
     const { data, error } = await supabase()
       .from("trip_documents")
       .select("trip_id, document_type")
@@ -282,25 +282,5 @@ export async function loadHubPodReceiptFlags(
     }
   }
 
-  const stampParts = await runWithConcurrencyLimit(chunks, CHUNK_CONCURRENCY, async (chunk) => {
-    const { data, error } = await supabase()
-      .from("trips")
-      .select("id, pod_received_at")
-      .in("id", chunk);
-    if (error) {
-      console.warn("[tripDocumentLrPod] hub hard POD fetch:", error.message);
-      return [] as { id?: string; pod_received_at?: string | null }[];
-    }
-    return (data ?? []) as { id?: string; pod_received_at?: string | null }[];
-  });
-  for (const part of stampParts) {
-    for (const row of part) {
-      if (tripPodIsReceived({ pod_received_at: row.pod_received_at })) {
-        const id = normalizeTripPodId(row.id);
-        if (id) hard.add(id);
-      }
-    }
-  }
-
-  return { softTripIds: [...soft], hardTripIds: [...hard] };
+  return { softTripIds: [...soft], hardTripIds: [] };
 }

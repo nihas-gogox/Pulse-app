@@ -51,6 +51,8 @@ import {
 } from "@/lib/queries";
 import {
     isBundleEnabled,
+    peekTripDetailBundleCache,
+    patchTripDetailBundleCache,
     useTripDetailBundleQuery,
     type BundleDocument,
     type BundleTransaction,
@@ -362,13 +364,24 @@ function peekTripDetailFirstPaint(
   queryClient: ReturnType<typeof useQueryClient>,
 ): TripRow | null {
   if (!tripId) return null;
-  const cached = queryClient.getQueryData<TripDetailBundle>(
-    queryKeys.trips.bundle(tripId),
-  );
+  const cached = peekTripDetailBundleCache(queryClient, tripId);
   if (cached?.trip?.id === tripId) {
     return cached.trip as unknown as TripRow;
   }
   return getInitialTripForDetail(tripId);
+}
+
+/** Light bundle only when this trip is already known completed — frozen for the screen instance. */
+function peekCompletedTripForLightBundle(
+  tripId: string,
+  orgId: string | null | undefined,
+  queryClient: ReturnType<typeof useQueryClient>,
+): boolean {
+  if (isTripCompleted(peekTripDetailFirstPaint(tripId, queryClient))) return true;
+  if (!orgId) return false;
+  const list = queryClient.getQueryData<TripRow[]>(queryKeys.trips.finite(orgId));
+  const row = Array.isArray(list) ? list.find((t) => t.id === tripId) : undefined;
+  return isTripCompleted(row);
 }
 
 function tripRowListPaintFields(row: TripRow): {
@@ -853,9 +866,19 @@ export function useTripDetail({
   // Phase 3b: single-RPC bundle replacing 18-24 serial calls.
   // When ENABLE_TRIP_DETAIL_BUNDLE is true (global), bundleActive is true for all orgs.
   // Legacy load effects below are no-ops on the bundle path.
+  // Delivered/completed (from list seed or trips.finite): skip get_trip_detail_bundle.
+  // Frozen so a later status update cannot swap rpc→light and drop party/audit fields.
+  const [preferLightBundle] = useState(() =>
+    peekCompletedTripForLightBundle(
+      tripId,
+      currentOrganization?.id ?? null,
+      queryClient,
+    ),
+  );
   const { bundle, isBundleLoading, bundleError } = useTripDetailBundleQuery(
     tripId,
     currentOrganization?.id ?? null,
+    { preferLight: preferLightBundle },
   );
   const bundleActive = isBundleEnabled(currentOrganization?.id ?? null);
 
@@ -1234,13 +1257,10 @@ export function useTripDetail({
         // Keep the cached bundle's trip fields aligned with the realtime state so a
         // remount within staleTime (60s) doesn't re-seed `trip` from stale cache and
         // revert this merge — see queryKeys.trips.bundle usage in useTripDetailBundleQuery.
-        queryClient.setQueryData(
-          queryKeys.trips.bundle(tripId),
-          (old: TripDetailBundle | null | undefined) => {
+        patchTripDetailBundleCache(queryClient, tripId, (old) => {
             if (!old || old.trip.id !== tripId) return old;
             return { ...old, trip: { ...old.trip, ...(payload.new as Partial<typeof old.trip>) } };
-          },
-        );
+          });
         return;
       }
       isRefreshingRef.current = true;
@@ -2244,7 +2264,10 @@ export function useTripDetail({
         orgId: linkedId,
       });
     } else {
-      setClientPartyRes(null);
+      const fromTrip = nStr(tripRow.client_name);
+      setClientPartyRes(
+        fromTrip ? { name: fromTrip, integrated: false, orgId: null } : null,
+      );
     }
 
     if (bundle.supplier_detail?.supplier) {
@@ -2307,9 +2330,7 @@ export function useTripDetail({
 
     const next = peekTripDetailFirstPaint(tripId, queryClient);
     if (next?.id === tripId) {
-      const cachedBundle = queryClient.getQueryData<TripDetailBundle>(
-        queryKeys.trips.bundle(tripId),
-      );
+      const cachedBundle = peekTripDetailBundleCache(queryClient, tripId);
       const hasAuthoritativeBundle = cachedBundle?.trip?.id === tripId;
       setTrip((prev) => {
         if (prev?.id === tripId && (bundleSeededRef.current || hasAuthoritativeBundle)) {

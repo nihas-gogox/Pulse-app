@@ -95,4 +95,15 @@ describe('getDocumentsByTripId — storage-fallback subfolder concurrency', () =
     expect(documents).toEqual([]);
     expect(subfolderListCallCount).toBe(0);
   });
+
+  it("does not list Storage when includeStorageFallback is false (trip-detail mount)", async () => {
+    const { documents, error } = await getDocumentsByTripId("trip-3", {
+      includeOcr: false,
+      includeStorageFallback: false,
+    });
+
+    expect(error).toBeNull();
+    expect(documents).toEqual([]);
+    expect(mockStorageList).not.toHaveBeenCalled();
+  });
 });
