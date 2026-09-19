@@ -53,6 +53,7 @@ import {
     isBundleEnabled,
     peekTripDetailBundleCache,
     patchTripDetailBundleCache,
+    fetchLightTripDetailFinance,
     useTripDetailBundleQuery,
     type BundleDocument,
     type BundleTransaction,
@@ -114,6 +115,7 @@ import type { ReassignCompletedMeta } from "../../reassign/reassign.types";
 export type { ReassignCompletedMeta };
 import type { TripDetailTab } from "../TripDetailFinanceView";
 import { isPdfTripDoc, type TripDocItem } from "../tripDocTypes";
+import { shouldFetchTripSubcontractsOnDetail } from "../completedTripInitialLoad.util";
 
 import {
   resolveMapLocationLabel,
@@ -352,6 +354,8 @@ export interface UseTripDetailOptions {
   clientIdFromContext?: string;
   clientNameFromContext?: string;
   onBack: () => void;
+  /** Delivered light path: load transactions/adjustments only when Finance is open. */
+  financeSurfaceActive?: boolean;
 }
 
 /**
@@ -399,6 +403,7 @@ export function useTripDetail({
   clientIdFromContext,
   clientNameFromContext,
   onBack,
+  financeSurfaceActive = false,
 }: UseTripDetailOptions) {
   const router = useRouter();
   const { t } = useLanguage();
@@ -881,6 +886,25 @@ export function useTripDetail({
   );
   const bundleActive = isBundleEnabled(currentOrganization?.id ?? null);
 
+  useEffect(() => {
+    if (!preferLightBundle || !financeSurfaceActive || !tripId) return;
+    let cancelled = false;
+    void fetchLightTripDetailFinance(tripId).then((slice) => {
+      if (cancelled) return;
+      patchTripDetailBundleCache(queryClient, tripId, (old) => {
+        if (!old || old.trip.id !== tripId) return old;
+        return {
+          ...old,
+          transactions: slice.transactions,
+          adjustments: slice.adjustments,
+        };
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [preferLightBundle, financeSurfaceActive, tripId, queryClient]);
+
   // ── Transactions (React Query) ────────────────────────────────────────────
   // Bundle already includes the trip-scoped 50-row slice — do not load org-wide ledger.
   const orgIdForTransactions = bundleActive
@@ -989,8 +1013,10 @@ export function useTripDetail({
   );
 
   const { data: tripSubcontracts = [] } = useTripSubcontractsQuery(
-    currentOrganization?.id ?? null,
-    trip ? [trip.id] : [],
+    shouldFetchTripSubcontractsOnDetail(trip)
+      ? (currentOrganization?.id ?? null)
+      : null,
+    shouldFetchTripSubcontractsOnDetail(trip) && trip ? [trip.id] : [],
   );
 
   const subcontractRate = useMemo(() => {

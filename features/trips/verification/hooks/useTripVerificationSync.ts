@@ -7,17 +7,18 @@ import { flushVerificationOutbox } from "../offline/sync";
  * Keeps verification outbox opportunistically synced when connection returns.
  * Non-blocking and safe to mount on driver/business trip surfaces.
  */
-export function useTripVerificationSync() {
+export function useTripVerificationSync(opts?: { enabled?: boolean }) {
+  const enabled = opts?.enabled !== false;
   const isOnline = useIsOnline();
   const qc = useQueryClient();
 
   useEffect(() => {
-    if (!isOnline) return;
+    if (!enabled || !isOnline) return;
     void flushVerificationOutbox().then((result) => {
       if (result.processed > 0) {
         qc.invalidateQueries({ queryKey: ["q", "trips", "verification"] });
         qc.invalidateQueries({ queryKey: ["q", "trips", "detail"] });
       }
     });
-  }, [isOnline, qc]);
+  }, [enabled, isOnline, qc]);
 }

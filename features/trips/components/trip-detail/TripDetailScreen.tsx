@@ -11,6 +11,9 @@ import { Theme } from "@/constants/Theme";
 import {
   shouldAutoRunHistoricalLrOcr,
   shouldFetchOperationsSummary,
+  shouldFlushTripOutboxOnDetail,
+  shouldFetchManifestRefAssetInsights,
+  shouldLoadTripDocumentsForViewer,
   shouldSkipExpenseTabAutoSelect,
 } from "@/features/trips/components/trip-detail/completedTripInitialLoad.util";
 import { canAddMoreTripDocs, canMutateTripVaultDoc, formatLrVaultDateLabel, formatLrVaultNumberLabel, formatVaultDocDate, isEwayBillVaultDoc, isLrVaultDoc, isPdfTripDoc, type TripDocItem, VAULT_DOC_LIMIT_HINT, VAULT_DOC_MAX_BYTES, VAULT_DOC_MAX_MB, VAULT_DOC_PICKER_TYPES, vaultDocDateToIso, vaultDocHasPreviewableFile, vaultPickerRejectionMessage } from "@/features/trips/components/trip-detail/tripDocTypes";
@@ -459,8 +462,6 @@ export default function TripDetailScreen({
   const { t } = useLanguage();
   const { width: screenWidth } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? "trip");
-  useTripVerificationSync();
-  useTripOperationsSync();
   const tripOperationsSummaryQuery = useTripOperationsSummary(tripId || null, {
     enabled: shouldFetchOperationsSummary(tripId, activeTab),
   });
@@ -552,10 +553,17 @@ export default function TripDetailScreen({
     clientIdFromContext,
     clientNameFromContext,
     onBack,
+    financeSurfaceActive: activeTab === "finance",
+  });
+  useTripVerificationSync({
+    enabled: shouldFlushTripOutboxOnDetail(detail.trip),
+  });
+  useTripOperationsSync({
+    enabled: shouldFlushTripOutboxOnDetail(detail.trip),
   });
 
   useEffect(() => {
-    if (activeTab === "docs") {
+    if (shouldLoadTripDocumentsForViewer(activeTab)) {
       void detail.ensureTripDocumentsForViewer();
     }
     if (activeTab === "tracking") {
@@ -629,11 +637,17 @@ export default function TripDetailScreen({
   const canTripSimulate = canSurface("tripops.trips.simulate");
   const canTripRatings = canSurface("tripops.trips.ratings");
 
+  const manifestInsightsEnabled = shouldFetchManifestRefAssetInsights(
+    detail.trip,
+  );
   const manifestRefAssetInsights = useManifestRefAssetInsights({
-    orgId:
-      currentOrganization?.id ?? detail.trip?.organization_id ?? null,
-    driverId: detail.trip?.driver_id ?? null,
-    vehicleId: detail.trip?.vehicle_id ?? null,
+    orgId: manifestInsightsEnabled
+      ? (currentOrganization?.id ?? detail.trip?.organization_id ?? null)
+      : null,
+    driverId: manifestInsightsEnabled ? (detail.trip?.driver_id ?? null) : null,
+    vehicleId: manifestInsightsEnabled
+      ? (detail.trip?.vehicle_id ?? null)
+      : null,
   });
   const manifestDriverInsights =
     manifestRefAssetInsights.data?.driver ?? {
@@ -3893,6 +3907,7 @@ export default function TripDetailScreen({
                       }
                       paymentCaptured={paymentCaptured}
                       layoutVariant="registry"
+                      skipHistoricalPartyRatings={tripCompleted}
                     />
                   </View>
                 ) : null}
@@ -5547,6 +5562,7 @@ export default function TripDetailScreen({
                     )}
                     layoutVariant="registry"
                     embeddedSidebar
+                    skipHistoricalPartyRatings={tripCompleted}
                   />
                 </View>
                 ) : null}
@@ -6281,6 +6297,7 @@ export default function TripDetailScreen({
                         Number(row.amount_in ?? 0) > 0,
                     )}
                     layoutVariant="registry"
+                    skipHistoricalPartyRatings
                   />
                 ) : (
                   <FeedbackPlaceholder />

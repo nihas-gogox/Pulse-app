@@ -1,4 +1,7 @@
-import { fetchTripDetailBundle } from "@/lib/queries/useTripDetailBundleQuery";
+import {
+  fetchLightTripDetailFinance,
+  fetchTripDetailBundle,
+} from "@/lib/queries/useTripDetailBundleQuery";
 
 jest.mock("@/lib/queryClient", () => ({
   shouldRetryQuery: () => false,
@@ -98,13 +101,23 @@ describe("fetchTripDetailBundle — delivered light path", () => {
     expect(mockFrom.mock.calls.filter((call) => call[0] === "trip_documents")).toHaveLength(1);
     expect(bundle?.trip.id).toBe("trip-delivered");
     expect(bundle?.documents).toEqual(docs);
-    expect(bundle?.transactions).toEqual(txs);
+    expect(bundle?.transactions).toEqual([]);
+    expect(mockFrom).not.toHaveBeenCalledWith("transactions");
+    expect(mockFrom).not.toHaveBeenCalledWith("trip_finance_adjustments");
   });
 
-  it("caps trip-scoped ledger at 50 rows and documents at 20 (same slice as the bundle RPC)", async () => {
+  it("caps documents at 20 (same slice as the bundle RPC) and does not fetch ledger on open", async () => {
     await fetchTripDetailBundle("trip-delivered", "org-1", undefined, true);
-    expect(mockTxLimit).toHaveBeenCalledWith(50);
     expect(mockDocLimit).toHaveBeenCalledWith(20);
+    expect(mockTxLimit).not.toHaveBeenCalled();
+  });
+
+  it("loads transactions and adjustments only via fetchLightTripDetailFinance", async () => {
+    const slice = await fetchLightTripDetailFinance("trip-delivered");
+    expect(slice.transactions).toEqual(txs);
+    expect(mockTxLimit).toHaveBeenCalledWith(50);
+    expect(mockFrom).toHaveBeenCalledWith("transactions");
+    expect(mockFrom).toHaveBeenCalledWith("trip_finance_adjustments");
   });
 
   it("keeps get_trip_detail_bundle for active trips", async () => {

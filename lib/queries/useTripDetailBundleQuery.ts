@@ -320,24 +320,29 @@ async function fetchTripAdjustmentsForLightBundle(
   return data as BundleAdjustment[];
 }
 
-/** Table-only trip + documents + trip-scoped ledger. No get_trip_detail_bundle. */
+/** Table-only trip + documents. Ledger/adjustments wait until Finance is opened. */
 async function composeLightTripDetailBundle(
   tripId: string,
   signal?: AbortSignal,
 ): Promise<TripDetailBundle | null> {
   const light = await fetchTripRowLight(tripId, signal);
   if (!light) return null;
-  const [documents, transactions, adjustments] = await Promise.all([
-    fetchTripDocumentsForLightBundle(tripId, signal),
-    fetchTripTransactionsForLightBundle(tripId, signal),
-    fetchTripAdjustmentsForLightBundle(tripId, signal),
-  ]);
+  const documents = await fetchTripDocumentsForLightBundle(tripId, signal);
   return {
     ...emptyBundleFromTrip(light),
     documents,
-    transactions,
-    adjustments,
   };
+}
+
+export async function fetchLightTripDetailFinance(
+  tripId: string,
+  signal?: AbortSignal,
+): Promise<{ transactions: BundleTransaction[]; adjustments: BundleAdjustment[] }> {
+  const [transactions, adjustments] = await Promise.all([
+    fetchTripTransactionsForLightBundle(tripId, signal),
+    fetchTripAdjustmentsForLightBundle(tripId, signal),
+  ]);
+  return { transactions, adjustments };
 }
 
 /** Exported for focused tests: light vs RPC vs RPC-failure fallback. */

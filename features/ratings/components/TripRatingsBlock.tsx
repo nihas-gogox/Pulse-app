@@ -91,6 +91,8 @@ export interface TripRatingsBlockProps {
    * `inline` (default) — full ratings panel on trip detail + modals.
    */
   surface?: 'inline' | 'modalOnly';
+  /** Skip driver/supplier/client-wide rating list fetches (completed trip open). */
+  skipHistoricalPartyRatings?: boolean;
 }
 
 type RateFlow = { type: 'client_supplier' } | { type: 'supplier_driver' } | null;
@@ -377,6 +379,7 @@ export function TripRatingsBlock({
   layoutVariant = 'default',
   surface = 'inline',
   embeddedSidebar = false,
+  skipHistoricalPartyRatings = false,
 }: TripRatingsBlockProps) {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
@@ -517,7 +520,7 @@ export function TripRatingsBlock({
   useEffect(() => {
     let cancelled = false;
     const id = trip.driver_id?.trim();
-    if (!id) {
+    if (skipHistoricalPartyRatings || !id) {
       setHistDriverAvg(null);
       return;
     }
@@ -528,12 +531,12 @@ export function TripRatingsBlock({
     return () => {
       cancelled = true;
     };
-  }, [trip.driver_id]);
+  }, [trip.driver_id, skipHistoricalPartyRatings]);
 
   useEffect(() => {
     let cancelled = false;
     const id = trip.supplier_id?.trim();
-    if (!id) {
+    if (skipHistoricalPartyRatings || !id) {
       setHistSupplierAvg(null);
       return;
     }
@@ -544,12 +547,12 @@ export function TripRatingsBlock({
     return () => {
       cancelled = true;
     };
-  }, [trip.supplier_id]);
+  }, [trip.supplier_id, skipHistoricalPartyRatings]);
 
   useEffect(() => {
     let cancelled = false;
     const id = trip.client_id?.trim();
-    if (!id) {
+    if (skipHistoricalPartyRatings || !id) {
       setHistClientAvg(null);
       return;
     }
@@ -560,7 +563,7 @@ export function TripRatingsBlock({
     return () => {
       cancelled = true;
     };
-  }, [trip.client_id]);
+  }, [trip.client_id, skipHistoricalPartyRatings]);
 
   useEffect(() => {
     let cancelled = false;

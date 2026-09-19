@@ -37,7 +37,51 @@ export function shouldAutoRunHistoricalLrOcr(
   return true;
 }
 
-/** Ledger write-backfill is not an open-completed-trip operation. */
+/** Finance ledger/adjustments only after the user opens Finance. */
+export function shouldFetchDeliveredTripFinance(
+  activeTab: TripDetailMainTab,
+  trip: TripCompletionFields | null | undefined,
+): boolean {
+  return activeTab === "finance" && isTripCompleted(trip);
+}
+
+/** Driver/supplier/client historical rating lists — skip on completed first paint. */
+export function shouldFetchHistoricalPartyRatings(
+  trip: TripCompletionFields | null | undefined,
+): boolean {
+  return !isTripCompleted(trip);
+}
+
+/** Manifest sidebar driver/vehicle ratings + compliance docs. */
+export function shouldFetchManifestRefAssetInsights(
+  trip: TripCompletionFields | null | undefined,
+): boolean {
+  return !isTripCompleted(trip);
+}
+
+/** Operations/verification outbox flush is for live trips. */
+export function shouldFlushTripOutboxOnDetail(
+  trip: TripCompletionFields | null | undefined,
+): boolean {
+  if (!trip) return false;
+  return !isTripCompleted(trip);
+}
+
+/** Storage/OCR viewer path: Docs tab only (metadata already in the light bundle). */
+export function shouldLoadTripDocumentsForViewer(
+  activeTab: TripDetailMainTab,
+): boolean {
+  return activeTab === "docs";
+}
+
+/** Subcontract rates: live trips only. */
+export function shouldFetchTripSubcontractsOnDetail(
+  trip: TripCompletionFields | null | undefined,
+): boolean {
+  if (!trip?.id) return false;
+  return !isTripCompleted(trip);
+}
+
 export function shouldBackfillPostedExpensesToLedger(input: {
   isDriverViewer: boolean;
   trip: TripCompletionFields;
