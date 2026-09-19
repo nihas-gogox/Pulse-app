@@ -8,6 +8,7 @@ const mockRpc = jest.fn();
 const mockFrom = jest.fn();
 const mockStorageList = jest.fn();
 const mockTxLimit = jest.fn();
+const mockDocLimit = jest.fn();
 
 jest.mock("@/lib/supabase", () => ({
   supabase: () => ({
@@ -61,12 +62,15 @@ const txs = [{ id: "tx-1", trip_id: "trip-delivered", amount_in: 100, amount_out
 beforeEach(() => {
   jest.clearAllMocks();
   mockTxLimit.mockImplementation(() => Promise.resolve({ data: txs, error: null }));
+  mockDocLimit.mockImplementation(() => Promise.resolve({ data: docs, error: null }));
   mockFrom.mockImplementation((table: string) => {
     if (table === "trips") {
       return thenable({ data: deliveredTrip, error: null });
     }
     if (table === "trip_documents") {
-      return thenable({ data: docs, error: null });
+      const builder = thenable({ data: docs, error: null });
+      builder.limit = mockDocLimit;
+      return builder;
     }
     if (table === "transactions") {
       const builder = thenable({ data: txs, error: null });
@@ -97,9 +101,10 @@ describe("fetchTripDetailBundle — delivered light path", () => {
     expect(bundle?.transactions).toEqual(txs);
   });
 
-  it("caps trip-scoped ledger at 50 rows (same slice as the bundle RPC)", async () => {
+  it("caps trip-scoped ledger at 50 rows and documents at 20 (same slice as the bundle RPC)", async () => {
     await fetchTripDetailBundle("trip-delivered", "org-1", undefined, true);
     expect(mockTxLimit).toHaveBeenCalledWith(50);
+    expect(mockDocLimit).toHaveBeenCalledWith(20);
   });
 
   it("keeps get_trip_detail_bundle for active trips", async () => {
@@ -148,6 +153,43 @@ describe("fetchTripDetailBundle — delivered light path", () => {
 
     expect(mockRpc).toHaveBeenCalled();
     expect(bundle?.documents).toEqual(docs);
+    expect(mockStorageList).not.toHaveBeenCalled();
+  });
+
+  it("keeps text/plain place-status POD rows (no storage list)", async () => {
+    const placePod = {
+      ...docs[0],
+      id: "doc-place",
+      file_name: "left_with_security.txt",
+      storage_path: "trip-delivered/pod/left_with_security.txt",
+      mime_type: "text/plain",
+    };
+    mockDocLimit.mockImplementation(() =>
+      Promise.resolve({ data: [placePod], error: null }),
+    );
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "trips") return thenable({ data: deliveredTrip, error: null });
+      if (table === "trip_documents") {
+        return thenable({ data: [placePod], error: null });
+      }
+      if (table === "transactions") {
+        const builder = thenable({ data: [], error: null });
+        builder.limit = mockTxLimit;
+        return builder;
+      }
+      if (table === "trip_finance_adjustments") {
+        return thenable({ data: [], error: null });
+      }
+      throw new Error(`unexpected table: ${table}`);
+    });
+
+    const bundle = await fetchTripDetailBundle(
+      "trip-delivered",
+      "org-1",
+      undefined,
+      true,
+    );
+    expect(bundle?.documents[0]?.mime_type).toBe("text/plain");
     expect(mockStorageList).not.toHaveBeenCalled();
   });
 });

@@ -252,6 +252,8 @@ async function fetchTripRowLight(
   return data as BundleTrip;
 }
 
+/** Matches get_trip_detail_bundle documents[] LIMIT. */
+export const LIGHT_BUNDLE_DOC_LIMIT = 20;
 /** Matches get_trip_detail_bundle transactions[] / adjustments[] LIMIT. */
 export const LIGHT_BUNDLE_TX_LIMIT = 50;
 
@@ -273,7 +275,8 @@ async function fetchTripDocumentsForLightBundle(
       .from("trip_documents")
       .select(BUNDLE_DOC_SELECT)
       .eq("trip_id", tripId)
-      .order("uploaded_at", { ascending: false }),
+      .order("uploaded_at", { ascending: false })
+      .limit(LIGHT_BUNDLE_DOC_LIMIT),
     signal,
   );
   throwIfCancelled(signal, error);

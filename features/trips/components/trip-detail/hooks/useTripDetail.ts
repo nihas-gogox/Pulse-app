@@ -56,7 +56,6 @@ import {
     useTripDetailBundleQuery,
     type BundleDocument,
     type BundleTransaction,
-    type TripDetailBundle,
 } from "@/lib/queries/useTripDetailBundleQuery";
 import { queryKeys } from "@/lib/queryKeys";
 import * as driverLocationService from "@/features/driver/services/driverLocation.service";

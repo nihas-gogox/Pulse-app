@@ -30,7 +30,7 @@ describe("loadHubPodReceiptFlags", () => {
       expect(table).toBe("trip_documents");
       active += 1;
       maxActive = Math.max(maxActive, active);
-      const q = docsQuery([{ trip_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", document_type: "pod" }]);
+      const q = docsQuery([{ trip_id: "trip-0", document_type: "pod" }]);
       const originalThen = q.then as (resolve: (v: unknown) => unknown) => Promise<unknown>;
       q.then = (resolve: (v: unknown) => unknown) =>
         originalThen(async (v) => {
