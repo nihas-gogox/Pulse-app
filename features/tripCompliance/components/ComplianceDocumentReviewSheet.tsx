@@ -13,12 +13,13 @@ import {
   verifyDocument,
 } from "@/features/compliance/services/documents.service";
 import { getVehicleById } from "@/features/vehicles/services/vehicles.service";
-import { useDocumentPreview } from "@/features/chat/components/DocumentPreviewModal";
 import { uploadAndSaveVehicleDocument } from "@/features/vehicles/services/vehicleDocuments.service";
 import type { VehicleComplianceDocType } from "@/features/vehicles/utils/vehicleDocuments.util";
+import { describeStopProofDocument, type StopProofDocumentSummary } from "@/features/driver/job-card/deliveryProof";
+import { ComplianceDocumentPreviewModal } from "@/features/tripCompliance/components/ComplianceDocumentPreviewModal";
 import {
   guessCompliancePreviewMime,
-  resolveComplianceDocumentViewUrl,
+  signCompliancePreviewUrl,
 } from "@/features/tripCompliance/services/complianceDocumentView.service";
 import { ComplianceInputModal } from "@/features/tripCompliance/components/ComplianceInputModal";
 import { COMPLIANCE_STATUS_META, ComplianceStatusChip } from "@/features/tripCompliance/components/ComplianceStatusIcon";
@@ -38,13 +39,11 @@ import {
   type ComplianceDocRow,
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
-import { PdfViewer } from "@/components/PdfViewer";
-import { describeStopProofDocument } from "@/features/driver/job-card/deliveryProof";
 import { uploadTripDocument, type TripDocumentType } from "@/features/trips/services/tripDocuments.service";
 import * as DocumentPicker from "expo-document-picker";
 import { ChevronLeft, Eye, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -125,22 +124,19 @@ export function ComplianceDocumentReviewSheet({
     return deriveComplianceDocumentRows(documents);
   }, [scope, documents, vehicleDocuments, driverDocuments]);
   const [selectedKey, setSelectedKey] = useState<string | null>(initialSelectedKey);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [rejectVisible, setRejectVisible] = useState(false);
   const [uploadingMissing, setUploadingMissing] = useState(false);
   const [viewingKey, setViewingKey] = useState<string | null>(null);
-  const { open: openDocPreview, node: docPreviewNode } = useDocumentPreview();
+  const [lightbox, setLightbox] = useState<{
+    title: string;
+    url: string | null;
+    mime: string | null;
+    loading: boolean;
+    placeProof: StopProofDocumentSummary | null;
+  } | null>(null);
 
   const selected: ComplianceDocRow | null = rows.find((r) => r.key === selectedKey) ?? null;
-  const selectedStopProof = selected
-    ? describeStopProofDocument({
-        fileName: selected.doc?.file_name ?? selected.entityDoc?.notes,
-        mimeType: selected.doc?.mime_type,
-        documentNumber: selected.doc?.document_number,
-        storagePath: selected.doc?.storage_path ?? selected.entityDoc?.storage_path,
-      })
-    : null;
   const canModerateSelected =
     scope === "trip"
       ? Boolean(selected?.doc)
@@ -158,90 +154,62 @@ export function ComplianceDocumentReviewSheet({
     if (visible) {
       setSelectedKey(initialSelectedKey);
     } else {
-      setPreviewUrl(null);
+      setLightbox(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, tripId, scope]);
 
-  const resolveRowViewUrl = useCallback(
-    (row: ComplianceDocRow | null) => {
-      if (!row) return Promise.resolve(null);
-      return resolveComplianceDocumentViewUrl({
-        storagePath: row.doc?.storage_path ?? row.entityDoc?.storage_path,
-        source: scope === "trip" ? "trip" : row.entityDoc?.source,
-        organizationId,
-        entityId,
-        docType: row.type,
-      });
-    },
-    [entityId, organizationId, scope],
-  );
-
-  const openResolvedPreview = useCallback(
-    async (url: string, path: string | null | undefined, label: string) => {
-      await openDocPreview(url, guessCompliancePreviewMime(path ?? url), label);
-    },
-    [openDocPreview],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!selected || selectedStopProof) {
-      setPreviewUrl(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-    void resolveRowViewUrl(selected).then((url) => {
-      if (!cancelled) setPreviewUrl(url);
+  const stopProofForRow = useCallback((row: ComplianceDocRow | null) => {
+    if (!row) return null;
+    return describeStopProofDocument({
+      fileName: row.doc?.file_name ?? row.entityDoc?.notes,
+      mimeType: row.doc?.mime_type,
+      documentNumber: row.doc?.document_number,
+      storagePath: row.doc?.storage_path ?? row.entityDoc?.storage_path,
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [resolveRowViewUrl, selected, selectedStopProof?.code, selectedStopProof?.kind]);
+  }, []);
 
-  const handleOpenDocument = useCallback(() => {
-    if (!previewUrl || !selected) return;
-    void openResolvedPreview(
-      previewUrl,
-      selected.doc?.storage_path ?? selected.entityDoc?.storage_path,
-      labelForDocType(selected.type),
-    );
-  }, [openResolvedPreview, previewUrl, selected]);
-
-  const handleViewRow = useCallback(
+  const openRowPreview = useCallback(
     async (row: ComplianceDocRow) => {
       const path = row.doc?.storage_path ?? row.entityDoc?.storage_path ?? null;
-      const stopProof = describeStopProofDocument({
-        fileName: row.doc?.file_name ?? row.entityDoc?.notes,
-        mimeType: row.doc?.mime_type,
-        documentNumber: row.doc?.document_number,
-        storagePath: path,
-      });
-      if (stopProof) {
-        setSelectedKey(row.key);
+      const placeProof = stopProofForRow(row);
+      const title = labelForDocType(row.type);
+      if (placeProof) {
+        setLightbox({ title, url: null, mime: "text/plain", loading: false, placeProof });
         return;
       }
-      if (!path && !(organizationId && entityId && row.type)) {
-        alertMessage("No document", `${labelForDocType(row.type)} has not been uploaded yet.`);
+      if (!path) {
+        alertMessage("No document", `${title} has not been uploaded yet.`);
         return;
       }
       setViewingKey(row.key);
+      setLightbox({ title, url: null, mime: null, loading: true, placeProof: null });
       try {
-        const url = await resolveRowViewUrl(row);
+        const url = await signCompliancePreviewUrl({
+          storagePath: path,
+          source: scope === "trip" ? "trip" : row.entityDoc?.source,
+        });
+        setLightbox({
+          title,
+          url,
+          mime: guessCompliancePreviewMime(path, row.doc?.mime_type),
+          loading: false,
+          placeProof: null,
+        });
         if (!url) {
           alertMessage("Couldn't open document", "No preview is available for this file.");
-          return;
         }
-        await openResolvedPreview(url, path, labelForDocType(row.type));
       } catch (e) {
+        setLightbox(null);
         alertMessage("Couldn't open document", (e as Error).message);
       } finally {
         setViewingKey(null);
       }
     },
-    [entityId, openResolvedPreview, organizationId, resolveRowViewUrl],
+    [scope, stopProofForRow],
   );
+
+  const selectedStopProof = stopProofForRow(selected);
 
   const handleApprove = useCallback(async () => {
     if (!actorId) return;
@@ -437,7 +405,7 @@ export function ComplianceDocumentReviewSheet({
                         <ComplianceStatusChip status={row.status} label={meta.label} compact />
                       </TouchableOpacity>
                       <TouchableOpacity
-                        onPress={() => void handleViewRow(row)}
+                        onPress={() => void openRowPreview(row)}
                         disabled={viewingKey != null}
                         style={styles.eyeBtn}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -482,26 +450,16 @@ export function ComplianceDocumentReviewSheet({
                         : "Delivery place was recorded without a photo."}
                     </Text>
                   </View>
-                ) : previewUrl ? (
-                  <>
-                    {guessCompliancePreviewMime(selected.doc?.storage_path ?? selected.entityDoc?.storage_path ?? previewUrl) === "application/pdf" ? (
-                      <View style={styles.inlinePreview}>
-                        <PdfViewer pdfUri={previewUrl} />
-                      </View>
-                    ) : (
-                      <Image
-                        source={{ uri: previewUrl }}
-                        style={styles.inlinePreview}
-                        resizeMode="contain"
-                        accessibilityLabel={`${labelForDocType(selected.type)} preview`}
-                      />
-                    )}
-                    <TouchableOpacity onPress={handleOpenDocument} style={styles.openDocBtn}>
-                      <Text style={styles.openDocBtnText}>Open Document</Text>
-                    </TouchableOpacity>
-                  </>
                 ) : (
-                  <ActivityIndicator size="small" color={Theme.textMuted} />
+                  <TouchableOpacity
+                    onPress={() => selected && void openRowPreview(selected)}
+                    style={styles.openDocBtn}
+                    disabled={viewingKey != null}
+                  >
+                    <Text style={styles.openDocBtnText}>
+                      {viewingKey === selected?.key ? "Opening…" : "Preview"}
+                    </Text>
+                  </TouchableOpacity>
                 )}
               </View>
               <Text style={styles.docTitle}>{labelForDocType(selected.type)}</Text>
@@ -546,7 +504,15 @@ export function ComplianceDocumentReviewSheet({
         onCancel={() => setRejectVisible(false)}
         onSubmit={handleRejectSubmit}
       />
-      {docPreviewNode}
+      <ComplianceDocumentPreviewModal
+        visible={lightbox != null}
+        title={lightbox?.title ?? ""}
+        url={lightbox?.url ?? null}
+        mime={lightbox?.mime ?? null}
+        loading={Boolean(lightbox?.loading)}
+        placeProof={lightbox?.placeProof ?? null}
+        onClose={() => setLightbox(null)}
+      />
     </Modal>
   );
 }

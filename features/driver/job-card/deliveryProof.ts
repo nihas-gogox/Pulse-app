@@ -107,7 +107,11 @@ export function describeStopProofDocument(input: {
   const storagePath = (input.storagePath ?? '').trim();
   const mime = (input.mimeType ?? '').toLowerCase();
   const fileMatch = fileName.match(PLACE_FILE_RE);
-  const pathIsPlaceTxt = /(?:^|\/)(?:delivery|pickup)-place\.txt$/i.test(storagePath);
+  const pathIsPlaceTxt =
+    /(?:^|\/)(?:delivery|pickup)-place\.txt$/i.test(storagePath) ||
+    /\.txt$/i.test(fileName) ||
+    /\.txt$/i.test(storagePath) ||
+    mime.startsWith('text/plain');
   const codeFromNumber = decodePlaceCode(input.documentNumber);
   const kind: StopProofKind =
     fileMatch?.[1]?.toLowerCase() === 'pickup' || /pickup-place\.txt$/i.test(storagePath)
@@ -123,17 +127,6 @@ export function describeStopProofDocument(input: {
         : kind === 'pickup'
           ? 'Pickup place recorded'
           : 'Delivery place recorded',
-    };
-  }
-
-  const pickupCode =
-    codeFromNumber && (PICKUP_PLACE_CODES as readonly string[]).includes(codeFromNumber);
-  if (mime.startsWith('text/plain') && codeFromNumber) {
-    const inferredKind: StopProofKind = pickupCode ? 'pickup' : 'delivery';
-    return {
-      kind: inferredKind,
-      code: codeFromNumber,
-      label: stopProofPlaceLabel(inferredKind, codeFromNumber),
     };
   }
 

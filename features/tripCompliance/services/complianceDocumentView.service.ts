@@ -1,54 +1,44 @@
 /**
- * Resolve a Compliance checklist file to a viewable HTTPS or blob URL.
- * Vehicle vault files live in `vehicle-documents`; trip files in `trip-documents`;
- * KYC in `driver-documents`; entity_documents in `compliance-documents`.
+ * Resolve a Compliance checklist file to a viewable HTTPS URL.
+ * Driver-app pattern: sign the stored object path once on its source bucket.
+ * Do not probe extra vault extensions or download blobs (that fans out Storage/RLS).
  */
 import { getComplianceDocumentSignedUrl } from "@/features/compliance/services/documents.service";
 import { tryGetDocumentViewUrl } from "@/features/trips/services/tripDocuments.service";
-import {
-  complianceStoragePathCandidates,
-} from "@/features/tripCompliance/utils/complianceVaultDocuments.util";
+import { parseComplianceStorageRef } from "@/features/tripCompliance/utils/complianceVaultDocuments.util";
 import { getVehicleDocumentViewUrl } from "@/features/vehicles/services/vehicleDocuments.service";
 import { supabase } from "@/lib/supabase";
 
 export type ComplianceViewSource = "vehicle-vault" | "driver-kyc" | "entity" | "trip" | null | undefined;
 
-type StorageBucket = "vehicle-documents" | "compliance-documents" | "driver-documents" | "trip-documents";
-
-function bucketsForSource(source: ComplianceViewSource): StorageBucket[] {
-  if (source === "trip") return ["trip-documents"];
-  if (source === "driver-kyc") return ["driver-documents"];
-  if (source === "entity") return ["compliance-documents"];
-  if (source === "vehicle-vault") return ["vehicle-documents"];
-  return ["vehicle-documents", "compliance-documents", "driver-documents", "trip-documents"];
-}
-
-async function signFromBucket(bucket: StorageBucket, path: string): Promise<string | null> {
+export async function signCompliancePreviewUrl(input: {
+  storagePath: string | null | undefined;
+  source?: ComplianceViewSource;
+}): Promise<string | null> {
+  const raw = (input.storagePath ?? "").trim();
+  if (!raw) return null;
+  const parsed = parseComplianceStorageRef(raw);
+  if (parsed.kind === "url") return parsed.value;
+  const path = parsed.value.trim();
+  if (!path) return null;
+  const source = input.source ?? "trip";
   try {
-    if (bucket === "vehicle-documents") return await getVehicleDocumentViewUrl(path);
-    if (bucket === "trip-documents") return await tryGetDocumentViewUrl(path);
-    if (bucket === "compliance-documents") {
+    if (source === "vehicle-vault") return await getVehicleDocumentViewUrl(path);
+    if (source === "entity") {
       const { url } = await getComplianceDocumentSignedUrl(path);
       return url;
     }
-    const { data } = await supabase().storage.from(bucket).createSignedUrl(path, 3600);
-    return data?.signedUrl ?? null;
+    if (source === "driver-kyc") {
+      const { data } = await supabase().storage.from("driver-documents").createSignedUrl(path, 3600);
+      return data?.signedUrl ?? null;
+    }
+    return await tryGetDocumentViewUrl(path);
   } catch {
     return null;
   }
 }
 
-async function downloadFromBucket(bucket: StorageBucket, path: string): Promise<string | null> {
-  if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return null;
-  try {
-    const { data, error } = await supabase().storage.from(bucket).download(path);
-    if (error || !data) return null;
-    return URL.createObjectURL(data);
-  } catch {
-    return null;
-  }
-}
-
+/** @deprecated Use signCompliancePreviewUrl — kept for callers that still pass vault guess fields. */
 export async function resolveComplianceDocumentViewUrl(input: {
   storagePath: string | null | undefined;
   source?: ComplianceViewSource;
@@ -56,32 +46,18 @@ export async function resolveComplianceDocumentViewUrl(input: {
   entityId?: string | null;
   docType?: string | null;
 }): Promise<string | null> {
-  const { url, paths } = complianceStoragePathCandidates({
-    rawPath: input.storagePath,
-    organizationId: input.organizationId,
-    entityId: input.entityId,
-    docType: input.docType,
+  return signCompliancePreviewUrl({
+    storagePath: input.storagePath,
+    source: input.source,
   });
-  if (url) return url;
-
-  const buckets = bucketsForSource(input.source);
-  for (const path of paths) {
-    for (const bucket of buckets) {
-      const signed = await signFromBucket(bucket, path);
-      if (signed) return signed;
-    }
-  }
-  const primary = buckets[0];
-  if (primary) {
-    for (const path of paths) {
-      const blobUrl = await downloadFromBucket(primary, path);
-      if (blobUrl) return blobUrl;
-    }
-  }
-  return null;
 }
 
-export function guessCompliancePreviewMime(pathOrName: string | null | undefined): string | null {
+export function guessCompliancePreviewMime(
+  pathOrName: string | null | undefined,
+  mimeType?: string | null,
+): string | null {
+  const declared = (mimeType ?? "").trim().toLowerCase();
+  if (declared) return declared;
   const value = (pathOrName ?? "").toLowerCase();
   if (value.endsWith(".pdf") || value.includes(".pdf?")) return "application/pdf";
   if (value.endsWith(".png") || value.includes(".png?")) return "image/png";

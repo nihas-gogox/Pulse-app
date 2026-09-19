@@ -49,6 +49,14 @@ describe('deliveryProof', () => {
     ).toBe('Collected from warehouse');
     expect(
       describeStopProofDocument({
+        fileName: 'pod-abc.txt',
+        mimeType: 'text/plain',
+        documentNumber: 'left_with_security',
+        storagePath: 'trip-1/pod/abc.txt',
+      })?.label,
+    ).toBe('Left with security');
+    expect(
+      describeStopProofDocument({
         fileName: 'lr.pdf',
         mimeType: 'application/pdf',
         storagePath: 'trip-1/lr/abc.pdf',
