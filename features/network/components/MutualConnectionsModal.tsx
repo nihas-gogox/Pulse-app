@@ -5,13 +5,10 @@ import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { PartyAvatar } from "@/components/PartyAvatar";
 import Theme from "@/constants/Theme";
 import { useLanguage } from "@/contexts/LanguageContext";
-import {
-  getMutualConnections,
-  type MutualConnectionRow,
-} from "@/features/network/services/mutual-connections.service";
+import type { MutualConnectionRow } from "@/features/network/services/mutual-connections.service";
 import { platformShadow } from "@/lib/platformShadow";
+import { useMutualConnectionsQuery } from "@/lib/queries/useMutualConnectionsQuery";
 import { X } from "lucide-react-native";
-import { useCallback, useEffect, useState } from "react";
 import {
   Modal,
   Pressable,
@@ -41,35 +38,14 @@ export function MutualConnectionsModal({
 }: MutualConnectionsModalProps) {
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [mutuals, setMutuals] = useState<MutualConnectionRow[]>([]);
-
-  const load = useCallback(async () => {
-    if (!visible || !viewerOrgId || !targetOrgId) return;
-    setLoading(true);
-    setError(null);
-    const { error: fetchError, mutuals: rows } = await getMutualConnections(
-      viewerOrgId,
-      targetOrgId,
-    );
-    setLoading(false);
-    if (fetchError) {
-      setError(fetchError.message);
-      setMutuals([]);
-      return;
-    }
-    setMutuals(rows);
-  }, [targetOrgId, viewerOrgId, visible]);
-
-  useEffect(() => {
-    if (!visible) {
-      setMutuals([]);
-      setError(null);
-      return;
-    }
-    void load();
-  }, [load, visible]);
+  const query = useMutualConnectionsQuery(
+    viewerOrgId,
+    targetOrgId,
+    visible,
+  );
+  const mutuals = query.data ?? [];
+  const loading = query.isPending && mutuals.length === 0;
+  const error = query.error instanceof Error ? query.error.message : null;
 
   const title = targetOrgName?.trim()
     ? `Mutuals with ${targetOrgName.trim()}`
