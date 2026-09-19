@@ -83,7 +83,7 @@ export function ChatFeedbackCard({
 
   const [phase, setPhase] = useState<FeedbackCardPhase>(() => {
     if (isFeedbackRequestAlreadyRatedMeta(meta)) return "already_rated";
-    const raw = (message.metadata ?? {}) as Record<string, unknown>;
+    const raw = (message?.metadata ?? {}) as Record<string, unknown>;
     if (typeof raw.submitted_at === "string" && raw.submitted_at.trim()) {
       return "already_rated";
     }
@@ -175,6 +175,11 @@ export function ChatFeedbackCard({
       }
       setPhase("success");
       onSubmitted();
+      return;
+    }
+
+    if (!message) {
+      setPhase("confirm");
       return;
     }
 

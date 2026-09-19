@@ -271,6 +271,9 @@ export function getMilestoneGuide(
         : "Locked";
 
   const remaining = Math.max(0, count.target - count.done);
+  // Captured before the switch: every level type is handled, so `level` narrows
+  // to `never` in the default branch and its fields are unreachable there.
+  const fallbackGoalText = level.goalText;
 
   let intro = "";
   let steps: string[] = [];
@@ -371,8 +374,8 @@ export function getMilestoneGuide(
       }
       break;
     default:
-      intro = level.goalText;
-      steps = [level.goalText];
+      intro = fallbackGoalText;
+      steps = [fallbackGoalText];
   }
 
   return {

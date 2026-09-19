@@ -1038,7 +1038,7 @@ export function PodReconciliationScreen() {
                     ? ({
                         display: "grid",
                         gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                      } as ViewStyle)
+                      } as object as ViewStyle)
                     : null,
                 ]}
               >
@@ -2302,8 +2302,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   podTripsLikeSearchWrapWeb: {
-    outlineStyle: "none",
-    outlineWidth: 0,
+    ...({ outlineStyle: "none", outlineWidth: 0 } as object),
   },
   podTripsLikeSearchIcon: { marginRight: 8 },
   podTripsLikeSearchInput: {
@@ -2316,8 +2315,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   podTripsLikeSearchInputWeb: {
-    outlineStyle: "none",
-    outlineWidth: 0,
+    ...({ outlineStyle: "none", outlineWidth: 0 } as object),
   },
   podTripsLikeToolbarActions: {
     flexDirection: "row",

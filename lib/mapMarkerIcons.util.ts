@@ -84,6 +84,9 @@ export const MAP_DESTINATION_PIN_HTML = `<svg width="28" height="40" viewBox="0 
   <circle cx="14" cy="14" r="6" fill="#fff"/><circle cx="14" cy="14" r="3" fill="#d97706"/>
 </svg>`;
 
+/** Small orange dot used for `ping` role markers. */
+export const MAP_PING_DOT_HTML = `<div style="width:12px;height:12px;border-radius:50%;background:#fb923c;border:2px solid #c2410c;box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div>`;
+
 /** Leaflet divIcon size/anchor for {@link buildDriverAvatarMarkerHtml} (live pin). */
 export const MAP_DRIVER_AVATAR_MARKER_ICON_SIZE: [number, number] = [44, 53];
 /** Anchor at the tip of the pointer under the avatar. */

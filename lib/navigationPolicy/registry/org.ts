@@ -851,6 +851,13 @@ export const ORG_POLICIES: readonly PolicyRecord[] = [
     onDeny: { type: 'sign_in' },
   },
   {
+    id: 'org.reach-inbox',
+    pattern: '/reach/inbox',
+    experience: 'org',
+    priority: 100,
+    onDeny: { type: 'sign_in' },
+  },
+  {
     id: 'org.reach-campaign-detail',
     pattern: '/reach/campaign/:id',
     experience: 'org',

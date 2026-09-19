@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
       width: "100%",
       maxWidth: "100%",
       paddingVertical: 2,
-    } as ViewStyle,
+    } as object as ViewStyle,
     default: {
       flexDirection: "row",
       alignItems: "flex-start",

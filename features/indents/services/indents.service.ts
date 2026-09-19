@@ -88,6 +88,8 @@ export interface IndentStopInput {
 export interface IndentRow {
   id: string;
   organization_id: string;
+  /** Set when the indent originated from a Commerce (multi-order) execution plan. */
+  execution_plan_id?: string | null;
   /** Operational identity code, e.g. GGV234-IND-001 */
   indent_code?: string | null;
   /** Enterprise operational identity code, e.g. GGV234ABCIND000001 */

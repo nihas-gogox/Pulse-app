@@ -155,6 +155,8 @@ export interface TripRow {
   indent_number?: string | null;
   /** Originated from a Commerce (multi-order e-commerce) execution plan. Derived from the joined indent's execution_plan_id — no new column. */
   is_commerce?: boolean;
+  /** Commerce execution plan id, lifted from the joined indent — derived, not a trips column. */
+  execution_plan_id?: string | null;
   /** Globally unique booking reference assigned when a trip is created from an indent award (BKG-XXXXXX). */
   booking_ref?: string | null;
   /** Per-supplier-org sequence for indent-awarded trips (Job #N in supplier UI). */

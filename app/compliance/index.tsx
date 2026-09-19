@@ -23,7 +23,7 @@ import { useMemberAccess } from "@/lib/useMemberAccess";
 import { useRouter } from "expo-router";
 import { Download, LayoutGrid, Search, Table2, Wallet } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View, type ViewStyle } from "react-native";
 
 function StageChip({
   label,
@@ -85,11 +85,11 @@ export default function ComplianceScreen() {
   const usableWidth = Math.max(280, width - pagePad * 2);
   const nativeCardWidth =
     columns === 1 ? usableWidth : Math.floor((usableWidth - gridGap * (columns - 1)) / columns);
-  const cardSlotStyle =
+  const cardSlotStyle: ViewStyle =
     Platform.OS === "web"
-      ? {
+      ? ({
           width: `calc((100% - ${gridGap * (columns - 1)}px) / ${columns})`,
-        }
+        } as object as ViewStyle)
       : { width: nativeCardWidth };
 
   const openTrip = useCallback(
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     color: Theme.textPrimary,
-    ...(Platform.OS === "web" ? { outlineStyle: "none" as const } : null),
+    ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null),
   },
   bulkBtn: {
     minHeight: 30,

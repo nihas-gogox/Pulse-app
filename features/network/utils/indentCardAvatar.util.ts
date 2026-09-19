@@ -166,7 +166,7 @@ export function giveLoadIndentAvatarProps(
     resolveGiveLoadClient(
       {
         client_id: trip?.client_id ?? null,
-        client_name: syntheticClient ? null : (trip?.client_name ?? null),
+        client_name: syntheticClient ? "" : (trip?.client_name ?? ""),
       },
       clientById,
     );

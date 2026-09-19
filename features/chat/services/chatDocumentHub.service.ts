@@ -9,6 +9,7 @@ import {
 } from "@/features/trips/services/tripDocuments.service";
 import {
   DOCUMENT_LABELS,
+  type VehicleComplianceDocType,
   type VehicleDocuments,
 } from "@/features/vehicles/utils/vehicleDocuments.util";
 import { supabase } from "@/lib/supabase";
@@ -95,7 +96,7 @@ export async function listChatHubDocuments(params: {
 
     if (vehicle?.documents && typeof vehicle.documents === "object") {
       const docs = vehicle.documents as VehicleDocuments;
-      for (const key of Object.keys(DOCUMENT_LABELS) as (keyof VehicleDocuments)[]) {
+      for (const key of Object.keys(DOCUMENT_LABELS) as VehicleComplianceDocType[]) {
         const entry = docs[key];
         if (entry?.url) {
           out.push({

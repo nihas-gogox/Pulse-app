@@ -9,10 +9,7 @@ import Theme from "@/constants/Theme";
 import { StoryBroadcastPreview } from "@/features/network/components/StoryBroadcastPreview";
 import type { PostRow } from "@/features/network/services/posts.service";
 import { getStoryPreview } from "@/features/network/services/posts.service";
-import {
-  loadMaterialLabel,
-  splitLocationParts,
-} from "@/features/network/utils/storyDisplay";
+import { loadMaterialLabel } from "@/features/network/utils/storyDisplay";
 import { shouldRetryQuery } from "@/lib/queryClient";
 import type { DriverReachStoryRow } from "@/features/reach/services/driverReferrals.service";
 import { isLoadOpportunity } from "@/features/reach/utils/directBidLifecycle";
@@ -495,8 +492,6 @@ export function DriverPulseStoryViewer({
     }
 
     const isLoad = post.type === "LOAD" && Boolean(post.origin && post.destination);
-    const originParts = splitLocationParts(post.origin);
-    const destinationParts = splitLocationParts(post.destination);
     const loadMaterial = loadMaterialLabel(post, activeStory?.snapshot_title ?? "Load");
 
     return (
@@ -577,8 +572,8 @@ export function DriverPulseStoryViewer({
             <StoryBroadcastPreview
               post={post}
               loadMaterial={loadMaterial}
-              originParts={originParts}
-              destinationParts={destinationParts}
+              origin={post.origin}
+              destination={post.destination}
               loadTargetRate={post.rate_offer}
               storyKey={post.id}
             />

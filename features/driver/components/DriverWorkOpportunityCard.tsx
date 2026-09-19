@@ -241,8 +241,8 @@ export function DriverWorkOpportunityCard({
   );
 }
 
-const styles = StyleSheet.create({
-  card: withWebSafeShadows({
+const styles = StyleSheet.create(withWebSafeShadows({
+  card: {
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#d7dee8',
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
       android: { elevation: 3 },
       default: {},
     }),
-  }),
+  },
   cardAwarded: {
     borderColor: Theme.darkGreen,
     borderWidth: 1,
@@ -469,4 +469,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Theme.textPrimaryDark,
   },
-});
+}));
