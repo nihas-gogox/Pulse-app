@@ -276,6 +276,28 @@ function indexVehicleVaultDocs(
   }
 }
 
+/**
+ * Partner-vehicle vault fallback uses `get_vehicle_for_trip_viewer` (trip-scoped
+ * RLS). Many compliance trips can share one truck — one RPC per vehicle id is
+ * enough; any referencing trip id satisfies the viewer contract.
+ */
+export function uniqueTripsNeedingVehicleViewer(
+  trips: TripRow[],
+  knownVehicleKeys: ReadonlySet<string>,
+  orgId: string | null,
+): TripRow[] {
+  if (!orgId) return [];
+  const seen = new Set<string>();
+  const unique: TripRow[] = [];
+  for (const trip of trips) {
+    const id = trip.vehicle_id ?? trip.owner_vehicle_id;
+    if (!id || knownVehicleKeys.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    unique.push(trip);
+  }
+  return unique;
+}
+
 async function fetchVehicleVaultDocumentsForTrips(
   trips: TripRow[],
 ): Promise<Map<string, ComplianceEntityDocument[]>> {
@@ -296,10 +318,11 @@ async function fetchVehicleVaultDocumentsForTrips(
     }
   }
 
-  const missingById = trips.filter((trip) => {
-    const id = trip.vehicle_id ?? trip.owner_vehicle_id;
-    return Boolean(id && orgId && !byKey.has(id));
-  });
+  const missingById = uniqueTripsNeedingVehicleViewer(
+    trips,
+    new Set(byKey.keys()),
+    orgId,
+  );
   if (missingById.length > 0 && orgId) {
     await runWithConcurrencyLimit(missingById, 4, async (trip) => {
       const vehicleId = trip.vehicle_id ?? trip.owner_vehicle_id;
