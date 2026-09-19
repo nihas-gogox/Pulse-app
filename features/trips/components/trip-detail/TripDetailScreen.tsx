@@ -8,6 +8,11 @@ import { PersistentTabPanel } from "@/components/PersistentTabPanel";
 import { EntityAvatar as PartyAvatar } from '@/components/EntityAvatar';
 import { ThemedAlertModal } from "@/components/ThemedAlertModal";
 import { Theme } from "@/constants/Theme";
+import {
+  shouldAutoRunHistoricalLrOcr,
+  shouldFetchOperationsSummary,
+  shouldSkipExpenseTabAutoSelect,
+} from "@/features/trips/components/trip-detail/completedTripInitialLoad.util";
 import { canAddMoreTripDocs, canMutateTripVaultDoc, formatLrVaultDateLabel, formatLrVaultNumberLabel, formatVaultDocDate, isEwayBillVaultDoc, isLrVaultDoc, isPdfTripDoc, type TripDocItem, VAULT_DOC_LIMIT_HINT, VAULT_DOC_MAX_BYTES, VAULT_DOC_MAX_MB, VAULT_DOC_PICKER_TYPES, vaultDocDateToIso, vaultDocHasPreviewableFile, vaultPickerRejectionMessage } from "@/features/trips/components/trip-detail/tripDocTypes";
 import { CompactValidTillCalendar, EwayBillLrStrip, buildEwayBillStripRows } from "@/features/trips/components/trip-detail/EwayBillVaultTab";
 import {
@@ -457,7 +462,7 @@ export default function TripDetailScreen({
   useTripVerificationSync();
   useTripOperationsSync();
   const tripOperationsSummaryQuery = useTripOperationsSummary(tripId || null, {
-    enabled: !!tripId,
+    enabled: shouldFetchOperationsSummary(tripId, activeTab),
   });
   const {
     financeSubTab,
@@ -701,6 +706,10 @@ export default function TripDetailScreen({
   useEffect(() => {
     if (!detail.trip || !isAssetExecutionTrip(detail.trip)) return;
     if (expenseTabAutoSelectedRef.current) return;
+    if (shouldSkipExpenseTabAutoSelect(detail.trip)) {
+      expenseTabAutoSelectedRef.current = true;
+      return;
+    }
     if (activeTab !== "trip") return;
     if (expensePendingCount > 0) {
       setActiveTab("expenses");
@@ -1253,6 +1262,7 @@ export default function TripDetailScreen({
     const orgId = currentOrganization?.id;
     const tripId = detail.trip?.id;
     const createdBy = detail.currentUserId;
+    if (!shouldAutoRunHistoricalLrOcr(activeTab, detail.trip)) return;
     if (!lrNeedsOcr || !orgId || !tripId || !createdBy || !lrDocId || !lrStoragePath) {
       return;
     }
@@ -1283,6 +1293,8 @@ export default function TripDetailScreen({
     detail.currentUserId,
     detail.handleRefresh,
     detail.trip?.id,
+    detail.trip,
+    activeTab,
     lrDocId,
     lrNeedsOcr,
     lrStoragePath,

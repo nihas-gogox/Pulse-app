@@ -9,6 +9,7 @@ import Theme from "@/constants/Theme";
 import Layout from "@/constants/Layout";
 import { useAuth } from "@/contexts/AuthContext";
 import type { TripRow } from "@/features/trips/services/trips.service";
+import { shouldBackfillPostedExpensesToLedger } from "@/features/trips/components/trip-detail/completedTripInitialLoad.util";
 import {
   useCancelDriverExpenseRequest,
   useRemindDriverExpenseRequest,
@@ -514,7 +515,7 @@ export function TripExpensesScreen({
   const driverDefaultTabSetRef = useRef(false);
   const [previewEvent, setPreviewEvent] = useState<TripCostEvent | null>(null);
   const summaryQuery = useTripOperationsSummary(trip.id, { enabled: true });
-  useTripOperationsSync();
+  useTripOperationsSync({ enabled: !embedded });
   const ledgerBackfillTripRef = useRef<string | null>(null);
 
   const vehicleLabel = useMemo(() => {
@@ -528,7 +529,13 @@ export function TripExpensesScreen({
   }, [isDriverViewer]);
 
   useEffect(() => {
-    if (isDriverViewer || !trip.id || !trip.vehicle_id || ledgerBackfillTripRef.current === trip.id) {
+    if (
+      !shouldBackfillPostedExpensesToLedger({
+        isDriverViewer,
+        trip,
+      }) ||
+      ledgerBackfillTripRef.current === trip.id
+    ) {
       return;
     }
     ledgerBackfillTripRef.current = trip.id;
@@ -545,8 +552,9 @@ export function TripExpensesScreen({
   useFocusEffect(
     useCallback(() => {
       if (!trip.id) return;
+      if (embedded && summaryQuery.data) return;
       void summaryQuery.refetch();
-    }, [summaryQuery.refetch, trip.id]),
+    }, [embedded, summaryQuery.data, summaryQuery.refetch, trip.id]),
   );
 
   const previewDeepLinkRef = useRef<string | null>(null);

@@ -10,7 +10,8 @@ import {
 import { queryKeys } from "@/lib/queryKeys";
 import type { OperationsSyncResult } from "../offline/sync";
 
-export function useTripOperationsSync() {
+export function useTripOperationsSync(opts?: { enabled?: boolean }) {
+  const enabled = opts?.enabled !== false;
   const isOnline = useIsOnline();
   const queryClient = useQueryClient();
   const [isSyncing, setIsSyncing] = useState(false);
@@ -75,15 +76,16 @@ export function useTripOperationsSync() {
   }, [isOnline, queryClient]);
 
   useEffect(() => {
-    if (!isOnline) return;
+    if (!enabled || !isOnline) return;
     void runSync();
-  }, [isOnline, runSync]);
+  }, [enabled, isOnline, runSync]);
 
   useFocusEffect(
     useCallback(() => {
-      if (isOnline) void runSync();
+      if (!enabled || !isOnline) return;
+      void runSync();
       return undefined;
-    }, [isOnline, runSync]),
+    }, [enabled, isOnline, runSync]),
   );
 
   return {
