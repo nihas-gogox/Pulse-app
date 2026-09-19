@@ -885,7 +885,14 @@ export async function createIndent(
     load_type: data.load_type?.trim() ?? "",
     pickup_date: data.pickup_date ?? null,
     circulation_target: data.circulation_target ?? "integrated_supplier",
-    weight: Number.isFinite(data.weight) ? data.weight : 0,
+    // Null means "not weighed yet" on a per-MT load, so keep it null rather
+    // than flattening to a 0 kg that reads as a real weight downstream.
+    weight:
+      data.weight == null
+        ? null
+        : Number.isFinite(data.weight)
+          ? data.weight
+          : 0,
     status: action === "draft" ? "draft" : "broadcast",
     shared_at: action === "share" ? new Date().toISOString() : null,
     last_saved_at: action === "draft" ? new Date().toISOString() : null,
