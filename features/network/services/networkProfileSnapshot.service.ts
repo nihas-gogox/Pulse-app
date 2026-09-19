@@ -8,6 +8,10 @@
  * actual organization's role, location, mutuals, rating, phone and integration
  * status instead of placeholder defaults.
  */
+import {
+  getLinkedOrgProfilesBatch,
+  type OrgDisplayProfile,
+} from "@/features/clients/services/clients.service";
 import { supabase } from "@/lib/supabase";
 
 export type NetworkProfileSnapshotRole = "CLIENT" | "SUPPLIER" | "DRIVER";
@@ -128,6 +132,25 @@ function nonEmptyString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function orgDisplayToPartnerBatchRow(
+  profile: OrgDisplayProfile | undefined,
+): PartnerDisplayBatchRow | null {
+  if (!profile) return null;
+  return {
+    organizationName: profile.organizationName,
+    phone: profile.phone,
+    avatarUrl: profile.avatarUrl ?? profile.logoUrl ?? null,
+    avatarSeed: profile.avatarSeed ?? profile.orgAvatarSeed ?? null,
+    tripCount: profile.tripCount ?? null,
+    averageRating: profile.averageRating ?? null,
+    orgCreatedAt: profile.orgCreatedAt ?? null,
+    ownerSignedUpAt: profile.ownerSignedUpAt ?? null,
+    verificationStatus: profile.verificationStatus ?? null,
+    vehicleCount: profile.vehicleCount ?? null,
+    networkIndentCount: profile.networkIndentCount ?? null,
+  };
+}
+
 async function loadOrganizationRow(
   targetOrgId: string,
 ): Promise<{ error: Error | null; row: OrganizationSnapshotRow | null }> {
@@ -246,7 +269,7 @@ export async function getOrgProfileSnapshot(
     "status, from_organization_id, to_organization_id, request_shipper_client, request_carrier_supplier";
 
   const [
-    partnerDisplayRes,
+    partnerProfiles,
     orgLoadRes,
     connFwdRes,
     connRevRes,
@@ -254,9 +277,7 @@ export async function getOrgProfileSnapshot(
     supplierLinkRes,
     locationsRes,
   ] = await Promise.all([
-    supabase().rpc("get_connection_partner_display_batch", {
-      p_linked_organization_ids: [targetOrgId],
-    }),
+    getLinkedOrgProfilesBatch([targetOrgId]),
     loadOrganizationRow(targetOrgId),
     supabase()
       .from("connection_requests")
@@ -295,10 +316,7 @@ export async function getOrgProfileSnapshot(
 
   const connRes = { data: connFwdRes.data ?? connRevRes.data };
 
-  const partnerBatchMap = partnerDisplayRes.error
-    ? null
-    : (partnerDisplayRes.data as Record<string, PartnerDisplayBatchRow> | null);
-  const partnerBatch = partnerBatchMap?.[targetOrgId] ?? null;
+  const partnerBatch = orgDisplayToPartnerBatchRow(partnerProfiles[targetOrgId]);
 
   let partnerProfile: PartnerDisplaySingleRow | null = null;
   if (!partnerBatch) {

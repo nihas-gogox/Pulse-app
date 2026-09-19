@@ -275,10 +275,13 @@ export type OrgDisplayProfile = {
   avatarSeed?: string;
   ownerId?: string;
   orgCreatedAt?: string;
+  ownerSignedUpAt?: string;
   tripCount?: number;
   averageRating?: number | null;
   ratingCount?: number;
   verificationStatus?: string | null;
+  vehicleCount?: number;
+  networkIndentCount?: number;
 };
 
 function isUnauthenticatedPartnerDisplayError(
@@ -368,10 +371,13 @@ type PartnerDisplayRaw = {
   avatarSeed?: string;
   ownerId?: string;
   orgCreatedAt?: string;
+  ownerSignedUpAt?: string;
   tripCount?: number;
   averageRating?: number | null;
   ratingCount?: number;
   verificationStatus?: string | null;
+  vehicleCount?: number;
+  networkIndentCount?: number;
 };
 
 function mapPartnerDisplayBatch(
@@ -387,6 +393,7 @@ function mapPartnerDisplayBatch(
     const avatarUrl = (entry.avatarUrl ?? '').trim();
     const avatarSeed = (entry.avatarSeed ?? '').trim();
     const orgCreatedAt = (entry.orgCreatedAt ?? '').trim();
+    const ownerSignedUpAt = (entry.ownerSignedUpAt ?? '').trim();
     const verificationStatus = (entry.verificationStatus ?? '').trim() || null;
     const tripCount =
       typeof entry.tripCount === 'number' && Number.isFinite(entry.tripCount)
@@ -402,6 +409,14 @@ function mapPartnerDisplayBatch(
       typeof entry.ratingCount === 'number' && Number.isFinite(entry.ratingCount)
         ? entry.ratingCount
         : undefined;
+    const vehicleCount =
+      typeof entry.vehicleCount === 'number' && Number.isFinite(entry.vehicleCount)
+        ? entry.vehicleCount
+        : undefined;
+    const networkIndentCount =
+      typeof entry.networkIndentCount === 'number' && Number.isFinite(entry.networkIndentCount)
+        ? entry.networkIndentCount
+        : undefined;
     result[oid] = {
       organizationName: (entry.organizationName ?? '').trim() || 'Connected',
       contactPerson: (entry.contactPerson ?? '').trim(),
@@ -413,9 +428,12 @@ function mapPartnerDisplayBatch(
       ...(avatarSeed ? { avatarSeed } : {}),
       ...(ownerId ? { ownerId } : {}),
       ...(orgCreatedAt ? { orgCreatedAt } : {}),
+      ...(ownerSignedUpAt ? { ownerSignedUpAt } : {}),
       ...(tripCount !== undefined ? { tripCount } : {}),
       ...(averageRating !== undefined ? { averageRating } : {}),
       ...(ratingCount !== undefined ? { ratingCount } : {}),
+      ...(vehicleCount !== undefined ? { vehicleCount } : {}),
+      ...(networkIndentCount !== undefined ? { networkIndentCount } : {}),
       ...(verificationStatus ? { verificationStatus } : { verificationStatus: null }),
     };
   }

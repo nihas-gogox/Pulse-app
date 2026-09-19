@@ -122,4 +122,27 @@ describe('getLinkedOrgProfilesBatch session guard', () => {
     expect(mockRpc.mock.calls[0][1].p_linked_organization_ids).toHaveLength(8);
     expect(mockRpc.mock.calls[1][1].p_linked_organization_ids).toHaveLength(1);
   });
+
+  it('maps fleet, indent, and signup fields from the batch JSON', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { access_token: 'jwt', user: { id: 'user-1' } } },
+    });
+    mockRpc.mockResolvedValue({
+      data: {
+        'org-1': {
+          organizationName: 'Acme',
+          contactPerson: 'Ada',
+          phone: '1',
+          ownerSignedUpAt: '2023-06-01T00:00:00.000Z',
+          vehicleCount: 4,
+          networkIndentCount: 7,
+        },
+      },
+      error: null,
+    });
+    const result = await getLinkedOrgProfilesBatch(['org-1']);
+    expect(result['org-1']?.ownerSignedUpAt).toBe('2023-06-01T00:00:00.000Z');
+    expect(result['org-1']?.vehicleCount).toBe(4);
+    expect(result['org-1']?.networkIndentCount).toBe(7);
+  });
 });
