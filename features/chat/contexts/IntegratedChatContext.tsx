@@ -229,6 +229,66 @@ function upsertNetworkMessageInConversation(
   };
 }
 
+// ── Shared bootstrap fetch (cross-instance dedupe) ────────────────────────────
+
+/**
+ * `IntegratedChatProvider` is mounted more than once at a time (app-wide via
+ * `LazyChatProviders`, and again inside `NetworkDesktopChatFlexPanel`), and
+ * `bootstrappedOrgRef` below is local per instance — so two instances for the
+ * same org could each independently call `getNetworkConversationsByOrg` +
+ * `getIntegratedPartners`. Dedupe at the fetch-execution level instead, keyed
+ * by org and shared module-wide, regardless of which instance/effect
+ * triggers it — the same class of fix already applied to useChatStore's
+ * TripChat bootstrap (2026-09-16) for the identical "multiple mounted
+ * providers race the same bootstrap RPC" bug. A second, concurrent caller
+ * joins the in-flight fetch; a caller shortly after joins the cached result
+ * instead of re-fetching. Each instance still applies the result to its own
+ * local state, so per-instance behavior (optimistic-message merge, loading
+ * state) is unchanged.
+ */
+const networkChatFetchInFlight = new Map<
+  string,
+  Promise<{ conversations: NetworkConversation[]; partners: NetworkPartner[] }>
+>();
+const networkChatFetchCache = new Map<
+  string,
+  { conversations: NetworkConversation[]; partners: NetworkPartner[]; fetchedAt: number }
+>();
+/** Matches the existing per-instance active-tab refresh staleness window below. */
+const NETWORK_CHAT_FETCH_STALE_MS = 5 * 60_000;
+
+/** Test-only: clears the shared bootstrap cache/in-flight state between tests. */
+export function __resetNetworkChatBootstrapForTests(): void {
+  networkChatFetchInFlight.clear();
+  networkChatFetchCache.clear();
+}
+
+async function fetchNetworkChatBootstrapShared(
+  orgId: string,
+): Promise<{ conversations: NetworkConversation[]; partners: NetworkPartner[] }> {
+  const cached = networkChatFetchCache.get(orgId);
+  if (cached && Date.now() - cached.fetchedAt < NETWORK_CHAT_FETCH_STALE_MS) {
+    return { conversations: cached.conversations, partners: cached.partners };
+  }
+  const inFlight = networkChatFetchInFlight.get(orgId);
+  if (inFlight) return inFlight;
+
+  const promise = (async () => {
+    const [conversations, partners] = await Promise.all([
+      chatService.getNetworkConversationsByOrg(orgId),
+      chatService.getIntegratedPartners(orgId),
+    ]);
+    networkChatFetchCache.set(orgId, { conversations, partners, fetchedAt: Date.now() });
+    return { conversations, partners };
+  })();
+  networkChatFetchInFlight.set(orgId, promise);
+  try {
+    return await promise;
+  } finally {
+    networkChatFetchInFlight.delete(orgId);
+  }
+}
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 export function IntegratedChatProvider({
@@ -333,10 +393,8 @@ export function IntegratedChatProvider({
     if (!orgId || !selfUid) return;
     setIsLoading(true);
     try {
-      const [convs, pts] = await Promise.all([
-        chatService.getNetworkConversationsByOrg(orgId),
-        chatService.getIntegratedPartners(orgId),
-      ]);
+      const { conversations: convs, partners: pts } =
+        await fetchNetworkChatBootstrapShared(orgId);
       // Preserve optimistic bubbles if a refresh races an in-flight send.
       setConversations((prev) => {
         const prevById = new Map(prev.map((c) => [c.id, c]));
