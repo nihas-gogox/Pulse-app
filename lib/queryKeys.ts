@@ -9,6 +9,8 @@ export const queryKeys = {
   trips: {
     all: (orgId: string) => ["q", "trips", orgId] as const,
     finite: (orgId: string) => ["q", "trips", orgId, "finite"] as const,
+    partyCounts: (orgId: string) =>
+      ["q", "trips", orgId, "party-counts"] as const,
     infinite: (orgId: string, pageSize: number) =>
       ["q", "trips", orgId, "infinite", pageSize] as const,
     list: (orgId: string, opts?: { limit?: number; offset?: number }) =>

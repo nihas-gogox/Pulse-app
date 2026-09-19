@@ -240,6 +240,47 @@ export async function getTripsForOrg(
   return getTripsByOrganization(orgId);
 }
 
+export type TripPartyCounts = {
+  byClientId: Record<string, number>;
+  bySupplierId: Record<string, number>;
+  byDriverId: Record<string, number>;
+};
+
+/** Owner-org trip counts only — do not use `get_trips_for_org` for Network card badges. */
+export async function getTripPartyCountsForOrg(
+  orgId: string,
+): Promise<{ error: Error | null; counts: TripPartyCounts }> {
+  const empty: TripPartyCounts = {
+    byClientId: {},
+    bySupplierId: {},
+    byDriverId: {},
+  };
+  if (!orgId) return { error: null, counts: empty };
+  const { data, error } = await supabase()
+    .from("trips")
+    .select("client_id, supplier_id, driver_id")
+    .eq("organization_id", orgId)
+    .is("deleted_at", null)
+    .limit(2000);
+  if (error) return { error: new Error(error.message), counts: empty };
+  const counts: TripPartyCounts = {
+    byClientId: {},
+    bySupplierId: {},
+    byDriverId: {},
+  };
+  for (const row of data ?? []) {
+    const clientId = (row as { client_id?: string | null }).client_id?.trim();
+    const supplierId = (row as { supplier_id?: string | null }).supplier_id?.trim();
+    const driverId = (row as { driver_id?: string | null }).driver_id?.trim();
+    if (clientId) counts.byClientId[clientId] = (counts.byClientId[clientId] ?? 0) + 1;
+    if (supplierId) {
+      counts.bySupplierId[supplierId] = (counts.bySupplierId[supplierId] ?? 0) + 1;
+    }
+    if (driverId) counts.byDriverId[driverId] = (counts.byDriverId[driverId] ?? 0) + 1;
+  }
+  return { error: null, counts };
+}
+
 export async function getTripsByOrganization(
   orgId: string,
   opts?: PageOpts,

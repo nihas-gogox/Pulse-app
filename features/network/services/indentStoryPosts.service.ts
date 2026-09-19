@@ -181,7 +181,7 @@ export async function listLiveOwnLoadStories(
   const { data, error } = await supabase()
     .from('posts')
     .select(
-      'id, organization_id, author_user_id, type, content, origin, destination, load_date, vehicle_type, weight_tonnes, rate_offer, material, expires_at, is_active, view_count, created_at, source_indent_id, organizations(name, avatar_seed, logo_url), indents!posts_source_indent_id_fkey(status)',
+      'id, organization_id, author_user_id, type, content, origin, destination, load_date, vehicle_type, weight_tonnes, rate_offer, material, expires_at, is_active, view_count, created_at, source_indent_id',
     )
     .eq('organization_id', orgId)
     .eq('type', 'LOAD')
@@ -191,26 +191,43 @@ export async function listLiveOwnLoadStories(
 
   if (error) return { error: new Error(error.message), posts: [] };
 
-  type OrgJoin = {
-    name?: string | null;
-    avatar_seed?: string | null;
-    logo_url?: string | null;
-  };
-  type IndentJoin = { status?: string | null };
+  const liveRows = (data ?? []).filter((raw) => isIndentStoryLive(raw));
+  const indentIds = [
+    ...new Set(
+      liveRows
+        .map((row) => String(row.source_indent_id ?? '').trim())
+        .filter(Boolean),
+    ),
+  ];
+  const statusByIndentId: Record<string, string | null> = {};
+  for (const chunk of chunkIds(indentIds)) {
+    const { data: indentRows, error: indentErr } = await supabase()
+      .from('indents')
+      .select('id, status')
+      .in('id', chunk);
+    if (indentErr) return { error: new Error(indentErr.message), posts: [] };
+    for (const row of indentRows ?? []) {
+      statusByIndentId[String((row as { id?: string }).id ?? '')] =
+        (row as { status?: string | null }).status ?? null;
+    }
+  }
+
+  const { data: orgRow } = await supabase()
+    .from('organizations')
+    .select('name, avatar_seed, logo_url')
+    .eq('id', orgId)
+    .maybeSingle();
 
   const posts: PostRow[] = [];
-  for (const raw of data ?? []) {
-    if (!isIndentStoryLive(raw)) continue;
-    const indent = (raw as { indents?: IndentJoin | IndentJoin[] | null }).indents;
-    const indentRow = Array.isArray(indent) ? indent[0] : indent;
-    if (isIndentTerminalForStory(indentRow?.status)) continue;
-    const org = (raw as { organizations?: OrgJoin | null }).organizations;
+  for (const raw of liveRows) {
+    const indentId = String(raw.source_indent_id ?? '').trim();
+    if (isIndentTerminalForStory(statusByIndentId[indentId])) continue;
     posts.push({
       id: raw.id,
       organization_id: raw.organization_id,
-      org_name: org?.name ?? '',
-      org_avatar_seed: org?.avatar_seed ?? null,
-      org_avatar_url: org?.logo_url ?? null,
+      org_name: orgRow?.name ?? '',
+      org_avatar_seed: orgRow?.avatar_seed ?? null,
+      org_avatar_url: orgRow?.logo_url ?? null,
       author_user_id: raw.author_user_id,
       type: 'LOAD',
       content: raw.content,

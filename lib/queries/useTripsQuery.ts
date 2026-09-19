@@ -6,9 +6,11 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import {
   getTripsByOrganization,
   getTripsForOrg,
+  getTripPartyCountsForOrg,
   getShipperDisplayNamesForSupplierTrips,
   updateTripStatus,
   type TripRow,
+  type TripPartyCounts,
 } from '@/features/trips/services/trips.service';
 import { queryKeys } from '@/lib/queryKeys';
 import { STALE } from '@/lib/queryClient';
@@ -31,6 +33,21 @@ export function useTripsQuery(orgId: string | null) {
     enabled: !!orgId && status !== 'restoring',
     staleTime: STALE.realtime,
     refetchOnMount: refetchOnMountIfEntityListEmpty<TripRow[]>(),
+  });
+}
+
+/** Per-party trip counts for Network cards — not the full trip catalog. */
+export function useTripPartyCountsQuery(orgId: string | null) {
+  const { status } = useAuth();
+  return useQuery<TripPartyCounts, Error>({
+    queryKey: queryKeys.trips.partyCounts(orgId ?? ''),
+    queryFn: async () => {
+      const res = await getTripPartyCountsForOrg(orgId!);
+      if (res.error) throw res.error;
+      return res.counts;
+    },
+    enabled: !!orgId && status !== 'restoring',
+    staleTime: STALE.moderate,
   });
 }
 
@@ -177,6 +194,7 @@ export function useInvalidateTrips() {
   return (orgId: string) => {
     qc.invalidateQueries({ queryKey: queryKeys.trips.all(orgId) });
     qc.invalidateQueries({ queryKey: queryKeys.trips.finite(orgId) });
+    qc.invalidateQueries({ queryKey: queryKeys.trips.partyCounts(orgId) });
     qc.invalidateQueries({ queryKey: ['q', 'trips', orgId, 'infinite'] });
     qc.invalidateQueries({ queryKey: queryKeys.trips.assignmentAuditRoot });
     qc.invalidateQueries({ queryKey: ["q", "trips", "assignment-audit-history"] });

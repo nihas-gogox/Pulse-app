@@ -37,7 +37,7 @@ import { useLinkedOrgDisplayMap } from "@/lib/queries/useLinkedOrgDisplayQuery";
 import { useClientsQuery } from "@/lib/queries/useClientsQuery";
 import { useDriversQuery } from "@/lib/queries/useDriversQuery";
 import { useSuppliersQuery } from "@/lib/queries/useSuppliersQuery";
-import { useTripsQuery } from "@/lib/queries/useTripsQuery";
+import { useTripPartyCountsQuery } from "@/lib/queries/useTripsQuery";
 import { ConnectionEntityAvatar } from "@/features/network/utils/connectionEntityAvatar";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -512,29 +512,34 @@ export function ConnectionsView({
   const clientsQ = useClientsQuery(orgId);
   const suppliersQ = useSuppliersQuery(orgId);
   const driversQ = useDriversQuery(orgId);
-  const tripsQ = useTripsQuery(orgId);
+  const tripPartyCountsQ = useTripPartyCountsQuery(orgId);
   const tripCountByClientId = useMemo(() => {
     const map = new Map<string, number>();
-    for (const t of tripsQ.data ?? []) {
-      if (t.client_id) map.set(t.client_id, (map.get(t.client_id) ?? 0) + 1);
+    for (const [id, count] of Object.entries(
+      tripPartyCountsQ.data?.byClientId ?? {},
+    )) {
+      map.set(id, count);
     }
     return map;
-  }, [tripsQ.data]);
+  }, [tripPartyCountsQ.data]);
   const tripCountBySupplierId = useMemo(() => {
     const map = new Map<string, number>();
-    for (const t of tripsQ.data ?? []) {
-      if (t.supplier_id)
-        map.set(t.supplier_id, (map.get(t.supplier_id) ?? 0) + 1);
+    for (const [id, count] of Object.entries(
+      tripPartyCountsQ.data?.bySupplierId ?? {},
+    )) {
+      map.set(id, count);
     }
     return map;
-  }, [tripsQ.data]);
+  }, [tripPartyCountsQ.data]);
   const tripCountByDriverId = useMemo(() => {
     const map = new Map<string, number>();
-    for (const t of tripsQ.data ?? []) {
-      if (t.driver_id) map.set(t.driver_id, (map.get(t.driver_id) ?? 0) + 1);
+    for (const [id, count] of Object.entries(
+      tripPartyCountsQ.data?.byDriverId ?? {},
+    )) {
+      map.set(id, count);
     }
     return map;
-  }, [tripsQ.data]);
+  }, [tripPartyCountsQ.data]);
   const locationLookupOrganizationIds = useMemo(
     () =>
       [

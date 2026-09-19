@@ -110,4 +110,16 @@ describe('getLinkedOrgProfilesBatch session guard', () => {
     await getLinkedOrgProfilesBatch(['org-1']);
     expect(mockRpc).toHaveBeenCalledTimes(2);
   });
+
+  it('chunks partner-display RPC so LATERAL counts stay off the timeout cliff', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { access_token: 'jwt', user: { id: 'user-1' } } },
+    });
+    mockRpc.mockResolvedValue({ data: {}, error: null });
+    const ids = Array.from({ length: 9 }, (_, i) => `org-${i + 1}`);
+    await getLinkedOrgProfilesBatch(ids);
+    expect(mockRpc).toHaveBeenCalledTimes(2);
+    expect(mockRpc.mock.calls[0][1].p_linked_organization_ids).toHaveLength(8);
+    expect(mockRpc.mock.calls[1][1].p_linked_organization_ids).toHaveLength(1);
+  });
 });

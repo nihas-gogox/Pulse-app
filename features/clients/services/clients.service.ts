@@ -330,36 +330,53 @@ export async function getLinkedOrgProfilesBatch(
   return run;
 }
 
+const PARTNER_DISPLAY_BATCH_CHUNK = 8;
+
 async function fetchLinkedOrgProfilesBatchUncached(
   linkedOrganizationIds: string[]
 ): Promise<Record<string, OrgDisplayProfile>> {
   const { data: sessionData } = await supabase().auth.getSession();
   if (!sessionData.session?.access_token) return {};
-  const { data, error } = await supabase().rpc('get_connection_partner_display_batch', {
-    p_linked_organization_ids: linkedOrganizationIds,
-  });
-  if (error || data == null || typeof data !== 'object') {
-    if (error && isUnauthenticatedPartnerDisplayError(error) && __DEV__) {
-      console.warn('[partner-display] skipped unauthenticated batch', error.message);
+  const uniqueIds = [
+    ...new Set(linkedOrganizationIds.map((id) => id.trim()).filter(Boolean)),
+  ];
+  const result: Record<string, OrgDisplayProfile> = {};
+  for (let i = 0; i < uniqueIds.length; i += PARTNER_DISPLAY_BATCH_CHUNK) {
+    const chunk = uniqueIds.slice(i, i + PARTNER_DISPLAY_BATCH_CHUNK);
+    const { data, error } = await supabase().rpc('get_connection_partner_display_batch', {
+      p_linked_organization_ids: chunk,
+    });
+    if (error || data == null || typeof data !== 'object') {
+      if (error && isUnauthenticatedPartnerDisplayError(error) && __DEV__) {
+        console.warn('[partner-display] skipped unauthenticated batch', error.message);
+      }
+      continue;
     }
-    return {};
+    Object.assign(result, mapPartnerDisplayBatch(data as Record<string, PartnerDisplayRaw>));
   }
-  const raw = data as Record<string, {
-    organizationName?: string;
-    contactPerson?: string;
-    phone?: string;
-    logoUrl?: string;
-    ownerAvatarUrl?: string;
-    orgAvatarSeed?: string;
-    avatarUrl?: string;
-    avatarSeed?: string;
-    ownerId?: string;
-    orgCreatedAt?: string;
-    tripCount?: number;
-    averageRating?: number | null;
-    ratingCount?: number;
-    verificationStatus?: string | null;
-  }>;
+  return result;
+}
+
+type PartnerDisplayRaw = {
+  organizationName?: string;
+  contactPerson?: string;
+  phone?: string;
+  logoUrl?: string;
+  ownerAvatarUrl?: string;
+  orgAvatarSeed?: string;
+  avatarUrl?: string;
+  avatarSeed?: string;
+  ownerId?: string;
+  orgCreatedAt?: string;
+  tripCount?: number;
+  averageRating?: number | null;
+  ratingCount?: number;
+  verificationStatus?: string | null;
+};
+
+function mapPartnerDisplayBatch(
+  raw: Record<string, PartnerDisplayRaw>,
+): Record<string, OrgDisplayProfile> {
   const result: Record<string, OrgDisplayProfile> = {};
   for (const [oid, entry] of Object.entries(raw)) {
     if (!entry) continue;

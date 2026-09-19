@@ -9,6 +9,7 @@ export {
 } from './useRealtimeInvalidation';
 export {
   useTripsQuery,
+  useTripPartyCountsQuery,
   useTripsInfiniteQuery,
   useTripDetailQuery,
   useShipperDisplayNamesQuery,

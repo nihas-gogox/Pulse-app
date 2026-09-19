@@ -28,7 +28,6 @@ import {
   type SalesRoleFilter,
 } from "@/features/network/utils/connectionSalesAnalytics.util";
 import { runConnectionInvite } from "@/features/network/utils/connectionInvite.util";
-import { useTripsQuery } from "@/lib/queries/useTripsQuery";
 import { ChevronDown, Filter, MoreVertical, Search, UserPlus } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
 import { Pressable, Text, TextInput, View, type ViewStyle } from "react-native";
@@ -147,9 +146,6 @@ export function NetworkDesktopConnectionsPanel({
     },
     [orgId],
   );
-
-  const tripsQ = useTripsQuery(orgId);
-  const trips = tripsQ.data ?? [];
 
   const tableConnections =
     visiblePageConnections.length > 0
@@ -452,7 +448,7 @@ export function NetworkDesktopConnectionsPanel({
 
           <NetworkDesktopPartnersPerformanceTable
             connections={tableConnections}
-            trips={trips}
+            trips={[]}
             baseFilters={partnerFilters}
             onOpenProfile={onOpenProfile}
             onInvite={(item) => void handleInvitePartner(item)}

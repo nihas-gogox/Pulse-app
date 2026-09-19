@@ -1,0 +1,35 @@
+---
+description: Fetch and merge Nihas's develop into local develop; never invent remotes or force-push.
+alwaysApply: true
+---
+
+# Sync from Nihas (develop)
+
+Repo: local `develop` in **Vasanthgogox/Pulse-app**. Teammate: **nihas-gogox/Pulse-app** `develop`.
+
+Treat these phrases the same: “fetch from nihas”, “pull nihas”, “get nihas changes”, “sync from nihas”, “merge nihas develop”, “pull nihas changes into develop”.
+
+## One-time remote
+
+```bash
+git remote -v
+```
+
+If `nihas` is missing:
+
+```bash
+git remote add nihas https://github.com/nihas-gogox/Pulse-app.git
+```
+
+If `nihas` exists but is not that URL, `git remote set-url nihas https://github.com/nihas-gogox/Pulse-app.git`. Never invent remotes. Do not use `nihas-gogox/q-web`.
+
+## Procedure
+
+1. Confirm branch is `develop` (`git branch --show-current`). If not, ask before switching.
+2. Protect uncommitted work: stash (including untracked if needed) or warn. Never discard.
+3. `git fetch nihas develop`
+4. Merge, not rebase, unless asked: `git merge nihas/develop`
+5. Success: show `git log -5 --oneline` and `git status`.
+6. Conflicts: stop, list files, help resolve. Never `--force`. Never delete local work.
+7. Do **not** push to `origin` unless the user explicitly says “push”.
+8. Never push to Nihas’s fork. Never rewrite history on shared `develop` unless asked.
