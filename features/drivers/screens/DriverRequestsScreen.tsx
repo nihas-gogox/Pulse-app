@@ -78,18 +78,23 @@ export default function DriverRequestsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const isRefreshingRef = useRef(false);
   const initialLoadDoneRef = useRef(false);
+  // Mount, focus, and AppState-active can all call fetch() within the same tick
+  // (React Navigation fires focus on initial mount too) — join the same in-flight
+  // request instead of firing a second Promise.all of the same RPCs.
+  const fetchInFlightRef = useRef<Promise<void> | null>(null);
   const [inviteActionId, setInviteActionId] = useState<string | null>(null);
   const [leavingOrgId, setLeavingOrgId] = useState<string | null>(null);
   const [leaveFleetPressedOrgId, setLeaveFleetPressedOrgId] = useState<string | null>(null);
   const [quickTab, setQuickTab] = useState<RequestsQuickTab>('all');
 
-  const fetch = useCallback(() => {
+  const fetch = useCallback((): Promise<void> => {
+    if (fetchInFlightRef.current) return fetchInFlightRef.current;
     if (!profile?.uid) {
       setLoading(false);
       return Promise.resolve();
     }
     if (!isRefreshingRef.current && !initialLoadDoneRef.current) setLoading(true);
-    return Promise.all([
+    const run = Promise.all([
       driversService.getDriverInvitesReceived(),
       driversService.getLinkedDriversForCurrentUser(profile.uid),
     ]).then(([invRes, driversRes]) => {
@@ -122,7 +127,11 @@ export default function DriverRequestsScreen() {
       initialLoadDoneRef.current = true;
       isRefreshingRef.current = false;
       setRefreshing(false);
+    }).finally(() => {
+      fetchInFlightRef.current = null;
     });
+    fetchInFlightRef.current = run;
+    return run;
   }, [profile?.uid]);
 
   useEffect(() => {
