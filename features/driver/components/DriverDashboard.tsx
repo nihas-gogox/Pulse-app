@@ -380,6 +380,9 @@ export default function DriverDashboard() {
   const planCameraHoldUntilRef = useRef(0);
   const [_reassignedTripLabels, setReassignedTripLabels] = useState<string[]>([]);
   const previousTripsRef = useRef<Map<string, string>>(new Map());
+  // Mount, focus (also on initial mount), and AppState-active can all call fetch()
+  // in the same window — join the in-flight Promise instead of a second Promise.all.
+  const fetchInFlightRef = useRef<Promise<void> | null>(null);
   const searchPulseAnim = useRef(new Animated.Value(0)).current;
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [locationStatus, setLocationStatus] = useState<'loading' | 'success' | 'error'>('loading');
@@ -471,7 +474,8 @@ export default function DriverDashboard() {
     });
   }, []);
 
-  const fetch = useCallback((opts?: { soft?: boolean }) => {
+  const fetch = useCallback((opts?: { soft?: boolean }): Promise<void> => {
+    if (fetchInFlightRef.current) return fetchInFlightRef.current;
     if (!profile?.uid) {
       setLoading(false);
       return Promise.resolve();
@@ -480,7 +484,7 @@ export default function DriverDashboard() {
     // Soft = background sync while mission sheet is open (POD/LR). Never blank the UI.
     const soft = opts?.soft === true;
     if (!soft) setLoading(true);
-    return Promise.all([
+    const run = Promise.all([
       driversService.getLinkedDriversForCurrentUser(profile.uid),
       driversService.getDriverInvitesReceived(),
       getPendingOtpTrips(),
@@ -545,7 +549,11 @@ export default function DriverDashboard() {
         previousTripsRef.current = new Map();
         setLoading(false);
       }
+    }).finally(() => {
+      fetchInFlightRef.current = null;
     });
+    fetchInFlightRef.current = run;
+    return run;
   }, [profile?.uid]);
 
   const patchTripInDashboard = useCallback((updated: tripsService.TripRow) => {
