@@ -23,7 +23,7 @@ const TRIP_DOC_TYPE_ALIASES: Record<string, string> = {
 
 const STORAGE_OBJECT_RE =
   /\/storage\/v1\/(?:object|render\/image)\/(?:public|sign|authenticated)\/[^/]+\/(.+?)(?:\?|$)/i;
-const STORAGE_BUCKET_PREFIX_RE =
+export const STORAGE_BUCKET_PREFIX_RE =
   /^(vehicle-documents|compliance-documents|driver-documents|trip-documents|documents|pod-documents)\//;
 
 export function parseComplianceStorageRef(raw: string): { kind: "url" | "path"; value: string } {
@@ -55,6 +55,12 @@ export function complianceStoragePathCandidates(input: {
     if (parsed.kind === "url") return { url: parsed.value, paths: [] };
     if (parsed.value) paths.push(parsed.value);
   }
+
+  // Stored paths always carry their real extension, so extension guessing is
+  // only a fallback for rows that have no usable path at all. Guessing when we
+  // already have one multiplies storage round-trips for no benefit.
+  if (paths.length > 0) return { url: null, paths };
+
   const orgId = input.organizationId?.trim();
   const entityId = input.entityId?.trim();
   const docType = input.docType?.trim();

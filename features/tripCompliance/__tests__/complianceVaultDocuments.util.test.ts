@@ -69,10 +69,21 @@ describe("parseComplianceStorageRef", () => {
 });
 
 describe("complianceStoragePathCandidates", () => {
-  it("keeps the stored path and adds vault-style guesses", () => {
+  it("trusts the stored path and does not add extension guesses", () => {
     expect(
       complianceStoragePathCandidates({
         rawPath: "org/v1/rc.pdf",
+        organizationId: "org",
+        entityId: "v1",
+        docType: "rc",
+      }).paths,
+    ).toEqual(["org/v1/rc.pdf"]);
+  });
+
+  it("falls back to vault-style guesses only when no path is stored", () => {
+    expect(
+      complianceStoragePathCandidates({
+        rawPath: null,
         organizationId: "org",
         entityId: "v1",
         docType: "rc",
