@@ -75,7 +75,14 @@ async function enrichMutualsWithPartnerDisplay(
   rows: MutualConnectionRow[],
 ): Promise<MutualConnectionRow[]> {
   if (rows.length === 0) return rows;
-  const profiles = await getLinkedOrgProfilesBatch(rows.map((r) => r.id));
+  // The mutuals RPC already returns logo/owner avatar. Partner-display also
+  // computes trip/rating/fleet/indent stats (~755ms mean in production) which
+  // facepiles never use. Only batch orgs that still lack an avatar URL.
+  const missingIds = rows
+    .filter((row) => !(row.avatar_url ?? "").trim())
+    .map((row) => row.id);
+  if (missingIds.length === 0) return rows;
+  const profiles = await getLinkedOrgProfilesBatch(missingIds);
   return rows.map((row) => {
     const profile = profiles[row.id];
     const batchUrl =
