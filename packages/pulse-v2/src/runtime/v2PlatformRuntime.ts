@@ -54,7 +54,7 @@ function buildEnvelope(
   const idempotencyKey = request.idempotencyKey?.trim() ?? "";
   const envelope: CommandEnvelope = {
     commandId,
-    commandName: operation,
+    commandName: `${request.domain}.${operation}`,
     commandVersion: "v1",
     schemaVersion: COMMAND_ENVELOPE_SCHEMA_VERSION,
     idempotencyKey,

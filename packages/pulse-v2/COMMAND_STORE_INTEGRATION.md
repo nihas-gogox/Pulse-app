@@ -11,6 +11,8 @@
 
 `createWorkspace` remains Identity bootstrap. It is **not** Command Envelope v1 and does **not** use Command Store.
 
+`CommandEnvelope.commandName` is domain-qualified: `${domain}.${operation}` — `commerce.createOrder`, `execution.createTripFromOrder`. Never the bare Gateway `operation` string.
+
 ## Tenancy
 
 ```text

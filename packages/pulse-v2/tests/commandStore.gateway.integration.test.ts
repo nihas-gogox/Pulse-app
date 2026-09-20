@@ -118,7 +118,7 @@ describe("Command Store Gateway integration", () => {
     const record = commandStore.getByIdempotencyKey("ws-a", "k-order-1");
     expect(record?.status).toBe("COMPLETED");
     expect(record?.tenantId).toBe("ws-a");
-    expect(record?.commandName).toBe("createOrder");
+    expect(record?.commandName).toBe("commerce.createOrder");
     expect(commandStore.getByIdempotencyKey("ws-b", "k-order-1")).toBeNull();
   });
 
@@ -142,7 +142,7 @@ describe("Command Store Gateway integration", () => {
     });
     expect(trip.ok).toBe(true);
     const record = commandStore.getByIdempotencyKey("ws-a", "k-trip-public");
-    expect(record?.commandName).toBe("createTripFromOrder");
+    expect(record?.commandName).toBe("execution.createTripFromOrder");
     expect(record?.status).toBe("COMPLETED");
   });
 
@@ -168,7 +168,9 @@ describe("Command Store Gateway integration", () => {
     });
     expect(placed.ok).toBe(true);
     expect(created).toBe(1);
-    expect(commandStore.getByIdempotencyKey("ws-a", "k-nested")?.commandName).toBe("createOrder");
+    expect(commandStore.getByIdempotencyKey("ws-a", "k-nested")?.commandName).toBe(
+      "commerce.createOrder",
+    );
   });
 
   it("queries do not create CommandRecords", () => {
