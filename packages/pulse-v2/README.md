@@ -6,7 +6,7 @@ Isolated from production Pulse (Expo app, `features/`, `lib/supabase`, shared ho
 
 **Workspace tenancy** is copied from sealed Gateway `AuthorizationContext.workspaceId`. Caller `workspaceId` is not authority.
 
-**Not authorized:** Event Timeline, Observatory, Event publishing, RLS, hosted V2, production Auth, Kafka, Redis, Kubernetes, service mesh, HTTP Gateway, Hono extract, production migrations, domain extraction.
+**Not authorized:** Event publishing (architecture frozen, runtime deferred — `EVENT_ARCHITECTURE.md`), Observatory, RLS, hosted V2, production Auth, Kafka, Redis, Kubernetes, service mesh, HTTP Gateway, Hono extract, production migrations, domain extraction.
 
 ## Persistence modes
 

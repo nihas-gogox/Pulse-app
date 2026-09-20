@@ -1,6 +1,6 @@
 # Command Store ↔ Gateway / Runtime (V2)
 
-**Status:** Gateway integration COMPLETE. Command Timeline is wired after `COMPLETED` (see `TIMELINE_RUNTIME.md`). Event publishing **not implemented**.
+**Status:** Gateway integration COMPLETE. Command Timeline is wired after `COMPLETED` (see `TIMELINE_RUNTIME.md`). Event publishing is **DEFERRED** (`EVENT_ARCHITECTURE.md`).
 
 ## Commands vs queries
 
@@ -49,4 +49,4 @@ After first `COMPLETED`, PlatformRuntime appends one command Timeline entry. Tim
 
 ## Not in this slice
 
-Event Timeline, Observatory, Event Envelope publishing, RLS, Postgres, hosted V2.
+Event publishing / Event Timeline (deferred — `EVENT_ARCHITECTURE.md`), Observatory, RLS, Postgres, hosted V2.

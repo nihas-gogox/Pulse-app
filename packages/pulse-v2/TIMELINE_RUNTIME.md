@@ -57,4 +57,4 @@ If append fails: command stays **COMPLETED**. Domain is **not** rolled back. Gat
 
 ## Deferred
 
-Event publishing, event Timeline, Observatory, Timeline query API, ordering, dedup keys, RLS, Postgres, hosted V2.
+Event publishing, Event Timeline, Observatory, and Timeline query API remain **DEFERRED**. Event writer, timing, and failure rules are frozen in `EVENT_ARCHITECTURE.md` (not implemented). Event ordering and deduplication stay **OPEN / FUTURE**. RLS, Postgres, hosted V2 remain unauthorized.

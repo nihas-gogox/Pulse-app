@@ -27,7 +27,8 @@
 | Command Store Gateway/Runtime integration | **COMPLETE** — mutating public execute() only; nested Execution is one command |
 | TimelineEntry contract v1 | **FROZEN** |
 | Command Timeline runtime | **COMPLETE** — append after first COMPLETED; events/Observatory not wired |
-| Event Timeline / Observatory / Event publishing | **NOT AUTHORIZED** |
+| Event architecture | **DECISIONS FROZEN** — `EVENT_ARCHITECTURE.md`; publishing **DEFERRED** |
+| Event Timeline / Observatory / Event publishing | **DEFERRED** (not authorized to implement) |
 | Customer / product workflow | **BLOCKED** |
 | OPEN B runtime / RBAC | **NOT AUTHORIZED** |
 
@@ -42,14 +43,15 @@ Identity/Auth: COMPLETE
 Membership/Workspace persistence: COMPLETE (V2 Identity-owned, local only)
 Command Store persistence: COMPLETE
 Command Store Gateway/Runtime: COMPLETE
-Command Timeline runtime: COMPLETE (events/Observatory not wired)
+Command Timeline runtime: COMPLETE
 TimelineEntry contract: FROZEN
+Event architecture: DECISIONS FROZEN (runtime DEFERRED)
 RLS: NOT AUTHORIZED
 Hosted V2: NOT AUTHORIZED
 Production: FROZEN
 ```
 
-Slice 5 remains unauthorized. OPEN B remains unresolved. SEC-007 remains deferred. RLS, hosted V2, Event Timeline, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved.
+Slice 5 remains unauthorized. OPEN B remains unresolved. SEC-007 remains deferred. RLS, hosted V2, Event publishing, Event Timeline, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved. See `EVENT_ARCHITECTURE.md`.
 
 Current runtime (local V2 Identity/Auth + durable Commerce/Execution + Command Store on mutating public execute(), production untouched):
 
