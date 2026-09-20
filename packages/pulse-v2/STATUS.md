@@ -9,8 +9,11 @@
 | Gate A — Architecture conflicts (Auth plane + ADR-001 vs `v2_identity`) | **CLOSED** — ADR-013 (`docs/ADR-013-pulse-v2-identity-plane.md`), C1-B + C2-B |
 | Gate B — Product one identity + one authorized Workspace context | **CLOSED** — ADR-014 (`docs/ADR-014-one-identity-workspace-rbac.md`) |
 | Gate C — Infrastructure | **CLOSED — LOCAL V2-ONLY** — ADR-015 (`docs/ADR-015-pulse-v2-data-plane-infrastructure.md`) |
+| V2 Quality Charter | **ESTABLISHED** — `PULSE_V2_QUALITY_CHARTER.md` (production-feedback contract; does not reopen gates or authorize Slice 4) |
 | Slice 4 — Identity implementation / trusted context / RLS | **BLOCKED** |
 | Customer / product workflow | **BLOCKED** |
+
+Quality contract (blast radius, financial truth, boot/workspace, query budgets): `PULSE_V2_QUALITY_CHARTER.md`. It does **not** authorize production changes, Slice 4, or hosted provisioning. Gate C stays closed (local V2-only).
 
 Do **not** implement Identity, weaken deny-all RLS, wire Hono, federate production Auth, provision hosted V2, or start customer workflow. Gate C: local V2-only; hosted not provisioned. Slice 4 remains unauthorized.
 

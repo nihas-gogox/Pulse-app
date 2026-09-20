@@ -2,7 +2,7 @@
 
 Isolated from production Pulse (Expo app, `features/`, `lib/supabase`, shared hosted Supabase).
 
-**Slices 1–2 accepted. Slice 3 design accepted. Gates A–C closed (ADR-013/014/015). Slice 4 blocked.** See `STATUS.md`.
+**Slices 1–2 accepted. Slice 3 design accepted. Gates A–C closed (ADR-013/014/015). Quality charter established. Slice 4 blocked.** See `STATUS.md` and `PULSE_V2_QUALITY_CHARTER.md`.
 
 **Workspace-scoped persistence implemented; trusted tenant authorization pending Identity/Authorization decision.** Caller `workspaceId` is not tenant security.
 

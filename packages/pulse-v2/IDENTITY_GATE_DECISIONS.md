@@ -7,6 +7,8 @@
 **Who this record can approve:** Architecture invariants explicitly adopted below.  
 **Who this record cannot approve:** Product/Business, Security (implementation/provisioning), or Infrastructure owners. Those remain **OPEN — OWNER REQUIRED** even where Architecture recommends a direction.
 
+Production-feedback quality contract (blast radius, financial truth, boot, query budgets): `PULSE_V2_QUALITY_CHARTER.md`. It does not reopen this gate or authorize Slice 4.
+
 Status vocabulary:
 
 | Label | Meaning |
