@@ -83,6 +83,7 @@ function resolveAuthorizationContext(
     actorId: resolved.membership.actorId,
     membershipId: resolved.membership.membershipId,
     workspaceId: trustedWorkspaceId,
+    role: resolved.membership.role,
     correlationId,
   };
 }
