@@ -23,3 +23,15 @@ One authentication system for the entire platform. Every customer logs into one 
 ## Principle
 
 Identity only authenticates. It never decides business logic — no product-specific branching lives inside this layer.
+
+## Clarification / extension — Pulse V2 Identity plane (2026-09-20)
+
+**Kind:** Approved Architecture clarification and extension. Historical Purpose, Current State, Target, and Principle above are **unchanged**.
+
+**Record:** `docs/ADR-013-pulse-v2-identity-plane.md` (C1-B).
+
+The Purpose sentence (“one authentication system for the entire platform”) and Current State (“one Supabase project, one `auth.users`”) govern the **production Pulse product plane** and its current production Experiences (Expo and OMS on that project). That production rule is **not repealed**.
+
+An **isolated Pulse V2 data plane** may operate a **separate V2 Auth authority** when V2 is provisioned. V2 must not use production `auth.users` as its normal authorization path.
+
+Whether customers ultimately have one login across production and V2 is **not decided here** (Gate B). This clarification does not provision V2 Auth, introduce federation, or authorize implementation.

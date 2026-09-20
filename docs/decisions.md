@@ -48,6 +48,18 @@ Only `features/organization/services/platformOrganization.service.ts` may query 
 ADR-001 anticipated mobile Identity's real business logic eventually running on oms/'s `platform.*` Postgres schema. In practice, a separate, richer domain model (`lib/platform-identity/`, `lib/onboarding/` — `platformIdentityService`, `membershipPolicyEngineV1`, identity providers) was built independently on top of the **existing `public.*` tables** (`organization_team_invites`, `organizations`, `organization_members`), not on `platform.*`. `platformOrganization.service.ts` and `platformIdentityShadowCheck.util.ts` (ADR-001–003) were **not abandoned** — they're the live shadow-mode comparison layer, called from `platformIdentityService.acceptInvitation()` on every real accept, exactly as originally designed. The cutover to `platform.*` as the authoritative store (ADR-001's original mechanism) has not happened and isn't scheduled; ADR-001's underlying intent — never build a second, competing Identity system — still held, it just resolved as "richer domain model over `public.*`, with `platform.*` kept live for comparison" rather than "adopt `platform.*` directly."
 **Reason:** Recording this now, precisely, so a future reader doesn't read ADR-001 and assume the mobile app's business logic runs on `platform.*` — it doesn't, and `platformOrganization.service.ts`'s only real caller is the shadow checker.
 
+## Clarification / extension to ADR-001 — Pulse V2 Identity plane (2026-09-20)
+
+**Kind:** Approved Architecture clarification and extension (C2-B). ADR-001 and the PR-008 clarification above are **unchanged** and remain in force for the **production/OMS identity plane**.
+
+**Record:** `docs/ADR-013-pulse-v2-identity-plane.md`.
+
+ADR-001 continues to forbid a second, parallel Identity schema **on the production database** for the mobile/OMS product line. `public.*` remains production Identity. `platform.*` remains shadow until an independently approved cutover.
+
+An **isolated V2 deployment** may use schema `v2_identity` as that deployment’s Identity bounded-context store. That is not a third schema on production and is not a second conceptual Identity model (Actor, Membership, Workspace, Law #6). V2 must not query production Identity for runtime authorization.
+
+This clarification does **not** create `v2_identity` tables, modify production migrations, or authorize V2 Auth/membership implementation.
+
 ## PR-008 cutover — confirmed-dead code removed (ADR-004)
 Per the Architecture Freeze Review, deleted `lib/onboarding/completeOnboarding.util.ts`, `lib/onboarding/employmentPolicy.ts`, the deprecated `lib/onboarding/membershipPolicyEngine.ts` (and its internal `evaluateMembershipPolicyV1` alias), and the orphaned `resolvePendingInvitationsByPhone()` function — all had zero remaining callers, confirmed by direct search immediately before each deletion. `MembershipPolicyRequiredAction` was relocated from the deleted `membershipPolicyEngine.ts` into `lib/platform-identity/policy/policyDecision.ts`, its only real remaining consumer. `platformIdentityService.acceptInvitation()`/`.switchWorkspace()` and `membershipPolicyEngineV1.evaluateJoinPoliciesV1()` are now the sole implementations for onboarding orchestration and membership policy, respectively — no functional behavior changed, this was deletion of already-unreachable code.
 **Reason:** Six of eight reviewed domains (Identity, Invitation Resolution, Employment Policy, Organization Status, Audit, Membership Policy after the type move) already had exactly one authoritative implementation each; the two with leftover deprecated code were fully consolidated by the time this PR ran, not by new migration work.
@@ -204,4 +216,10 @@ The root defect is that **`is_org_member()` encodes the wrong security boundary*
 **Principle:** Platform eliminates duplicate business logic; Product improves customer outcomes — after a platform milestone, optimize behaviour and KPIs before extending the platform (`docs/PRODUCT_STRATEGY.md`).
 
 **Rule going forward:** a new marketplace surface consumes `CommercialOpportunity`; it does not branch on raw `indents.status`, orphan story clocks, or campaign status for Bid CTA / price / open-market visibility. `status='quoted'` is a deprecated compatibility value only — do not reopen status-name work.
+
+## Pulse V2 Identity plane (ADR-013, accepted — 2026-09-20)
+
+**Status:** Accepted (Architecture). Full text: `docs/ADR-013-pulse-v2-identity-plane.md`.
+
+**Decision:** C1-B and C2-B. Production keeps one Auth authority and one production Identity store (`public.*`, ADR-001 in force, `platform.*` shadow). An isolated V2 data plane may have separate V2 Auth and schema `v2_identity`. One conceptual Identity model. V2 must not use production Identity as its normal authorization path. One-login across production and V2 is **not** decided. This ADR does **not** authorize V2 Auth, membership tables, RLS, federation, or Slice 4. **Next gate: Gate B** (Product one-login), when asked.
 
