@@ -338,3 +338,8 @@ Hosted V2 project, hosted Auth, backup/PITR/DR, operational controls — **not p
 **BLOCKED** until the owner-required decisions are explicitly approved by the named owners **and** dedicated V2 infrastructure is approved/provisioned for real Auth/RLS work.
 
 This Architecture record does **not** substitute for Product, Security, or Infrastructure approval.
+
+## Slice 4 authorization design (2026-09-20)
+
+**DESIGN ONLY** — `SLICE_4_AUTHORIZATION_DESIGN.md`. Implementation **not** authorized. Trusted path: Actor → verified Membership → Workspace → AuthorizationContext (Gateway). Payload `workspaceId` is never authority.
+
