@@ -14,7 +14,7 @@ import {
     isLoadBasedTrip,
 } from "@/features/trips/visibility/tripVisibility";
 import type { VehicleRow } from "@/features/vehicles/services/vehicles.service";
-import { useTransactionsQuery } from "@/lib/queries/useTransactionsQuery";
+import { useTransactionsQuery, useTransactionTotalsQuery } from "@/lib/queries/useTransactionsQuery";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -135,6 +135,8 @@ export function useFinanceLedger({
     isFetching: ledgerRefetching,
   } = useTransactionsQuery(orgId);
   const ledgerTransactions = ledgerTransactionsData ?? null;
+  /** Unbounded fetch, used only for headline totals — see ledgerTotalsData below. */
+  const { data: ledgerTotalsSourceData } = useTransactionTotalsQuery(orgId);
   /** isLoading — first fetch only; keeps cached rows visible while refetching. */
   const ledgerLoading = Boolean(orgId) && ledgerQueryLoading;
   const ledgerFetchError =
@@ -343,21 +345,49 @@ export function useFinanceLedger({
     return map;
   }, [tripRows, clients, suppliers, organizationId]);
 
-  const filteredLedgerBySource = useMemo(() => {
-    if (sourceSupplyFilter === "all") return filteredLedger;
-    return filteredLedger.filter((r) => {
-      if (!r.trip_id) {
-        // Party-level postings without a trip link belong on aggregate cash view.
-        return sourceSupplyFilter === "aggregate";
-      }
-      const trip = tripById.get(r.trip_id);
-      if (!trip) return sourceSupplyFilter === "aggregate";
-      const isAggregate = isAggregateExecutionTrip(trip);
-      return sourceSupplyFilter === "aggregate"
-        ? isAggregate
-        : isAssetExecutionTrip(trip);
-    });
-  }, [filteredLedger, sourceSupplyFilter, tripById]);
+  const applySourceSupplyFilter = useCallback(
+    (rows: LedgerRow[]) => {
+      if (sourceSupplyFilter === "all") return rows;
+      return rows.filter((r) => {
+        if (!r.trip_id) {
+          // Party-level postings without a trip link belong on aggregate cash view.
+          return sourceSupplyFilter === "aggregate";
+        }
+        const trip = tripById.get(r.trip_id);
+        if (!trip) return sourceSupplyFilter === "aggregate";
+        const isAggregate = isAggregateExecutionTrip(trip);
+        return sourceSupplyFilter === "aggregate"
+          ? isAggregate
+          : isAssetExecutionTrip(trip);
+      });
+    },
+    [sourceSupplyFilter, tripById],
+  );
+
+  const filteredLedgerBySource = useMemo(
+    () => applySourceSupplyFilter(filteredLedger),
+    [filteredLedger, applySourceSupplyFilter],
+  );
+
+  /**
+   * Headline totals, computed from the unbounded totals fetch (not the
+   * capped display list) so they stay correct for orgs with more than 500
+   * transactions — same period + source filters as the displayed ledger,
+   * applied to the full transaction set.
+   */
+  const ledgerTotalsSource = useMemo(
+    () =>
+      filterLedgerByPeriod(
+        ledgerTotalsSourceData ?? [],
+        financePeriodFilter,
+        periodOpts,
+      ),
+    [ledgerTotalsSourceData, financePeriodFilter, periodOpts],
+  );
+  const filteredLedgerTotalsBySource = useMemo(
+    () => applySourceSupplyFilter(ledgerTotalsSource),
+    [ledgerTotalsSource, applySourceSupplyFilter],
+  );
 
   const ledgerRowsByCategory = useMemo(() => {
     const match = (
@@ -493,8 +523,8 @@ export function useFinanceLedger({
   ]);
 
   const ledgerTotalsData = useMemo(
-    () => ledgerTotals(filteredLedgerBySource),
-    [filteredLedgerBySource],
+    () => ledgerTotals(filteredLedgerTotalsBySource),
+    [filteredLedgerTotalsBySource],
   );
 
   const ledgerCategoryCounts = useMemo(() => {

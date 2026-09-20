@@ -4,6 +4,7 @@
 import { useCallback } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  getAllTransactionsByOrganizationForTotals,
   getTransactionsByOrganization,
   type LedgerRow,
 } from '@/features/finance/services/finance.service';
@@ -28,6 +29,25 @@ export function useTransactionsQuery(orgId: string | null) {
     enabled: !!orgId,
     staleTime: STALE.realtime,
     refetchOnMount: refetchOnMountIfEntityListEmpty<LedgerRow[]>(),
+  });
+}
+
+/**
+ * Unbounded, join-free fetch used ONLY to compute the Cash tab's headline
+ * totals correctly for orgs with more transactions than the capped display
+ * list (`useTransactionsQuery`) shows. Kept separate from the bounded/
+ * paginated display data — do not use this for rendering the ledger table.
+ */
+export function useTransactionTotalsQuery(orgId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.transactions.totals(orgId ?? ''),
+    queryFn: async () => {
+      const res = await getAllTransactionsByOrganizationForTotals(orgId!);
+      if (res.error) throw res.error;
+      return res.transactions;
+    },
+    enabled: !!orgId,
+    staleTime: STALE.realtime,
   });
 }
 

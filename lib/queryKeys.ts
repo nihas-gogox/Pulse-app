@@ -68,6 +68,7 @@ export const queryKeys = {
   transactions: {
     all: (orgId: string) => ["q", "transactions", orgId] as const,
     finite: (orgId: string) => ["q", "transactions", orgId, "finite"] as const,
+    totals: (orgId: string) => ["q", "transactions", orgId, "totals"] as const,
     infinite: (orgId: string, pageSize: number) =>
       ["q", "transactions", orgId, "infinite", pageSize] as const,
     list: (

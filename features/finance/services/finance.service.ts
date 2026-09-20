@@ -940,6 +940,30 @@ export async function getTransactionsByOrganization(
   return { error: null, transactions };
 }
 
+/**
+ * Same base query as getTransactionsByOrganization, but with no row cap —
+ * used ONLY to compute the Cash tab's headline totals so they stay correct
+ * for organizations with more than 500 transactions. The capped list above
+ * remains the source for the displayed/paginated ledger; this is a separate,
+ * aggregate-only fetch. Still join-free (the nested `trips!trip_id` embed,
+ * not row count, was what caused the original 8-12s timeout removed in
+ * c61f7d3d), so this stays cheap even unbounded.
+ */
+export async function getAllTransactionsByOrganizationForTotals(
+  orgId: string,
+): Promise<{ error: Error | null; transactions: LedgerRow[] }> {
+  type Row = Parameters<typeof toLedgerRow>[0];
+  const { data, error } = await supabase()
+    .from("transactions")
+    .select("*")
+    .eq("organization_id", orgId)
+    .order("transaction_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (error) return { error: new Error(error.message), transactions: [] };
+  const transactions: LedgerRow[] = ((data ?? []) as unknown as Row[]).map(toLedgerRow);
+  return { error: null, transactions };
+}
+
 export async function getTransactionsDelta(
   orgId: string,
   since: { updatedAt: string; tieBreakerId?: string | null },
