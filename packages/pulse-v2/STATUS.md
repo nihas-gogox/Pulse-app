@@ -10,7 +10,8 @@
 | Gate B — Product one identity + one authorized Workspace context | **CLOSED** — ADR-014 (`docs/ADR-014-one-identity-workspace-rbac.md`) |
 | Gate C — Infrastructure | **CLOSED — LOCAL V2-ONLY** — ADR-015 (`docs/ADR-015-pulse-v2-data-plane-infrastructure.md`) |
 | V2 Quality Charter | **ESTABLISHED** — `PULSE_V2_QUALITY_CHARTER.md` (production-feedback contract; does not reopen gates or authorize Slice 4) |
-| Slice 4 — Authorization **design** | **DESIGN READY FOR OWNER REVIEW** (`SLICE_4_AUTHORIZATION_DESIGN.md`) |
+| Slice 4 — Authorization **design** | **OWNER-ACCEPTED** (`SLICE_4_AUTHORIZATION_DESIGN.md`, `01f697f4`) |
+| Slice 4 — Implementation **plan** | **READY FOR OWNER REVIEW** (`SLICE_4_IMPLEMENTATION_PLAN.md`) |
 | Slice 4 — Identity implementation | **NOT AUTHORIZED** |
 | Customer / product workflow | **BLOCKED** |
 
@@ -30,7 +31,7 @@ Still **OPEN — OWNER REQUIRED**: Organization→Workspace mapping keys; holdin
 
 Owner intake: `IDENTITY_GATE_OWNER_INTAKE.md`. Gates A–C closed (Architecture, Product, local infra posture). Slice 4 remains **NOT AUTHORIZED**.
 
-Slice 4 **design**: `SLICE_4_AUTHORIZATION_DESIGN.md`. Do **not** implement Slice 4 or provision hosted V2 until asked.
+Slice 4 **design** owner-accepted. Implementation **plan**: `SLICE_4_IMPLEMENTATION_PLAN.md`. Do **not** implement Slice 4 or provision hosted V2 until asked.
 
 ## Slice 2 caveat (do not misread)
 
