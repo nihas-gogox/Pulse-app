@@ -28,7 +28,7 @@ import {
   giveLoadIndentAvatarProps,
   indentClientFacesFromParties,
   isSyntheticMergedOrdersClientName,
-  uniqueClientNameFromCustomers,
+  resolveMergedOrderCardTitle,
   marketLoadIndentAvatarProps,
 } from "@/features/network/utils/indentCardAvatar.util";
 import { isTripTrackingActive } from "@/features/trips/utils/tripTrackingStatus.util";
@@ -80,6 +80,7 @@ import {
 } from "@/features/network/utils/loadCenterTripAllocation.util";
 import { useAwardQuote } from "@/features/network/hooks/useAwardQuote";
 import { useExecutionPlanClients } from "@/features/network/hooks/useExecutionPlanClientNames";
+import { extractCommercePlanIds, prioritizeIndentRowsForPlanEnrichment } from "@/features/network/utils/commercePlanIds.util";
 import { useExecutionPlanRouteSummaries } from "@/features/network/hooks/useExecutionPlanRouteSummaries";
 import { useLoadCenterFilters } from "@/features/network/hooks/useLoadCenterFilters";
 import { useSuccessToast } from "@/features/network/hooks/useSuccessToast";
@@ -89,7 +90,7 @@ import { BidModal } from "@/features/network/components/bidding/BidModal";
 import { ShareLoadSheet } from "@/features/network/components/ShareLoadSheet";
 import { BoostSheet } from "@/features/reach/components/BoostSheet";
 import { queryKeys } from "@/lib/queryKeys";
-import { STALE } from "@/lib/queryClient";
+import { STALE, shouldRetryQuery } from "@/lib/queryClient";
 import { LoadCenterKanbanBoard, type LoadCenterKanbanColumn } from "@/features/network/components/LoadCenterKanbanBoard";
 import { LoadCenterKanbanColumnModal } from "@/features/network/components/LoadCenterKanbanColumnModal";
 import { GIVE_LOAD_KANBAN_COLUMNS, bucketGiveLoadIndentsForKanban, giveLoadKanbanColumnLabel, giveLoadTripKanbanStage } from "@/features/network/utils/giveLoadKanban.util";
@@ -283,19 +284,23 @@ export function LoadCenterView({
     },
     enabled: useAppQueryGate(orgId, { urgent: !isTripsPresentation }) && !isTripsPresentation,
     staleTime: STALE.frequent,
+    refetchOnMount: true,
+    retry: shouldRetryQuery,
+    placeholderData: (previousData) => previousData,
   });
   const marketplaceLoads = marketplaceLoadsQ.data ?? [];
-  const commercePlanIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const row of [...indents, ...marketIndents]) {
-      const id =
-        typeof row.execution_plan_id === "string"
-          ? row.execution_plan_id.trim()
-          : "";
-      if (id) ids.push(id);
-    }
-    return ids;
-  }, [indents, marketIndents]);
+  const marketplacePending =
+    !isTripsPresentation &&
+    (marketplaceLoadsQ.isLoading ||
+      (!marketplaceLoadsQ.isFetched && !marketplaceLoadsQ.isError));
+  const getLoadPending = marketPending || marketplacePending;
+  const commercePlanIds = useMemo(
+    () =>
+      extractCommercePlanIds(
+        prioritizeIndentRowsForPlanEnrichment([...indents, ...marketIndents]),
+      ),
+    [indents, marketIndents],
+  );
   const { data: planRouteById } = useExecutionPlanRouteSummaries(
     orgId,
     commercePlanIds,
@@ -1486,21 +1491,18 @@ export function LoadCenterView({
         clientById,
         linkedAvatarMap,
       );
-      const orderClientName = uniqueClientNameFromCustomers(
-        planParties.map((p) => p.name),
+      const clientName = resolveMergedOrderCardTitle(
+        load.client_name,
+        planParties,
+        clientById,
       );
-      const clientName = isSyntheticMergedOrdersClientName(load.client_name)
-        ? clientFaces.length > 1
-          ? (load.client_name || "—").trim() || "—"
-          : orderClientName || (load.client_name || "—").trim() || "—"
-        : (load.client_name || "—").trim() || "—";
       const avatarLoad =
         isSyntheticMergedOrdersClientName(load.client_name) &&
         clientFaces.length === 1
           ? {
               ...load,
               client_id: clientFaces[0]?.id ?? load.client_id,
-              client_name: clientFaces[0]?.name ?? orderClientName,
+              client_name: clientFaces[0]?.name ?? clientName,
             }
           : load;
       const awardedAmount = resolveGiveLoadAwardedAmountInr({
@@ -2060,8 +2062,14 @@ export function LoadCenterView({
           refreshControl={
             loadSubTab === "GET_LOAD" ? (
               <RefreshControl
-                refreshing={marketRefetching && !marketLoading}
-                onRefresh={() => refetchMarketIndents()}
+                refreshing={
+                  (marketRefetching && !marketLoading) ||
+                  (marketplaceLoadsQ.isFetching && !marketplaceLoadsQ.isLoading)
+                }
+                onRefresh={() => {
+                  void refetchMarketIndents();
+                  void marketplaceLoadsQ.refetch();
+                }}
                 tintColor={Theme.primary}
               />
             ) : undefined
@@ -2357,17 +2365,20 @@ export function LoadCenterView({
 
           {loadSubTab === "GET_LOAD" &&
             showLoadCenterChrome &&
-            (marketPending ? (
+            (getLoadPending ? (
               <View style={styles.loadingWrap}>
                 <ActivityIndicator size="small" color={Theme.primary} />
                 <Text style={styles.loadingText}>Loading…</Text>
               </View>
-            ) : marketError ? (
+            ) : marketError || marketplaceLoadsQ.isError ? (
               <ContentErrorState
                 variant="loads"
                 layout="embedded"
-                onRetry={() => void refetchMarketIndents()}
-                retrying={marketRefetching}
+                onRetry={() => {
+                  void refetchMarketIndents();
+                  void marketplaceLoadsQ.refetch();
+                }}
+                retrying={marketRefetching || marketplaceLoadsQ.isFetching}
               />
             ) : !isMobileView ? (
               findWorkLoads.length === 0 &&

@@ -206,10 +206,17 @@ function normalizeTripRowWithIndent(
   const tripDisplay = selectTripOperationalReference(row);
   /** Originated from a Commerce (multi-order e-commerce) execution plan — no new column, existing FK. */
   const isCommerce = Boolean(
-    row.source_indent?.execution_plan_id ??
+    row.execution_plan_id ??
+      row.source_indent?.execution_plan_id ??
       row.active_indent?.execution_plan_id ??
       row.indents?.execution_plan_id,
   );
+  const executionPlanId =
+    (row.execution_plan_id ?? "").trim() ||
+    (row.source_indent?.execution_plan_id ?? "").trim() ||
+    (row.active_indent?.execution_plan_id ?? "").trim() ||
+    (row.indents?.execution_plan_id ?? "").trim() ||
+    null;
   return {
     ...row,
     trip_operational_code: row.trip_operational_code ?? null,
@@ -218,6 +225,7 @@ function normalizeTripRowWithIndent(
     indent_number: indentDisplay,
     source_indent_code: indentDisplay,
     indent_reference_code: indentDisplay,
+    execution_plan_id: executionPlanId,
     is_commerce: isCommerce,
   };
 }

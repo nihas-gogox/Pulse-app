@@ -23,7 +23,7 @@ import { useAppQueryGate } from '@/lib/hooks/useAppQueryGate';
 import { refetchOnMountIfEntityListEmpty } from '@/lib/queries/entityListQueryOptions';
 import { queryKeys } from '@/lib/queryKeys';
 import { DEFAULT_PAGE_SIZE } from '@/lib/pagination';
-import { STALE } from '@/lib/queryClient';
+import { STALE, shouldRetryQuery } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 
@@ -83,6 +83,8 @@ export function useMarketIndentsQuery(
     // Cross-org feed: partner shippers mutate indents outside this org's invalidation path.
     staleTime: STALE.frequent,
     refetchOnMount: true,
+    retry: shouldRetryQuery,
+    placeholderData: (previousData) => previousData,
   });
 }
 

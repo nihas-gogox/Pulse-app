@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchExecutionPlanRouteSummaries } from "@/features/network/services/fetchExecutionPlanRouteSummaries";
 import { queryKeys } from "@/lib/queryKeys";
-import { STALE } from "@/lib/queryClient";
+import { STALE, shouldRetryQuery } from "@/lib/queryClient";
 
 export function useExecutionPlanRouteSummaries(
   orgId: string | null,
@@ -12,8 +12,9 @@ export function useExecutionPlanRouteSummaries(
 
   return useQuery({
     queryKey: queryKeys.indents.planRoutes(orgId ?? "", planIdsKey),
-    queryFn: () => fetchExecutionPlanRouteSummaries(unique),
+    queryFn: ({ signal }) => fetchExecutionPlanRouteSummaries(unique, signal),
     enabled: Boolean(orgId) && unique.length > 0,
     staleTime: STALE.moderate,
+    retry: shouldRetryQuery,
   });
 }

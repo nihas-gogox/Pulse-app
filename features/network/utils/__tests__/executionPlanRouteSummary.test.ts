@@ -88,6 +88,34 @@ describe("groupPlanStopsToRouteSummaries", () => {
     });
     expect(isMultiOrderExecutionPlan(summaries["plan-1"])).toBe(true);
   });
+
+  it("uses stop city when warehouse is omitted", () => {
+    const summaries = groupPlanStopsToRouteSummaries([
+      {
+        execution_plan_id: "plan-2",
+        stop_type: "pickup",
+        sequence: 1,
+        label: "Pickup A",
+        city: "Chennai",
+        state: "Tamil Nadu",
+        address_line: null,
+      },
+      {
+        execution_plan_id: "plan-2",
+        stop_type: "drop",
+        sequence: 2,
+        label: "Drop C",
+        city: "Banglore",
+        state: "Karnataka",
+        address_line: "Ramaraj street",
+      },
+    ]);
+
+    expect(summaries["plan-2"]).toMatchObject({
+      pickup: "Chennai, Tamil Nadu",
+      drop: "Banglore, Karnataka",
+    });
+  });
 });
 
 describe("indentDisplayOriginDest", () => {

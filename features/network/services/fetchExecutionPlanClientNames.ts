@@ -1,4 +1,5 @@
 import { uniqueClientNameFromCustomers } from "@/features/network/utils/indentCardAvatar.util";
+import { chunkIds } from "@/features/network/utils/commercePlanIds.util";
 import { supabase } from "@/lib/supabase";
 
 type ClientJoin = {
@@ -62,18 +63,20 @@ export async function fetchExecutionPlanClients(
   const ids = [...new Set(planIds.map((id) => id.trim()).filter(Boolean))];
   if (!orgId.trim() || ids.length === 0) return {};
 
-  const { data, error } = await supabase()
-    .from("sales_orders")
-    .select(
-      "execution_plan_id, customer_id, customer:clients!customer_id(id, name, legal_name, trade_name)",
-    )
-    .eq("organization_id", orgId)
-    .in("execution_plan_id", ids)
-    .is("deleted_at", null);
+  const chunks = await Promise.all(
+    chunkIds(ids).map(async (chunk) => {
+      const { data, error } = await supabase()
+        .from("sales_orders")
+        .select("execution_plan_id, customer_id")
+        .eq("organization_id", orgId)
+        .in("execution_plan_id", chunk)
+        .is("deleted_at", null);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    }),
+  );
 
-  if (error) throw new Error(error.message);
-
-  return groupSalesOrdersToPlanClients(data ?? []);
+  return groupSalesOrdersToPlanClients(chunks.flat());
 }
 
 export async function fetchExecutionPlanClientNames(

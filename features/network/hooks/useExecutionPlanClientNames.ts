@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchExecutionPlanClients } from "@/features/network/services/fetchExecutionPlanClientNames";
 import { queryKeys } from "@/lib/queryKeys";
-import { STALE } from "@/lib/queryClient";
+import { STALE, shouldRetryQuery } from "@/lib/queryClient";
 
 export function useExecutionPlanClients(
   orgId: string | null,
@@ -15,6 +15,7 @@ export function useExecutionPlanClients(
     queryFn: () => fetchExecutionPlanClients(orgId ?? "", unique),
     enabled: Boolean(orgId) && unique.length > 0,
     staleTime: STALE.moderate,
+    retry: shouldRetryQuery,
   });
 }
 

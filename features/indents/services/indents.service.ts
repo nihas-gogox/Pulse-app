@@ -401,6 +401,19 @@ async function fetchPartnerShipperLinkSinceMap(
  * including rows created before the connection timestamp.
  * This is a read-merge only safety net layered above RPC/fallback paths.
  */
+function mergeIndentRowsById(...lists: IndentRow[][]): IndentRow[] {
+  const existing = new Map<string, IndentRow>();
+  const merged: IndentRow[] = [];
+  for (const list of lists) {
+    for (const row of list) {
+      if (existing.has(row.id)) continue;
+      existing.set(row.id, row);
+      merged.push(row);
+    }
+  }
+  return merged;
+}
+
 async function mergeLinkedShipperActiveIndents(
   orgId: string,
   baseIndents: IndentRow[],
@@ -468,11 +481,13 @@ export async function getMarketIndentsForOrganization(
         creator_organization_name: name,
       } as IndentRow & { trips?: IndentTripJoin[] | null });
     });
-    const withActiveLinked = await mergeLinkedShipperActiveIndents(orgId, indents);
-    const merged = await mergeQuotedIndentsForSupplier(orgId, withActiveLinked);
+    const [withActiveLinked, withQuoted] = await Promise.all([
+      mergeLinkedShipperActiveIndents(orgId, indents),
+      mergeQuotedIndentsForSupplier(orgId, indents),
+    ]);
     return {
       error: null,
-      indents: merged.map((i) =>
+      indents: mergeIndentRowsById(indents, withActiveLinked, withQuoted).map((i) =>
         maskIndentRowForSupplierList(normalizeIndentRow(i), orgId),
       ),
     };

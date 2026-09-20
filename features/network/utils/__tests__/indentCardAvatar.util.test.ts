@@ -3,6 +3,7 @@ import {
   giveLoadIndentAvatarProps,
   indentClientFacesFromParties,
   resolveGiveLoadClient,
+  resolveMergedOrderCardTitle,
   uniqueClientNameFromCustomers,
 } from "@/features/network/utils/indentCardAvatar.util";
 import type { ClientRow } from "@/features/clients/services/clients.service";
@@ -175,9 +176,23 @@ describe("giveLoadIndentAvatarProps", () => {
     expect(avatar.organizationImageUrl).toBe("https://cdn.example/aero.png");
   });
 
-  it("picks the first unique customer name", () => {
-    expect(uniqueClientNameFromCustomers(["AERO", "AERO", ""])).toBe("AERO");
-    expect(uniqueClientNameFromCustomers(["  ", null])).toBeNull();
+  it("uses the CRM name when a merged plan has a single customer", () => {
+    expect(
+      resolveMergedOrderCardTitle(
+        "2 merged orders",
+        [{ id: "c-aero", name: "Client" }],
+        new Map([["c-aero", { name: "AERO" }]]),
+      ),
+    ).toBe("AERO");
+  });
+
+  it("keeps the merged-orders label when multiple customers remain", () => {
+    expect(
+      resolveMergedOrderCardTitle("3 merged orders", [
+        { id: "a", name: "A" },
+        { id: "b", name: "B" },
+      ]),
+    ).toBe("3 merged orders");
   });
 });
 

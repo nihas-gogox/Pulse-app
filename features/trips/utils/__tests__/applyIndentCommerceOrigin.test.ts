@@ -31,6 +31,7 @@ describe('applyIndentCommerceOrigin', () => {
     ]);
     expect(stamped[0].is_commerce).toBe(false);
     expect(stamped[1].is_commerce).toBe(true);
+    expect(stamped[1].execution_plan_id).toBe('plan-1');
   });
 
   it('keeps an already-true trip flag when indent rows are empty', () => {

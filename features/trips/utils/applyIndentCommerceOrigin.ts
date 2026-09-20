@@ -32,21 +32,26 @@ export function applyIndentCommerceOrigin<T extends CommerceOriginTrip>(
   trips: T[],
   indentRows: readonly IndentCommerceOriginRow[],
 ): T[] {
-  const commerceIndentIds = new Set(
-    indentRows
-      .filter((row) => Boolean((row.execution_plan_id ?? '').trim()))
-      .map((row) => row.id),
-  );
+  const planByIndentId = new Map<string, string>();
+  for (const row of indentRows) {
+    const planId = (row.execution_plan_id ?? "").trim();
+    if (planId) planByIndentId.set(row.id, planId);
+  }
+  const commerceIndentIds = new Set(planByIndentId.keys());
   return trips.map((trip) => {
     const indentCommerce =
-      commerceIndentIds.has((trip.indent_id ?? '').trim()) ||
-      commerceIndentIds.has((trip.source_indent_id ?? '').trim());
+      commerceIndentIds.has((trip.indent_id ?? "").trim()) ||
+      commerceIndentIds.has((trip.source_indent_id ?? "").trim());
+    const planId =
+      (trip.execution_plan_id ?? "").trim() ||
+      planByIndentId.get((trip.indent_id ?? "").trim()) ||
+      planByIndentId.get((trip.source_indent_id ?? "").trim()) ||
+      "";
     return {
       ...trip,
+      execution_plan_id: planId || trip.execution_plan_id || null,
       is_commerce:
-        Boolean(trip.is_commerce) ||
-        Boolean((trip.execution_plan_id ?? '').trim()) ||
-        indentCommerce,
+        Boolean(trip.is_commerce) || Boolean(planId) || indentCommerce,
     };
   });
 }

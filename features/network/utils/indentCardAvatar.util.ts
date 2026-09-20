@@ -32,6 +32,23 @@ export function uniqueClientNameFromCustomers(
   return unique[0] ?? null;
 }
 
+/** Title for `{n} merged orders` cards: real CRM name when the plan has one customer. */
+export function resolveMergedOrderCardTitle(
+  storedName: string | null | undefined,
+  parties: readonly { id: string; name: string }[],
+  clientById?: Map<string, Pick<ClientRow, "name">>,
+): string {
+  const stored = (storedName ?? "").trim() || "—";
+  if (!isSyntheticMergedOrdersClientName(stored)) return stored;
+  const names = parties.map((party) => {
+    const crm = clientById?.get(party.id)?.name;
+    return (crm ?? party.name ?? "").trim();
+  });
+  const unique = uniqueClientNameFromCustomers(names);
+  if (parties.length === 1 && unique) return unique;
+  return stored;
+}
+
 export type GiveLoadOwnOrgAvatar = {
   id?: string | null;
   name?: string | null;

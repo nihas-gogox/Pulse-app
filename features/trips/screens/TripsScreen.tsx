@@ -44,7 +44,9 @@ import {
 } from "@/features/trips/components/TripsHubBentoMetrics";
 import { TripsFilterBottomSheet } from "@/features/trips/components/TripsFilterBottomSheet";
 import { isIndentUnallocated, isIndentStageDone } from "@/features/network/utils/loadCenter.model";
-import { giveLoadIndentAvatarProps } from "@/features/network/utils/indentCardAvatar.util";
+import { giveLoadIndentAvatarProps, resolveMergedOrderCardTitle } from "@/features/network/utils/indentCardAvatar.util";
+import { extractCommercePlanIds } from "@/features/network/utils/commercePlanIds.util";
+import { useExecutionPlanClients } from "@/features/network/hooks/useExecutionPlanClientNames";
 import { TripsHubIndentStageCard } from "@/features/trips/components/TripsHubIndentStageCard";
 import { GiveLoadIndentCardActions } from "@/features/network/components/LoadCenterIndentCardActions";
 import { useGiveLoadIndentActions } from "@/features/network/hooks/useGiveLoadIndentActions";
@@ -889,6 +891,25 @@ export default function TripsScreen() {
     hubSubcontractRateByTripId,
   ]);
 
+  const commercePlanIds = useMemo(
+    () => extractCommercePlanIds(filtered),
+    [filtered],
+  );
+  const { data: planClientsById } = useExecutionPlanClients(orgId, commercePlanIds);
+  const tripCardClientName = useCallback(
+    (t: TripRow) => {
+      if (shipperNameByTripId[t.id]) return shipperNameByTripId[t.id];
+      if (t.organization_id !== orgId) return "—";
+      const planId = (t.execution_plan_id ?? "").trim();
+      return resolveMergedOrderCardTitle(
+        t.client_name,
+        planId ? (planClientsById?.[planId] ?? []) : [],
+        clientById,
+      );
+    },
+    [shipperNameByTripId, orgId, planClientsById, clientById],
+  );
+
   const hasNonMetricTripFilters =
     supplyFilter !== "all" ||
     attributionFilter !== "all" ||
@@ -1161,8 +1182,7 @@ export default function TripsScreen() {
         "";
       const tripDate = tripDateRaw ? formatLedgerDate(String(tripDateRaw)) : "—";
       const tripDateIso = toReportIsoDate(tripDateRaw);
-      const clientName =
-        (shipperNameByTripId[trip.id] ?? (trip.organization_id !== orgId ? "—" : trip.client_name ?? "—")).trim() || "—";
+      const clientName = tripCardClientName(trip);
       const supplierName =
         (
           tripHubPartyMetaByTripId.get(trip.id)?.displaySupplierName ??
@@ -2478,8 +2498,7 @@ export default function TripsScreen() {
                   <View style={styles.gridContainer}>
                     {rows.map((t) => {
                       const stage = getStageLabelForTrip(t);
-                      const displayClientName =
-                        shipperNameByTripId[t.id] ?? (t.organization_id !== orgId ? "—" : t.client_name ?? "—");
+                      const displayClientName = tripCardClientName(t);
                       const cardLedgerRows = transactionsByTripId.get(t.id) ?? [];
                       const hubLedger = summarizeTripLedgerForHub(cardLedgerRows);
                       const party = tripHubPartyMetaByTripId.get(t.id);
@@ -2584,8 +2603,7 @@ export default function TripsScreen() {
                   <TripsHubMobileTripListCanvas>
                     {rows.map((t) => {
                       const stage = getStageLabelForTrip(t);
-                      const displayClientName =
-                        shipperNameByTripId[t.id] ?? (t.organization_id !== orgId ? "—" : t.client_name ?? "—");
+                      const displayClientName = tripCardClientName(t);
                       const cardLedgerRows = transactionsByTripId.get(t.id) ?? [];
                       const hubLedger = summarizeTripLedgerForHub(cardLedgerRows);
                       const party = tripHubPartyMetaByTripId.get(t.id);

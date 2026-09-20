@@ -6,8 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { expandLR } from "@/lib/utils/lr";
 import { parseLrFieldValues } from "@/features/trips/services/lrDocumentOcr.util";
 
-/** Keep IN-lists short — 200 UUIDs overflow typical 8kb gateway URL limits and return []. */
-const TRIP_ID_CHUNK = 40;
+/** Keep IN-lists short — large POD scans 57014 under load (hub list). */
+const TRIP_ID_CHUNK = 8;
 
 export type TripDocumentLrPodRow = {
   trip_id: string;
