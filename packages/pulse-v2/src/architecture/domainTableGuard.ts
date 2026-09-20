@@ -55,7 +55,9 @@ function domainFromSrcPath(relFromSrc: string): string | null {
   const rel = relFromSrc.replace(/\\/g, "/");
   const domainDir = rel.match(/^domains\/([a-z]+)\//);
   if (domainDir) return domainDir[1];
-  const persist = rel.match(/^persistence\/(?:supabase|memory)\/([a-z]+)(?:Adapter|Memory)/);
+  const persist = rel.match(
+    /^persistence\/(?:supabase|memory|durable)\/([a-z]+)(?:Adapter|Memory|Durable)/,
+  );
   if (persist) return persist[1];
   return null;
 }

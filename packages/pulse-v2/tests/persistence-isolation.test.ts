@@ -31,6 +31,7 @@ describe("V2 persistence isolation", () => {
       "PULSE_V2_SUPABASE_SERVICE_ROLE_KEY",
       "PULSE_V2_HOSTED_PROJECT_REF",
       "PULSE_V2_ALLOW_HOSTED",
+      "PULSE_V2_DATA_DIR",
     ]);
     expect(REJECTED_V2_PRODUCTION_ENV_KEYS).toEqual(
       expect.arrayContaining([

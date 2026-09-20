@@ -29,3 +29,8 @@ Open (no schema here): Driver/Workforce, Documents/POD, Compliance, Communicatio
 ## Apply (local only, never hosted, never production)
 
 Not executed by this slice. Guard: `assertV2MigrationApplyAllowed`.
+
+Deny-all RLS is unchanged. Application Commerce/Execution durability uses
+`PULSE_V2_DATA_DIR` (local files named after `v2_commerce.sales_orders` and
+`v2_execution.trips`). PostgREST `anon`/`authenticated` still cannot see rows.
+Adapters never receive service_role. No hosted `*.supabase.co`.

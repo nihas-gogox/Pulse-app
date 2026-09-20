@@ -1,6 +1,8 @@
 import type { CommerceRepository } from "../domains/commerce/repository";
 import type { ExecutionRepository } from "../domains/execution/repository";
 import type { V2PersistenceConfig } from "../env/v2SupabaseEnv";
+import { createCommerceDurableRepository } from "./durable/commerceDurable";
+import { createExecutionDurableRepository } from "./durable/executionDurable";
 import { createCommerceMemoryRepository } from "./memory/commerceMemory";
 import { createExecutionMemoryRepository } from "./memory/executionMemory";
 import { createV2DatabaseClient, type CreateSupabaseClient } from "./supabase/createV2Client";
@@ -20,6 +22,12 @@ export function createV2Persistence(
     return {
       commerce: createCommerceMemoryRepository(),
       execution: createExecutionMemoryRepository(),
+    };
+  }
+  if (config.mode === "local-durable") {
+    return {
+      commerce: createCommerceDurableRepository(config.dataDir),
+      execution: createExecutionDurableRepository(config.dataDir),
     };
   }
   const client = createV2DatabaseClient(config, createClientImpl);

@@ -218,7 +218,11 @@ export function createPulseV2Gateway(
   return {
     execute,
     createWorkspace,
-    dataPlane: { mode: config.mode, supabaseUrl: config.supabaseUrl },
+    dataPlane: {
+      mode: config.mode,
+      supabaseUrl: config.supabaseUrl,
+      dataDir: config.mode === "local-durable" ? config.dataDir : null,
+    },
   };
 }
 

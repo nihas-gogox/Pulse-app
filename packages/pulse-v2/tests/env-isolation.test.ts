@@ -30,6 +30,14 @@ describe("V2 Supabase environment isolation", () => {
     ).toThrow(/must not use production\/preprod/);
   });
 
+  it("allows local durable DATA_DIR without production env", () => {
+    const target = resolveV2DatabaseTarget({
+      PULSE_V2_DATA_DIR: "/tmp/pulse-v2-local",
+      EXPO_PUBLIC_SUPABASE_URL: `https://${BLOCKED_V2_SUPABASE_PROJECT_REFS[0]}.supabase.co`,
+    });
+    expect(target).toEqual({ mode: "local-durable", supabaseUrl: null });
+  });
+
   it("allows local Supabase without treating it as production", () => {
     const target = resolveV2DatabaseTarget({
       PULSE_V2_SUPABASE_URL: "http://127.0.0.1:54321",

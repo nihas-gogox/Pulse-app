@@ -38,9 +38,13 @@ function walkTsFiles(dir: string, onFile: (absPath: string) => void): void {
   }
 }
 
+const IDENTITY_FROM_PERSISTENCE =
+  /from\s+['"][^'"]*\/identity\/|from\s+['"]\.\.\/identity/;
+
 export function scanV2ImportSource(file: string, source: string): V2ImportViolation[] {
   const violations: V2ImportViolation[] = [];
   const lines = source.split("\n");
+  const persistRel = file.replace(/\\/g, "/");
   lines.forEach((line, index) => {
     for (const { pattern, label } of FORBIDDEN_IMPORTS) {
       pattern.lastIndex = 0;
@@ -52,6 +56,14 @@ export function scanV2ImportSource(file: string, source: string): V2ImportViolat
           snippet: line.trim(),
         });
       }
+    }
+    if (persistRel.startsWith("persistence/") && IDENTITY_FROM_PERSISTENCE.test(line)) {
+      violations.push({
+        file,
+        line: index + 1,
+        label: "Identity import from persistence (repositories stay Identity-independent)",
+        snippet: line.trim(),
+      });
     }
   });
   return violations;

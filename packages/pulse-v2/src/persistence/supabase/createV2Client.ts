@@ -19,9 +19,9 @@ export function createV2DatabaseClient(
   config: V2PersistenceConfig,
   createClientImpl?: CreateSupabaseClient,
 ): V2DatabaseClient {
-  if (config.mode === "memory") {
+  if (config.mode === "memory" || config.mode === "local-durable") {
     throw new V2EnvironmentIsolationError(
-      "createV2DatabaseClient is not used in memory mode.",
+      "createV2DatabaseClient is not used in memory or local-durable mode.",
     );
   }
   if (!config.anonKey) {

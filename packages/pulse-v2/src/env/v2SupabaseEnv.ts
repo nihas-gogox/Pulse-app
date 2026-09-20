@@ -1,6 +1,7 @@
+import path from "node:path";
 import { BLOCKED_V2_SUPABASE_PROJECT_REFS } from "./productionProjectRefs";
 
-export type V2DataPlaneMode = "memory" | "local-supabase";
+export type V2DataPlaneMode = "memory" | "local-supabase" | "local-durable";
 
 export type V2PersistenceConfig =
   | {
@@ -16,12 +17,21 @@ export type V2PersistenceConfig =
       anonKey: string;
       serviceRoleKey: string | null;
       hostedProjectRef: null;
+    }
+  | {
+      mode: "local-durable";
+      supabaseUrl: null;
+      anonKey: null;
+      serviceRoleKey: null;
+      hostedProjectRef: null;
+      dataDir: string;
     };
 
 /** @deprecated Use V2PersistenceConfig.mode / supabaseUrl */
 export type V2DatabaseTarget =
   | { mode: "memory"; supabaseUrl: null }
-  | { mode: "local-supabase"; supabaseUrl: string };
+  | { mode: "local-supabase"; supabaseUrl: string }
+  | { mode: "local-durable"; supabaseUrl: null };
 
 export class V2EnvironmentIsolationError extends Error {
   readonly code = "V2_ENV_ISOLATION";
@@ -39,6 +49,7 @@ const V2_ENV_KEYS = [
   "PULSE_V2_SUPABASE_SERVICE_ROLE_KEY",
   "PULSE_V2_HOSTED_PROJECT_REF",
   "PULSE_V2_ALLOW_HOSTED",
+  "PULSE_V2_DATA_DIR",
 ] as const;
 
 export const PULSE_V2_ENV_KEYS = V2_ENV_KEYS;
@@ -101,7 +112,8 @@ function v2Only(env: NodeJS.Dict<string>, key: (typeof V2_ENV_KEYS)[number]): st
 
 /**
  * V2 never reads EXPO_PUBLIC_SUPABASE_* / VITE_SUPABASE_* / unprefixed SUPABASE_*.
- * Unset PULSE_V2_SUPABASE_URL → in-memory.
+ * Unset PULSE_V2_SUPABASE_URL → in-memory unless PULSE_V2_DATA_DIR is set
+ * (local durable Commerce/Execution files; not hosted, not production).
  * Hosted URLs never open a client (project not provisioned).
  */
 export function resolveV2PersistenceConfig(
@@ -110,8 +122,18 @@ export function resolveV2PersistenceConfig(
   const url = v2Only(env, "PULSE_V2_SUPABASE_URL");
   const anonKey = v2Only(env, "PULSE_V2_SUPABASE_ANON_KEY");
   const serviceRoleKey = v2Only(env, "PULSE_V2_SUPABASE_SERVICE_ROLE_KEY") || null;
+  const dataDir = v2Only(env, "PULSE_V2_DATA_DIR");
+
+  if (url && dataDir) {
+    throw new V2EnvironmentIsolationError(
+      "PULSE_V2_SUPABASE_URL and PULSE_V2_DATA_DIR cannot both be set.",
+    );
+  }
 
   if (!url) {
+    if (dataDir) {
+      return resolveLocalDurableDir(dataDir);
+    }
     return {
       mode: "memory",
       supabaseUrl: null,
@@ -166,10 +188,34 @@ export function resolveV2PersistenceConfig(
   );
 }
 
+function resolveLocalDurableDir(dataDir: string): V2PersistenceConfig {
+  if (dataDir.toLowerCase().includes("supabase.co")) {
+    throw new V2EnvironmentIsolationError(
+      "PULSE_V2_DATA_DIR must not point at a hosted Supabase host.",
+    );
+  }
+  if (!path.isAbsolute(dataDir)) {
+    throw new V2EnvironmentIsolationError(
+      "PULSE_V2_DATA_DIR must be an absolute local path (LOCAL V2 DATABASE ONLY).",
+    );
+  }
+  return {
+    mode: "local-durable",
+    supabaseUrl: null,
+    anonKey: null,
+    serviceRoleKey: null,
+    hostedProjectRef: null,
+    dataDir,
+  };
+}
+
 export function resolveV2DatabaseTarget(
   env: NodeJS.Dict<string> = process.env,
 ): V2DatabaseTarget {
   const cfg = resolveV2PersistenceConfig(env);
+  if (cfg.mode === "local-durable") {
+    return { mode: "local-durable", supabaseUrl: null };
+  }
   return { mode: cfg.mode, supabaseUrl: cfg.supabaseUrl };
 }
 
