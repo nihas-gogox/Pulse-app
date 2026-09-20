@@ -10,6 +10,11 @@ import {
   scanV2DomainTables,
   scanV2SourceText,
 } from "../src/architecture/domainTableGuard";
+import {
+  assertDomainHandlerAccess,
+  scanDomainHandlerAccess,
+  scanDomainHandlerAccessSource,
+} from "../src/architecture/domainHandlerAccessGuard";
 
 const SRC = path.join(__dirname, "../src");
 
@@ -89,5 +94,39 @@ describe("AuthorizationContext construction boundary", () => {
       `sealTrustedAuthorizationContext({ actorId: "x" });`,
     );
     expect(violations).toHaveLength(1);
+  });
+});
+
+describe("Domain handler Gateway-only access", () => {
+  it("allows current V2 src (handlers only defined in domain modules and called from Gateway)", () => {
+    expect(() => assertDomainHandlerAccess(SRC)).not.toThrow();
+    expect(scanDomainHandlerAccess(SRC)).toEqual([]);
+  });
+
+  it("rejects Commerce importing the Execution handler", () => {
+    const violations = scanDomainHandlerAccessSource(
+      "domains/commerce/api.ts",
+      `import { handleExecutionOperation } from "../execution/api";`,
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.handler).toBe("handleExecutionOperation");
+  });
+
+  it("rejects Identity importing a Commerce handler", () => {
+    const violations = scanDomainHandlerAccessSource(
+      "identity/memoryIdentityPort.ts",
+      `import { handleCommerceOperation } from "../domains/commerce/api";`,
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.handler).toBe("handleCommerceOperation");
+  });
+
+  it("does not treat type-only imports as handler invocation", () => {
+    expect(
+      scanDomainHandlerAccessSource(
+        "identity/identityPort.ts",
+        `import type { handleCommerceOperation } from "../domains/commerce/api";`,
+      ),
+    ).toEqual([]);
   });
 });

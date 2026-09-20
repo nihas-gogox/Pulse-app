@@ -21,6 +21,9 @@ function deniedUntrusted(authz: AuthorizationContext): V2GatewayResponse {
   };
 }
 
+/**
+ * Execution domain handler. Gateway dispatch only — not a public package API.
+ */
 export function handleExecutionOperation(
   store: ExecutionRepository,
   operation: string,

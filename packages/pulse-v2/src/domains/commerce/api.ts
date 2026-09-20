@@ -21,6 +21,10 @@ function deniedUntrusted(authz: AuthorizationContext): V2GatewayResponse {
   };
 }
 
+/**
+ * Commerce domain handler. Gateway dispatch only — not a public package API.
+ * Nested Execution uses the injected Gateway dispatch closure, not a public Execution handler.
+ */
 export function handleCommerceOperation(
   store: CommerceRepository,
   execute: V2Execute,

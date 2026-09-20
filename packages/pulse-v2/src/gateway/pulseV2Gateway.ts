@@ -95,6 +95,7 @@ function resolveAuthorizationContext(
  * In-process API/Gateway façade. No HTTP. Not a database access layer.
  * One resolveActor + one resolveMembership per public execute(); nested dispatch reuses context.
  * request.actorId is never Actor authority.
+ * Domain handlers are invoked only from this dispatch path.
  */
 export function createPulseV2Gateway(
   env: NodeJS.Dict<string> = process.env,
