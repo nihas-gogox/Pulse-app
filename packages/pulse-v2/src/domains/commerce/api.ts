@@ -1,10 +1,24 @@
-import type { AuthorizationContext } from "../../identity/authorizationContext";
 import type { V2Execute, V2GatewayResponse } from "../../gateway/types";
+import {
+  isTrustedAuthorizationContext,
+  type AuthorizationContext,
+} from "../../identity/authorizationContext";
 import type { V2TenantContext } from "../../persistence/tenantContext";
 import type { CommerceRepository } from "./repository";
 
 function persistenceCtx(authz: AuthorizationContext): V2TenantContext {
   return { workspaceId: authz.workspaceId, actorUserId: authz.actorId };
+}
+
+function deniedUntrusted(authz: AuthorizationContext): V2GatewayResponse {
+  const correlationId =
+    typeof authz?.correlationId === "string" ? authz.correlationId : "";
+  return {
+    ok: false,
+    code: "V2_AUTHORIZATION_CONTEXT_DENIED",
+    message: "authorization context is not trusted",
+    correlationId,
+  };
 }
 
 export function handleCommerceOperation(
@@ -14,6 +28,10 @@ export function handleCommerceOperation(
   payload: Record<string, unknown>,
   authz: AuthorizationContext,
 ): V2GatewayResponse {
+  if (!isTrustedAuthorizationContext(authz)) {
+    return deniedUntrusted(authz);
+  }
+
   const ctx = persistenceCtx(authz);
 
   if (operation === "createOrder") {

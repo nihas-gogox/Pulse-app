@@ -22,6 +22,19 @@ export type AuthorizationContext = Readonly<{
 }> & { readonly [authorizationContextBrand]: true };
 
 /**
+ * SEC-002 domain-entry check. A plain object, spread clone, or `as AuthorizationContext`
+ * assertion never carries the non-enumerable brand, so it is rejected here. Domains use
+ * this to verify; only `sealTrustedAuthorizationContext` (Gateway-only) may seal.
+ */
+export function isTrustedAuthorizationContext(value: unknown): value is AuthorizationContext {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as Record<PropertyKey, unknown>)[authorizationContextBrand] === true
+  );
+}
+
+/**
  * Gateway-only sealer. Does not resolve Actor/Membership.
  * IdentityPort must not call this.
  */
@@ -47,4 +60,25 @@ export function sealTrustedAuthorizationContext(fields: {
     configurable: false,
   });
   return Object.freeze(context);
+}
+
+/** Runtime trust check. Does not reseal. Does not resolve Identity. */
+export function isTrustedAuthorizationContext(
+  context: AuthorizationContext,
+): boolean {
+  return (
+    typeof context === "object" &&
+    context !== null &&
+    context[authorizationContextBrand] === true
+  );
+}
+
+/**
+ * Domain-handler entry assertion. Throws if the brand is absent.
+ * Does not reseal. Does not expose the brand symbol.
+ */
+export function assertTrustedAuthorizationContext(context: AuthorizationContext): void {
+  if (!isTrustedAuthorizationContext(context)) {
+    throw new Error("authorization context is not trusted");
+  }
 }
