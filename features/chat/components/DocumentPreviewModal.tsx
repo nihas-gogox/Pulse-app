@@ -211,9 +211,6 @@ export function useDocumentPreview() {
         setLightbox({ url, mime, name });
         return;
       }
-      if ((mime ?? "").toLowerCase().startsWith("text/") || /\.txt(\?|$)/i.test(name ?? "")) {
-        return;
-      }
       if (Platform.OS === "web") {
         (globalThis as { window?: Window }).window?.open?.(url, "_blank", "noopener,noreferrer");
         return;
