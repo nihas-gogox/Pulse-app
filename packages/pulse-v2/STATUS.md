@@ -23,7 +23,8 @@
 | OPEN A — Implementation plan | **IMPLEMENTED locally** (`OPEN_A_IMPLEMENTATION_PLAN.md` remains the plan record) |
 | OPEN B — Permission catalog | **OPEN** |
 | RLS / hosted V2 / Slice 5 | **NOT AUTHORIZED** |
-| Command Store / Timeline / Observatory | **NOT AUTHORIZED** |
+| Command Store persistence (local adapter) | **COMPLETE** — memory + local-durable JSON; not wired into Gateway/Runtime |
+| Command Store runtime integration / Timeline / Observatory | **NOT AUTHORIZED** |
 | Customer / product workflow | **BLOCKED** |
 | OPEN B runtime / RBAC | **NOT AUTHORIZED** |
 
@@ -36,12 +37,13 @@ Persistent Commerce/Execution: COMPLETE
 Persistence Hardening: COMPLETE
 Identity/Auth: COMPLETE
 Membership/Workspace persistence: COMPLETE (V2 Identity-owned, local only)
+Command Store persistence: COMPLETE (local adapter only; Gateway/Runtime not wired)
 RLS: NOT AUTHORIZED
 Hosted V2: NOT AUTHORIZED
 Production: FROZEN
 ```
 
-Slice 5 remains unauthorized. OPEN B remains unresolved. SEC-007 remains deferred. RLS, hosted V2, Command Store, Timeline, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved.
+Slice 5 remains unauthorized. OPEN B remains unresolved. SEC-007 remains deferred. RLS, hosted V2, Command Store **runtime wiring**, Timeline, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved.
 
 Current runtime (local V2 Identity/Auth + durable Commerce/Execution, production untouched):
 

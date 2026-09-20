@@ -37,6 +37,15 @@ export { createLocalAuthAdapter } from "./identity/localAuthAdapter";
 export { assertV2DomainTables, scanV2DomainTables, scanV2SourceText } from "./architecture/domainTableGuard";
 export { assertV2ForbiddenImports, scanV2ForbiddenImports, scanV2ImportSource } from "./architecture/v2ImportGuard";
 export { createV2Persistence } from "./persistence/createPersistence";
+export { createCommandStore } from "./persistence/commandStore/createCommandStore";
+export type {
+  CommandStorePersistenceConfig,
+} from "./persistence/commandStore/createCommandStore";
+export type {
+  CommandStoreRepository,
+  RecordCommandOutcome,
+} from "./persistence/commandStore/commandStore.types";
+export { CommandStoreError, isCommandStoreError } from "./persistence/commandStore/commandStoreError";
 export { createV2DatabaseClient } from "./persistence/supabase/createV2Client";
 export {
   V2_MIGRATIONS_RELATIVE,

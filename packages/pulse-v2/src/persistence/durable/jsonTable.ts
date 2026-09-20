@@ -27,6 +27,11 @@ export function identityStorePath(dataDir: string): string {
   return path.join(dataDir, "v2_identity.json");
 }
 
+/** Platform Command Store table. Not Commerce/Execution/Identity. */
+export function commandStoreTablePath(dataDir: string): string {
+  return path.join(dataDir, "v2_platform.command_store.json");
+}
+
 function writeAtomicPayload(filePath: string, payload: string): void {
   const dir = path.dirname(filePath);
   const tmp = path.join(
