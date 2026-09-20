@@ -24,3 +24,11 @@ The Workspace is the operating boundary and the owner of all business data. Ever
 ## Principle
 
 Workspace owns business data. Products read and write it through the Workspace, never by holding a private copy of it or by reaching into another product directly.
+
+## Product requirement — Gate B (2026-09-20)
+
+**Kind:** Approved Product clarification. Historical Purpose, Current State, Target, and Principle above are **unchanged**. Workspace is **not** redefined as login, Auth account, Person, Organization, or Tenant.
+
+**Record:** `docs/ADR-014-one-identity-workspace-rbac.md`.
+
+Workspace remains the operating and data boundary. Product additionally records it as the **membership, authorization, and experience** boundary: a Pulse identity may belong to many Workspaces; each membership has its own RBAC and Product/Experience access; the active Workspace sets authorization context; Workspace A must not leak into Workspace B.

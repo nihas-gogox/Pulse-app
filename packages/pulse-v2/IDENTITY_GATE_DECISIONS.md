@@ -95,11 +95,11 @@ V2 → production organization_members
 
 If Product later requires existing GoGoX users to use the same login for V2, that must be an **explicitly approved broker/federation architecture**, not V2 reading production databases.
 
-### Still OPEN — Product/Business
+### Product — Gate B (2026-09-20)
 
-Must existing GoGoX users retain one login when using V2?
+**CLOSED:** one Pulse identity across platform and services, including V2, with **Workspace-scoped** authorization (ADR-014). One identity does **not** imply one global role or access to every Workspace.
 
-This record does not answer that question.
+**Still OPEN (not Gate B):** how identity continuity is implemented (federation/broker vs other Architecture/Security designs). Must not be “V2 reads production Auth/DB.”
 
 ---
 
@@ -297,7 +297,7 @@ Provisioning, operational controls, backup/PITR/DR. Dedicated hosted V2 project 
 | Workspace = explicit V2 entity       | Layer 1 operating/data boundary; not Organization; not Tenant | **APPROVED** | Architecture |
 | Organization → Workspace mapping     | Cutover/integration mapping only; keys, UUID vs code, first-customer 1:1, holding-company Tenant | **OPEN — OWNER REQUIRED** | Product/Business + Architecture |
 | V2-owned authentication default      | Isolation-first Auth; production Auth is not a runtime dependency | **APPROVED** | Architecture |
-| Existing-user federation requirement | Must existing GoGoX users keep one login for V2? Broker only if yes | **OPEN — OWNER REQUIRED** | Product/Business |
+| Existing-user / one Pulse identity | One identity across services including V2; Workspace-scoped RBAC (ADR-014) | **APPROVED** (Product, Gate B) | Product/Business |
 | Membership authority                 | Always Pulse V2 Identity, independent of Auth provider | **APPROVED** | Architecture |
 | Trusted workspace authority          | Verified Actor → Membership → Workspace; caller `workspaceId` never authority | **APPROVED** | Architecture |
 | RLS principle                        | Deny-all until trusted Auth + membership exist; never trust payload/GUC/client role | **APPROVED** | Architecture |
@@ -331,7 +331,7 @@ Provisioning, operational controls, backup/PITR/DR. Dedicated hosted V2 project 
 
 - Organization → Workspace mapping keys
 - Holding-company Tenant decision
-- Existing GoGoX login requirement
+- How one Pulse identity is implemented across production vs V2 Auth (federation/broker — not Gate B)
 - V2 Auth vs eventual federation details
 - Person vs `auth.users` model
 - Exact RLS claim/session mechanism

@@ -35,3 +35,13 @@ The Purpose sentence (“one authentication system for the entire platform”) a
 An **isolated Pulse V2 data plane** may operate a **separate V2 Auth authority** when V2 is provisioned. V2 must not use production `auth.users` as its normal authorization path.
 
 Whether customers ultimately have one login across production and V2 is **not decided here** (Gate B). This clarification does not provision V2 Auth, introduce federation, or authorize implementation.
+
+## Product requirement — Gate B (2026-09-20)
+
+**Kind:** Approved Product decision. Does **not** amend ADR-013 or the production Auth plane above.
+
+**Record:** `docs/ADR-014-one-identity-workspace-rbac.md`.
+
+Pulse requires **one customer identity/account** across the Pulse platform and services, including Pulse V2. Workspace-scoped RBAC applies; one identity does **not** mean one global authorization context.
+
+This does **not** prescribe shared `auth.users`, federation, or V2 Auth implementation. Production Auth and isolated V2 Auth remain ADR-013 concerns.
