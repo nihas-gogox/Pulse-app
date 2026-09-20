@@ -228,3 +228,10 @@ The root defect is that **`is_org_member()` encodes the wrong security boundary*
 **Status:** Accepted (Product); revised same date for current V2 one-Workspace-context. Full text: `docs/ADR-014-one-identity-workspace-rbac.md`.
 
 **GATE B — CLOSED: ONE PULSE IDENTITY + ONE AUTHORIZED WORKSPACE CONTEXT.** One customer identity across Pulse services including V2. After authentication, the verified Workspace is the session operating context. RBAC, Products, views, actions, and data are Workspace-scoped. Current V2 does **not** include multi-Workspace switching (deferred). Does **not** prescribe Auth architecture. ADR-013 unchanged. **Gate C not started.**
+
+## Pulse V2 data plane infrastructure (ADR-015, accepted — 2026-09-20)
+
+**Status:** Accepted (Infrastructure posture). Full text: `docs/ADR-015-pulse-v2-data-plane-infrastructure.md`.
+
+**GATE C — CLOSED: LOCAL V2-ONLY.** Current phase uses memory or local Supabase; V2 migrations stay under `packages/pulse-v2/supabase`. Hosted V2 is not provisioned and not required. Production excluded. Provisioning and Slice 4 are **not** authorized. ADR-013/014 unchanged. One-login mechanism not decided here.
+

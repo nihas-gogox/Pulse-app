@@ -261,32 +261,20 @@ Whether Hono is eventually ported or extracted remains an Architecture decision 
 
 ## 7. Decision 7 — Dedicated V2 Infrastructure
 
-**Status:** **APPROVED WITH CONDITION** (prerequisite) · **OPEN — OWNER REQUIRED** (provisioning)
+**Status:** **Gate C CLOSED (ADR-015)** — local V2-only for the current phase. Hosted provisioning remains **not authorized**.
 
-**APPROVED:** Dedicated V2 infrastructure is a prerequisite for real V2 Auth/RLS implementation.
+**APPROVED (current phase):** Isolated V2 data plane = memory or **local** Supabase/Postgres + V2 migration tree. That is sufficient to proceed with architecture validation; it does **not** authorize Identity table creation or Slice 4 by itself.
 
-The coding agent must **not** provision it.
+The coding agent must **not** provision hosted V2.
 
-Required future boundary:
-
-```text
-Production
-    ↓
-Production Supabase
-
-V2
-    ↓
-Dedicated V2 Supabase
-```
-
-with separate: project reference, secrets, Auth, Postgres, migration history, backup/PITR plan, environment separation.
+**Current-phase boundary (ADR-015):** V2 = memory or local Supabase; never production. Hosted V2 remains a future option.
 
 `packages/pulse-v2/supabase/migrations` remains the V2 migration tree.  
 `supabase/migrations` remains production-only.
 
-### Still OPEN — Infrastructure + Security
+### Later (not this phase)
 
-Provisioning, operational controls, backup/PITR/DR. Dedicated hosted V2 project is **not provisioned**.
+Hosted V2 project, hosted Auth, backup/PITR/DR, operational controls — **not provisioned**, not authorized by Gate C.
 
 ---
 
@@ -306,8 +294,8 @@ Provisioning, operational controls, backup/PITR/DR. Dedicated hosted V2 project 
 | `06-permissions.md` freeze           | Required before production-grade V2 authorization rules | **OPEN — OWNER REQUIRED** | Product/Business + Architecture |
 | Gateway-first                        | Day-1 authorization boundary; Identity is a dependency of Gateway | **APPROVED** | Architecture |
 | Hono future role                     | Dormant now; port/extract only after contract + V2 infra; not identity-by-existence | **OPEN — OWNER REQUIRED** | Architecture |
-| Dedicated V2 infrastructure          | Prerequisite for real Auth/RLS; not provisioned | **APPROVED WITH CONDITION** | Architecture (prerequisite); Infrastructure + Security (provisioning) |
-| V2 Auth provisioning                 | Dedicated V2 Auth project / local V2 Auth stack | **OPEN — OWNER REQUIRED** | Infrastructure + Security |
+| Dedicated V2 infrastructure          | Current phase: local V2-only (ADR-015); hosted not provisioned | **APPROVED** (local posture) | Infrastructure |
+| V2 Auth provisioning                 | Not in Gate C; local Auth allowed later if Identity is authorized; hosted Auth not provisioned | **OPEN** (implementation) | Architecture + Security |
 
 ---
 
