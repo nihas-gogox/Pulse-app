@@ -1,16 +1,34 @@
-import type { ExecutionStore } from "./store";
+import type { ExecutionRepository } from "./repository";
 import type { V2GatewayResponse } from "../../gateway/types";
 
+function tenantFromPayload(payload: Record<string, unknown>, correlationId: string) {
+  const workspaceId = String(payload.workspaceId ?? "").trim();
+  if (!workspaceId) {
+    return {
+      ok: false as const,
+      response: {
+        ok: false as const,
+        code: "EXECUTION_INVALID",
+        message: "workspaceId is required (tenant isolation)",
+        correlationId,
+      },
+    };
+  }
+  return { ok: true as const, ctx: { workspaceId, actorUserId: null as string | null } };
+}
+
 export function handleExecutionOperation(
-  store: ExecutionStore,
+  store: ExecutionRepository,
   operation: string,
   payload: Record<string, unknown>,
   correlationId: string,
 ): V2GatewayResponse {
+  const tenant = tenantFromPayload(payload, correlationId);
+  if (!tenant.ok) return tenant.response;
+
   if (operation === "createTripFromOrder") {
     const orderId = String(payload.orderId ?? "").trim();
-    const workspaceId = String(payload.workspaceId ?? "").trim();
-    if (!orderId || !workspaceId) {
+    if (!orderId) {
       return {
         ok: false,
         code: "EXECUTION_INVALID",
@@ -18,7 +36,7 @@ export function handleExecutionOperation(
         correlationId,
       };
     }
-    const existing = store.getTripByOrderId(orderId);
+    const existing = store.getTripByOrderId(tenant.ctx, orderId);
     if (existing) {
       return {
         ok: true,
@@ -28,9 +46,9 @@ export function handleExecutionOperation(
         data: { trip: existing },
       };
     }
-    const trip = store.insertTrip({
+    const trip = store.insertTrip(tenant.ctx, {
       id: `trip-${orderId}`,
-      workspaceId,
+      workspaceId: tenant.ctx.workspaceId,
       orderId,
       status: "created",
     });
@@ -45,7 +63,7 @@ export function handleExecutionOperation(
 
   if (operation === "getTrip") {
     const id = String(payload.id ?? "").trim();
-    const trip = store.getTrip(id);
+    const trip = store.getTrip(tenant.ctx, id);
     if (!trip) {
       return {
         ok: false,

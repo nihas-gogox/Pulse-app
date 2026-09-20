@@ -26,8 +26,7 @@ describe("V2 domain table guard", () => {
     );
     expect(violations).toHaveLength(1);
     expect(violations[0]?.table).toBe("trips");
-    expect(violations[0]?.message).toContain("Gateway execute()");
-    expect(violations[0]?.message).toContain("execution");
+    expect(violations[0]?.message).toContain("persistence adapter");
   });
 
   it("rejects table access from the Gateway façade", () => {
@@ -35,15 +34,31 @@ describe("V2 domain table guard", () => {
       "gateway/pulseV2Gateway.ts",
       `supabase().from("sales_orders")`,
     );
-    expect(violations[0]?.message).toContain("Gateway/non-domain");
+    expect(violations[0]?.message).toContain("persistence adapter");
   });
 
-  it("allows a domain to query its own tables", () => {
+  it("rejects .from in domain application code (even own tables)", () => {
+    const violations = scanV2SourceText(
+      "domains/commerce/store.ts",
+      `await db.from("sales_orders").select("id");`,
+    );
+    expect(violations.length).toBeGreaterThan(0);
+  });
+
+  it("allows a persistence adapter to query its own tables", () => {
     expect(
       scanV2SourceText(
-        "domains/commerce/store.ts",
-        `await db.from("sales_orders").select("id");`,
+        "persistence/supabase/commerceAdapter.ts",
+        `client.schema("v2_commerce").from("sales_orders").select("id");`,
       ),
     ).toEqual([]);
+  });
+
+  it("rejects a commerce adapter querying execution tables", () => {
+    const violations = scanV2SourceText(
+      "persistence/supabase/commerceAdapter.ts",
+      `client.schema("v2_commerce").from("trips")`,
+    );
+    expect(violations.some((v) => v.table === "trips")).toBe(true);
   });
 });

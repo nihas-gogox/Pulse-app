@@ -1,23 +1,25 @@
 import { createPulseV2Gateway } from "../src/gateway/pulseV2Gateway";
-import { createCommerceStore } from "../src/domains/commerce/store";
-import { createExecutionStore } from "../src/domains/execution/store";
+import { createCommerceMemoryRepository } from "../src/persistence/memory/commerceMemory";
+import { createExecutionMemoryRepository } from "../src/persistence/memory/executionMemory";
+
+const ctx = { workspaceId: "ws-1", actorUserId: null };
 
 describe("Pulse V2 in-process Gateway", () => {
   it("lets Commerce persist to its own sales_orders store", () => {
-    const store = createCommerceStore();
-    store.insertSalesOrder({ id: "so-1", workspaceId: "ws-1", status: "draft" });
-    expect(store.getSalesOrder("so-1")?.status).toBe("draft");
+    const store = createCommerceMemoryRepository();
+    store.insertSalesOrder(ctx, { id: "so-1", workspaceId: "ws-1", status: "draft" });
+    expect(store.getSalesOrder(ctx, "so-1")?.status).toBe("draft");
   });
 
   it("lets Execution persist to its own trips store", () => {
-    const store = createExecutionStore();
-    store.insertTrip({
+    const store = createExecutionMemoryRepository();
+    store.insertTrip(ctx, {
       id: "trip-1",
       workspaceId: "ws-1",
       orderId: "so-1",
       status: "created",
     });
-    expect(store.getTrip("trip-1")?.orderId).toBe("so-1");
+    expect(store.getTrip(ctx, "trip-1")?.orderId).toBe("so-1");
   });
 
   it("creates an order and a trip only through execute()", () => {
@@ -38,7 +40,7 @@ describe("Pulse V2 in-process Gateway", () => {
     const fetched = execute({
       domain: "execution",
       operation: "getTrip",
-      payload: { id: "trip-so-9" },
+      payload: { id: "trip-so-9", workspaceId: "ws-9" },
       correlationId: "corr-9b",
     });
     expect(fetched.ok).toBe(true);

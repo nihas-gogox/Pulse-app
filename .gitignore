@@ -37,6 +37,7 @@ yarn-error.*
 .env
 .env*.local
 supabase/functions/.env
+packages/pulse-v2/.env.v2
 
 # typescript
 *.tsbuildinfo

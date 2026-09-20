@@ -33,6 +33,7 @@ describe("V2 Supabase environment isolation", () => {
   it("allows local Supabase without treating it as production", () => {
     const target = resolveV2DatabaseTarget({
       PULSE_V2_SUPABASE_URL: "http://127.0.0.1:54321",
+      PULSE_V2_SUPABASE_ANON_KEY: "local-anon",
     });
     expect(target).toEqual({
       mode: "local-supabase",
@@ -47,7 +48,7 @@ describe("V2 Supabase environment isolation", () => {
         PULSE_V2_ALLOW_HOSTED: "1",
         PULSE_V2_HOSTED_PROJECT_REF: "abcdxyzhostedv2xx",
       }),
-    ).toThrow(/STOP before provisioning/);
+    ).toThrow(/not provisioned/);
   });
 
   it("gateway refuses to boot against production", () => {

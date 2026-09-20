@@ -1,3 +1,5 @@
+export const EXECUTION_SCHEMA = "v2_execution";
+
 /** Tables this V2 Execution module may touch. Not production schema. */
 export const EXECUTION_TABLES = [
   "trips",

@@ -1,8 +1,7 @@
-import { createCommerceStore } from "../domains/commerce/store";
 import { handleCommerceOperation } from "../domains/commerce/api";
-import { createExecutionStore } from "../domains/execution/store";
 import { handleExecutionOperation } from "../domains/execution/api";
-import { assertV2EnvironmentIsolated } from "../env/v2SupabaseEnv";
+import { assertV2PersistenceConfig } from "../env/v2SupabaseEnv";
+import { createV2Persistence } from "../persistence/createPersistence";
 import type {
   V2Execute,
   V2GatewayRequest,
@@ -10,13 +9,12 @@ import type {
 } from "./types";
 
 /**
- * In-process API/Gateway façade. No HTTP. No Kafka. No separate deployable.
- * Cross-domain work is execute() only — never another domain's tables.
+ * In-process API/Gateway façade. No HTTP. Not a database access layer.
+ * Persistence is injected per domain; Gateway only routes execute().
  */
 export function createPulseV2Gateway(env: NodeJS.Dict<string> = process.env) {
-  const dataPlane = assertV2EnvironmentIsolated(env);
-  const commerce = createCommerceStore();
-  const execution = createExecutionStore();
+  const config = assertV2PersistenceConfig(env);
+  const persistence = createV2Persistence(config);
 
   const execute: V2Execute = (request: V2GatewayRequest): V2GatewayResponse => {
     const correlationId = request.correlationId.trim();
@@ -31,7 +29,7 @@ export function createPulseV2Gateway(env: NodeJS.Dict<string> = process.env) {
 
     if (request.domain === "commerce") {
       return handleCommerceOperation(
-        commerce,
+        persistence.commerce,
         execute,
         request.operation,
         request.payload,
@@ -40,7 +38,7 @@ export function createPulseV2Gateway(env: NodeJS.Dict<string> = process.env) {
     }
     if (request.domain === "execution") {
       return handleExecutionOperation(
-        execution,
+        persistence.execution,
         request.operation,
         request.payload,
         correlationId,
@@ -54,7 +52,7 @@ export function createPulseV2Gateway(env: NodeJS.Dict<string> = process.env) {
     };
   };
 
-  return { execute, dataPlane };
+  return { execute, dataPlane: { mode: config.mode, supabaseUrl: config.supabaseUrl } };
 }
 
 export type PulseV2Gateway = ReturnType<typeof createPulseV2Gateway>;

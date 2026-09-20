@@ -62,6 +62,7 @@ export function scanV2ForbiddenImports(srcRoot: string): V2ImportViolation[] {
   walkTsFiles(srcRoot, (abs) => {
     const rel = path.relative(srcRoot, abs);
     if (rel.replace(/\\/g, "/").startsWith("architecture/")) return;
+    if (rel.replace(/\\/g, "/") === "persistence/supabase/createV2Client.ts") return;
     violations.push(...scanV2ImportSource(rel, readFileSync(abs, "utf8")));
   });
   return violations;

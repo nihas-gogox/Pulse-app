@@ -1,17 +1,35 @@
-import type { CommerceStore } from "./store";
+import type { CommerceRepository } from "./repository";
 import type { V2Execute, V2GatewayResponse } from "../../gateway/types";
 
+function tenantFromPayload(payload: Record<string, unknown>, correlationId: string) {
+  const workspaceId = String(payload.workspaceId ?? "").trim();
+  if (!workspaceId) {
+    return {
+      ok: false as const,
+      response: {
+        ok: false as const,
+        code: "COMMERCE_INVALID",
+        message: "workspaceId is required (tenant isolation)",
+        correlationId,
+      },
+    };
+  }
+  return { ok: true as const, ctx: { workspaceId, actorUserId: null as string | null } };
+}
+
 export function handleCommerceOperation(
-  store: CommerceStore,
+  store: CommerceRepository,
   execute: V2Execute,
   operation: string,
   payload: Record<string, unknown>,
   correlationId: string,
 ): V2GatewayResponse {
+  const tenant = tenantFromPayload(payload, correlationId);
+  if (!tenant.ok) return tenant.response;
+
   if (operation === "createOrder") {
-    const workspaceId = String(payload.workspaceId ?? "").trim();
     const id = String(payload.id ?? "").trim();
-    if (!workspaceId || !id) {
+    if (!id) {
       return {
         ok: false,
         code: "COMMERCE_INVALID",
@@ -19,7 +37,11 @@ export function handleCommerceOperation(
         correlationId,
       };
     }
-    const order = store.insertSalesOrder({ id, workspaceId, status: "placed" });
+    const order = store.insertSalesOrder(tenant.ctx, {
+      id,
+      workspaceId: tenant.ctx.workspaceId,
+      status: "placed",
+    });
     const tripResult = execute({
       domain: "execution",
       operation: "createTripFromOrder",
@@ -38,7 +60,7 @@ export function handleCommerceOperation(
 
   if (operation === "getOrder") {
     const id = String(payload.id ?? "").trim();
-    const order = store.getSalesOrder(id);
+    const order = store.getSalesOrder(tenant.ctx, id);
     if (!order) {
       return {
         ok: false,

@@ -1,40 +1,34 @@
-# Pulse V2 — first architecture-enforcement slice
+# Pulse V2 — architecture enforcement + persistence isolation
 
 Isolated from production Pulse (Expo app, `features/`, `lib/supabase`, shared hosted Supabase).
 
-**Not in this slice:** Kafka, Redis, Kubernetes, service mesh, HTTP between modules, `packages/platform/identity`, production migrations, Finance/Commerce/Execution process extraction.
+**Not in this slice:** Kafka, Redis, Kubernetes, service mesh, HTTP Gateway, Hono Identity, production migrations, domain extraction, hosted V2 provisioning.
 
-## Environment isolation
+## Persistence flow
 
-V2 reads **only** `PULSE_V2_*` variables. It never reads `EXPO_PUBLIC_SUPABASE_*` or `VITE_SUPABASE_*`, so a developer `.env` pointed at production cannot silently become the V2 backend.
+```text
+Domain handlers
+  → repository interface
+  → V2 persistence adapter (memory default, or injected local client)
+  → V2 database client (createV2DatabaseClient only; PULSE_V2_* only)
+  → dedicated V2 Postgres (local schemas) — hosted not provisioned
+```
 
-| `PULSE_V2_SUPABASE_URL` | Result |
-|-------------------------|--------|
-| unset / empty | In-memory data plane (this slice) |
-| `http://127.0.0.1:54321` (or RFC1918 LAN) | Allowed as local Supabase **target label only** — this slice still does not run `supabase/migrations` |
-| Hosted `*.supabase.co` | **Rejected** unless a future infra approval sets allow-flags; production/preprod refs are **always** rejected |
+Gateway routes `execute()` only. It does not query tables.
 
-Copy `.env.v2.example`. Do not provision a dedicated hosted V2 project in this slice.
+## Environment
 
-Blocked project refs: `packages/pulse-v2/src/env/productionProjectRefs.ts`.
+Reads only: `PULSE_V2_SUPABASE_URL`, `PULSE_V2_SUPABASE_ANON_KEY`, `PULSE_V2_SUPABASE_SERVICE_ROLE_KEY`, `PULSE_V2_HOSTED_PROJECT_REF`, `PULSE_V2_ALLOW_HOSTED`.
 
-Production and V2 **must not** share `supabase/migrations` history. V2 does not add files there.
+Never: `EXPO_PUBLIC_*`, `VITE_*`, unprefixed `SUPABASE_*`.
 
-## In-process Gateway
+Hosted `*.supabase.co` is always STOP (not provisioned). Production/preprod refs always blocked.
 
-`createPulseV2Gateway().execute({ domain, operation, payload, correlationId })`
+## Migrations
 
-Commerce `createOrder` persists `sales_orders` in the Commerce store, then creates a trip **only** by `execute({ domain: "execution", ... })`. No HTTP.
-
-## Domain table CI
-
-`scanV2DomainTables` fails if V2 `src/domains/<name>` contains `.from("<table>")` for a table owned by another domain, or if Gateway/env code queries tables.
+`packages/pulse-v2/supabase/migrations` — not `supabase/migrations`. See `packages/pulse-v2/supabase/SCHEMA.md`. Do not apply to production.
 
 ```bash
 npm run test:v2
 npm run check:v2-boundaries
 ```
-
-## Package
-
-`@pulse/v2` — workspace member via `packages/*`. The Expo app does **not** depend on it.

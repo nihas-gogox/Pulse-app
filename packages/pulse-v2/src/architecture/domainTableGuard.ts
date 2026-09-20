@@ -1,14 +1,11 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { COMMERCE_TABLES } from "../domains/commerce/tables";
-import { EXECUTION_TABLES } from "../domains/execution/tables";
+import { V2_DOMAIN_SCHEMAS, V2_DOMAIN_TABLES } from "../ownership/domains";
 
-export const V2_DOMAIN_TABLES: Record<string, readonly string[]> = {
-  commerce: COMMERCE_TABLES,
-  execution: EXECUTION_TABLES,
-};
+export { V2_DOMAIN_TABLES };
 
 const FROM_OPEN = /\.from\s*\(/g;
+const SCHEMA_OPEN = /\.schema\s*\(/g;
 const LITERAL_TABLE = /^['"]([a-zA-Z0-9_.]+)['"]/;
 const BACKTICK_TABLE = /^`([a-zA-Z0-9_.]+)`/;
 
@@ -55,16 +52,25 @@ function walkTsFiles(dir: string, onFile: (absPath: string) => void): void {
 }
 
 function domainFromSrcPath(relFromSrc: string): string | null {
-  const parts = relFromSrc.split(/[/\\]/);
-  if (parts[0] === "domains" && parts[1]) return parts[1];
+  const rel = relFromSrc.replace(/\\/g, "/");
+  const domainDir = rel.match(/^domains\/([a-z]+)\//);
+  if (domainDir) return domainDir[1];
+  const persist = rel.match(/^persistence\/(?:supabase|memory)\/([a-z]+)(?:Adapter|Memory)/);
+  if (persist) return persist[1];
   return null;
 }
 
-function gatewayForbidden(relFromSrc: string, domain: string | null): boolean {
+function isSupabaseAdapter(relFromSrc: string): boolean {
   const rel = relFromSrc.replace(/\\/g, "/");
-  if (!domain) return true;
-  if (rel.startsWith("gateway/")) return true;
-  return false;
+  return /^persistence\/supabase\/[a-z]+Adapter\.ts$/.test(rel);
+}
+
+function isCreateV2Client(relFromSrc: string): boolean {
+  return relFromSrc.replace(/\\/g, "/") === "persistence/supabase/createV2Client.ts";
+}
+
+function allowTableFrom(relFromSrc: string): boolean {
+  return isSupabaseAdapter(relFromSrc);
 }
 
 function pushTableViolation(
@@ -76,13 +82,13 @@ function pushTableViolation(
   owned: Set<string> | null,
 ): void {
   const allOwned = new Set(Object.values(V2_DOMAIN_TABLES).flat());
-  if (gatewayForbidden(relFromSrc, domain)) {
+  if (!allowTableFrom(relFromSrc)) {
     violations.push({
       file: relFromSrc,
       line,
       table,
       domain,
-      message: `Gateway/non-domain code must not query tables (found .from("${table}")). Use createPulseV2Gateway().execute().`,
+      message: `Only a domain persistence adapter may query tables (found .from("${table}")). Domain/Gateway code must use repositories or execute().`,
     });
     return;
   }
@@ -181,8 +187,39 @@ export function scanV2SourceText(relFromSrc: string, source: string): DomainTabl
     pushTableViolation(violations, relFromSrc, domain, line, table, owned);
   }
 
+  SCHEMA_OPEN.lastIndex = 0;
+  let schemaMatch: RegExpExecArray | null;
+  while ((schemaMatch = SCHEMA_OPEN.exec(source))) {
+    const argStart = skipWs(source, schemaMatch.index + schemaMatch[0].length);
+    const rest = source.slice(argStart);
+    const lit = rest.match(LITERAL_TABLE) ?? rest.match(BACKTICK_TABLE);
+    const line = lineNumber(source, schemaMatch.index);
+    const schemaName = lit?.[1] ?? "*dynamic*";
+    if (!isSupabaseAdapter(relFromSrc)) {
+      violations.push({
+        file: relFromSrc,
+        line,
+        table: schemaName,
+        domain,
+        message: `Only a domain persistence adapter may call .schema() (found "${schemaName}").`,
+      });
+      continue;
+    }
+    const expected = domain ? V2_DOMAIN_SCHEMAS[domain as keyof typeof V2_DOMAIN_SCHEMAS] : undefined;
+    if (!expected || schemaName !== expected) {
+      violations.push({
+        file: relFromSrc,
+        line,
+        table: schemaName,
+        domain,
+        message: `Adapter for "${domain}" must use schema "${expected ?? ""}" (found "${schemaName}").`,
+      });
+    }
+  }
+
   if (!skipAlternateDocs) {
     for (const alt of ALTERNATE_DB_PATHS) {
+      if (alt.id === "createClient" && isCreateV2Client(relFromSrc)) continue;
       alt.pattern.lastIndex = 0;
       let m: RegExpExecArray | null;
       while ((m = alt.pattern.exec(source))) {
