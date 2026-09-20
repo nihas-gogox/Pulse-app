@@ -1,6 +1,6 @@
 # Pulse V2 — Identity & Authorization design (Slice 3)
 
-**Status:** Design / decision preparation only. **Not implemented.**  
+**Status:** **DESIGN ACCEPTED.** Implementation **BLOCKED** pending Identity Gate (six decisions) + dedicated V2 infrastructure.  
 **Does not** wire `lib/platform-identity`, `packages/platform/identity`, production Auth, or V2 RLS policies.
 
 Slices 1–2 remain closed. Deny-all RLS stays. Caller `workspaceId` is not tenant security.

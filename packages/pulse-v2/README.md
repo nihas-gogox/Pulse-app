@@ -2,7 +2,7 @@
 
 Isolated from production Pulse (Expo app, `features/`, `lib/supabase`, shared hosted Supabase).
 
-**Slices 1–2 accepted.** Slice 3 (Identity/Authorization + hosted V2) is **blocked**. See `STATUS.md`.
+**Slices 1–2 accepted. Slice 3 design accepted. Identity Gate open. Slice 4 blocked.** See `STATUS.md`.
 
 **Workspace-scoped persistence implemented; trusted tenant authorization pending Identity/Authorization decision.** Caller `workspaceId` is not tenant security.
 

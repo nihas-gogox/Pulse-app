@@ -1,19 +1,31 @@
 # Pulse V2 status
 
-| Slice | Status |
-|-------|--------|
-| 1 — Isolation / in-process Gateway / table guards | **ACCEPTED / CLOSED** (`1ded2a6f`, `2ef606d2`) |
-| 2 — Persistence isolation | **ACCEPTED / CLOSED** (`acc789fc`) |
-| 3 — Identity / Authorization + dedicated V2 infrastructure | **DESIGN RECORDED / IMPLEMENTATION BLOCKED** (`IDENTITY_AUTHORIZATION_DESIGN.md`) |
+| Gate | Status |
+|------|--------|
+| Slice 1 — Isolation / in-process Gateway / table guards | **ACCEPTED / CLOSED** (`1ded2a6f`, `2ef606d2`) |
+| Slice 2 — Persistence isolation | **ACCEPTED / CLOSED** (`acc789fc`, caveat `1873b136`) |
+| Slice 3 — Identity & Authorization **design** | **DESIGN ACCEPTED** (`b9743770`, `IDENTITY_AUTHORIZATION_DESIGN.md`) |
+| Identity Gate — six architecture decisions | **OPEN** — resolve as decisions, not by coding |
+| Slice 4 — Identity implementation / trusted context / RLS | **BLOCKED** |
+| Customer / product workflow | **BLOCKED** |
 
-Do not start Identity **implementation**, customer-proof workflow, hosted provisioning, or Hono Identity wiring until the Slice 3 design is approved. Design text: `IDENTITY_AUTHORIZATION_DESIGN.md`.
+Do **not** implement Identity, weaken deny-all RLS, wire Hono, federate production Auth, provision hosted V2, or start customer workflow until the Identity Gate is approved.
+
+Trusted workspace context must come from **verified Actor → Membership**, never from caller `workspaceId`. `membershipId` on a request is a **selector**, not authority.
+
+## Identity Gate (open)
+
+| Decision | State |
+|----------|--------|
+| Workspace identity mapping | Open — do not equate Organization = Workspace by default |
+| V2 authentication model | Open — V2-owned Auth vs federation; no silent production DB dependency |
+| RLS claim/context model | Open — wait for auth model; RLS must consume server-verified context only |
+| Permission catalog | Open — freeze relationship among existing catalogs; no fourth catalog |
+| Hono vs Gateway identity module | Open — implementation choice after the identity **contract**; Hono does not win by existing |
+| Dedicated V2 infrastructure | Open — prerequisite to wire Auth and RLS |
+
+Next work, when asked: **Identity Decision Review** (options/tradeoffs, zero code).
 
 ## Slice 2 caveat (do not misread)
 
 **Workspace-scoped persistence implemented; trusted tenant authorization pending Identity/Authorization decision.**
-
-`workspace_id` on rows and repository filters is **scoping**, not tenant security. Caller-supplied `workspaceId` is trusted today.
-
-Do **not** weaken deny-all RLS for anon/authenticated to make hosted Supabase “work”.
-Do **not** invent a temporary JWT/membership system to close this gap.
-Do **not** treat `packages/platform/identity` as the live V2 IdP.
