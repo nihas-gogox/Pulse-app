@@ -34,5 +34,8 @@ export function createCommerceSupabaseRepository(client: V2DatabaseClient): Comm
       void table().select("id, workspace_id, status").eq("id", id).eq("workspace_id", workspaceId);
       return null;
     },
+    deleteSalesOrder(ctx: V2TenantContext, _id: string): void {
+      requireWorkspaceId(ctx);
+    },
   };
 }

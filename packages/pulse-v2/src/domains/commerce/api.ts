@@ -5,6 +5,7 @@ import {
 } from "../../identity/authorizationContext";
 import type { V2TenantContext } from "../../persistence/tenantContext";
 import type { CommerceRepository } from "./repository";
+import { isV2PersistenceError } from "../../persistence/v2PersistenceError";
 
 /** Persistence tenancy is copied from the sealed AuthorizationContext only. */
 function persistenceCtx(authz: AuthorizationContext): V2TenantContext {
@@ -54,13 +55,25 @@ export function handleCommerceOperation(
       workspaceId: authz.workspaceId,
       status: "placed",
     });
-    const tripResult = execute({
-      domain: "execution",
-      operation: "createTripFromOrder",
-      payload: { orderId: order.id },
-      correlationId: authz.correlationId,
-    });
-    if (!tripResult.ok) return tripResult;
+    let tripResult: V2GatewayResponse;
+    try {
+      tripResult = execute({
+        domain: "execution",
+        operation: "createTripFromOrder",
+        payload: { orderId: order.id },
+        correlationId: authz.correlationId,
+      });
+    } catch (err) {
+      if (isV2PersistenceError(err)) {
+        store.deleteSalesOrder(ctx, id);
+        throw err;
+      }
+      throw err;
+    }
+    if (!tripResult.ok) {
+      store.deleteSalesOrder(ctx, id);
+      return tripResult;
+    }
     return {
       ok: true,
       domain: "commerce",

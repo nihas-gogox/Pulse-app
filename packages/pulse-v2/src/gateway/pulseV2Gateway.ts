@@ -12,6 +12,7 @@ import type {
   MembershipResolveResult,
 } from "../identity/identityPort";
 import { createV2Persistence } from "../persistence/createPersistence";
+import { isV2PersistenceError } from "../persistence/v2PersistenceError";
 import type {
   V2CreateWorkspaceRequest,
   V2CreateWorkspaceResponse,
@@ -154,7 +155,18 @@ export function createPulseV2Gateway(
     const ctx = resolveAuthorizationContext(options.identityPort, request, correlationId);
     if ("ok" in ctx) return ctx;
 
-    return dispatch(request, ctx);
+    try {
+      return dispatch(request, ctx);
+    } catch (err) {
+      if (isV2PersistenceError(err)) {
+        return deny(
+          "V2_PERSISTENCE_FAILED",
+          err.kind === "duplicate" ? "duplicate entity id" : "persistence failed",
+          correlationId,
+        );
+      }
+      throw err;
+    }
   };
 
   const createWorkspace = (

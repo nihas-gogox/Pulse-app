@@ -84,6 +84,7 @@ function capturingStores() {
       return commerceInner.insertSalesOrder(ctx, order);
     },
     getSalesOrder: (ctx, id) => commerceInner.getSalesOrder(ctx, id),
+    deleteSalesOrder: (ctx, id) => commerceInner.deleteSalesOrder(ctx, id),
   };
   const execution: ExecutionRepository = {
     insertTrip: (ctx, trip) => {

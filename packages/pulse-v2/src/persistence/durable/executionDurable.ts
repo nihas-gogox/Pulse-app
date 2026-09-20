@@ -1,6 +1,11 @@
 import type { ExecutionRepository, V2Trip } from "../../domains/execution/repository";
 import { requireWorkspaceId, type V2TenantContext } from "../tenantContext";
-import { executionTablePath, readJsonTable, writeJsonTable } from "./jsonTable";
+import {
+  executionTablePath,
+  readJsonTable,
+  V2PersistenceError,
+  writeJsonTable,
+} from "./jsonTable";
 
 /**
  * Local durable Execution table (v2_execution.trips). Identity-independent.
@@ -17,9 +22,10 @@ export function createExecutionDurableRepository(dataDir: string): ExecutionRepo
       }
       const persisted: V2Trip = { ...trip, workspaceId };
       const rows = readJsonTable<V2Trip>(filePath);
-      const next = rows.filter((row) => row.id !== persisted.id);
-      next.push(persisted);
-      writeJsonTable(filePath, next);
+      if (rows.some((row) => row.id === persisted.id)) {
+        throw new V2PersistenceError("duplicate entity id", { kind: "duplicate" });
+      }
+      writeJsonTable(filePath, [...rows, persisted]);
       return persisted;
     },
     getTrip(ctx: V2TenantContext, id: string): V2Trip | null {

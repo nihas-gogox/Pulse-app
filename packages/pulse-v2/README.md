@@ -2,23 +2,44 @@
 
 Isolated from production Pulse (Expo app, `features/`, `lib/supabase`, shared hosted Supabase).
 
-**Slices 1–2 accepted. Slice 3 design accepted. Gates A–C closed (ADR-013/014/015). Quality charter established. Slice 4 blocked.** See `STATUS.md` and `PULSE_V2_QUALITY_CHARTER.md`.
+**Slices 1–2 accepted. Slice 3 design accepted. Gates A–C closed (ADR-013/014/015). Quality charter established. Slice 4 runtime through SEC-006 is closed. Persistent Commerce/Execution and Persistence Hardening are complete.** See `STATUS.md` and `PULSE_V2_QUALITY_CHARTER.md`.
 
-**Workspace-scoped persistence implemented; trusted tenant authorization pending Identity/Authorization decision.** Caller `workspaceId` is not tenant security.
+**Workspace tenancy** is copied from sealed Gateway `AuthorizationContext.workspaceId`. Caller `workspaceId` is not authority.
 
-**Not in this slice:** Kafka, Redis, Kubernetes, service mesh, HTTP Gateway, Hono Identity, production migrations, domain extraction, hosted V2 provisioning.
+**Not authorized:** Identity/Auth, RLS, hosted V2, Kafka, Redis, Kubernetes, service mesh, HTTP Gateway, Hono Identity, production migrations, domain extraction.
 
-## Persistence flow
+## Persistence modes
+
+```text
+unset PULSE_V2_SUPABASE_URL + unset PULSE_V2_DATA_DIR
+    → memory (unit tests)
+
+absolute PULSE_V2_DATA_DIR + no URL
+    → local-durable = JSON file persistence
+      (v2_commerce.sales_orders.json, v2_execution.trips.json)
+      not local Postgres
+
+local PULSE_V2_SUPABASE_URL + anon key
+    → local-supabase PostgREST path
+      dormant without an injected client / authorized real adapter
+      RLS remains deny-all
+
+hosted *.supabase.co / production refs
+    → STOP
+
+URL + DATA_DIR together
+    → STOP
+```
 
 ```text
 Domain handlers
   → repository interface
-  → V2 persistence adapter (memory default, or injected local client)
-  → V2 database client (createV2DatabaseClient only; PULSE_V2_* only)
-  → dedicated V2 Postgres (local schemas) — hosted not provisioned
+  → persistence adapter (memory | local-durable JSON | dormant local-supabase)
 ```
 
-Gateway routes `execute()` only. It does not query tables.
+Gateway routes `execute()` only. It does not query tables or files.
+
+Hosted V2 is unauthorized. Production remains frozen.
 
 ## Environment
 

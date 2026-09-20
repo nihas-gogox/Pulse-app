@@ -232,14 +232,13 @@ describe("Persistent Commerce/Execution (local V2 data dir)", () => {
       payload: { orderId: "so-by-order" },
       correlationId: "c-6b",
     });
-    expect(nestedB.ok).toBe(true);
-    if (!nestedB.ok) return;
-    expect(nestedB.data).toEqual({
-      trip: expect.objectContaining({ workspaceId: "ws-b", orderId: "so-by-order" }),
-    });
-    expect(nestedB.data).not.toEqual({
-      trip: expect.objectContaining({ workspaceId: "ws-a" }),
-    });
+    expect(nestedB.ok).toBe(false);
+    if (nestedB.ok) return;
+    expect(nestedB.code).toBe("V2_PERSISTENCE_FAILED");
+    expect(
+      repos.execution.getTrip({ workspaceId: "ws-a", actorUserId: null }, "trip-so-by-order")
+        ?.workspaceId,
+    ).toBe("ws-a");
   });
 
   it("Test 7 — payload workspace spoof is V2_WORKSPACE_DENIED with no write to B", () => {

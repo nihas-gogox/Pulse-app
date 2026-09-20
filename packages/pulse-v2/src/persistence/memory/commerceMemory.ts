@@ -1,4 +1,5 @@
 import type { CommerceRepository, V2SalesOrder } from "../../domains/commerce/repository";
+import { V2PersistenceError } from "../v2PersistenceError";
 import { requireWorkspaceId, type V2TenantContext } from "../tenantContext";
 
 export function createCommerceMemoryRepository(): CommerceRepository {
@@ -10,6 +11,9 @@ export function createCommerceMemoryRepository(): CommerceRepository {
       if (order.workspaceId !== workspaceId) {
         throw new Error("Commerce insert workspaceId must match tenant context.");
       }
+      if (salesOrders.has(order.id)) {
+        throw new V2PersistenceError("duplicate entity id", { kind: "duplicate" });
+      }
       salesOrders.set(order.id, order);
       return order;
     },
@@ -18,6 +22,12 @@ export function createCommerceMemoryRepository(): CommerceRepository {
       const row = salesOrders.get(id) ?? null;
       if (!row || row.workspaceId !== workspaceId) return null;
       return row;
+    },
+    deleteSalesOrder(ctx: V2TenantContext, id: string): void {
+      const workspaceId = requireWorkspaceId(ctx);
+      const row = salesOrders.get(id);
+      if (!row || row.workspaceId !== workspaceId) return;
+      salesOrders.delete(id);
     },
   };
 }

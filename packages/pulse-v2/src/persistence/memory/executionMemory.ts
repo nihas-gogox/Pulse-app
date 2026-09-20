@@ -1,4 +1,5 @@
 import type { ExecutionRepository, V2Trip } from "../../domains/execution/repository";
+import { V2PersistenceError } from "../v2PersistenceError";
 import { requireWorkspaceId, type V2TenantContext } from "../tenantContext";
 
 export function createExecutionMemoryRepository(): ExecutionRepository {
@@ -9,6 +10,9 @@ export function createExecutionMemoryRepository(): ExecutionRepository {
       const workspaceId = requireWorkspaceId(ctx);
       if (trip.workspaceId !== workspaceId) {
         throw new Error("Execution insert workspaceId must match tenant context.");
+      }
+      if (trips.has(trip.id)) {
+        throw new V2PersistenceError("duplicate entity id", { kind: "duplicate" });
       }
       trips.set(trip.id, trip);
       return trip;

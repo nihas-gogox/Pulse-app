@@ -19,18 +19,28 @@ Open (no schema here): Driver/Workforce, Documents/POD, Compliance, Communicatio
 
 ## Workspace scope vs tenant authorization
 
-**Workspace-scoped persistence implemented; trusted tenant authorization pending Identity/Authorization decision.**
+**Workspace-scoped persistence implemented.** Runtime tenancy for Commerce/Execution is copied from trusted Gateway `AuthorizationContext.workspaceId` (Slice 4), not from payload authority.
 
-- Every row has `workspace_id` supplied by the **caller**. That is scoping, not verified membership.
+Historical Slice 2 note: adapters still accept a `V2TenantContext` DTO; off-Gateway tests may construct that DTO directly.
+
 - RLS enabled, **no policies** → deny for anon/authenticated. Do not add permissive policies to “make hosted work”.
 - Domain adapters never receive `PULSE_V2_SUPABASE_SERVICE_ROLE_KEY`.
 - Do not invent a temporary JWT/membership implementation. `packages/platform/identity` stays dormant.
 
 ## Apply (local only, never hosted, never production)
 
-Not executed by this slice. Guard: `assertV2MigrationApplyAllowed`.
+SQL in this tree is the V2 schema fence. It is not the active application store for Commerce/Execution.
 
-Deny-all RLS is unchanged. Application Commerce/Execution durability uses
-`PULSE_V2_DATA_DIR` (local files named after `v2_commerce.sales_orders` and
-`v2_execution.trips`). PostgREST `anon`/`authenticated` still cannot see rows.
-Adapters never receive service_role. No hosted `*.supabase.co`.
+Current application persistence:
+
+```text
+memory            — in-process Maps (tests)
+local-durable     — JSON files via PULSE_V2_DATA_DIR (not Postgres)
+local-supabase    — dormant PostgREST adapters; Gateway requires an injected client
+```
+
+Deny-all RLS is unchanged. `anon`/`authenticated` still cannot see `v2_commerce` / `v2_execution` rows. Hosted `*.supabase.co` is unauthorized. Production remains frozen.
+
+Guard: `assertV2MigrationApplyAllowed`.
+
+`createOrder` nested trip: if Execution persistence fails, Commerce deletes the just-created order (workspace-scoped compensation). That is not a distributed transaction and not an event bus.

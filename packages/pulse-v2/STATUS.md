@@ -16,7 +16,8 @@
 | SEC-006 | **CLOSED** (`87720396`) |
 | SEC-007 | **DEFERRED** (not a security prerequisite) |
 | V2 implementation | **UNFROZEN for Persistent Commerce/Execution only** — Identity/Auth still frozen |
-| Persistent Commerce/Execution | **AUTHORIZED** (owner: AUTHORIZE PERSISTENT COMMERCE/EXECUTION) |
+| Persistent Commerce/Execution | **COMPLETE** (`46ebf8b3`, `64b89b8b`) |
+| Persistence Hardening | **COMPLETE** (atomic JSON writes, duplicate-ID, nested failure, error contract, docs) |
 | OPEN A — Auth Subject → Actor | **RESOLVED — MODEL B** (`OPEN_A_DECISION.md`) |
 | OPEN A — Implementation plan | **READY** (`OPEN_A_IMPLEMENTATION_PLAN.md`) — **code NOT authorized** |
 | OPEN B — Permission catalog | **OPEN** |
@@ -27,11 +28,11 @@
 
 Quality contract: `PULSE_V2_QUALITY_CHARTER.md`. Gate C: local-only. Production Auth, `auth.users`, `organization_members`, production migrations, and the Oct 1 line remain **untouched**.
 
-Owner authorization for this slice (nothing else):
+Owner authorization (nothing else):
 
 ```text
-Commerce persistence: AUTHORIZED
-Execution persistence: AUTHORIZED
+Persistent Commerce/Execution: COMPLETE
+Persistence Hardening: COMPLETE
 Identity/Auth: NOT AUTHORIZED
 Membership/Workspace persistence: NOT AUTHORIZED
 RLS: NOT AUTHORIZED
