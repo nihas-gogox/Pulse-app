@@ -53,9 +53,12 @@ describe("V2 Supabase environment isolation", () => {
 
   it("gateway refuses to boot against production", () => {
     expect(() =>
-      createPulseV2Gateway({
-        PULSE_V2_SUPABASE_URL: `https://${BLOCKED_V2_SUPABASE_PROJECT_REFS[0]}.supabase.co`,
-      }),
+      createPulseV2Gateway(
+        {
+          PULSE_V2_SUPABASE_URL: `https://${BLOCKED_V2_SUPABASE_PROJECT_REFS[0]}.supabase.co`,
+        },
+        { identityPort: { resolveMembership: () => ({ ok: false, reason: "not_found" }) } },
+      ),
     ).toThrow(V2EnvironmentIsolationError);
   });
 });

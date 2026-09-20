@@ -1,30 +1,19 @@
-import type { ExecutionRepository } from "./repository";
+import type { AuthorizationContext } from "../../identity/authorizationContext";
 import type { V2GatewayResponse } from "../../gateway/types";
+import type { V2TenantContext } from "../../persistence/tenantContext";
+import type { ExecutionRepository } from "./repository";
 
-function tenantFromPayload(payload: Record<string, unknown>, correlationId: string) {
-  const workspaceId = String(payload.workspaceId ?? "").trim();
-  if (!workspaceId) {
-    return {
-      ok: false as const,
-      response: {
-        ok: false as const,
-        code: "EXECUTION_INVALID",
-        message: "workspaceId is required (workspace scoping)",
-        correlationId,
-      },
-    };
-  }
-  return { ok: true as const, ctx: { workspaceId, actorUserId: null as string | null } };
+function persistenceCtx(authz: AuthorizationContext): V2TenantContext {
+  return { workspaceId: authz.workspaceId, actorUserId: authz.actorId };
 }
 
 export function handleExecutionOperation(
   store: ExecutionRepository,
   operation: string,
   payload: Record<string, unknown>,
-  correlationId: string,
+  authz: AuthorizationContext,
 ): V2GatewayResponse {
-  const tenant = tenantFromPayload(payload, correlationId);
-  if (!tenant.ok) return tenant.response;
+  const ctx = persistenceCtx(authz);
 
   if (operation === "createTripFromOrder") {
     const orderId = String(payload.orderId ?? "").trim();
@@ -32,23 +21,23 @@ export function handleExecutionOperation(
       return {
         ok: false,
         code: "EXECUTION_INVALID",
-        message: "createTripFromOrder requires orderId and workspaceId",
-        correlationId,
+        message: "createTripFromOrder requires orderId",
+        correlationId: authz.correlationId,
       };
     }
-    const existing = store.getTripByOrderId(tenant.ctx, orderId);
+    const existing = store.getTripByOrderId(ctx, orderId);
     if (existing) {
       return {
         ok: true,
         domain: "execution",
         operation,
-        correlationId,
+        correlationId: authz.correlationId,
         data: { trip: existing },
       };
     }
-    const trip = store.insertTrip(tenant.ctx, {
+    const trip = store.insertTrip(ctx, {
       id: `trip-${orderId}`,
-      workspaceId: tenant.ctx.workspaceId,
+      workspaceId: authz.workspaceId,
       orderId,
       status: "created",
     });
@@ -56,27 +45,27 @@ export function handleExecutionOperation(
       ok: true,
       domain: "execution",
       operation,
-      correlationId,
+      correlationId: authz.correlationId,
       data: { trip },
     };
   }
 
   if (operation === "getTrip") {
     const id = String(payload.id ?? "").trim();
-    const trip = store.getTrip(tenant.ctx, id);
+    const trip = store.getTrip(ctx, id);
     if (!trip) {
       return {
         ok: false,
         code: "EXECUTION_NOT_FOUND",
         message: `trips id not found: ${id}`,
-        correlationId,
+        correlationId: authz.correlationId,
       };
     }
     return {
       ok: true,
       domain: "execution",
       operation,
-      correlationId,
+      correlationId: authz.correlationId,
       data: { trip },
     };
   }
@@ -85,6 +74,6 @@ export function handleExecutionOperation(
     ok: false,
     code: "EXECUTION_UNKNOWN_OPERATION",
     message: operation,
-    correlationId,
+    correlationId: authz.correlationId,
   };
 }

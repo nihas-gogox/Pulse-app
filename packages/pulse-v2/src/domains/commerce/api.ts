@@ -1,20 +1,10 @@
-import type { CommerceRepository } from "./repository";
+import type { AuthorizationContext } from "../../identity/authorizationContext";
 import type { V2Execute, V2GatewayResponse } from "../../gateway/types";
+import type { V2TenantContext } from "../../persistence/tenantContext";
+import type { CommerceRepository } from "./repository";
 
-function tenantFromPayload(payload: Record<string, unknown>, correlationId: string) {
-  const workspaceId = String(payload.workspaceId ?? "").trim();
-  if (!workspaceId) {
-    return {
-      ok: false as const,
-      response: {
-        ok: false as const,
-        code: "COMMERCE_INVALID",
-        message: "workspaceId is required (workspace scoping)",
-        correlationId,
-      },
-    };
-  }
-  return { ok: true as const, ctx: { workspaceId, actorUserId: null as string | null } };
+function persistenceCtx(authz: AuthorizationContext): V2TenantContext {
+  return { workspaceId: authz.workspaceId, actorUserId: authz.actorId };
 }
 
 export function handleCommerceOperation(
@@ -22,10 +12,9 @@ export function handleCommerceOperation(
   execute: V2Execute,
   operation: string,
   payload: Record<string, unknown>,
-  correlationId: string,
+  authz: AuthorizationContext,
 ): V2GatewayResponse {
-  const tenant = tenantFromPayload(payload, correlationId);
-  if (!tenant.ok) return tenant.response;
+  const ctx = persistenceCtx(authz);
 
   if (operation === "createOrder") {
     const id = String(payload.id ?? "").trim();
@@ -33,47 +22,47 @@ export function handleCommerceOperation(
       return {
         ok: false,
         code: "COMMERCE_INVALID",
-        message: "createOrder requires id and workspaceId",
-        correlationId,
+        message: "createOrder requires id",
+        correlationId: authz.correlationId,
       };
     }
-    const order = store.insertSalesOrder(tenant.ctx, {
+    const order = store.insertSalesOrder(ctx, {
       id,
-      workspaceId: tenant.ctx.workspaceId,
+      workspaceId: authz.workspaceId,
       status: "placed",
     });
     const tripResult = execute({
       domain: "execution",
       operation: "createTripFromOrder",
-      payload: { orderId: order.id, workspaceId: order.workspaceId },
-      correlationId,
+      payload: { orderId: order.id },
+      correlationId: authz.correlationId,
     });
     if (!tripResult.ok) return tripResult;
     return {
       ok: true,
       domain: "commerce",
       operation,
-      correlationId,
+      correlationId: authz.correlationId,
       data: { order, trip: tripResult.data },
     };
   }
 
   if (operation === "getOrder") {
     const id = String(payload.id ?? "").trim();
-    const order = store.getSalesOrder(tenant.ctx, id);
+    const order = store.getSalesOrder(ctx, id);
     if (!order) {
       return {
         ok: false,
         code: "COMMERCE_NOT_FOUND",
         message: `sales_orders id not found: ${id}`,
-        correlationId,
+        correlationId: authz.correlationId,
       };
     }
     return {
       ok: true,
       domain: "commerce",
       operation,
-      correlationId,
+      correlationId: authz.correlationId,
       data: { order },
     };
   }
@@ -82,6 +71,6 @@ export function handleCommerceOperation(
     ok: false,
     code: "COMMERCE_UNKNOWN_OPERATION",
     message: operation,
-    correlationId,
+    correlationId: authz.correlationId,
   };
 }

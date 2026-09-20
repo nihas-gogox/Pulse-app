@@ -5,6 +5,10 @@ export type V2GatewayRequest = {
   operation: string;
   payload: Record<string, unknown>;
   correlationId: string;
+  /** Test/harness Actor id. Not Auth-subject mapping (OPEN A). Not Workspace authority. */
+  actorId?: string;
+  /** Optional membership selector; must belong to actorId when set. */
+  membershipId?: string;
 };
 
 export type V2GatewayResult = {
