@@ -280,6 +280,22 @@ Hosted V2 project, hosted Auth, backup/PITR/DR, operational controls — **not p
 
 ---
 
+## 8. Decision 8 — OPEN A (Auth Subject → Actor)
+
+**Status:** **APPROVED** (Owner) — Model B
+
+**APPROVED:** Auth Subject and Actor are **distinct**. Pulse Identity owns the **bind**. Default **1 Auth Subject → 1 Actor**. Person / Model C is **not required**.
+
+**APPROVED:** First successful authentication **creates** the Actor. Creation does **not** create Membership or grant Workspace access.
+
+**APPROVED:** Auth authenticates; Pulse authorizes. Auth must not own Membership, Workspace, Roles, or Permissions.
+
+Slice 3 (`IDENTITY_AUTHORIZATION_DESIGN.md` §2) recommended Model A (`actorId` = Auth subject). That text is **historical**. This Decision 8 is authoritative. Record: `OPEN_A_DECISION.md`. Implementation: `OPEN_A_IMPLEMENTATION_PLAN.md` (**not authorized**).
+
+**Still deferred:** linking, federation, SSO, provider product, JWT/session, RLS plumbing.
+
+---
+
 ## Final Identity Gate status
 
 | Area                                 | Decision | Status | Owner |
@@ -298,6 +314,7 @@ Hosted V2 project, hosted Auth, backup/PITR/DR, operational controls — **not p
 | Hono future role                     | Dormant now; port/extract only after contract + V2 infra; not identity-by-existence | **OPEN — OWNER REQUIRED** | Architecture |
 | Dedicated V2 infrastructure          | Current phase: local V2-only (ADR-015); hosted not provisioned | **APPROVED** (local posture) | Infrastructure |
 | V2 Auth provisioning                 | Not in Gate C; local Auth allowed later if Identity is authorized; hosted Auth not provisioned | **OPEN** (implementation) | Architecture + Security |
+| OPEN A Auth Subject → Actor          | Model B; 1:1 bind; first-login create Actor; no auto-Membership | **APPROVED** | Owner |
 
 ---
 
@@ -316,6 +333,7 @@ Hosted V2 project, hosted Auth, backup/PITR/DR, operational controls — **not p
 9. Gateway is the Day-1 authorization boundary.
 10. Hono remains dormant.
 11. Dedicated V2 infrastructure precedes real Auth/RLS wiring.
+12. Auth Subject binds to a distinct Pulse Actor (OPEN A Model B). First-login creates Actor only.
 
 ### Must remain open (not implementation tasks)
 
@@ -323,7 +341,6 @@ Hosted V2 project, hosted Auth, backup/PITR/DR, operational controls — **not p
 - Holding-company Tenant decision
 - How one Pulse identity is implemented across production vs V2 Auth (federation/broker — not Gate B)
 - V2 Auth vs eventual federation details
-- Person vs `auth.users` model
 - Exact RLS claim/session mechanism
 - Permission catalog final mapping
 - `06-permissions.md` freeze
@@ -335,11 +352,13 @@ Hosted V2 project, hosted Auth, backup/PITR/DR, operational controls — **not p
 
 ## Slice 4 gate
 
-**BLOCKED** until the owner-required decisions are explicitly approved by the named owners **and** dedicated V2 infrastructure is approved/provisioned for real Auth/RLS work.
+**Original (this record):** Slice 4 Identity/Auth **implementation** blocked pending owner items + infra for real Auth/RLS.
 
-This Architecture record does **not** substitute for Product, Security, or Infrastructure approval.
+**Later (do not rewrite the line above):** Slice 4 **authorization runtime** was separately owner-authorized and frozen at `a60aad5a` (SEC-001 closed). OPEN A is **resolved** (`OPEN_A_DECISION.md`). Auth tables, RLS, hosted V2, and OPEN B remain **not authorized**.
+
+This Architecture record does **not** substitute for Product, Security, or Infrastructure approval of those remaining items.
 
 ## Slice 4 authorization design (2026-09-20)
 
-**DESIGN ONLY** — `SLICE_4_AUTHORIZATION_DESIGN.md`. Implementation **not** authorized. Trusted path: Actor → verified Membership → Workspace → AuthorizationContext (Gateway). Payload `workspaceId` is never authority.
+**DESIGN ONLY** — `SLICE_4_AUTHORIZATION_DESIGN.md`. Trusted path: Actor → verified Membership → Workspace → AuthorizationContext (Gateway). Payload `workspaceId` is never authority. Runtime: `a60aad5a`. Auth-subject mapping: `OPEN_A_DECISION.md`.
 

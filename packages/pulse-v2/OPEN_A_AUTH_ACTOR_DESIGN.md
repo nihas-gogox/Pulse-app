@@ -1,5 +1,6 @@
 # Pulse V2 — OPEN A: Auth-Subject → Actor Architecture
 
+**Status:** Pre-decision analysis. **Owner accepted Model B** — see `OPEN_A_DECISION.md` and `OPEN_A_IMPLEMENTATION_PLAN.md`.  
 **Kind:** Architecture / design only. No implementation.  
 **Does not authorize:** Auth, Actor/Membership tables, JWT, RLS, hosted V2, OPEN B, Slice 5, production changes.
 
@@ -35,7 +36,7 @@ SEC-001 is **CLOSED**. SEC-002–007 remain deferred.
 
 Slice 4 Actor model and ADR-013 **explicitly** leave Auth-subject → Actor **OPEN** and forbid assuming `auth.users` is the application identity.
 
-This document **does not amend** Slice 3 text. OPEN A is the decision that Slice 3 deferred. Owner must accept or reject the recommendation in §8 versus that Slice 3 recommendation.
+This document **does not amend** Slice 3 text. OPEN A was the decision Slice 3 deferred. **Owner subsequently accepted Model B** (`OPEN_A_DECISION.md`). §8 remains the analysis that was reviewed.
 
 ---
 

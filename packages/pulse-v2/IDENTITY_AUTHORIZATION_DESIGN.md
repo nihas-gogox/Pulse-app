@@ -1,6 +1,6 @@
 # Pulse V2 — Identity & Authorization design (Slice 3)
 
-**Status:** **DESIGN ACCEPTED.** Implementation **BLOCKED** pending Identity Gate (six decisions) + dedicated V2 infrastructure.  
+**Status:** **DESIGN ACCEPTED.** Formal Architecture decisions: `IDENTITY_GATE_DECISIONS.md`. Implementation **BLOCKED** pending owner-required Identity Gate items + dedicated V2 infrastructure.  
 **Does not** wire `lib/platform-identity`, `packages/platform/identity`, production Auth, or V2 RLS policies.
 
 Slices 1–2 remain closed. Deny-all RLS stays. Caller `workspaceId` is not tenant security.
@@ -61,9 +61,13 @@ personId         = optional Pulse Person (only if V2 Identity schema later store
 
 Do not put permissions in the session token (reuse frozen JWT rule).
 
+**Historical note — OPEN A:** The `actorId = Auth subject` recommendation above is **Model A**. Owner review later **selected Model B** (Auth Subject **binds to** a distinct Actor). Authoritative record: `OPEN_A_DECISION.md`. This section is preserved; it is **not** current identity law.
+
 ### OPEN DECISION
 
 Whether V2 Person is 1:1 with `auth.users` or a separate `v2_identity` row. OMS model allows `users.auth_user_id` 1:0..1. Do not invent Person tables in this slice.
+
+**OPEN A update:** Person is **not required**. Binding lives in Pulse Identity (`OPEN_A_DECISION.md`). Provider/`auth.users` as V2 Auth **product** remains deferred (ADR-013).
 
 ---
 
@@ -335,9 +339,13 @@ Request + credential
 
 ## Decisions requiring approval before any Identity code
 
-1. Workspace id mapping (Organization vs Tenant vs platform.organizations).  
-2. V2 Auth isolated vs federated.  
-3. RLS claim mechanism.  
-4. Permission catalog mapping (do not freeze `06-permissions.md` by accident).  
-5. Whether Hono Identity is ported onto V2 DB or Gateway stays the auth module.  
-6. Dedicated V2 infrastructure (still unprovisioned).
+Architecture invariants are recorded in `IDENTITY_GATE_DECISIONS.md`. Remaining **OPEN — OWNER REQUIRED** before Identity implementation:
+
+1. Organization → Workspace mapping keys (UUID vs code; first-customer 1:1; holding-company Tenant).  
+2. Product: must existing GoGoX users retain one login for V2? (federation only via approved broker).  
+3. Exact RLS plumbing (claims vs lookup vs session vs hybrid) — after V2 Auth design.  
+4. Permission catalog mapping and freeze of `06-permissions.md`.  
+5. Whether Hono Identity is later ported/extracted onto V2 (Gateway-first is already frozen).  
+6. Dedicated V2 infrastructure provisioning and V2 Auth (still unprovisioned).
+
+**OPEN A** (Auth Subject → Actor) is **resolved — Model B** (`OPEN_A_DECISION.md`). Item 2 is federation/continuity **implementation**, not collapsing Actor into Auth Subject.

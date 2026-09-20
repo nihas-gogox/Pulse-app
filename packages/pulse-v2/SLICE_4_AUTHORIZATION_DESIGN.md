@@ -46,7 +46,7 @@ Today’s Gateway `execute({ domain, operation, payload, correlationId })` still
 |----------|--------|
 | What | Application principal performing the action |
 | Canonical id | `actorId` (V2 Identity). Not a Workspace id |
-| Auth | Credential yields an **Auth subject**. Mapping Auth subject → `actorId` is **OPEN** (must not assume `auth.users` is the application identity) |
+| Auth | Credential yields an **Auth subject**. Mapping is **OPEN A RESOLVED — Model B** (`OPEN_A_DECISION.md`): subject **binds to** a distinct `actorId`. Not `auth.users` as application identity. |
 | Lifecycle | Created when V2 Identity accepts a verified Auth subject (or bootstrap). Disabled/deleted with membership revocation independent of Auth expiry |
 | Before Auth | No Actor; unauthenticated |
 | Abstraction | Actor is **not** identical to “JWT blob”; it is the Identity record the Gateway authorizes |
@@ -284,7 +284,7 @@ Multiple Workspaces in **data** is required for tests; Product still uses one co
 
 ## 16. Deferred decisions
 
-Final Auth provider; exact Auth-subject ↔ `actorId`; Person entity; membership/RBAC **schema**; permission catalog freeze; RLS policy SQL; Organization → Workspace mapping; Tenant; federation/broker; account linking; Hono; hosted V2; production cutover; multi-Workspace switching UX; Command Envelope additive fields; Slice 4 **code**.
+Final Auth provider; JWT/session; membership/RBAC **schema**; permission catalog freeze (OPEN B); RLS policy SQL; Organization → Workspace mapping; Tenant; federation/broker; account linking; Hono; hosted V2; production cutover; multi-Workspace switching UX; Command Envelope additive fields. Auth-subject → Actor mapping: **resolved Model B** (`OPEN_A_DECISION.md`). Slice 4 **runtime** frozen at `a60aad5a`.
 
 ---
 
