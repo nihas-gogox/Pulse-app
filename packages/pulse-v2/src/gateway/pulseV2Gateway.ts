@@ -5,7 +5,12 @@ import {
   sealTrustedAuthorizationContext,
   type AuthorizationContext,
 } from "../identity/authorizationContext";
-import type { CreateWorkspaceResult, IdentityPort } from "../identity/identityPort";
+import type {
+  ActorResolveResult,
+  CreateWorkspaceResult,
+  IdentityPort,
+  MembershipResolveResult,
+} from "../identity/identityPort";
 import { createV2Persistence } from "../persistence/createPersistence";
 import type {
   V2CreateWorkspaceRequest,
@@ -34,7 +39,12 @@ function resolveAuthorizationContext(
   correlationId: string,
 ): V2GatewayResponse | AuthorizationContext {
   const proofValue = request.identityProof?.trim() ?? "";
-  const actorResolved = identityPort.resolveActor({ value: proofValue });
+  let actorResolved: ActorResolveResult;
+  try {
+    actorResolved = identityPort.resolveActor({ value: proofValue });
+  } catch {
+    return deny("V2_UNAUTHENTICATED", "actor resolution failed", correlationId);
+  }
   if (!actorResolved.ok) {
     return deny(
       "V2_UNAUTHENTICATED",
@@ -53,10 +63,15 @@ function resolveAuthorizationContext(
     );
   }
 
-  const resolved = identityPort.resolveMembership({
-    actorId: trustedActorId,
-    membershipId: request.membershipId?.trim() || undefined,
-  });
+  let resolved: MembershipResolveResult;
+  try {
+    resolved = identityPort.resolveMembership({
+      actorId: trustedActorId,
+      membershipId: request.membershipId?.trim() || undefined,
+    });
+  } catch {
+    return deny("V2_MEMBERSHIP_DENIED", "membership resolution failed", correlationId);
+  }
   if (!resolved.ok) {
     return deny(
       "V2_MEMBERSHIP_DENIED",
@@ -158,7 +173,12 @@ export function createPulseV2Gateway(
       return deny("V2_GATEWAY_INVALID", "identityProof is required", correlationId);
     }
 
-    const actorResolved = options.identityPort.resolveActor({ value: identityProof });
+    let actorResolved: ActorResolveResult;
+    try {
+      actorResolved = options.identityPort.resolveActor({ value: identityProof });
+    } catch {
+      return deny("V2_UNAUTHENTICATED", "actor resolution failed", correlationId);
+    }
     if (!actorResolved.ok) {
       return deny(
         "V2_UNAUTHENTICATED",
@@ -167,11 +187,16 @@ export function createPulseV2Gateway(
       );
     }
 
-    const identityResult: CreateWorkspaceResult = options.identityPort.createWorkspace({
-      actorId: actorResolved.actorId,
-      correlationId,
-      idempotencyKey,
-    });
+    let identityResult: CreateWorkspaceResult;
+    try {
+      identityResult = options.identityPort.createWorkspace({
+        actorId: actorResolved.actorId,
+        correlationId,
+        idempotencyKey,
+      });
+    } catch {
+      return deny("V2_WORKSPACE_CREATE_FAILED", "workspace creation failed", correlationId);
+    }
     if (!identityResult.ok) {
       return deny(
         "V2_WORKSPACE_CREATE_FAILED",
