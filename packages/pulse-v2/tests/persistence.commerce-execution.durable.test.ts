@@ -82,6 +82,7 @@ describe("Persistent Commerce/Execution (local V2 data dir)", () => {
     const created = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.commerce-execution.durable.test-47",
       identityProof: "proof-a",
       payload: { id: "so-persist" },
       correlationId: "c-1",
@@ -109,6 +110,7 @@ describe("Persistent Commerce/Execution (local V2 data dir)", () => {
     const created = first.execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.commerce-execution.durable.test-48",
       identityProof: "proof-a",
       payload: { id: "so-trip" },
       correlationId: "c-2",
@@ -140,6 +142,7 @@ describe("Persistent Commerce/Execution (local V2 data dir)", () => {
     gateway(dataDir).execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.commerce-execution.durable.test-49",
       identityProof: "proof-a",
       payload: { id: "so-a" },
       correlationId: "c-3a",
@@ -163,6 +166,7 @@ describe("Persistent Commerce/Execution (local V2 data dir)", () => {
     gateway(dataDir).execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.commerce-execution.durable.test-50",
       identityProof: "proof-a",
       payload: { id: "so-a-iso" },
       correlationId: "c-4a",
@@ -184,6 +188,7 @@ describe("Persistent Commerce/Execution (local V2 data dir)", () => {
     gateway(dataDir).execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.commerce-execution.durable.test-51",
       identityProof: "proof-a",
       payload: { id: "so-trip-iso" },
       correlationId: "c-5a",
@@ -205,6 +210,7 @@ describe("Persistent Commerce/Execution (local V2 data dir)", () => {
     gateway(dataDir).execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.commerce-execution.durable.test-52",
       identityProof: "proof-a",
       payload: { id: "so-by-order" },
       correlationId: "c-6a",
@@ -228,6 +234,7 @@ describe("Persistent Commerce/Execution (local V2 data dir)", () => {
     const nestedB = gateway(dataDir).execute({
       domain: "execution",
       operation: "createTripFromOrder",
+      idempotencyKey: "idemp-persistence.commerce-execution.durable.test-53",
       identityProof: "proof-b",
       payload: { orderId: "so-by-order" },
       correlationId: "c-6b",
@@ -247,6 +254,7 @@ describe("Persistent Commerce/Execution (local V2 data dir)", () => {
     const spoof = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.commerce-execution.durable.test-54",
       identityProof: "proof-a",
       payload: { id: "so-spoof", workspaceId: "ws-b" },
       correlationId: "c-7a",
@@ -277,6 +285,7 @@ describe("Persistent Commerce/Execution (local V2 data dir)", () => {
     const placed = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.commerce-execution.durable.test-55",
       identityProof: "proof-a",
       payload: { id: "so-nested" },
       correlationId: "c-8",

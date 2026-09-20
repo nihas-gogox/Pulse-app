@@ -131,6 +131,7 @@ describe("SEC-002 domain-handler trusted context entry", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.entry.test-24",
       identityProof: "proof-a",
       membershipId: membership.membershipId,
       payload: { id: "so-trusted" },

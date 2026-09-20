@@ -15,9 +15,9 @@ export type V2GatewayRequest = {
   /** Optional membership selector; must belong to the trusted Actor when set. */
   membershipId?: string;
   /**
-   * Command Store replay key. Required on the frozen Command Envelope.
-   * Gateway assigns `idem-${commandId}` when omitted (one-shot). Queries ignore this.
-   * Distinct from Identity createWorkspace idempotency.
+   * Required for Command Store operations (createOrder, createTripFromOrder).
+   * Caller-supplied. Gateway does not generate a fallback.
+   * Queries ignore this. Distinct from Identity createWorkspace idempotency.
    */
   idempotencyKey?: string;
 };

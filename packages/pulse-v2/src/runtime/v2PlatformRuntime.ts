@@ -51,8 +51,7 @@ function buildEnvelope(
   commandId: string,
   operation: V2CommandOperation,
 ): CommandEnvelope {
-  const providedKey = request.idempotencyKey?.trim() ?? "";
-  const idempotencyKey = providedKey || `idem-${commandId}`;
+  const idempotencyKey = request.idempotencyKey?.trim() ?? "";
   const envelope: CommandEnvelope = {
     commandId,
     commandName: operation,

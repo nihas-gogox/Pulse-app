@@ -94,6 +94,7 @@ describe("AuthorizationContext.role from Membership", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.role.test-26",
       identityProof: proofA,
       membershipId: membershipA.membershipId,
       payload: { id: "so-role-copy" },
@@ -111,6 +112,7 @@ describe("AuthorizationContext.role from Membership", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.role.test-27",
       identityProof: proofA,
       membershipId: membershipA.membershipId,
       payload: { id: "so-role-payload", role: TEST_ROLE_B },
@@ -125,6 +127,7 @@ describe("AuthorizationContext.role from Membership", () => {
     const first = gateway([membershipA]).execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.role.test-28",
       identityProof: proofA,
       membershipId: membershipA.membershipId,
       payload: { id: "so-role-a" },
@@ -133,6 +136,7 @@ describe("AuthorizationContext.role from Membership", () => {
     const second = gateway([{ ...membershipA, role: TEST_ROLE_B }]).execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.role.test-29",
       identityProof: proofA,
       membershipId: membershipA.membershipId,
       payload: { id: "so-role-b" },
@@ -147,6 +151,7 @@ describe("AuthorizationContext.role from Membership", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.role.test-30",
       identityProof: proofA,
       membershipId: membershipB.membershipId,
       payload: { id: "so-wrong-mem" },
@@ -163,6 +168,7 @@ describe("AuthorizationContext.role from Membership", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.role.test-31",
       identityProof: proofA,
       actorId: "actor-b",
       membershipId: membershipA.membershipId,
@@ -180,6 +186,7 @@ describe("AuthorizationContext.role from Membership", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.role.test-32",
       identityProof: proofA,
       membershipId: membershipA.membershipId,
       payload: { id: "so-ws", workspaceId: membershipB.workspaceId },
@@ -195,6 +202,7 @@ describe("AuthorizationContext.role from Membership", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.role.test-33",
       identityProof: proofA,
       membershipId: membershipA.membershipId,
       payload: { id: "so-nested-role" },

@@ -78,6 +78,7 @@ describe("SEC-006 IdentityPort throws map to typed Gateway deny", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-identityPort.throw.test-43",
       identityProof: "proof-sec006",
       actorId: "spoof-actor",
       membershipId: "spoof-mem",
@@ -110,6 +111,7 @@ describe("SEC-006 IdentityPort throws map to typed Gateway deny", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-identityPort.throw.test-44",
       identityProof: "proof-sec006",
       payload: { id: "so-mem-throw" },
       correlationId: "corr-mem-throw",
@@ -178,6 +180,7 @@ describe("SEC-006 IdentityPort throws map to typed Gateway deny", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-identityPort.throw.test-45",
       identityProof: "proof-unknown",
       payload: { id: "so-typed" },
       correlationId: "corr-typed",
@@ -198,6 +201,7 @@ describe("SEC-006 IdentityPort throws map to typed Gateway deny", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-identityPort.throw.test-46",
       identityProof: "proof-sec006",
       membershipId: membership.membershipId,
       payload: { id: "so-ok" },

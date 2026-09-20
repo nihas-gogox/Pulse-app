@@ -42,6 +42,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-1",
       identityProof: proofA,
       payload: { id: "so-authz", workspaceId: "ws-1" },
       correlationId: "c1",
@@ -60,6 +61,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-2",
       identityProof: proofA,
       payload: { id: "so-w2", workspaceId: "ws-2" },
       correlationId: "c-mismatch",
@@ -75,6 +77,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-3",
       payload: { id: "so-x" },
       correlationId: "c-unauth",
     });
@@ -89,6 +92,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-4",
       identityProof: "proof-unknown",
       payload: { id: "so-x" },
       correlationId: "c-none",
@@ -105,6 +109,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-5",
       identityProof: proofA,
       payload: { id: "so-x" },
       correlationId: "c-sus",
@@ -119,6 +124,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-6",
       identityProof: proofA,
       payload: { id: "so-x" },
       correlationId: "c-rev",
@@ -133,6 +139,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-7",
       identityProof: proofA,
       membershipId: "mem-other",
       payload: { id: "so-x" },
@@ -151,6 +158,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-8",
       identityProof: proofA,
       payload: { id: "so-x" },
       correlationId: "c-amb",
@@ -177,6 +185,7 @@ describe("Slice 4 trusted authorization context", () => {
     const placed = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-9",
       identityProof: proofA,
       payload: { id: "so-nested", workspaceId: "ws-2" },
       correlationId: "c-nested",
@@ -189,6 +198,7 @@ describe("Slice 4 trusted authorization context", () => {
     const ok = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-10",
       identityProof: proofA,
       payload: { id: "so-nested" },
       correlationId: "c-nested-ok",
@@ -209,6 +219,7 @@ describe("Slice 4 trusted authorization context", () => {
     const created = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-11",
       identityProof: proofA,
       payload: { id: "so-w1-only" },
       correlationId: "c-iso-1",
@@ -234,6 +245,7 @@ describe("Slice 4 Actor trust boundary (SEC-001)", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-12",
       identityProof: proofA,
       payload: { id: "so-trusted-actor" },
       correlationId: "c-trusted",
@@ -252,6 +264,7 @@ describe("Slice 4 Actor trust boundary (SEC-001)", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-13",
       identityProof: proofA,
       actorId: "actor-b",
       payload: { id: "so-spoof" },
@@ -268,6 +281,7 @@ describe("Slice 4 Actor trust boundary (SEC-001)", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-14",
       identityProof: proofA,
       payload: { id: "so-omit-actor" },
       correlationId: "c-omit",
@@ -286,6 +300,7 @@ describe("Slice 4 Actor trust boundary (SEC-001)", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-15",
       identityProof: proofA,
       membershipId: "mem-a-w1",
       payload: { id: "so-mem-a" },
@@ -299,6 +314,7 @@ describe("Slice 4 Actor trust boundary (SEC-001)", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-16",
       identityProof: proofA,
       membershipId: "mem-b-w2",
       payload: { id: "so-mem-b" },
@@ -316,6 +332,7 @@ describe("Slice 4 Actor trust boundary (SEC-001)", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorization.test-17",
       identityProof: proofA,
       actorId: "actor-a",
       payload: { id: "so-matching-claim" },

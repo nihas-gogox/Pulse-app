@@ -30,6 +30,7 @@ describe("Domain handlers are Gateway-only", () => {
     const first = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-domainHandler.gatewayOnly.test-40",
       identityProof: "proof-gw-only",
       membershipId: membership.membershipId,
       payload: { id: "so-gw-only" },

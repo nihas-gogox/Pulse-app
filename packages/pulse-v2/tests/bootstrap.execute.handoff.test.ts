@@ -31,6 +31,7 @@ describe("bootstrap → execute() handoff", () => {
     const placed = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-bootstrap.execute.handoff.test-34",
       identityProof: proofA,
       membershipId: created.membershipId,
       payload: { id: "so-handoff" },
@@ -69,6 +70,7 @@ describe("bootstrap → execute() handoff", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-bootstrap.execute.handoff.test-35",
       identityProof: proofA,
       membershipId: created.membershipId,
       payload: { id: "so-override", workspaceId: "ws-other" },
@@ -99,6 +101,7 @@ describe("bootstrap → execute() handoff", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-bootstrap.execute.handoff.test-36",
       identityProof: proofA,
       membershipId: b.membershipId,
       payload: { id: "so-cross" },
@@ -125,6 +128,7 @@ describe("bootstrap → execute() handoff", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-bootstrap.execute.handoff.test-37",
       identityProof: proofB,
       membershipId: a.membershipId,
       payload: { id: "so-proof-cross" },
@@ -149,6 +153,7 @@ describe("bootstrap → execute() handoff", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-bootstrap.execute.handoff.test-38",
       identityProof: proofA,
       actorId: "actor-b",
       membershipId: created.membershipId,
@@ -167,6 +172,7 @@ describe("bootstrap → execute() handoff", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-bootstrap.execute.handoff.test-39",
       identityProof: proofA,
       payload: { id: "so-none" },
       correlationId: "c-none",

@@ -39,6 +39,7 @@ describe("Persistence tenancy from AuthorizationContext.workspaceId", () => {
     const created = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.tenancy.test-60",
       identityProof: proofA,
       membershipId: membershipA.membershipId,
       payload: { id: "order-a" },
@@ -81,6 +82,7 @@ describe("Persistence tenancy from AuthorizationContext.workspaceId", () => {
       execute({
         domain: "commerce",
         operation: "createOrder",
+        idempotencyKey: "idemp-persistence.tenancy.test-61",
         identityProof: proofA,
         membershipId: membershipA.membershipId,
         payload: { id: "order-a-secret" },
@@ -116,6 +118,7 @@ describe("Persistence tenancy from AuthorizationContext.workspaceId", () => {
     const denied = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.tenancy.test-62",
       identityProof: proofA,
       membershipId: membershipA.membershipId,
       payload: { id: "order-override", workspaceId: "workspace-b" },
@@ -142,6 +145,7 @@ describe("Persistence tenancy from AuthorizationContext.workspaceId", () => {
       execute({
         domain: "commerce",
         operation: "createOrder",
+        idempotencyKey: "idemp-persistence.tenancy.test-63",
         identityProof: proofB,
         membershipId: membershipB.membershipId,
         payload: { id: "order-b" },
@@ -166,6 +170,7 @@ describe("Persistence tenancy from AuthorizationContext.workspaceId", () => {
     const created = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.tenancy.test-64",
       identityProof: proofA,
       membershipId: membershipA.membershipId,
       payload: { id: "order-match", workspaceId: "workspace-a" },
@@ -186,6 +191,7 @@ describe("Persistence tenancy from AuthorizationContext.workspaceId", () => {
     const created = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.tenancy.test-65",
       identityProof: proofA,
       membershipId: membershipA.membershipId,
       payload: { id: "order-nested" },

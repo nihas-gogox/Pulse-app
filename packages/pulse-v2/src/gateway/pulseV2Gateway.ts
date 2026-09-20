@@ -193,6 +193,13 @@ export function createPulseV2Gateway(
       return deny("V2_GATEWAY_INVALID", "correlationId is required", "");
     }
 
+    if (isV2CommandOperation(request.operation)) {
+      const idempotencyKey = request.idempotencyKey?.trim() ?? "";
+      if (!idempotencyKey) {
+        return deny("V2_GATEWAY_INVALID", "idempotencyKey is required", correlationId);
+      }
+    }
+
     const ctx = resolveAuthorizationContext(options.identityPort, request, correlationId);
     if ("ok" in ctx) return ctx;
 

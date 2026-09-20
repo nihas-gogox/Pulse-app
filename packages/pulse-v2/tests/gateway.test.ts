@@ -45,6 +45,7 @@ describe("Pulse V2 in-process Gateway", () => {
     const placed = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-gateway.test-41",
       identityProof: "proof-9",
       payload: { id: "so-9" },
       correlationId: "corr-9",

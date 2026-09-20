@@ -46,6 +46,64 @@ describe("Command Store Gateway integration", () => {
     );
   }
 
+  it("rejects createOrder without idempotencyKey before Command Store or domain", () => {
+    const { execute, commandStore } = gw();
+    const denied = execute({
+      domain: "commerce",
+      operation: "createOrder",
+      identityProof: "proof-a",
+      payload: { id: "so-no-key" },
+      correlationId: "c-no-key",
+    });
+    expect(denied.ok).toBe(false);
+    if (denied.ok) return;
+    expect(denied.code).toBe("V2_GATEWAY_INVALID");
+    expect(denied.message).toBe("idempotencyKey is required");
+    expect(denied.correlationId).toBe("c-no-key");
+    expect(commandStore.getByIdempotencyKey("ws-a", "c-no-key")).toBeNull();
+    const order = execute({
+      domain: "commerce",
+      operation: "getOrder",
+      identityProof: "proof-a",
+      payload: { id: "so-no-key" },
+      correlationId: "c-no-key-read",
+    });
+    expect(order.ok).toBe(false);
+  });
+
+  it("rejects createOrder with empty idempotencyKey and does not create a CommandRecord", () => {
+    const { execute, commandStore } = gw();
+    const denied = execute({
+      domain: "commerce",
+      operation: "createOrder",
+      identityProof: "proof-a",
+      idempotencyKey: "   ",
+      payload: { id: "so-empty-key" },
+      correlationId: "c-empty-key",
+    });
+    expect(denied.ok).toBe(false);
+    if (denied.ok) return;
+    expect(denied.code).toBe("V2_GATEWAY_INVALID");
+    expect(denied.correlationId).toBe("c-empty-key");
+    expect(commandStore.getByIdempotencyKey("ws-a", "")).toBeNull();
+    expect(commandStore.getByIdempotencyKey("ws-a", "   ")).toBeNull();
+  });
+
+  it("requires idempotencyKey on public createTripFromOrder", () => {
+    const { execute, commandStore } = gw();
+    const denied = execute({
+      domain: "execution",
+      operation: "createTripFromOrder",
+      identityProof: "proof-a",
+      payload: { orderId: "so-trip-nokey" },
+      correlationId: "c-trip-nokey",
+    });
+    expect(denied.ok).toBe(false);
+    if (denied.ok) return;
+    expect(denied.code).toBe("V2_GATEWAY_INVALID");
+    expect(commandStore.getByIdempotencyKey("ws-a", "c-trip-nokey")).toBeNull();
+  });
+
   it("createOrder creates exactly one CommandRecord with trusted tenantId", () => {
     const { execute, commandStore } = gw();
     const placed = execute({
@@ -238,6 +296,31 @@ describe("Command Store Gateway integration", () => {
       correlationId: "c-ghost",
     });
     expect(ghost.ok).toBe(false);
+  });
+
+  it("different idempotencyKey creates a new command", () => {
+    const { execute, commandStore } = gw();
+    execute({
+      domain: "commerce",
+      operation: "createOrder",
+      identityProof: "proof-a",
+      idempotencyKey: "k-one",
+      payload: { id: "so-one" },
+      correlationId: "c-one",
+    });
+    execute({
+      domain: "commerce",
+      operation: "createOrder",
+      identityProof: "proof-a",
+      idempotencyKey: "k-two",
+      payload: { id: "so-two" },
+      correlationId: "c-two",
+    });
+    const a = commandStore.getByIdempotencyKey("ws-a", "k-one");
+    const b = commandStore.getByIdempotencyKey("ws-a", "k-two");
+    expect(a?.commandId).toBeDefined();
+    expect(b?.commandId).toBeDefined();
+    expect(a?.commandId).not.toBe(b?.commandId);
   });
 
   it("Command Store persistence failure fails closed before domain success", () => {

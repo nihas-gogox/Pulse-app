@@ -40,6 +40,7 @@ describe("Persistence hardening", () => {
     const created = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.hardening.test-56",
       identityProof: "proof-a",
       payload: { id: "so-atomic" },
       correlationId: "c-atomic",
@@ -93,6 +94,7 @@ describe("Persistence hardening", () => {
     const first = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.hardening.test-57",
       identityProof: "proof-a",
       payload: { id: "so-dup-gw" },
       correlationId: "c-dup-1",
@@ -101,6 +103,7 @@ describe("Persistence hardening", () => {
     const second = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.hardening.test-58",
       identityProof: "proof-a",
       payload: { id: "so-dup-gw" },
       correlationId: "c-dup-2",
@@ -130,6 +133,7 @@ describe("Persistence hardening", () => {
     const created = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-persistence.hardening.test-59",
       identityProof: "proof-a",
       payload: { id: "so-nested-fail" },
       correlationId: "c-nested-fail",

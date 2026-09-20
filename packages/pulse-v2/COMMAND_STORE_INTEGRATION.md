@@ -35,7 +35,7 @@ FAILED → `V2_COMMAND_FAILED`; no domain retry.
 
 PROCESSING / STALE / RETRYING → `V2_COMMAND_IN_PROGRESS`.
 
-If `idempotencyKey` is omitted on a command, Gateway assigns `idem-${commandId}` (one-shot). Distinct from Identity `createWorkspace` keys.
+`idempotencyKey` is caller-supplied and required on commands. Distinct from Identity `createWorkspace` keys.
 
 ## Lifecycle
 

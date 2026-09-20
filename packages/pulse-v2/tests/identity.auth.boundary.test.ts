@@ -321,6 +321,7 @@ describe("V2 Identity/Auth (Model B, local)", () => {
     const placed = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-identity.auth.boundary.test-42",
       identityProof: "opaque-a",
       payload: { id: "so-a-only" },
       correlationId: "c-place",

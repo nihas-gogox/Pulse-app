@@ -97,6 +97,7 @@ describe("AuthorizationContext exclusive construction", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.construction.test-18",
       identityProof: "proof-ctor",
       membershipId: membership.membershipId,
       payload: { id: "so-ctor" },
@@ -114,6 +115,7 @@ describe("AuthorizationContext exclusive construction", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.construction.test-19",
       identityProof: "proof-ctor",
       membershipId: membership.membershipId,
       payload: { id: "so-nested" },
@@ -130,6 +132,7 @@ describe("AuthorizationContext exclusive construction", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.construction.test-20",
       identityProof: "proof-ctor",
       membershipId: membership.membershipId,
       payload: {
@@ -157,6 +160,7 @@ describe("AuthorizationContext exclusive construction", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.construction.test-21",
       identityProof: "proof-ctor",
       membershipId: otherMembership.membershipId,
       payload: { id: "so-foreign" },
@@ -175,6 +179,7 @@ describe("AuthorizationContext exclusive construction", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.construction.test-22",
       identityProof: "proof-ctor",
       actorId: "actor-other",
       membershipId: membership.membershipId,
@@ -193,6 +198,7 @@ describe("AuthorizationContext exclusive construction", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.construction.test-23",
       identityProof: "proof-ctor",
       membershipId: membership.membershipId,
       payload: { id: "so-ws", workspaceId: "ws-other" },

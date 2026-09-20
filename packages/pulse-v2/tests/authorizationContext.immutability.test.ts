@@ -57,6 +57,7 @@ function executeCreateOrder() {
     result: execute({
       domain: "commerce",
       operation: "createOrder",
+      idempotencyKey: "idemp-authorizationContext.immutability.test-25",
       identityProof: "proof-imm",
       membershipId: membership.membershipId,
       payload: { id: "so-imm" },
