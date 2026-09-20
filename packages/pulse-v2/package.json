@@ -1,0 +1,12 @@
+{
+  "name": "@pulse/v2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pulse V2 first slice — in-process Gateway boundary, domain isolation, env denylist. Not production.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "jest --config ../../jest.config.js --selectProjects pulse-v2 --no-coverage",
+    "check:boundaries": "jest --config ../../jest.config.js --selectProjects pulse-v2 --testPathPattern=domain-table-guard --no-coverage"
+  }
+}

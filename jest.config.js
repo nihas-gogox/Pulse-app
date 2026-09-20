@@ -13,6 +13,14 @@ module.exports = {
       },
     },
     {
+      displayName: 'pulse-v2',
+      testMatch: ['<rootDir>/packages/pulse-v2/**/*.test.ts'],
+      testEnvironment: 'node',
+      transform: {
+        '^.+\\.tsx?$': ['ts-jest/legacy', { isolatedModules: true }],
+      },
+    },
+    {
       displayName: 'oms',
       testMatch: ['<rootDir>/oms/src/**/__tests__/**/*.test.ts'],
       testEnvironment: 'node',
