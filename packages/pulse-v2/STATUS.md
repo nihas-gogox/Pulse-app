@@ -4,9 +4,9 @@
 |-------|--------|
 | 1 — Isolation / in-process Gateway / table guards | **ACCEPTED / CLOSED** (`1ded2a6f`, `2ef606d2`) |
 | 2 — Persistence isolation | **ACCEPTED / CLOSED** (`acc789fc`) |
-| 3 — Identity / Authorization + dedicated V2 infrastructure | **BLOCKED** |
+| 3 — Identity / Authorization + dedicated V2 infrastructure | **DESIGN RECORDED / IMPLEMENTATION BLOCKED** (`IDENTITY_AUTHORIZATION_DESIGN.md`) |
 
-Do not start Slice 3, customer-proof workflow, hosted provisioning, or Hono Identity wiring until explicitly approved.
+Do not start Identity **implementation**, customer-proof workflow, hosted provisioning, or Hono Identity wiring until the Slice 3 design is approved. Design text: `IDENTITY_AUTHORIZATION_DESIGN.md`.
 
 ## Slice 2 caveat (do not misread)
 
