@@ -86,10 +86,20 @@ function decodePlaceCode(raw: string | null | undefined): StopProofPlaceCode | n
   return null;
 }
 
+/** The driver's custom note for an 'other' place code, or null if there isn't one. */
+function decodePlaceNote(raw: string | null | undefined): string | null {
+  const value = (raw ?? '').trim();
+  if (!value.startsWith('other:')) return null;
+  const note = value.slice('other:'.length).trim();
+  return note ? note : null;
+}
+
 export type StopProofDocumentSummary = {
   kind: StopProofKind;
   code: StopProofPlaceCode;
   label: string;
+  /** Driver's typed detail for an 'other' place code (e.g. "left with the security desk"); null otherwise. */
+  note: string | null;
 };
 
 /**
@@ -127,6 +137,7 @@ export function describeStopProofDocument(input: {
         : kind === 'pickup'
           ? 'Pickup place recorded'
           : 'Delivery place recorded',
+      note: codeFromNumber === 'other' ? decodePlaceNote(input.documentNumber) : null,
     };
   }
 

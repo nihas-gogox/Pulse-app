@@ -445,9 +445,10 @@ export function ComplianceDocumentReviewSheet({
                   <View style={styles.placeProofBox}>
                     <Text style={styles.placeProofLabel}>{selectedStopProof.label}</Text>
                     <Text style={styles.placeProofHint}>
-                      {selectedStopProof.kind === "pickup"
-                        ? "Pickup place was recorded without a photo."
-                        : "Delivery place was recorded without a photo."}
+                      {selectedStopProof.note ??
+                        (selectedStopProof.kind === "pickup"
+                          ? "Pickup place was recorded without a photo."
+                          : "Delivery place was recorded without a photo.")}
                     </Text>
                   </View>
                 ) : (

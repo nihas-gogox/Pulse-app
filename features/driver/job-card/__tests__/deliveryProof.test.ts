@@ -39,6 +39,7 @@ describe('deliveryProof', () => {
       kind: 'delivery',
       code: 'left_with_security',
       label: 'Left with security',
+      note: null,
     });
     expect(
       describeStopProofDocument({
@@ -62,5 +63,52 @@ describe('deliveryProof', () => {
         storagePath: 'trip-1/lr/abc.pdf',
       }),
     ).toBeNull();
+  });
+
+  it('preserves the driver-typed note for an "other" place code', () => {
+    const encoded = encodeDeliveryPlace('other', '  lobby desk, ask for Ramesh  ');
+    expect(encoded).toBe('other:lobby desk, ask for Ramesh');
+
+    const summary = describeStopProofDocument({
+      fileName: 'delivery-place.txt',
+      mimeType: 'text/plain',
+      documentNumber: encoded,
+      storagePath: 'trip-1/pod/delivery-place.txt',
+    });
+
+    expect(summary).toEqual({
+      kind: 'delivery',
+      code: 'other',
+      label: 'Other',
+      note: 'lobby desk, ask for Ramesh',
+    });
+  });
+
+  it('falls back to no note when "other" was recorded with no custom text', () => {
+    const encoded = encodeDeliveryPlace('other', '   ');
+    expect(encoded).toBe('other');
+
+    const summary = describeStopProofDocument({
+      fileName: 'pickup-place.txt',
+      documentNumber: encoded,
+      storagePath: 'trip-1/pod/pickup-place.txt',
+    });
+
+    expect(summary).toEqual({
+      kind: 'pickup',
+      code: 'other',
+      label: 'Other',
+      note: null,
+    });
+  });
+
+  it('does not attach a note to a known (non-"other") place code', () => {
+    const summary = describeStopProofDocument({
+      fileName: 'delivery-place.txt',
+      documentNumber: 'left_at_door',
+      storagePath: 'trip-1/pod/delivery-place.txt',
+    });
+
+    expect(summary?.note).toBeNull();
   });
 });

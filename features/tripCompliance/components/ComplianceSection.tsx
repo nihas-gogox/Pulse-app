@@ -208,9 +208,10 @@ export function ComplianceSection({
     if (stopProof) {
       alertMessage(
         stopProof.label,
-        stopProof.kind === "pickup"
-          ? "Pickup place was recorded without a photo."
-          : "Delivery place was recorded without a photo.",
+        stopProof.note ??
+          (stopProof.kind === "pickup"
+            ? "Pickup place was recorded without a photo."
+            : "Delivery place was recorded without a photo."),
       );
       return;
     }

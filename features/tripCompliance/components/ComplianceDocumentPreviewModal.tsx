@@ -60,9 +60,10 @@ export function ComplianceDocumentPreviewModal({
             <View style={styles.placeBox}>
               <Text style={styles.placeLabel}>{placeProof.label}</Text>
               <Text style={styles.placeHint}>
-                {placeProof.kind === "pickup"
-                  ? "Pickup place was recorded without a photo."
-                  : "Delivery place was recorded without a photo."}
+                {placeProof.note ??
+                  (placeProof.kind === "pickup"
+                    ? "Pickup place was recorded without a photo."
+                    : "Delivery place was recorded without a photo.")}
               </Text>
             </View>
           ) : loading ? (
