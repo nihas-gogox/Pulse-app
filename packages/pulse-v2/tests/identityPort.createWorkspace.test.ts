@@ -20,15 +20,15 @@ describe("IdentityPort createWorkspace façade", () => {
     expect(keys).toEqual(["actorId", "correlationId", "idempotencyKey"]);
   });
 
-  it("memory port satisfies IdentityPort and does not create a Workspace", () => {
+  it("memory port satisfies IdentityPort createWorkspace input shape", () => {
     const port: IdentityPort = createMemoryIdentityPort({
       actorProofs: [{ proof: "proof-a", actorId: "actor-a" }],
       memberships: [],
     });
     const result: CreateWorkspaceResult = port.createWorkspace(requiredInput);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe("not_implemented");
-    }
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.actorId).toBe("actor-a");
+    expect(result.membershipStatus).toBe("active");
   });
 });

@@ -13,20 +13,57 @@ export type MemoryActorBinding = {
   actorId: string;
 };
 
+type MemoryWorkspace = {
+  workspaceId: string;
+};
+
+type CreateWorkspaceSlot = {
+  workspaceId: string;
+  membershipId: string;
+  actorId: string;
+};
+
+function idempotencySlotKey(actorId: string, idempotencyKey: string): string {
+  return `${actorId}\u0000Identity.createWorkspace\u0000${idempotencyKey}`;
+}
+
 /**
  * Deterministic in-memory IdentityPort for tests. Not Auth. Not persistence.
  * Maps opaque proof strings to Actor ids; does not treat proof as actorId.
+ * createWorkspace commits Workspace + first Membership together; idempotent per Actor+key.
  */
 export function createMemoryIdentityPort(input: {
   actorProofs: MemoryActorBinding[];
   memberships: MembershipRecord[];
 }): IdentityPort & {
   lookupCount: number;
+  workspaceCount: number;
+  membershipsForWorkspace: (workspaceId: string) => MembershipRecord[];
 } {
   let lookupCount = 0;
-  const port: IdentityPort & { lookupCount: number } = {
+  let nextId = 0;
+  const memberships = [...input.memberships];
+  const workspaces: MemoryWorkspace[] = [];
+  const createSlots = new Map<string, CreateWorkspaceSlot>();
+
+  const allocateId = (prefix: string): string => {
+    nextId += 1;
+    return `${prefix}-${nextId}`;
+  };
+
+  const port: IdentityPort & {
+    lookupCount: number;
+    workspaceCount: number;
+    membershipsForWorkspace: (workspaceId: string) => MembershipRecord[];
+  } = {
     get lookupCount() {
       return lookupCount;
+    },
+    get workspaceCount() {
+      return workspaces.length;
+    },
+    membershipsForWorkspace(workspaceId: string) {
+      return memberships.filter((row) => row.workspaceId === workspaceId);
     },
     resolveActor(proof: IdentityProof) {
       const value = proof.value.trim();
@@ -39,7 +76,7 @@ export function createMemoryIdentityPort(input: {
       lookupCount += 1;
       const actorId = membershipInput.actorId.trim();
       const selector = membershipInput.membershipId?.trim();
-      const forActor = input.memberships.filter((m) => m.actorId === actorId);
+      const forActor = memberships.filter((m) => m.actorId === actorId);
 
       if (selector) {
         const row = forActor.find((m) => m.membershipId === selector);
@@ -56,8 +93,49 @@ export function createMemoryIdentityPort(input: {
       if (active.length > 1) return { ok: false, reason: "ambiguous" };
       return { ok: true, membership: active[0] };
     },
-    createWorkspace(_input: CreateWorkspaceInput): CreateWorkspaceResult {
-      return { ok: false, reason: "not_implemented" };
+    createWorkspace(createInput: CreateWorkspaceInput): CreateWorkspaceResult {
+      const actorId = createInput.actorId.trim();
+      const correlationId = createInput.correlationId.trim();
+      const idempotencyKey = createInput.idempotencyKey.trim();
+      if (!actorId || !idempotencyKey) {
+        return { ok: false, reason: "failed" };
+      }
+
+      const slotId = idempotencySlotKey(actorId, idempotencyKey);
+      const existing = createSlots.get(slotId);
+      if (existing) {
+        return {
+          ok: true,
+          workspaceId: existing.workspaceId,
+          membershipId: existing.membershipId,
+          actorId: existing.actorId,
+          membershipStatus: "active",
+          correlationId,
+        };
+      }
+
+      const workspaceId = allocateId("ws");
+      const membershipId = allocateId("mem");
+      const workspace: MemoryWorkspace = { workspaceId };
+      const membership: MembershipRecord = {
+        membershipId,
+        actorId,
+        workspaceId,
+        status: "active",
+      };
+
+      workspaces.push(workspace);
+      memberships.push(membership);
+      createSlots.set(slotId, { workspaceId, membershipId, actorId });
+
+      return {
+        ok: true,
+        workspaceId,
+        membershipId,
+        actorId,
+        membershipStatus: "active",
+        correlationId,
+      };
     },
   };
   return port;

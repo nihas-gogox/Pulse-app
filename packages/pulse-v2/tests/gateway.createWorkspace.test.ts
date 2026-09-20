@@ -154,7 +154,7 @@ describe("Gateway createWorkspace wiring", () => {
     }
   });
 
-  it("MemoryIdentityPort path remains not_implemented", () => {
+  it("Gateway plus MemoryIdentityPort returns ok for a valid first create", () => {
     const identityPort = createMemoryIdentityPort({
       actorProofs: [{ proof: "opaque-proof-A", actorId: "actor-A" }],
       memberships: [],
@@ -166,14 +166,32 @@ describe("Gateway createWorkspace wiring", () => {
 
     const result = createWorkspace(request);
 
-    expect(identityPort.createWorkspace({
-      actorId: "actor-A",
-      correlationId: "c",
-      idempotencyKey: "k",
-    })).toEqual({ ok: false, reason: "not_implemented" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.actorId).toBe("actor-A");
+    expect(result.membershipStatus).toBe("active");
+    expect(result.correlationId).toBe("corr-bootstrap");
+    expect(identityPort.workspaceCount).toBe(1);
+    expect(identityPort.membershipsForWorkspace(result.workspaceId)).toHaveLength(1);
+  });
+
+  it("does not create a Workspace when resolveActor fails", () => {
+    const identityPort = createMemoryIdentityPort({
+      actorProofs: [{ proof: "opaque-proof-A", actorId: "actor-A" }],
+      memberships: [],
+    });
+    const { createWorkspace } = createPulseV2Gateway(
+      { PULSE_V2_SUPABASE_URL: "" },
+      { identityPort },
+    );
+
+    const result = createWorkspace({
+      ...request,
+      identityProof: "unknown-proof",
+    });
+
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe("V2_WORKSPACE_CREATE_FAILED");
-    }
+    if (!result.ok) expect(result.code).toBe("V2_UNAUTHENTICATED");
+    expect(identityPort.workspaceCount).toBe(0);
   });
 });
