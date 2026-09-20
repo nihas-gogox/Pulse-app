@@ -23,6 +23,9 @@ type CreateWorkspaceSlot = {
   actorId: string;
 };
 
+/** Identity-assigned first Membership Role. Not a frozen catalog name. */
+const FIRST_MEMBERSHIP_ROLE: string = "unspecified";
+
 function idempotencySlotKey(actorId: string, idempotencyKey: string): string {
   return `${actorId}\u0000Identity.createWorkspace\u0000${idempotencyKey}`;
 }
@@ -122,6 +125,7 @@ export function createMemoryIdentityPort(input: {
         actorId,
         workspaceId,
         status: "active",
+        role: FIRST_MEMBERSHIP_ROLE,
       };
 
       workspaces.push(workspace);

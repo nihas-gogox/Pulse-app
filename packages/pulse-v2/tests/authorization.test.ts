@@ -9,6 +9,7 @@ const activeW1: MembershipRecord = {
   actorId: "actor-a",
   workspaceId: "ws-1",
   status: "active",
+  role: "unspecified",
 };
 
 const actorB: MembershipRecord = {
@@ -16,6 +17,7 @@ const actorB: MembershipRecord = {
   actorId: "actor-b",
   workspaceId: "ws-2",
   status: "active",
+  role: "unspecified",
 };
 
 const proofA = "proof-a";
@@ -144,7 +146,7 @@ describe("Slice 4 trusted authorization context", () => {
   it("fails closed when multiple active memberships have no selector", () => {
     const { execute } = gateway([
       activeW1,
-      { membershipId: "mem-a-w2", actorId: "actor-a", workspaceId: "ws-2", status: "active" },
+      { membershipId: "mem-a-w2", actorId: "actor-a", workspaceId: "ws-2", status: "active", role: "unspecified" },
     ]);
     const result = execute({
       domain: "commerce",

@@ -1,10 +1,17 @@
 export type MembershipStatus = "active" | "suspended" | "revoked";
 
+/**
+ * Membership-scoped Role. Names remain OWNER-DEFINED / OPEN — not a catalog.
+ * Not PlatformPermission, Capability, or caller input.
+ */
+export type MembershipRole = string;
+
 export type MembershipRecord = {
   membershipId: string;
   actorId: string;
   workspaceId: string;
   status: MembershipStatus;
+  role: MembershipRole;
 };
 
 /**

@@ -10,6 +10,7 @@ const membershipWs9 = {
   actorId: "actor-9",
   workspaceId: "ws-9",
   status: "active" as const,
+  role: "unspecified",
 };
 
 describe("Pulse V2 in-process Gateway", () => {

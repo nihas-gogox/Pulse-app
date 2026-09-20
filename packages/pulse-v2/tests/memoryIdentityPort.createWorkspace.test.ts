@@ -50,7 +50,9 @@ describe("MemoryIdentityPort createWorkspace", () => {
       actorId: actorA,
       workspaceId: result.workspaceId,
       status: "active",
+      role: expect.any(String),
     });
+    expect(rows[0]?.role.length).toBeGreaterThan(0);
   });
 
   it("replays the same Workspace and Membership for the same Actor and key", () => {
@@ -109,5 +111,53 @@ describe("MemoryIdentityPort createWorkspace", () => {
     const rows = identity.membershipsForWorkspace(result.workspaceId);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.status).toBe("active");
+  });
+
+  it("assigns Role on Membership, not Actor, and caller input cannot include role", () => {
+    const identity = port();
+    const input: CreateWorkspaceInput = {
+      actorId: actorA,
+      correlationId: "C1",
+      idempotencyKey: "key-X",
+    };
+    expect(Object.keys(input).sort()).toEqual(["actorId", "correlationId", "idempotencyKey"]);
+
+    const result = identity.createWorkspace(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect("role" in result).toBe(false);
+
+    const membership = identity.membershipsForWorkspace(result.workspaceId)[0];
+    expect(membership?.role).toEqual(expect.any(String));
+    expect(membership?.role.length).toBeGreaterThan(0);
+    expect(membership).not.toHaveProperty("actorRole");
+  });
+
+  it("preserves the same Membership Role on idempotent replay", () => {
+    const identity = port();
+    const first = create(identity, actorA, "key-X", "C1");
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const role1 = identity.membershipsForWorkspace(first.workspaceId)[0]?.role;
+    const second = create(identity, actorA, "key-X", "C2");
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    const role2 = identity.membershipsForWorkspace(second.workspaceId)[0]?.role;
+    expect(second.membershipId).toBe(first.membershipId);
+    expect(role2).toBe(role1);
+  });
+
+  it("keeps independent Role fields on separate Memberships", () => {
+    const identity = port();
+    const first = create(identity, actorA, "key-X", "C1");
+    const second = create(identity, actorA, "key-Y", "C2");
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    const memA = identity.membershipsForWorkspace(first.workspaceId)[0];
+    const memB = identity.membershipsForWorkspace(second.workspaceId)[0];
+    expect(memA?.membershipId).not.toBe(memB?.membershipId);
+    expect(memA).toHaveProperty("role");
+    expect(memB).toHaveProperty("role");
+    expect(Object.is(memA, memB)).toBe(false);
   });
 });

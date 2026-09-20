@@ -28,6 +28,7 @@ export type {
   IdentityProof,
   MembershipRecord,
   MembershipResolveResult,
+  MembershipRole,
   MembershipStatus,
 } from "./identity/identityPort";
 export { createMemoryIdentityPort } from "./identity/memoryIdentityPort";
