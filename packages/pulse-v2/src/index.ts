@@ -12,4 +12,4 @@ export type {
   V2GatewayResponse,
 } from "./gateway/types";
 export { assertV2DomainTables, scanV2DomainTables, scanV2SourceText } from "./architecture/domainTableGuard";
-export { assertV2ForbiddenImports } from "./architecture/v2ImportGuard";
+export { assertV2ForbiddenImports, scanV2ForbiddenImports, scanV2ImportSource } from "./architecture/v2ImportGuard";

@@ -2,15 +2,20 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 const FORBIDDEN_IMPORTS: Array<{ pattern: RegExp; label: string }> = [
-  { pattern: /^\s*(import|export)\s+.*from\s+['"]@\/features\//, label: "@/features (production Pulse)" },
-  { pattern: /^\s*(import|export)\s+.*from\s+['"]@\/app\//, label: "@/app (production Pulse)" },
-  { pattern: /^\s*(import|export)\s+.*from\s+['"]@\/lib\/supabase['"]/, label: "@/lib/supabase (production client)" },
-  { pattern: /^\s*(import|export)\s+.*from\s+['"]@pulse\/platform-identity['"]/, label: "@pulse/platform-identity" },
-  {
-    pattern: /^\s*(import|export)\s+.*from\s+['"][^'"]*packages\/platform\/identity/,
-    label: "packages/platform/identity",
-  },
-  { pattern: /^\s*require\(\s*['"]@pulse\/platform-identity['"]/, label: "@pulse/platform-identity require" },
+  { pattern: /from\s+['"]@\/features\//, label: "@/features (production Pulse)" },
+  { pattern: /from\s+['"]@\/app\//, label: "@/app (production Pulse)" },
+  { pattern: /from\s+['"]@\/lib\/supabase/, label: "@/lib/supabase (production client)" },
+  { pattern: /from\s+['"]@pulse\/platform-identity['"]/, label: "@pulse/platform-identity" },
+  { pattern: /from\s+['"]@supabase\/supabase-js['"]/, label: "@supabase/supabase-js" },
+  { pattern: /from\s+['"]pg['"]/, label: "pg" },
+  { pattern: /from\s+['"]postgres['"]/, label: "postgres" },
+  { pattern: /from\s+['"][^'"]*\/lib\/supabase/, label: "relative lib/supabase" },
+  { pattern: /from\s+['"][^'"]*\/features\//, label: "relative features/" },
+  { pattern: /from\s+['"][^'"]*platform\/identity/, label: "packages/platform/identity" },
+  { pattern: /(?:require|import)\(\s*['"]@\/lib\/supabase/, label: "dynamic/require @/lib/supabase" },
+  { pattern: /(?:require|import)\(\s*['"]@supabase\/supabase-js/, label: "dynamic/require @supabase/supabase-js" },
+  { pattern: /(?:require|import)\(\s*['"]pg['"]/, label: "dynamic/require pg" },
+  { pattern: /(?:require|import)\(\s*['"]@pulse\/platform-identity/, label: "dynamic/require platform-identity" },
 ];
 
 export type V2ImportViolation = {
@@ -33,23 +38,31 @@ function walkTsFiles(dir: string, onFile: (absPath: string) => void): void {
   }
 }
 
+export function scanV2ImportSource(file: string, source: string): V2ImportViolation[] {
+  const violations: V2ImportViolation[] = [];
+  const lines = source.split("\n");
+  lines.forEach((line, index) => {
+    for (const { pattern, label } of FORBIDDEN_IMPORTS) {
+      pattern.lastIndex = 0;
+      if (pattern.test(line)) {
+        violations.push({
+          file,
+          line: index + 1,
+          label,
+          snippet: line.trim(),
+        });
+      }
+    }
+  });
+  return violations;
+}
+
 export function scanV2ForbiddenImports(srcRoot: string): V2ImportViolation[] {
   const violations: V2ImportViolation[] = [];
   walkTsFiles(srcRoot, (abs) => {
     const rel = path.relative(srcRoot, abs);
-    const lines = readFileSync(abs, "utf8").split("\n");
-    lines.forEach((line, index) => {
-      for (const { pattern, label } of FORBIDDEN_IMPORTS) {
-        if (pattern.test(line)) {
-          violations.push({
-            file: rel,
-            line: index + 1,
-            label,
-            snippet: line.trim(),
-          });
-        }
-      }
-    });
+    if (rel.replace(/\\/g, "/").startsWith("architecture/")) return;
+    violations.push(...scanV2ImportSource(rel, readFileSync(abs, "utf8")));
   });
   return violations;
 }
