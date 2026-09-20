@@ -79,13 +79,13 @@ function resolveAuthorizationContext(
     );
   }
 
-  return {
+  return Object.freeze({
     actorId: resolved.membership.actorId,
     membershipId: resolved.membership.membershipId,
     workspaceId: trustedWorkspaceId,
     role: resolved.membership.role,
     correlationId,
-  };
+  });
 }
 
 /**
