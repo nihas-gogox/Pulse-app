@@ -6,7 +6,7 @@ Isolated from production Pulse (Expo app, `features/`, `lib/supabase`, shared ho
 
 **Workspace tenancy** is copied from sealed Gateway `AuthorizationContext.workspaceId`. Caller `workspaceId` is not authority.
 
-**Not authorized:** Timeline runtime, Observatory, Event publishing, RLS, hosted V2, production Auth, Kafka, Redis, Kubernetes, service mesh, HTTP Gateway, Hono extract, production migrations, domain extraction.
+**Not authorized:** Event Timeline, Observatory, Event publishing, RLS, hosted V2, production Auth, Kafka, Redis, Kubernetes, service mesh, HTTP Gateway, Hono extract, production migrations, domain extraction.
 
 ## Persistence modes
 
@@ -20,6 +20,7 @@ absolute PULSE_V2_DATA_DIR + no URL
       v2_execution.trips.json
       v2_identity.json (auth_subjects, actors, workspaces, memberships)
       v2_platform.command_store.json
+      v2_platform.timeline.json
       not local Postgres
 
 local PULSE_V2_SUPABASE_URL + anon key
@@ -42,7 +43,7 @@ Domain handlers
   → persistence adapter (memory | local-durable JSON | dormant local-supabase)
 ```
 
-Gateway routes `execute()` only. It does not query tables or files. Mutating public operations (`createOrder`, `createTripFromOrder`) go through Command Store; queries do not. See `COMMAND_STORE_INTEGRATION.md`.
+Gateway routes `execute()` only. It does not query tables or files. Mutating public operations (`createOrder`, `createTripFromOrder`) go through Command Store; first COMPLETED appends one command Timeline entry. Queries do not. See `COMMAND_STORE_INTEGRATION.md` and `TIMELINE_RUNTIME.md`.
 
 Hosted V2 is unauthorized. Production remains frozen.
 

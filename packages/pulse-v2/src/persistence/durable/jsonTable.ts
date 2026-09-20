@@ -32,6 +32,11 @@ export function commandStoreTablePath(dataDir: string): string {
   return path.join(dataDir, "v2_platform.command_store.json");
 }
 
+/** Platform Timeline table. Append-only provenance. Not Command Store. */
+export function timelineTablePath(dataDir: string): string {
+  return path.join(dataDir, "v2_platform.timeline.json");
+}
+
 function writeAtomicPayload(filePath: string, payload: string): void {
   const dir = path.dirname(filePath);
   const tmp = path.join(

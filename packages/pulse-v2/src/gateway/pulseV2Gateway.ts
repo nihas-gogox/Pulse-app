@@ -17,6 +17,7 @@ import type { CommandStoreRepository } from "../persistence/commandStore/command
 import { isV2PersistenceError } from "../persistence/v2PersistenceError";
 import { CommandStoreError } from "../persistence/commandStore/commandStoreError";
 import { isV2CommandOperation } from "../runtime/v2CommandOperations";
+import type { TimelineRepository } from "../runtime/timelinePort";
 import { createV2PlatformRuntime } from "../runtime/v2PlatformRuntime";
 import type {
   V2CreateWorkspaceRequest,
@@ -31,6 +32,7 @@ export type PulseV2GatewayOptions = {
   identityPort: IdentityPort;
   /** Test/injection only. Default: memory or local-durable from env config. */
   commandStore?: CommandStoreRepository;
+  timeline?: TimelineRepository;
   createCommandId?: () => string;
 };
 
@@ -158,6 +160,11 @@ export function createPulseV2Gateway(
     );
   const runtime = createV2PlatformRuntime({
     commandStore,
+    timeline: options.timeline,
+    timelinePersistence:
+      config.mode === "local-durable"
+        ? { mode: "local-durable", dataDir: config.dataDir }
+        : { mode: "memory" },
     createCommandId: options.createCommandId,
   });
 
@@ -295,6 +302,7 @@ export function createPulseV2Gateway(
     execute,
     createWorkspace,
     commandStore,
+    timeline: runtime.timeline,
     dataPlane: {
       mode: config.mode,
       supabaseUrl: config.supabaseUrl,

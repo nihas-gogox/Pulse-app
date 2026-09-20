@@ -25,8 +25,9 @@
 | RLS / hosted V2 / Slice 5 | **NOT AUTHORIZED** |
 | Command Store persistence (local adapter) | **COMPLETE** — memory + local-durable JSON |
 | Command Store Gateway/Runtime integration | **COMPLETE** — mutating public execute() only; nested Execution is one command |
-| TimelineEntry contract v1 | **FROZEN** — types/docs only; no Timeline runtime or persistence |
-| Timeline implementation / Observatory / Event publishing | **NOT AUTHORIZED** |
+| TimelineEntry contract v1 | **FROZEN** |
+| Command Timeline runtime | **COMPLETE** — append after first COMPLETED; events/Observatory not wired |
+| Event Timeline / Observatory / Event publishing | **NOT AUTHORIZED** |
 | Customer / product workflow | **BLOCKED** |
 | OPEN B runtime / RBAC | **NOT AUTHORIZED** |
 
@@ -40,14 +41,15 @@ Persistence Hardening: COMPLETE
 Identity/Auth: COMPLETE
 Membership/Workspace persistence: COMPLETE (V2 Identity-owned, local only)
 Command Store persistence: COMPLETE
-Command Store Gateway/Runtime: COMPLETE (Timeline not wired)
-TimelineEntry contract: FROZEN (no runtime)
+Command Store Gateway/Runtime: COMPLETE
+Command Timeline runtime: COMPLETE (events/Observatory not wired)
+TimelineEntry contract: FROZEN
 RLS: NOT AUTHORIZED
 Hosted V2: NOT AUTHORIZED
 Production: FROZEN
 ```
 
-Slice 5 remains unauthorized. OPEN B remains unresolved. SEC-007 remains deferred. RLS, hosted V2, Timeline **implementation**, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved.
+Slice 5 remains unauthorized. OPEN B remains unresolved. SEC-007 remains deferred. RLS, hosted V2, Event Timeline, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved.
 
 Current runtime (local V2 Identity/Auth + durable Commerce/Execution + Command Store on mutating public execute(), production untouched):
 
@@ -55,7 +57,8 @@ Current runtime (local V2 Identity/Auth + durable Commerce/Execution + Command S
 Gateway execute()
   → trusted AuthorizationContext
   → Command Store (commands only) → domain handlers → workspace-scoped persistence
-Queries skip Command Store. createWorkspace is Identity bootstrap, not Command Envelope v1.
+  → first COMPLETED → command Timeline append (provenance; failure is a gap)
+Queries skip Command Store and Timeline. createWorkspace is Identity bootstrap, not Command Envelope v1.
 ```
 
 Trusted path: **validated Auth Subject → Pulse Actor (bind) → verified Membership → Workspace → AuthorizationContext**. Caller `actorId` / `workspaceId` are never authority. `membershipId` is a **selector**.

@@ -1,6 +1,6 @@
 # Command Store ↔ Gateway / Runtime (V2)
 
-**Status:** Gateway integration COMPLETE. Timeline **not wired**. Event publishing **not implemented**.
+**Status:** Gateway integration COMPLETE. Command Timeline is wired after `COMPLETED` (see `TIMELINE_RUNTIME.md`). Event publishing **not implemented**.
 
 ## Commands vs queries
 
@@ -31,7 +31,7 @@ Public `createTripFromOrder` (client `execute()`) is its own single command.
 
 `(tenantId, idempotencyKey)` — tenantId is trusted workspace id.
 
-COMPLETED → return stored `CommandResult.data` (the V2 Gateway success response). Domain is not executed again.
+COMPLETED → return stored `CommandResult.data` (the V2 Gateway success response). Domain is not executed again. Timeline is not appended again.
 
 FAILED → `V2_COMMAND_FAILED`; no domain retry.
 
@@ -45,6 +45,8 @@ New command: RECEIVED → PROCESSING → COMPLETED | FAILED.
 
 RECEIVED persist failure: no domain. `markCompleted` failure: do not return `ok: true`.
 
+After first `COMPLETED`, PlatformRuntime appends one command Timeline entry. Timeline failure does not un-complete the command.
+
 ## Not in this slice
 
-Timeline append, Timeline persistence, Observatory, Event Envelope publishing, RLS, Postgres, hosted V2.
+Event Timeline, Observatory, Event Envelope publishing, RLS, Postgres, hosted V2.
