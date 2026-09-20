@@ -9,7 +9,7 @@ function tenantFromPayload(payload: Record<string, unknown>, correlationId: stri
       response: {
         ok: false as const,
         code: "COMMERCE_INVALID",
-        message: "workspaceId is required (tenant isolation)",
+        message: "workspaceId is required (workspace scoping)",
         correlationId,
       },
     };

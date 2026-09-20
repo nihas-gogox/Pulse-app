@@ -17,12 +17,14 @@ Reserved names (not created): Commerce `commerce_products`, `commerce_inventory`
 
 Open (no schema here): Driver/Workforce, Documents/POD, Compliance, Communications.
 
-## Tenant / RLS prerequisites (not implemented as identity)
+## Workspace scope vs tenant authorization
 
-- Every row has `workspace_id` supplied by the caller.
-- RLS enabled, **no policies** → deny for anon/authenticated.
+**Workspace-scoped persistence implemented; trusted tenant authorization pending Identity/Authorization decision.**
+
+- Every row has `workspace_id` supplied by the **caller**. That is scoping, not verified membership.
+- RLS enabled, **no policies** → deny for anon/authenticated. Do not add permissive policies to “make hosted work”.
 - Domain adapters never receive `PULSE_V2_SUPABASE_SERVICE_ROLE_KEY`.
-- JWT/membership/RLS using identity claims wait on the identity decision. `packages/platform/identity` stays dormant.
+- Do not invent a temporary JWT/membership implementation. `packages/platform/identity` stays dormant.
 
 ## Apply (local only, never hosted, never production)
 

@@ -2,6 +2,10 @@
 
 Isolated from production Pulse (Expo app, `features/`, `lib/supabase`, shared hosted Supabase).
 
+**Slices 1–2 accepted.** Slice 3 (Identity/Authorization + hosted V2) is **blocked**. See `STATUS.md`.
+
+**Workspace-scoped persistence implemented; trusted tenant authorization pending Identity/Authorization decision.** Caller `workspaceId` is not tenant security.
+
 **Not in this slice:** Kafka, Redis, Kubernetes, service mesh, HTTP Gateway, Hono Identity, production migrations, domain extraction, hosted V2 provisioning.
 
 ## Persistence flow
