@@ -42,6 +42,6 @@ Whether customers ultimately have one login across production and V2 is **not de
 
 **Record:** `docs/ADR-014-one-identity-workspace-rbac.md`.
 
-Pulse requires **one customer identity/account** across the Pulse platform and services, including Pulse V2. Workspace-scoped RBAC applies; one identity does **not** mean one global authorization context.
+Pulse requires **one customer identity/account** across the Pulse platform and services, including Pulse V2. After login, **one authorized Workspace** is the session operating context (ADR-014 revision). One identity does **not** mean one global authorization context or a V2 Workspace switcher.
 
 This does **not** prescribe shared `auth.users`, federation, or V2 Auth implementation. Production Auth and isolated V2 Auth remain ADR-013 concerns.

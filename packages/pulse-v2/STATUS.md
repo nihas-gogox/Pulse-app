@@ -7,7 +7,7 @@
 | Slice 3 — Identity & Authorization **design** | **DESIGN ACCEPTED** (`b9743770`, `IDENTITY_AUTHORIZATION_DESIGN.md`) |
 | Identity Gate — formal decision record | **PARTIAL** — Architecture invariants frozen in `IDENTITY_GATE_DECISIONS.md`; owner-required items remain open |
 | Gate A — Architecture conflicts (Auth plane + ADR-001 vs `v2_identity`) | **CLOSED** — ADR-013 (`docs/ADR-013-pulse-v2-identity-plane.md`), C1-B + C2-B |
-| Gate B — Product one identity + Workspace-scoped RBAC | **CLOSED** — ADR-014 (`docs/ADR-014-one-identity-workspace-rbac.md`) |
+| Gate B — Product one identity + one authorized Workspace context | **CLOSED** — ADR-014 (`docs/ADR-014-one-identity-workspace-rbac.md`) |
 | Gate C — Infrastructure | **NOT STARTED** |
 | Slice 4 — Identity implementation / trusted context / RLS | **BLOCKED** |
 | Customer / product workflow | **BLOCKED** |

@@ -31,4 +31,4 @@ Workspace owns business data. Products read and write it through the Workspace, 
 
 **Record:** `docs/ADR-014-one-identity-workspace-rbac.md`.
 
-Workspace remains the operating and data boundary. Product additionally records it as the **membership, authorization, and experience** boundary: a Pulse identity may belong to many Workspaces; each membership has its own RBAC and Product/Experience access; the active Workspace sets authorization context; Workspace A must not leak into Workspace B.
+Workspace remains the operating and data boundary, and the **authorization and experience** boundary after login. Current V2 Product (ADR-014 revision): one authorized Workspace context per session; no V2 Workspace switcher. Production `switchWorkspace()` Current State above is unchanged and is not a V2 Product requirement. Multi-Workspace switching is deferred.

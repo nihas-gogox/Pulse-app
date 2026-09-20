@@ -223,8 +223,8 @@ The root defect is that **`is_org_member()` encodes the wrong security boundary*
 
 **Decision:** C1-B and C2-B. Production keeps one Auth authority and one production Identity store (`public.*`, ADR-001 in force, `platform.*` shadow). An isolated V2 data plane may have separate V2 Auth and schema `v2_identity`. One conceptual Identity model. V2 must not use production Identity as its normal authorization path. This ADR does **not** authorize V2 Auth, membership tables, RLS, federation, or Slice 4. Product identity continuity (one identity, Workspace-scoped RBAC) is **ADR-014**. How that continuity is implemented remains Architecture/Security/Infrastructure under this ADR.
 
-## One Pulse identity with Workspace-scoped RBAC (ADR-014, accepted — 2026-09-20)
+## One Pulse identity + one authorized Workspace context (ADR-014, accepted — 2026-09-20, revised)
 
-**Status:** Accepted (Product). Full text: `docs/ADR-014-one-identity-workspace-rbac.md`.
+**Status:** Accepted (Product); revised same date for current V2 one-Workspace-context. Full text: `docs/ADR-014-one-identity-workspace-rbac.md`.
 
-**GATE B — CLOSED: ONE PULSE IDENTITY WITH WORKSPACE-SCOPED AUTHORIZATION.** One customer identity across Pulse services including V2; Workspace is the operating and authorization boundary; many Workspaces per identity; no global authorization context. Does **not** prescribe Auth architecture. ADR-013 unchanged. **Gate C not started.**
+**GATE B — CLOSED: ONE PULSE IDENTITY + ONE AUTHORIZED WORKSPACE CONTEXT.** One customer identity across Pulse services including V2. After authentication, the verified Workspace is the session operating context. RBAC, Products, views, actions, and data are Workspace-scoped. Current V2 does **not** include multi-Workspace switching (deferred). Does **not** prescribe Auth architecture. ADR-013 unchanged. **Gate C not started.**

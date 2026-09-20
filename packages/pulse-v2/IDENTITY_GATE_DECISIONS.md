@@ -97,7 +97,7 @@ If Product later requires existing GoGoX users to use the same login for V2, tha
 
 ### Product — Gate B (2026-09-20)
 
-**CLOSED:** one Pulse identity across platform and services, including V2, with **Workspace-scoped** authorization (ADR-014). One identity does **not** imply one global role or access to every Workspace.
+**CLOSED (revised):** one Pulse identity across platform and services, including V2; **one authorized Workspace context** per V2 session (ADR-014). No V2 Workspace switcher. One identity does **not** imply global access. Multi-Workspace switching is deferred.
 
 **Still OPEN (not Gate B):** how identity continuity is implemented (federation/broker vs other Architecture/Security designs). Must not be “V2 reads production Auth/DB.”
 
@@ -297,7 +297,7 @@ Provisioning, operational controls, backup/PITR/DR. Dedicated hosted V2 project 
 | Workspace = explicit V2 entity       | Layer 1 operating/data boundary; not Organization; not Tenant | **APPROVED** | Architecture |
 | Organization → Workspace mapping     | Cutover/integration mapping only; keys, UUID vs code, first-customer 1:1, holding-company Tenant | **OPEN — OWNER REQUIRED** | Product/Business + Architecture |
 | V2-owned authentication default      | Isolation-first Auth; production Auth is not a runtime dependency | **APPROVED** | Architecture |
-| Existing-user / one Pulse identity | One identity across services including V2; Workspace-scoped RBAC (ADR-014) | **APPROVED** (Product, Gate B) | Product/Business |
+| Existing-user / one Pulse identity | One identity across services including V2; one authorized Workspace context per V2 session (ADR-014) | **APPROVED** (Product, Gate B) | Product/Business |
 | Membership authority                 | Always Pulse V2 Identity, independent of Auth provider | **APPROVED** | Architecture |
 | Trusted workspace authority          | Verified Actor → Membership → Workspace; caller `workspaceId` never authority | **APPROVED** | Architecture |
 | RLS principle                        | Deny-all until trusted Auth + membership exist; never trust payload/GUC/client role | **APPROVED** | Architecture |
