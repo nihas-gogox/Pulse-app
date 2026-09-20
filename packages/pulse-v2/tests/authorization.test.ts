@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { createPulseV2Gateway } from "../src/gateway/pulseV2Gateway";
 import { createMemoryIdentityPort } from "../src/identity/memoryIdentityPort";
 import type { MembershipRecord } from "../src/identity/identityPort";
@@ -9,8 +11,25 @@ const activeW1: MembershipRecord = {
   status: "active",
 };
 
+const actorB: MembershipRecord = {
+  membershipId: "mem-b-w2",
+  actorId: "actor-b",
+  workspaceId: "ws-2",
+  status: "active",
+};
+
+const proofA = "proof-a";
+const proofB = "proof-b";
+
 function gateway(memberships: MembershipRecord[]) {
-  const identityPort = createMemoryIdentityPort(memberships);
+  const actorIds = [...new Set(memberships.map((m) => m.actorId))];
+  const identityPort = createMemoryIdentityPort({
+    actorProofs: actorIds.map((actorId) => ({
+      proof: actorId === "actor-a" ? proofA : actorId === "actor-b" ? proofB : `proof-${actorId}`,
+      actorId,
+    })),
+    memberships,
+  });
   const { execute } = createPulseV2Gateway({ PULSE_V2_SUPABASE_URL: "" }, { identityPort });
   return { execute, identityPort };
 }
@@ -21,7 +40,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
-      actorId: "actor-a",
+      identityProof: proofA,
       payload: { id: "so-authz", workspaceId: "ws-1" },
       correlationId: "c1",
     });
@@ -39,7 +58,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
-      actorId: "actor-a",
+      identityProof: proofA,
       payload: { id: "so-w2", workspaceId: "ws-2" },
       correlationId: "c-mismatch",
     });
@@ -49,8 +68,8 @@ describe("Slice 4 trusted authorization context", () => {
     expect(identityPort.lookupCount).toBe(1);
   });
 
-  it("fails closed without actorId", () => {
-    const { execute } = gateway([activeW1]);
+  it("fails closed without identity proof", () => {
+    const { execute, identityPort } = gateway([activeW1]);
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
@@ -60,21 +79,23 @@ describe("Slice 4 trusted authorization context", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.code).toBe("V2_UNAUTHENTICATED");
+    expect(identityPort.lookupCount).toBe(0);
   });
 
-  it("fails closed for unknown actor / no membership", () => {
-    const { execute } = gateway([activeW1]);
+  it("fails closed for unknown proof / no actor", () => {
+    const { execute, identityPort } = gateway([activeW1]);
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
-      actorId: "actor-unknown",
+      identityProof: "proof-unknown",
       payload: { id: "so-x" },
       correlationId: "c-none",
     });
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.code).toBe("V2_MEMBERSHIP_DENIED");
+    expect(result.code).toBe("V2_UNAUTHENTICATED");
     expect(result.message).toContain("not_found");
+    expect(identityPort.lookupCount).toBe(0);
   });
 
   it("fails closed for suspended membership", () => {
@@ -82,7 +103,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
-      actorId: "actor-a",
+      identityProof: proofA,
       payload: { id: "so-x" },
       correlationId: "c-sus",
     });
@@ -96,7 +117,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
-      actorId: "actor-a",
+      identityProof: proofA,
       payload: { id: "so-x" },
       correlationId: "c-rev",
     });
@@ -110,7 +131,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
-      actorId: "actor-a",
+      identityProof: proofA,
       membershipId: "mem-other",
       payload: { id: "so-x" },
       correlationId: "c-sel",
@@ -128,7 +149,7 @@ describe("Slice 4 trusted authorization context", () => {
     const result = execute({
       domain: "commerce",
       operation: "createOrder",
-      actorId: "actor-a",
+      identityProof: proofA,
       payload: { id: "so-x" },
       correlationId: "c-amb",
     });
@@ -142,7 +163,7 @@ describe("Slice 4 trusted authorization context", () => {
     execute({
       domain: "commerce",
       operation: "getOrder",
-      actorId: "actor-a",
+      identityProof: proofA,
       payload: { id: "missing" },
       correlationId: "c-lookup",
     });
@@ -154,7 +175,7 @@ describe("Slice 4 trusted authorization context", () => {
     const placed = execute({
       domain: "commerce",
       operation: "createOrder",
-      actorId: "actor-a",
+      identityProof: proofA,
       payload: { id: "so-nested", workspaceId: "ws-2" },
       correlationId: "c-nested",
     });
@@ -166,7 +187,7 @@ describe("Slice 4 trusted authorization context", () => {
     const ok = execute({
       domain: "commerce",
       operation: "createOrder",
-      actorId: "actor-a",
+      identityProof: proofA,
       payload: { id: "so-nested" },
       correlationId: "c-nested-ok",
     });
@@ -182,17 +203,11 @@ describe("Slice 4 trusted authorization context", () => {
   });
 
   it("scoped getOrder cannot read another workspace's order", () => {
-    const actorB: MembershipRecord = {
-      membershipId: "mem-b-w2",
-      actorId: "actor-b",
-      workspaceId: "ws-2",
-      status: "active",
-    };
     const { execute } = gateway([activeW1, actorB]);
     const created = execute({
       domain: "commerce",
       operation: "createOrder",
-      actorId: "actor-a",
+      identityProof: proofA,
       payload: { id: "so-w1-only" },
       correlationId: "c-iso-1",
     });
@@ -201,12 +216,127 @@ describe("Slice 4 trusted authorization context", () => {
     const leaked = execute({
       domain: "commerce",
       operation: "getOrder",
-      actorId: "actor-b",
+      identityProof: proofB,
       payload: { id: "so-w1-only" },
       correlationId: "c-iso-2",
     });
     expect(leaked.ok).toBe(false);
     if (leaked.ok) return;
     expect(leaked.code).toBe("COMMERCE_NOT_FOUND");
+  });
+});
+
+describe("Slice 4 Actor trust boundary (SEC-001)", () => {
+  it("establishes AuthorizationContext from IdentityPort Actor, not caller actorId", () => {
+    const { execute } = gateway([activeW1]);
+    const result = execute({
+      domain: "commerce",
+      operation: "createOrder",
+      identityProof: proofA,
+      payload: { id: "so-trusted-actor" },
+      correlationId: "c-trusted",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data).toEqual(
+      expect.objectContaining({
+        order: expect.objectContaining({ workspaceId: "ws-1", id: "so-trusted-actor" }),
+      }),
+    );
+  });
+
+  it("denies when caller actorId conflicts with trusted Actor", () => {
+    const { execute, identityPort } = gateway([activeW1, actorB]);
+    const result = execute({
+      domain: "commerce",
+      operation: "createOrder",
+      identityProof: proofA,
+      actorId: "actor-b",
+      payload: { id: "so-spoof" },
+      correlationId: "c-spoof-actor",
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe("V2_ACTOR_DENIED");
+    expect(identityPort.lookupCount).toBe(0);
+  });
+
+  it("uses trusted Actor when caller actorId is omitted", () => {
+    const { execute } = gateway([activeW1]);
+    const result = execute({
+      domain: "commerce",
+      operation: "createOrder",
+      identityProof: proofA,
+      payload: { id: "so-omit-actor" },
+      correlationId: "c-omit",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data).toEqual(
+      expect.objectContaining({
+        order: expect.objectContaining({ workspaceId: "ws-1" }),
+      }),
+    );
+  });
+
+  it("verifies membership belonging to the trusted Actor", () => {
+    const { execute } = gateway([activeW1]);
+    const result = execute({
+      domain: "commerce",
+      operation: "createOrder",
+      identityProof: proofA,
+      membershipId: "mem-a-w1",
+      payload: { id: "so-mem-a" },
+      correlationId: "c-mem-ok",
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects another Actor's membership selector", () => {
+    const { execute, identityPort } = gateway([activeW1, actorB]);
+    const result = execute({
+      domain: "commerce",
+      operation: "createOrder",
+      identityProof: proofA,
+      membershipId: "mem-b-w2",
+      payload: { id: "so-mem-b" },
+      correlationId: "c-mem-spoof",
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe("V2_MEMBERSHIP_DENIED");
+    expect(result.message).toContain("invalid_selector");
+    expect(identityPort.lookupCount).toBe(1);
+  });
+
+  it("does not treat matching caller actorId as the source of Actor authority", () => {
+    const { execute } = gateway([activeW1]);
+    const result = execute({
+      domain: "commerce",
+      operation: "createOrder",
+      identityProof: proofA,
+      actorId: "actor-a",
+      payload: { id: "so-matching-claim" },
+      correlationId: "c-match-claim",
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("memory IdentityPort does not encode Auth, JWT, Supabase, or Person semantics", () => {
+    const portSrc = fs.readFileSync(
+      path.join(__dirname, "../src/identity/memoryIdentityPort.ts"),
+      "utf8",
+    );
+    const contractSrc = fs.readFileSync(
+      path.join(__dirname, "../src/identity/identityPort.ts"),
+      "utf8",
+    );
+    const combined = `${portSrc}\n${contractSrc}`;
+    expect(combined).not.toMatch(/jwt/i);
+    expect(combined).not.toMatch(/auth\.users/i);
+    expect(combined).not.toMatch(/supabase/i);
+    expect(combined).not.toMatch(/\bPerson\b/);
+    expect(combined).not.toMatch(/federation/i);
+    expect(combined).toContain("OPEN A");
   });
 });

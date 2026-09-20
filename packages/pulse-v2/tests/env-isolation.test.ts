@@ -57,7 +57,12 @@ describe("V2 Supabase environment isolation", () => {
         {
           PULSE_V2_SUPABASE_URL: `https://${BLOCKED_V2_SUPABASE_PROJECT_REFS[0]}.supabase.co`,
         },
-        { identityPort: { resolveMembership: () => ({ ok: false, reason: "not_found" }) } },
+        {
+          identityPort: {
+            resolveActor: () => ({ ok: false, reason: "not_found" }),
+            resolveMembership: () => ({ ok: false, reason: "not_found" }),
+          },
+        },
       ),
     ).toThrow(V2EnvironmentIsolationError);
   });

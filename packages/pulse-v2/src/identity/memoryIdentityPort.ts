@@ -1,14 +1,24 @@
 import type {
   IdentityPort,
+  IdentityProof,
   MembershipRecord,
   MembershipResolveInput,
   MembershipResolveResult,
 } from "./identityPort";
 
+export type MemoryActorBinding = {
+  proof: string;
+  actorId: string;
+};
+
 /**
  * Deterministic in-memory IdentityPort for tests. Not Auth. Not persistence.
+ * Maps opaque proof strings to Actor ids; does not treat proof as actorId.
  */
-export function createMemoryIdentityPort(memberships: MembershipRecord[]): IdentityPort & {
+export function createMemoryIdentityPort(input: {
+  actorProofs: MemoryActorBinding[];
+  memberships: MembershipRecord[];
+}): IdentityPort & {
   lookupCount: number;
 } {
   let lookupCount = 0;
@@ -16,11 +26,18 @@ export function createMemoryIdentityPort(memberships: MembershipRecord[]): Ident
     get lookupCount() {
       return lookupCount;
     },
-    resolveMembership(input: MembershipResolveInput): MembershipResolveResult {
+    resolveActor(proof: IdentityProof) {
+      const value = proof.value.trim();
+      if (!value) return { ok: false as const, reason: "unauthenticated" as const };
+      const binding = input.actorProofs.find((row) => row.proof === value);
+      if (!binding) return { ok: false as const, reason: "not_found" as const };
+      return { ok: true as const, actorId: binding.actorId };
+    },
+    resolveMembership(membershipInput: MembershipResolveInput): MembershipResolveResult {
       lookupCount += 1;
-      const actorId = input.actorId.trim();
-      const selector = input.membershipId?.trim();
-      const forActor = memberships.filter((m) => m.actorId === actorId);
+      const actorId = membershipInput.actorId.trim();
+      const selector = membershipInput.membershipId?.trim();
+      const forActor = input.memberships.filter((m) => m.actorId === actorId);
 
       if (selector) {
         const row = forActor.find((m) => m.membershipId === selector);

@@ -27,19 +27,41 @@ function resolveAuthorizationContext(
   request: V2GatewayRequest,
   correlationId: string,
 ): V2GatewayResponse | AuthorizationContext {
-  const actorId = request.actorId?.trim() ?? "";
-  if (!actorId) {
-    return deny("V2_UNAUTHENTICATED", "actorId is required", correlationId);
+  const proofValue = request.identityProof?.trim() ?? "";
+  const actorResolved = identityPort.resolveActor({ value: proofValue });
+  if (!actorResolved.ok) {
+    return deny(
+      "V2_UNAUTHENTICATED",
+      `actor resolution failed: ${actorResolved.reason}`,
+      correlationId,
+    );
+  }
+
+  const trustedActorId = actorResolved.actorId;
+  const claimedActorId = request.actorId?.trim() ?? "";
+  if (claimedActorId && claimedActorId !== trustedActorId) {
+    return deny(
+      "V2_ACTOR_DENIED",
+      "caller actorId is not authorization authority",
+      correlationId,
+    );
   }
 
   const resolved = identityPort.resolveMembership({
-    actorId,
+    actorId: trustedActorId,
     membershipId: request.membershipId?.trim() || undefined,
   });
   if (!resolved.ok) {
     return deny(
       "V2_MEMBERSHIP_DENIED",
       `membership resolution failed: ${resolved.reason}`,
+      correlationId,
+    );
+  }
+  if (resolved.membership.actorId !== trustedActorId) {
+    return deny(
+      "V2_MEMBERSHIP_DENIED",
+      "membership is not bound to trusted Actor",
       correlationId,
     );
   }
@@ -64,7 +86,8 @@ function resolveAuthorizationContext(
 
 /**
  * In-process API/Gateway façade. No HTTP. Not a database access layer.
- * One IdentityPort.resolveMembership per public execute(); nested dispatch reuses context.
+ * One resolveActor + one resolveMembership per public execute(); nested dispatch reuses context.
+ * request.actorId is never Actor authority.
  */
 export function createPulseV2Gateway(
   env: NodeJS.Dict<string> = process.env,

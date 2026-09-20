@@ -18,6 +18,7 @@ export type {
 export type { AuthorizationContext } from "./identity/authorizationContext";
 export type {
   IdentityPort,
+  IdentityProof,
   MembershipRecord,
   MembershipResolveResult,
   MembershipStatus,

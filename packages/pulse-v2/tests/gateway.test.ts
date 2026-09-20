@@ -31,7 +31,10 @@ describe("Pulse V2 in-process Gateway", () => {
   });
 
   it("creates an order and a trip only through execute()", () => {
-    const identityPort = createMemoryIdentityPort([membershipWs9]);
+    const identityPort = createMemoryIdentityPort({
+      actorProofs: [{ proof: "proof-9", actorId: "actor-9" }],
+      memberships: [membershipWs9],
+    });
     const { execute, dataPlane } = createPulseV2Gateway(
       { PULSE_V2_SUPABASE_URL: "" },
       { identityPort },
@@ -41,7 +44,7 @@ describe("Pulse V2 in-process Gateway", () => {
     const placed = execute({
       domain: "commerce",
       operation: "createOrder",
-      actorId: "actor-9",
+      identityProof: "proof-9",
       payload: { id: "so-9" },
       correlationId: "corr-9",
     });
@@ -51,7 +54,7 @@ describe("Pulse V2 in-process Gateway", () => {
     const fetched = execute({
       domain: "execution",
       operation: "getTrip",
-      actorId: "actor-9",
+      identityProof: "proof-9",
       payload: { id: "trip-so-9" },
       correlationId: "corr-9b",
     });

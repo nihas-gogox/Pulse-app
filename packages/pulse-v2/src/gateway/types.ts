@@ -5,9 +5,14 @@ export type V2GatewayRequest = {
   operation: string;
   payload: Record<string, unknown>;
   correlationId: string;
-  /** Test/harness Actor id. Not Auth-subject mapping (OPEN A). Not Workspace authority. */
+  /** Opaque identity proof. Not Actor authority. Not Auth (OPEN A). */
+  identityProof?: string;
+  /**
+   * Untrusted caller claim. Must not establish Actor.
+   * If set and ≠ trusted Actor from IdentityPort, Gateway denies.
+   */
   actorId?: string;
-  /** Optional membership selector; must belong to actorId when set. */
+  /** Optional membership selector; must belong to the trusted Actor when set. */
   membershipId?: string;
 };
 
