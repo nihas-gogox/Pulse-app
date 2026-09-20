@@ -1,15 +1,16 @@
 import { CenteredLoadingView } from "@/components/CenteredLoadingView";
 import Theme from "@/constants/Theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { OtherExpenseEntryScreen } from "@/features/trips/operations/other/OtherExpenseEntryScreen";
 import { DriverUnifiedExpenseEntryScreen } from "@/features/trips/operations/shared/DriverUnifiedExpenseEntryScreen";
 import {
   parseDriverExpenseCategoryParam,
   parseDriverExpenseKindParam,
 } from "@/features/trips/operations/shared/driverExpenseCategoryNav.util";
-import { OtherExpenseEntryScreen } from "@/features/trips/operations/other/OtherExpenseEntryScreen";
+import { useLeaveTripExpenseEntry } from "@/features/trips/operations/shared/useLeaveTripExpenseEntry";
 import { getAccessibleTripById, type TripRow } from "@/features/trips/services/trips.service";
 import { ROUTES } from "@/lib/routes";
-import { type Href, Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { type Href, Redirect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -109,7 +110,6 @@ function TripLoadError({
 }
 
 export default function TripOtherExpenseEntryRoute() {
-  const router = useRouter();
   const params = useLocalSearchParams<{
     id?: string | string[];
     entryId?: string | string[];
@@ -118,6 +118,7 @@ export default function TripOtherExpenseEntryRoute() {
   }>();
   const { profile } = useAuth();
   const tripId = readParam(params.id);
+  const leave = useLeaveTripExpenseEntry(tripId);
   const entryId = readParam(params.entryId);
   const initialCategory = parseDriverExpenseCategoryParam(readParam(params.category));
   const initialKind = parseDriverExpenseKindParam(readParam(params.kind));
@@ -160,7 +161,7 @@ export default function TripOtherExpenseEntryRoute() {
         <TripLoadError
           message={error ?? "Trip not found"}
           onRetry={tripId ? () => setReloadKey((k) => k + 1) : undefined}
-          onBack={() => router.back()}
+          onBack={leave}
         />
       );
     }
@@ -198,9 +199,9 @@ export default function TripOtherExpenseEntryRoute() {
     error,
     initialCategory,
     initialKind,
+    leave,
     loading,
     profile?.role,
-    router,
     trip,
     tripId,
   ]);

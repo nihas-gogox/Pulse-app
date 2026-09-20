@@ -16,6 +16,7 @@ import Theme from "@/constants/Theme";
 import { DriverOpsLauncherOption } from "@/features/trips/operations/shared/DriverOpsLauncherOption";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import { ROUTES } from "@/lib/routes";
+import { useLeaveTripExpenseEntry } from "../shared/useLeaveTripExpenseEntry";
 
 type ExpenseKind = "fuel" | "toll" | "other";
 
@@ -59,6 +60,7 @@ function routeForKind(tripId: string, kind: ExpenseKind): string {
 
 export function TripExpenseLauncherScreen({ trip }: { trip: TripRow }) {
   const router = useRouter();
+  const leave = useLeaveTripExpenseEntry(trip.id);
   const insets = useSafeAreaInsets();
 
   const contextLine = useMemo(
@@ -70,7 +72,7 @@ export function TripExpenseLauncherScreen({ trip }: { trip: TripRow }) {
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerTopRow}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()} hitSlop={10}>
+          <Pressable style={styles.backBtn} onPress={leave} hitSlop={10}>
             <Feather name="arrow-left" size={18} color="#fff" />
             <Text style={styles.backText}>Back</Text>
           </Pressable>
@@ -148,6 +150,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "rgba(255,255,255,0.12)",
     gap: 8,
+    zIndex: 3,
+    elevation: 3,
+    position: "relative",
   },
   headerTopRow: {
     flexDirection: "row",

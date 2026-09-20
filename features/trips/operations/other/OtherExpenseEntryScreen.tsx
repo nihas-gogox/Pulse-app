@@ -11,7 +11,7 @@ import Theme from "@/constants/Theme";
 import { useAuth } from "@/contexts/AuthContext";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import { useWebLayoutWidth } from "@/lib/useWebLayoutWidth";
-import { useRouter } from "expo-router";
+import { useLeaveTripExpenseEntry } from "../shared/useLeaveTripExpenseEntry";
 import {
   Banknote,
   Check,
@@ -158,7 +158,7 @@ export function OtherExpenseEntryScreen({
   lockCategorySwitch?: boolean;
   billCapture?: ExpenseBillCaptureBag;
 }) {
-  const router = useRouter();
+  const leave = useLeaveTripExpenseEntry(trip.id);
   const insets = useSafeAreaInsets();
   const layoutWidth = useWebLayoutWidth();
   const isDesktop = layoutWidth >= Layout.webDesktopMinWidth;
@@ -339,12 +339,12 @@ export function OtherExpenseEntryScreen({
       if (!mounted) return;
       if (res.error || !res.entry) {
         Alert.alert("Could not load expense", res.error?.message ?? "Not found");
-        router.back();
+        leave();
         return;
       }
       if (res.entry.trip_id !== trip.id) {
         Alert.alert("Wrong trip", "This expense belongs to a different trip.");
-        router.back();
+        leave();
         return;
       }
       const entry = res.entry;
@@ -377,7 +377,7 @@ export function OtherExpenseEntryScreen({
     return () => {
       mounted = false;
     };
-  }, [entryId, hydratePersistedOcrFromJob, router, setExpenseCategory, setPhotoUri, trip.id]);
+  }, [entryId, hydratePersistedOcrFromJob, leave, setExpenseCategory, setPhotoUri, trip.id]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -396,10 +396,10 @@ export function OtherExpenseEntryScreen({
       triggerFeedback("apply");
       setSaveFlash(message);
       leaveTimerRef.current = setTimeout(() => {
-        router.back();
+        leave();
       }, 450);
     },
-    [router],
+    [leave],
   );
 
   const handleSave = async () => {
@@ -462,7 +462,7 @@ export function OtherExpenseEntryScreen({
           isEditing={isEditing}
           saving={saving}
           saveDisabled={amountInr <= 0 || !!saveFlash}
-          onBack={() => router.back()}
+          onBack={leave}
           onSave={handleSave}
           billScan={billScan}
           onApplyBillScan={applyPendingUpdates}
@@ -752,7 +752,7 @@ export function OtherExpenseEntryScreen({
       <OperationalHeader
         title={isEditing ? "Edit expense" : "Other expense"}
         subtitle={contextLine}
-        onBack={() => router.back()}
+        onBack={leave}
         density={isDesktop ? "medium" : "high"}
       />
 
@@ -804,7 +804,7 @@ export function OtherExpenseEntryScreen({
           <OperationalButton
             intent="utility"
             label="Cancel"
-            onPress={() => router.back()}
+            onPress={leave}
             density="high"
             disabled={saving || !!saveFlash}
             style={opsStyles.footerBtn}

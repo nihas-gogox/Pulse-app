@@ -1,5 +1,6 @@
 import { memo, type ReactNode } from 'react';
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -75,7 +76,7 @@ export const OperationalHeader = memo(function OperationalHeader({
             <Pressable
               onPress={onBack}
               style={styles.backBtn}
-              hitSlop={10}
+              hitSlop={12}
               accessibilityRole="button"
               accessibilityLabel={backLabel}
             >
@@ -126,6 +127,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderSubtle,
+    // RN Web ScrollView is often position:absolute and paints over siblings.
+    zIndex: 3,
+    elevation: 3,
+    position: "relative",
   },
   rootDark: {
     backgroundColor: colors.operational,
@@ -145,8 +150,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
+    minHeight: 44,
     marginBottom: space[2],
     marginLeft: -4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as const } : null),
   },
   backText: {
     fontSize: 14,

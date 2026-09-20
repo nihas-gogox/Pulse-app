@@ -10,7 +10,7 @@ import {
 import Theme from "@/constants/Theme";
 import { useAuth } from "@/contexts/AuthContext";
 import type { TripRow } from "@/features/trips/services/trips.service";
-import { useRouter } from "expo-router";
+import { useLeaveTripExpenseEntry } from "../shared/useLeaveTripExpenseEntry";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -187,7 +187,7 @@ export function FuelEntryScreen({
   /** Shared OCR state from DriverUnifiedExpenseEntryScreen (keeps photo across category switch). */
   billCapture?: ExpenseBillCaptureBag;
 }) {
-  const router = useRouter();
+  const leave = useLeaveTripExpenseEntry(trip.id);
   const insets = useSafeAreaInsets();
   const { profile } = useAuth();
   const isDriver = profile?.role === "driver";
@@ -282,12 +282,12 @@ export function FuelEntryScreen({
       if (!mounted) return;
       if (res.error || !res.entry) {
         Alert.alert("Could not load fuel entry", res.error?.message ?? "Not found");
-        router.back();
+        leave();
         return;
       }
       if (res.entry.trip_id !== trip.id) {
         Alert.alert("Wrong trip", "This entry belongs to a different trip.");
-        router.back();
+        leave();
         return;
       }
       const entry = res.entry;
@@ -313,7 +313,7 @@ export function FuelEntryScreen({
     return () => {
       mounted = false;
     };
-  }, [entryId, hydratePersistedOcrFromJob, router, setPhotoUri, trip.id]);
+  }, [entryId, hydratePersistedOcrFromJob, leave, setPhotoUri, trip.id]);
 
   const saving = saveFuel.isPending || updateFuel.isPending;
 
@@ -343,7 +343,7 @@ export function FuelEntryScreen({
         if (res.queued) setHint("Saved offline — will sync when connected.");
       }
       await refresh();
-      router.back();
+      leave();
     } catch (e) {
       Alert.alert(
         isEditing ? "Could not update fuel entry" : "Could not save fuel entry",
@@ -369,7 +369,7 @@ export function FuelEntryScreen({
         subtitle={contextLine}
         isEditing={isEditing}
         saving={saving}
-        onBack={() => router.back()}
+        onBack={() => leave()}
         onSave={handleSave}
         hint={hint}
         syncHint={syncHint}
@@ -453,7 +453,7 @@ export function FuelEntryScreen({
       <OperationalHeader
         title={isEditing ? "Edit fuel" : "Fuel Entry"}
         subtitle={contextLine}
-        onBack={() => router.back()}
+        onBack={() => leave()}
         density="high"
       />
       <ScrollView
@@ -557,7 +557,7 @@ export function FuelEntryScreen({
           <OperationalButton
             intent="utility"
             label="Skip"
-            onPress={() => router.back()}
+            onPress={() => leave()}
             density="high"
             style={s.footerBtn}
           />

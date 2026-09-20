@@ -24,6 +24,9 @@ export const driverOpsEntryStyles = StyleSheet.create({
     paddingHorizontal: Layout.screenPaddingHorizontal,
     paddingBottom: 8,
     gap: 6,
+    zIndex: 3,
+    elevation: 3,
+    position: "relative",
   },
   headerTopRow: {
     flexDirection: "row",
