@@ -138,11 +138,16 @@ describe("V2 persistence isolation", () => {
     expect(opened.some((t) => t.includes("trips"))).toBe(false);
   });
 
-  it("declares ownership fences for identity, finance, and network without inventing tables", () => {
+  it("declares ownership fences for identity, finance, and network", () => {
     expect(V2_DOMAIN_SCHEMAS.identity).toBe("v2_identity");
     expect(V2_DOMAIN_SCHEMAS.finance).toBe("v2_finance");
     expect(V2_DOMAIN_SCHEMAS.network).toBe("v2_network");
-    expect(V2_DOMAIN_TABLES.identity).toEqual([]);
+    expect(V2_DOMAIN_TABLES.identity).toEqual([
+      "auth_subjects",
+      "actors",
+      "workspaces",
+      "memberships",
+    ]);
     expect(V2_DOMAIN_TABLES.finance).toEqual([]);
     expect(V2_DOMAIN_TABLES.network).toEqual([]);
   });

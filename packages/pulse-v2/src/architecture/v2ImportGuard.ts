@@ -57,7 +57,12 @@ export function scanV2ImportSource(file: string, source: string): V2ImportViolat
         });
       }
     }
-    if (persistRel.startsWith("persistence/") && IDENTITY_FROM_PERSISTENCE.test(line)) {
+    if (
+      persistRel.startsWith("persistence/") &&
+      persistRel !== "persistence/createPersistence.ts" &&
+      !/persistence\/(?:durable|memory)\/identity/.test(persistRel) &&
+      IDENTITY_FROM_PERSISTENCE.test(line)
+    ) {
       violations.push({
         file,
         line: index + 1,

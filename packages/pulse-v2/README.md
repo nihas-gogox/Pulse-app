@@ -2,11 +2,11 @@
 
 Isolated from production Pulse (Expo app, `features/`, `lib/supabase`, shared hosted Supabase).
 
-**Slices 1–2 accepted. Slice 3 design accepted. Gates A–C closed (ADR-013/014/015). Quality charter established. Slice 4 runtime through SEC-006 is closed. Persistent Commerce/Execution and Persistence Hardening are complete.** See `STATUS.md` and `PULSE_V2_QUALITY_CHARTER.md`.
+**Slices 1–2 accepted. Slice 3 design accepted. Gates A–C closed (ADR-013/014/015). Quality charter established. Slice 4 runtime through SEC-006 is closed. Persistent Commerce/Execution, Persistence Hardening, and local V2 Identity/Auth are complete.** See `STATUS.md` and `PULSE_V2_QUALITY_CHARTER.md`.
 
 **Workspace tenancy** is copied from sealed Gateway `AuthorizationContext.workspaceId`. Caller `workspaceId` is not authority.
 
-**Not authorized:** Identity/Auth, RLS, hosted V2, Kafka, Redis, Kubernetes, service mesh, HTTP Gateway, Hono Identity, production migrations, domain extraction.
+**Not authorized:** RLS, hosted V2, production Auth, Kafka, Redis, Kubernetes, service mesh, HTTP Gateway, Hono extract, production migrations, domain extraction.
 
 ## Persistence modes
 
@@ -16,12 +16,14 @@ unset PULSE_V2_SUPABASE_URL + unset PULSE_V2_DATA_DIR
 
 absolute PULSE_V2_DATA_DIR + no URL
     → local-durable = JSON file persistence
-      (v2_commerce.sales_orders.json, v2_execution.trips.json)
+      v2_commerce.sales_orders.json
+      v2_execution.trips.json
+      v2_identity.json (auth_subjects, actors, workspaces, memberships)
       not local Postgres
 
 local PULSE_V2_SUPABASE_URL + anon key
-    → local-supabase PostgREST path
-      dormant without an injected client / authorized real adapter
+    → local-supabase PostgREST path for Commerce/Execution (dormant)
+      Identity stays memory in this mode (no PostgREST identity adapter)
       RLS remains deny-all
 
 hosted *.supabase.co / production refs
@@ -30,6 +32,8 @@ hosted *.supabase.co / production refs
 URL + DATA_DIR together
     → STOP
 ```
+
+Local Auth is `createLocalAuthAdapter` (opaque enrolled proofs → Auth Subject). Pulse Identity is `createV2IdentityPort` (Model B: 1 Subject → 1 Actor, first login creates Actor, no auto-Membership). Production Auth / `auth.users` / `organization_members` are not used.
 
 ```text
 Domain handlers

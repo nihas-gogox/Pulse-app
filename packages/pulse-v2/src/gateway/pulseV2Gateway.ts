@@ -34,6 +34,18 @@ function deny(
   return { ok: false, code, message, correlationId };
 }
 
+function denyIdentityFailure(
+  err: unknown,
+  fallbackCode: string,
+  fallbackMessage: string,
+  correlationId: string,
+): V2GatewayError {
+  if (isV2PersistenceError(err)) {
+    return deny("V2_IDENTITY_PERSISTENCE_FAILED", "identity persistence failed", correlationId);
+  }
+  return deny(fallbackCode, fallbackMessage, correlationId);
+}
+
 function resolveAuthorizationContext(
   identityPort: IdentityPort,
   request: V2GatewayRequest,
@@ -43,8 +55,13 @@ function resolveAuthorizationContext(
   let actorResolved: ActorResolveResult;
   try {
     actorResolved = identityPort.resolveActor({ value: proofValue });
-  } catch {
-    return deny("V2_UNAUTHENTICATED", "actor resolution failed", correlationId);
+  } catch (err) {
+    return denyIdentityFailure(
+      err,
+      "V2_UNAUTHENTICATED",
+      "actor resolution failed",
+      correlationId,
+    );
   }
   if (!actorResolved.ok) {
     return deny(
@@ -70,8 +87,13 @@ function resolveAuthorizationContext(
       actorId: trustedActorId,
       membershipId: request.membershipId?.trim() || undefined,
     });
-  } catch {
-    return deny("V2_MEMBERSHIP_DENIED", "membership resolution failed", correlationId);
+  } catch (err) {
+    return denyIdentityFailure(
+      err,
+      "V2_MEMBERSHIP_DENIED",
+      "membership resolution failed",
+      correlationId,
+    );
   }
   if (!resolved.ok) {
     return deny(
@@ -188,8 +210,13 @@ export function createPulseV2Gateway(
     let actorResolved: ActorResolveResult;
     try {
       actorResolved = options.identityPort.resolveActor({ value: identityProof });
-    } catch {
-      return deny("V2_UNAUTHENTICATED", "actor resolution failed", correlationId);
+    } catch (err) {
+      return denyIdentityFailure(
+        err,
+        "V2_UNAUTHENTICATED",
+        "actor resolution failed",
+        correlationId,
+      );
     }
     if (!actorResolved.ok) {
       return deny(
@@ -206,8 +233,13 @@ export function createPulseV2Gateway(
         correlationId,
         idempotencyKey,
       });
-    } catch {
-      return deny("V2_WORKSPACE_CREATE_FAILED", "workspace creation failed", correlationId);
+    } catch (err) {
+      return denyIdentityFailure(
+        err,
+        "V2_WORKSPACE_CREATE_FAILED",
+        "workspace creation failed",
+        correlationId,
+      );
     }
     if (!identityResult.ok) {
       return deny(

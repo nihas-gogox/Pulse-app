@@ -86,7 +86,7 @@ export type CreateWorkspaceResult = CreateWorkspaceSuccess | CreateWorkspaceFail
 
 /**
  * Gateway identity authority. Implementations must not query production Identity.
- * Auth-subject → Actor mapping is OPEN; proof format is not specified here.
+ * Auth-subject → Actor mapping is Model B (local V2 IdentityPort).
  * Caller request.actorId is never Actor authority.
  *
  * createWorkspace is Identity-owned bootstrap (Workspace + first Membership).

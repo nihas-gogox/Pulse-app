@@ -23,22 +23,11 @@ export function executionTablePath(dataDir: string): string {
   return path.join(dataDir, "v2_execution.trips.json");
 }
 
-export function readJsonTable<T>(filePath: string): T[] {
-  try {
-    if (!existsSync(filePath)) return [];
-    const parsed: unknown = JSON.parse(readFileSync(filePath, "utf8"));
-    if (!Array.isArray(parsed)) {
-      throw new V2PersistenceError("Invalid durable table (expected array)", { kind: "io" });
-    }
-    return parsed as T[];
-  } catch (err) {
-    if (err instanceof V2PersistenceError) throw err;
-    throw new V2PersistenceError("Failed to read durable table", { cause: err, kind: "io" });
-  }
+export function identityStorePath(dataDir: string): string {
+  return path.join(dataDir, "v2_identity.json");
 }
 
-export function writeJsonTable<T>(filePath: string, rows: T[]): void {
-  const payload = `${JSON.stringify(rows, null, 2)}\n`;
+function writeAtomicPayload(filePath: string, payload: string): void {
   const dir = path.dirname(filePath);
   const tmp = path.join(
     dir,
@@ -62,4 +51,40 @@ export function writeJsonTable<T>(filePath: string, rows: T[]): void {
     }
     throw new V2PersistenceError("Failed to write durable table", { cause: err, kind: "io" });
   }
+}
+
+export function readJsonTable<T>(filePath: string): T[] {
+  try {
+    if (!existsSync(filePath)) return [];
+    const parsed: unknown = JSON.parse(readFileSync(filePath, "utf8"));
+    if (!Array.isArray(parsed)) {
+      throw new V2PersistenceError("Invalid durable table (expected array)", { kind: "io" });
+    }
+    return parsed as T[];
+  } catch (err) {
+    if (err instanceof V2PersistenceError) throw err;
+    throw new V2PersistenceError("Failed to read durable table", { cause: err, kind: "io" });
+  }
+}
+
+export function writeJsonTable<T>(filePath: string, rows: T[]): void {
+  writeAtomicPayload(filePath, `${JSON.stringify(rows, null, 2)}\n`);
+}
+
+export function readJsonDocument<T>(filePath: string, fallback: T): T {
+  try {
+    if (!existsSync(filePath)) return fallback;
+    const parsed: unknown = JSON.parse(readFileSync(filePath, "utf8"));
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new V2PersistenceError("Invalid durable document (expected object)", { kind: "io" });
+    }
+    return parsed as T;
+  } catch (err) {
+    if (err instanceof V2PersistenceError) throw err;
+    throw new V2PersistenceError("Failed to read durable table", { cause: err, kind: "io" });
+  }
+}
+
+export function writeJsonDocument<T>(filePath: string, value: T): void {
+  writeAtomicPayload(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }

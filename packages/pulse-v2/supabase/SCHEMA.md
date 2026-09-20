@@ -7,7 +7,7 @@ Do not `supabase db push --linked` these files against production.
 
 | Schema | Owner | Tables in this slice |
 |--------|--------|----------------------|
-| `v2_identity` | Identity | none (identity model not approved) |
+| `v2_identity` | Identity | `auth_subjects`, `actors`, `workspaces`, `memberships` (local JSON store; not Postgres) |
 | `v2_commerce` | Commerce | `sales_orders` |
 | `v2_execution` | Execution | `trips` |
 | `v2_finance` | Finance | none (extraction blocked) |
@@ -36,7 +36,9 @@ Current application persistence:
 ```text
 memory            — in-process Maps (tests)
 local-durable     — JSON files via PULSE_V2_DATA_DIR (not Postgres)
-local-supabase    — dormant PostgREST adapters; Gateway requires an injected client
+                    including v2_identity.json for Actor/Membership/Workspace
+local-supabase    — dormant PostgREST adapters for Commerce/Execution only
+                    Identity does not use PostgREST
 ```
 
 Deny-all RLS is unchanged. `anon`/`authenticated` still cannot see `v2_commerce` / `v2_execution` rows. Hosted `*.supabase.co` is unauthorized. Production remains frozen.

@@ -15,13 +15,14 @@
 | SEC-001 | **CLOSED** (`5f7c43e4` review) |
 | SEC-006 | **CLOSED** (`87720396`) |
 | SEC-007 | **DEFERRED** (not a security prerequisite) |
-| V2 implementation | **UNFROZEN for Persistent Commerce/Execution only** — Identity/Auth still frozen |
+| V2 implementation | **UNFROZEN for Identity/Auth only** — RLS / hosted V2 / production still frozen |
 | Persistent Commerce/Execution | **COMPLETE** (`46ebf8b3`, `64b89b8b`) |
-| Persistence Hardening | **COMPLETE** (atomic JSON writes, duplicate-ID, nested failure, error contract, docs) |
+| Persistence Hardening | **COMPLETE** (`c13b28ad`) |
+| Identity/Auth | **COMPLETE** (Model B Auth Subject → Actor; local V2 identity persistence) |
 | OPEN A — Auth Subject → Actor | **RESOLVED — MODEL B** (`OPEN_A_DECISION.md`) |
-| OPEN A — Implementation plan | **READY** (`OPEN_A_IMPLEMENTATION_PLAN.md`) — **code NOT authorized** |
+| OPEN A — Implementation plan | **IMPLEMENTED locally** (`OPEN_A_IMPLEMENTATION_PLAN.md` remains the plan record) |
 | OPEN B — Permission catalog | **OPEN** |
-| Auth / Membership persistence / RLS / hosted V2 / Slice 5 | **NOT AUTHORIZED** |
+| RLS / hosted V2 / Slice 5 | **NOT AUTHORIZED** |
 | Command Store / Timeline / Observatory | **NOT AUTHORIZED** |
 | Customer / product workflow | **BLOCKED** |
 | OPEN B runtime / RBAC | **NOT AUTHORIZED** |
@@ -33,16 +34,16 @@ Owner authorization (nothing else):
 ```text
 Persistent Commerce/Execution: COMPLETE
 Persistence Hardening: COMPLETE
-Identity/Auth: NOT AUTHORIZED
-Membership/Workspace persistence: NOT AUTHORIZED
+Identity/Auth: COMPLETE
+Membership/Workspace persistence: COMPLETE (V2 Identity-owned, local only)
 RLS: NOT AUTHORIZED
 Hosted V2: NOT AUTHORIZED
 Production: FROZEN
 ```
 
-Slice 5 and Identity/Auth remain unauthorized. OPEN A is an approved architectural design but **not** implementation authorization. OPEN B remains unresolved. SEC-007 remains deferred. Persistent Identity, persistent Membership/Workspace, Auth, RLS, hosted V2, Command Store, Timeline, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved.
+Slice 5 remains unauthorized. OPEN B remains unresolved. SEC-007 remains deferred. RLS, hosted V2, Command Store, Timeline, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved.
 
-Current runtime (memory Identity, Commerce/Execution may use local durable persistence, production untouched):
+Current runtime (local V2 Identity/Auth + durable Commerce/Execution, production untouched):
 
 ```text
 Gateway → trusted AuthorizationContext → domain handlers → workspace-scoped persistence
@@ -56,7 +57,7 @@ Owner-accepted: **Model B**, 1 Auth Subject → 1 Actor, first-login **create Ac
 
 Formal record: `OPEN_A_DECISION.md`. Plan: `OPEN_A_IMPLEMENTATION_PLAN.md`. Pre-decision analysis: `OPEN_A_AUTH_ACTOR_DESIGN.md`.
 
-Do **not** implement Auth, tables, JWT, RLS, or Slice 5 until separately authorized.
+Local V2 Identity/Auth implementation is **COMPLETE** (Model B). RLS, hosted V2, production Auth, JWT/OAuth federation, and OPEN B remain unauthorized.
 
 ## Identity Gate (remaining open)
 
@@ -64,4 +65,4 @@ Organization→Workspace mapping keys; holding-company Tenant; production/V2 ide
 
 ## Slice 2 caveat
 
-**Workspace-scoped persistence implemented; trusted tenant authorization is Gateway AuthorizationContext (Slice 4). Real Auth + persistent Identity remain unauthorized.**
+**Workspace-scoped persistence implemented; trusted tenant authorization is Gateway AuthorizationContext (Slice 4). Local V2 Identity/Auth is implemented; production Auth and RLS remain unauthorized.**

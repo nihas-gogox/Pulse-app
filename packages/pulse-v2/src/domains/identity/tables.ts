@@ -1,9 +1,13 @@
 export const IDENTITY_SCHEMA = "v2_identity";
 
 /**
- * Reserved. No identity tables until the identity/authorization decision.
- * Tenant key on business rows is caller-supplied workspace_id (unverified).
+ * Identity-owned collections. Local durable JSON (not Postgres, not RLS).
  */
-export const IDENTITY_TABLES = [] as const;
+export const IDENTITY_TABLES = [
+  "auth_subjects",
+  "actors",
+  "workspaces",
+  "memberships",
+] as const;
 
 export type IdentityTable = (typeof IDENTITY_TABLES)[number];

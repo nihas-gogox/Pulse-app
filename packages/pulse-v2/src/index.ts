@@ -32,6 +32,8 @@ export type {
   MembershipStatus,
 } from "./identity/identityPort";
 export { createMemoryIdentityPort } from "./identity/memoryIdentityPort";
+export { createV2IdentityPort } from "./identity/v2IdentityPort";
+export { createLocalAuthAdapter } from "./identity/localAuthAdapter";
 export { assertV2DomainTables, scanV2DomainTables, scanV2SourceText } from "./architecture/domainTableGuard";
 export { assertV2ForbiddenImports, scanV2ForbiddenImports, scanV2ImportSource } from "./architecture/v2ImportGuard";
 export { createV2Persistence } from "./persistence/createPersistence";
