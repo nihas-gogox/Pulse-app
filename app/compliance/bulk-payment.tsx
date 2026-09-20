@@ -18,7 +18,7 @@ import Theme from "@/constants/Theme";
 import { useLayoutInsets } from "@/lib/layoutInsets";
 import { useMemberAccess } from "@/lib/useMemberAccess";
 import { useComplianceProductEnabled } from "@/features/tripCompliance/hooks/useComplianceProductEnabled";
-import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOptionalOrganization } from "@/contexts/OrganizationContext";
 import {
   parseComplianceBulkPaymentCsv,
   processComplianceBulkPayments,
@@ -37,7 +37,7 @@ async function readUriAsText(uri: string): Promise<string> {
   return FileSystem.readAsStringAsync(uri, { encoding: "utf8" });
 }
 
-type Step = "upload" | "validating" | "preview" | "processing" | "done";
+type Step = "upload" | "validating" | "preview" | "confirm" | "processing" | "done";
 
 export default function ComplianceBulkPaymentScreen() {
   const layout = useLayoutInsets();
@@ -45,14 +45,17 @@ export default function ComplianceBulkPaymentScreen() {
   const { can: canSurface, isLoading: accessLoading } = useMemberAccess();
   const canManageFinance = canSurface("trip_compliance.finance.manage");
   const { enabled: complianceEnabled, isLoading: productsLoading } = useComplianceProductEnabled();
-  const { currentOrganization } = useOrganization();
-  const orgId = currentOrganization?.id ?? "";
+  const orgCtx = useOptionalOrganization();
+  const orgId = orgCtx?.currentOrganization?.id ?? "";
 
   const [category, setCategory] = useState<ComplianceLedgerCategory>("compliance_advance");
   const [step, setStep] = useState<Step>("upload");
   const [fileName, setFileName] = useState<string | null>(null);
   const [valid, setValid] = useState<ComplianceBulkRowValidation[]>([]);
   const [invalid, setInvalid] = useState<ComplianceBulkRowValidation[]>([]);
+  const [blocked, setBlocked] = useState<ComplianceBulkRowValidation[]>([]);
+  const [alreadyPaid, setAlreadyPaid] = useState<ComplianceBulkRowValidation[]>([]);
+  const [eligibleTotal, setEligibleTotal] = useState(0);
   const [tripsById, setTripsById] = useState<Map<string, TripRow>>(new Map());
   const [results, setResults] = useState<{ rowIndex: number; error: Error | null }[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -64,6 +67,9 @@ export default function ComplianceBulkPaymentScreen() {
     setFileName(null);
     setValid([]);
     setInvalid([]);
+    setBlocked([]);
+    setAlreadyPaid([]);
+    setEligibleTotal(0);
     setResults([]);
     setLoadError(null);
   }, []);
@@ -89,6 +95,9 @@ export default function ComplianceBulkPaymentScreen() {
       const result = await validateComplianceBulkPayments({ organizationId: orgId, category, rows });
       setValid(result.valid);
       setInvalid(result.invalid);
+      setBlocked(result.blocked);
+      setAlreadyPaid(result.alreadyPaid);
+      setEligibleTotal(result.eligibleTotal);
       setTripsById(result.tripsById);
       setStep("preview");
     } catch (e) {
@@ -97,22 +106,22 @@ export default function ComplianceBulkPaymentScreen() {
     }
   }, [orgId, category]);
 
-  const handleProcess = useCallback(async () => {
+  const handleProcess = useCallback(async (rows: ComplianceBulkRowValidation[]) => {
     setStep("processing");
     const outcomes = await processComplianceBulkPayments({
       organizationId: orgId,
       category,
-      rows: valid,
+      rows,
       tripsById,
     });
     setResults(outcomes);
     setStep("done");
-  }, [orgId, category, valid, tripsById]);
+  }, [orgId, category, tripsById]);
 
   const succeeded = useMemo(() => results.filter((r) => !r.error).length, [results]);
   const failed = useMemo(() => results.filter((r) => r.error).length, [results]);
 
-  if (accessLoading || productsLoading) return <ChromeBelowTopNavLoadingScreen variant="preparing" />;
+  if (orgCtx === undefined || accessLoading || productsLoading) return <ChromeBelowTopNavLoadingScreen variant="preparing" />;
 
   // Mirrors /compliance's own gate — RBAC alone isn't enough, the workspace
   // toggle must also be on, or this screen stays reachable via direct URL
@@ -130,7 +139,13 @@ export default function ComplianceBulkPaymentScreen() {
   }
 
   return (
-    <ScrollView style={[styles.screen, { paddingTop: contentTopInset }]} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={[styles.screen, { paddingTop: contentTopInset }]}
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: layout.scrollBottomPadding(24), paddingHorizontal: Layout.screenPaddingHorizontal },
+      ]}
+    >
       <Text style={styles.title}>Bulk Payment Upload</Text>
       <Text style={styles.subtitle}>
         CSV columns: Trip ID, Amount, Mode, Date, UTR, Remarks (header row required).
@@ -147,7 +162,7 @@ export default function ComplianceBulkPaymentScreen() {
             style={[styles.categoryChip, category === c && styles.categoryChipActive]}
           >
             <Text style={[styles.categoryChipText, category === c && styles.categoryChipTextActive]}>
-              {c === "compliance_advance" ? "ADVANCE" : "BALANCE"}
+              {c === "compliance_advance" ? "Advance" : "Balance"}
             </Text>
           </TouchableOpacity>
         ))}
@@ -170,11 +185,23 @@ export default function ComplianceBulkPaymentScreen() {
       {step === "preview" ? (
         <View style={styles.previewWrap}>
           <Text style={styles.subheader}>
-            {valid.length + invalid.length} rows · {valid.length} valid · {invalid.length} errors
+            Eligible {valid.length} · Blocked {blocked.length} · Already paid {alreadyPaid.length} · Invalid{" "}
+            {invalid.length}
           </Text>
+          <Text style={styles.subtitle}>Total payable (eligible): ₹{eligibleTotal.toLocaleString("en-IN")}</Text>
+          {blocked.map((r) => (
+            <Text key={`b-${r.row.rowIndex}`} style={styles.message}>
+              Blocked row {r.row.rowIndex} ({r.row.tripId}): {r.gateReason}
+            </Text>
+          ))}
+          {alreadyPaid.map((r) => (
+            <Text key={`a-${r.row.rowIndex}`} style={styles.message}>
+              Already paid row {r.row.rowIndex} ({r.row.tripId}): {r.gateReason}
+            </Text>
+          ))}
           {invalid.length > 0 ? (
             <View style={styles.errorBlock}>
-              <Text style={styles.errorBlockTitle}>Errors (not processed)</Text>
+              <Text style={styles.errorBlockTitle}>Invalid rows (not processed)</Text>
               {invalid.map((r) => (
                 <Text key={r.row.rowIndex} style={styles.errorRow}>
                   Row {r.row.rowIndex} ({r.row.tripId || "—"}): {r.errors.join("; ")}
@@ -183,14 +210,44 @@ export default function ComplianceBulkPaymentScreen() {
             </View>
           ) : null}
           {valid.length > 0 ? (
-            <TouchableOpacity style={styles.primaryBtn} onPress={handleProcess}>
-              <Text style={styles.primaryBtnText}>Process {valid.length} Payments</Text>
+            <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep("confirm")}>
+              <Text style={styles.primaryBtnText}>
+                Review confirmation for {valid.length} trips (₹{eligibleTotal.toLocaleString("en-IN")})
+              </Text>
             </TouchableOpacity>
           ) : (
-            <Text style={styles.message}>No valid rows to process.</Text>
+            <Text style={styles.message}>No eligible rows to process.</Text>
           )}
           <TouchableOpacity onPress={reset} style={styles.secondaryBtn}>
             <Text style={styles.secondaryBtnText}>Start over</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {step === "confirm" ? (
+        <View style={styles.previewWrap}>
+          <Text style={styles.subheader}>
+            Confirm payment of ₹{eligibleTotal.toLocaleString("en-IN")} for {valid.length} trips
+          </Text>
+          <Text style={styles.subtitle}>
+            Eligible {valid.length} will post. Blocked {blocked.length} and already paid {alreadyPaid.length} will be
+            skipped. Invalid {invalid.length} will not run.
+          </Text>
+          <Text style={styles.warning}>
+            Retry is not guaranteed safe. Duplicate posts are only guarded by a client read of existing transactions —
+            not a database unique constraint.
+          </Text>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => void handleProcess(valid)}
+            disabled={valid.length === 0}
+          >
+            <Text style={styles.primaryBtnText}>
+              Confirm payment of ₹{eligibleTotal.toLocaleString("en-IN")} for {valid.length} trips
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setStep("preview")} style={styles.secondaryBtn}>
+            <Text style={styles.secondaryBtnText}>Back to review</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -204,16 +261,36 @@ export default function ComplianceBulkPaymentScreen() {
 
       {step === "done" ? (
         <View style={styles.previewWrap}>
-          <Text style={styles.subheader}>
-            {succeeded} succeeded · {failed} failed
+          <Text style={styles.subheader}>Payment batch completed</Text>
+          <Text style={styles.subtitle}>
+            Successful {succeeded} · Failed {failed} · Skipped {blocked.length + alreadyPaid.length} · Invalid{" "}
+            {invalid.length}
           </Text>
           {results
             .filter((r) => r.error)
             .map((r) => (
               <Text key={r.rowIndex} style={styles.errorRow}>
-                Row {r.rowIndex}: {r.error?.message}
+                Failed row {r.rowIndex}: {r.error?.message}
               </Text>
             ))}
+          {failed > 0 ? (
+            <>
+              <Text style={styles.warning}>
+                {failed} failed {failed === 1 ? "row is" : "rows are"} listed above. Retry is disabled because payment
+                idempotency is not guaranteed. Duplicate posts are only guarded by a client read of existing
+                transactions — not a database unique constraint.
+              </Text>
+              <TouchableOpacity
+                style={[styles.primaryBtn, styles.primaryBtnDisabled]}
+                disabled
+                accessibilityRole="button"
+                accessibilityState={{ disabled: true }}
+                accessibilityLabel="Retry unavailable — payment idempotency is not guaranteed"
+              >
+                <Text style={styles.primaryBtnText}>Retry unavailable — payment idempotency is not guaranteed.</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
           <TouchableOpacity onPress={reset} style={styles.primaryBtn}>
             <Text style={styles.primaryBtnText}>Upload another file</Text>
           </TouchableOpacity>
@@ -227,26 +304,45 @@ export default function ComplianceBulkPaymentScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Theme.screenBackground },
-  content: { padding: 16, paddingBottom: 48, gap: 12 },
-  title: { fontSize: 20, fontWeight: "700", color: Theme.textPrimary },
-  subtitle: { fontSize: 12, color: Theme.textMuted },
+  screen: { flex: 1, backgroundColor: Theme.compliancePageBg },
+  content: { paddingTop: Layout.spacingMedium, gap: Layout.spacingLarge },
+  title: { fontSize: 20, fontWeight: "800", color: Theme.textPrimaryDark, lineHeight: 24 },
+  subtitle: { fontSize: 13, color: Theme.textMuted, lineHeight: 18 },
   subheader: { fontSize: 13, fontWeight: "700", color: Theme.textPrimary, marginBottom: 6 },
-  categoryRow: { flexDirection: "row", gap: 8 },
-  categoryChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: "#F1F2F6" },
-  categoryChipActive: { backgroundColor: "#111827" },
+  categoryRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  categoryChip: {
+    minHeight: Layout.minTouchTargetSize,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: Theme.cardWhite,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    justifyContent: "center",
+  },
+  categoryChipActive: { backgroundColor: Theme.buttonDark, borderColor: Theme.buttonDark },
   categoryChipText: { fontSize: 12, fontWeight: "700", color: Theme.textMuted },
-  categoryChipTextActive: { color: "#FFFFFF" },
-  primaryBtn: { paddingVertical: 12, borderRadius: 10, backgroundColor: "#111827", alignItems: "center" },
-  primaryBtnText: { fontSize: 13, color: "#FFFFFF", fontWeight: "700" },
-  secondaryBtn: { paddingVertical: 10, alignItems: "center" },
-  secondaryBtnText: { fontSize: 12, color: Theme.textMuted, fontWeight: "600" },
-  errorText: { fontSize: 12, color: "#d93025" },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  categoryChipTextActive: { color: Theme.buttonDarkText },
+  primaryBtn: {
+    minHeight: Layout.minTouchTargetSize,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: Theme.buttonDark,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryBtnText: { fontSize: 14, color: Theme.buttonDarkText, fontWeight: "700", textAlign: "center" },
+  primaryBtnDisabled: { backgroundColor: Theme.textMuted, opacity: 0.7 },
+  secondaryBtn: { minHeight: Layout.minTouchTargetSize, paddingVertical: 10, alignItems: "center", justifyContent: "center" },
+  secondaryBtnText: { fontSize: 13, color: Theme.textMuted, fontWeight: "600" },
+  errorText: { fontSize: 13, color: Theme.teslaRed },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: Theme.compliancePageBg },
   centeredInline: { alignItems: "center", gap: 8, paddingVertical: 12 },
-  message: { fontSize: 12, color: Theme.textMuted },
-  previewWrap: { gap: 8 },
-  errorBlock: { backgroundColor: "#FCE8E6", borderRadius: 10, padding: 10, gap: 4 },
-  errorBlockTitle: { fontSize: 12, fontWeight: "700", color: "#d93025" },
-  errorRow: { fontSize: 11, color: "#7a271a" },
+  message: { fontSize: 13, color: Theme.textMuted, textAlign: "center" },
+  previewWrap: { gap: 10 },
+  errorBlock: { backgroundColor: Theme.complianceDocNeedBg, borderRadius: 10, padding: 12, gap: 4 },
+  errorBlockTitle: { fontSize: 13, fontWeight: "700", color: Theme.teslaRed },
+  errorRow: { fontSize: 12, color: Theme.complianceStageDocsFg, lineHeight: 18 },
+  warning: { fontSize: 12, color: Theme.complianceStagePendingFg, lineHeight: 18 },
 });

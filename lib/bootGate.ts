@@ -100,19 +100,37 @@ export function shouldMountAuthenticatedDataPlane(sessionAttached: boolean): boo
   return sessionAttached;
 }
 
+function firstNonGroupSegment(segments: readonly string[]): string | undefined {
+  return segments.find((segment) => segment.length > 0 && !segment.startsWith('('));
+}
+
 /**
  * PublicAuthTree still mounts RootLayoutNav (shared Stack). After token
  * failure / sign-out, the URL may still be a data-plane route (trip, tabs,
- * driver). Those screens call useOrganization — they must not render without
- * the provider. Index `/` stays mounted so NavigationPolicy can send anonymous
- * users to marketing.
+ * driver, compliance). Those screens call useOrganization — they must not
+ * render without the provider. Index `/` stays mounted so NavigationPolicy
+ * can send anonymous users to marketing.
+ *
+ * Expo can report pathname `/` for one frame while `useSegments()` already
+ * matches a private file route (e.g. `compliance`). Segments win in that race.
  */
 export function shouldRedirectDataPlaneRouteWithoutSession(
   sessionAttached: boolean,
   pathname: string,
+  segments: readonly string[] = [],
 ): boolean {
   if (sessionAttached) return false;
   if (isPublicAuthRoute(pathname)) return false;
+
+  const first = segments[0];
+  if (first === '(tabs)' || first === '(driver)' || first === '(modals)') return true;
+
+  const routeRoot = firstNonGroupSegment(segments);
+  if (routeRoot && isPublicAuthRoute(`/${routeRoot}`)) return false;
+  if ((pathname === '/' || pathname === '') && routeRoot && routeRoot !== 'index') {
+    return true;
+  }
+
   if (pathname === '/' || pathname === '') return false;
   return true;
 }

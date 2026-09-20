@@ -1,9 +1,16 @@
 import {
   deriveComplianceDocumentRows,
+  deriveEntityComplianceRows,
   complianceProgress,
   labelForDocType,
+  requirementScopeLabel,
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
-import type { ComplianceDocumentRow } from "@/features/tripCompliance/tripCompliance.types";
+import {
+  COMPLIANCE_DRIVER_DOCUMENT_TYPES,
+  COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
+  type ComplianceDocumentRow,
+  type ComplianceEntityDocument,
+} from "@/features/tripCompliance/tripCompliance.types";
 
 function doc(overrides: Partial<ComplianceDocumentRow>): ComplianceDocumentRow {
   return {
@@ -22,11 +29,11 @@ function doc(overrides: Partial<ComplianceDocumentRow>): ComplianceDocumentRow {
 }
 
 describe("deriveComplianceDocumentRows", () => {
-  it("synthesizes a missing row for every required type with no upload", () => {
+  it("synthesizes required trip types plus other options", () => {
     const rows = deriveComplianceDocumentRows([]);
-    expect(rows).toHaveLength(5);
+    expect(rows.map((r) => r.type)).toEqual(["lr", "eway_bill", "invoice", "pod", "loading_slip", "manifest"]);
+    expect(rows.filter((r) => r.required).map((r) => r.type)).toEqual(["lr", "eway_bill", "invoice"]);
     expect(rows.every((r) => r.status === "missing")).toBe(true);
-    expect(rows.map((r) => r.type)).toEqual(["lr", "invoice", "eway_bill", "insurance", "rc"]);
   });
 
   it("uses the real document's status when one exists for a required type", () => {
@@ -36,11 +43,33 @@ describe("deriveComplianceDocumentRows", () => {
     expect(lrRow?.doc?.status).toBe("verified");
   });
 
-  it("appends non-required uploaded documents as extra, non-required rows", () => {
+  it("keeps POD as an other option, not a required trip doc", () => {
     const rows = deriveComplianceDocumentRows([doc({ id: "pod-1", document_type: "pod", status: "pending" })]);
     const podRow = rows.find((r) => r.type === "pod");
     expect(podRow?.required).toBe(false);
-    expect(rows.filter((r) => r.required)).toHaveLength(5); // still all 5 required rows present (all missing)
+    expect(podRow?.status).toBe("pending");
+    expect(rows.filter((r) => r.required)).toHaveLength(3);
+  });
+
+  it("uses the latest file when several rows share a document type", () => {
+    const rows = deriveComplianceDocumentRows([
+      doc({ id: "old", document_type: "loading_slip", status: "pending", uploaded_at: "2026-09-20T19:00:00.000Z" }),
+      doc({
+        id: "new",
+        document_type: "loading_slip",
+        status: "verified",
+        uploaded_at: "2026-09-20T19:27:01.000Z",
+        file_name: "slip.jpg",
+      }),
+    ]);
+    const slip = rows.find((r) => r.type === "loading_slip");
+    expect(slip?.status).toBe("verified");
+    expect(slip?.doc?.id).toBe("new");
+  });
+
+  it("hides vehicle types that were uploaded against the trip", () => {
+    const rows = deriveComplianceDocumentRows([doc({ id: "rc-1", document_type: "rc", status: "pending" })]);
+    expect(rows.find((r) => r.type === "rc")).toBeUndefined();
   });
 });
 
@@ -49,29 +78,69 @@ describe("complianceProgress", () => {
     const rows = deriveComplianceDocumentRows([
       doc({ id: "1", document_type: "lr", status: "verified" }),
       doc({ id: "2", document_type: "invoice", status: "verified" }),
-      doc({ id: "3", document_type: "pod", status: "verified" }), // not required — must not count
+      doc({ id: "3", document_type: "pod", status: "verified" }),
     ]);
-    expect(complianceProgress(rows)).toEqual({ verified: 2, total: 5 });
+    expect(complianceProgress(rows)).toEqual({ verified: 2, total: 3 });
   });
 
-  it("is 0/5 when nothing is uploaded", () => {
-    expect(complianceProgress(deriveComplianceDocumentRows([]))).toEqual({ verified: 0, total: 5 });
+  it("is 0/3 when nothing is uploaded", () => {
+    expect(complianceProgress(deriveComplianceDocumentRows([]))).toEqual({ verified: 0, total: 3 });
   });
 
-  it("is 5/5 once every required type is verified", () => {
+  it("is 3/3 once every required trip type is verified", () => {
     const rows = deriveComplianceDocumentRows(
-      ["lr", "invoice", "eway_bill", "insurance", "rc"].map((t, i) =>
+      ["lr", "invoice", "eway_bill"].map((t, i) =>
         doc({ id: String(i), document_type: t, status: "verified" }),
       ),
     );
-    expect(complianceProgress(rows)).toEqual({ verified: 5, total: 5 });
+    expect(complianceProgress(rows)).toEqual({ verified: 3, total: 3 });
+  });
+});
+
+describe("deriveEntityComplianceRows", () => {
+  function entityDoc(overrides: Partial<ComplianceEntityDocument>): ComplianceEntityDocument {
+    return {
+      id: overrides.id ?? "e1",
+      entity_type: overrides.entity_type ?? "vehicle",
+      entity_id: overrides.entity_id ?? "v1",
+      doc_type: overrides.doc_type ?? "rc",
+      status: overrides.status ?? "pending",
+      storage_path: overrides.storage_path ?? "path",
+      expiry_date: overrides.expiry_date ?? "2027-01-01",
+      verified_at: overrides.verified_at ?? null,
+      notes: overrides.notes ?? null,
+      created_at: overrides.created_at ?? "2026-09-01",
+    };
+  }
+
+  it("lists vehicle RC/insurance/FC/permit/pollution/tax", () => {
+    const rows = deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, []);
+    expect(rows.map((r) => r.type)).toEqual(["rc", "insurance", "fitness", "permit", "pollution", "road_tax"]);
+    expect(rows.every((r) => r.required && r.status === "missing")).toBe(true);
+  });
+
+  it("treats active unexpired entity docs as verified", () => {
+    const rows = deriveEntityComplianceRows(COMPLIANCE_DRIVER_DOCUMENT_TYPES, [
+      entityDoc({ id: "d1", entity_type: "driver", entity_id: "dr1", doc_type: "license", status: "active" }),
+    ]);
+    expect(rows.find((r) => r.type === "license")?.status).toBe("verified");
+    expect(rows.find((r) => r.type === "aadhaar")?.status).toBe("missing");
+  });
+});
+
+describe("requirementScopeLabel", () => {
+  it("labels hardcoded trip extras as Additional, not Optional", () => {
+    expect(requirementScopeLabel(true)).toBe("Required");
+    expect(requirementScopeLabel(false)).toBe("Additional");
   });
 });
 
 describe("labelForDocType", () => {
   it("maps known types to friendly labels", () => {
     expect(labelForDocType("eway_bill")).toBe("E-way Bill");
-    expect(labelForDocType("rc")).toBe("RC");
+    expect(labelForDocType("fitness")).toBe("FC");
+    expect(labelForDocType("road_tax")).toBe("Tax");
+    expect(labelForDocType("license")).toBe("Driving License");
   });
 
   it("falls back to a humanized form of unknown types", () => {

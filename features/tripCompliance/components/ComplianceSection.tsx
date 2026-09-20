@@ -10,6 +10,7 @@ import Theme from "@/constants/Theme";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { supabase } from "@/lib/supabase";
 import { PAYMENT_MODES } from "@/lib/paymentModes";
+import { describeStopProofDocument } from "@/features/driver/job-card/deliveryProof";
 import { getDocumentViewUrl, type TripDocumentRow } from "@/features/trips/services/tripDocuments.service";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import {
@@ -28,9 +29,13 @@ import type {
   CompliancePaymentSummary,
   ComplianceDocumentRow,
   ComplianceDocumentStatus,
+  ComplianceTripSummary,
 } from "@/features/tripCompliance/tripCompliance.types";
 import { ComplianceInputModal, type ComplianceInputField } from "@/features/tripCompliance/components/ComplianceInputModal";
+import { CompliancePaymentConfirmModal } from "@/features/tripCompliance/components/CompliancePaymentConfirmModal";
 import { ComplianceDocumentTable } from "@/features/tripCompliance/components/ComplianceDocumentTable";
+import { emptyComplianceChecklist } from "@/features/tripCompliance/utils/complianceChecklist.util";
+import type { ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 
 type Props = {
   trip: TripRow;
@@ -124,6 +129,8 @@ export function ComplianceSection({
     balance: CompliancePaymentSummary | null;
   }>({ advance: null, balance: null });
   const [paymentsRefreshKey, setPaymentsRefreshKey] = useState(0);
+  const [payCategory, setPayCategory] = useState<ComplianceLedgerCategory | null>(null);
+  const [paying, setPaying] = useState(false);
 
   // Advance/balance are read straight from canonical `transactions`
   // (ledger_category) — never duplicated locally beyond this render cache.
@@ -189,13 +196,55 @@ export function ComplianceSection({
         verified_by: complianceById[d.id]?.verified_by ?? null,
         verified_at: complianceById[d.id]?.verified_at ?? null,
         rejection_reason: complianceById[d.id]?.rejection_reason ?? null,
+        mime_type: d.mime_type,
+        document_number: d.document_number,
       })),
     [tripDocuments, complianceById],
+  );
+
+  const paymentSummary: ComplianceTripSummary = useMemo(
+    () => ({
+      trip,
+      stage: "compliance_verified",
+      documents,
+      vehicleDocuments: [],
+      driverDocuments: [],
+      documentCounts: { total: documents.length, verified: 0, rejected: 0, pending: 0 },
+      checklist: emptyComplianceChecklist(),
+      complianceVerifiedAt,
+      complianceVerifiedBy: null,
+      advance: payments.advance,
+      balance: payments.balance,
+      hardCopyPod: {
+        received: hardCopyPodReceived,
+        receivedAt: null,
+        courier: null,
+        awbNumber: null,
+        receivedBy: null,
+      },
+    }),
+    [trip, documents, complianceVerifiedAt, payments, hardCopyPodReceived],
   );
 
   const verifyCheck = canMarkComplianceVerified(documents);
 
   const handlePreview = useCallback(async (doc: ComplianceDocumentRow) => {
+    const stopProof = describeStopProofDocument({
+      fileName: doc.file_name,
+      mimeType: doc.mime_type,
+      documentNumber: doc.document_number,
+      storagePath: doc.storage_path,
+    });
+    if (stopProof) {
+      alertMessage(
+        stopProof.label,
+        stopProof.note ??
+          (stopProof.kind === "pickup"
+            ? "Pickup place was recorded without a photo."
+            : "Delivery place was recorded without a photo."),
+      );
+      return;
+    }
     const url = await getDocumentViewUrl(doc.storage_path);
     if (url) void Linking.openURL(url);
   }, []);
@@ -258,23 +307,6 @@ export function ComplianceSection({
             receivedBy: values.receivedBy,
           });
           if (error) throw error;
-        } else if (modalKind === "advance" || modalKind === "balance") {
-          const amount = Number(values.amount);
-          if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter a valid amount");
-          const modeId = values.mode.trim().toUpperCase();
-          const mode = PAYMENT_MODES.find((m) => m.id === modeId);
-          if (!mode) throw new Error(`Unknown payment mode "${values.mode}"`);
-          const { error } = await postCompliancePayment({
-            organizationId,
-            trip,
-            category: modalKind === "advance" ? "compliance_advance" : "compliance_balance",
-            amount,
-            paymentModeId: mode.id,
-            paymentModeLabel: mode.name,
-            utr: values.utr,
-          });
-          if (error) throw error;
-          setPaymentsRefreshKey((k) => k + 1);
         } else if (modalKind === "editAdvance" || modalKind === "editBalance") {
           const existing = modalKind === "editAdvance" ? payments.advance : payments.balance;
           if (!existing) throw new Error("Payment not found");
@@ -312,15 +344,11 @@ export function ComplianceSection({
       ? { title: "Reject document", fields: REJECT_FIELDS }
       : modalKind === "pod"
         ? { title: "Mark hard copy POD received", fields: POD_FIELDS }
-        : modalKind === "advance"
-          ? { title: "Initiate Advance Payment", fields: PAYMENT_FIELDS }
-          : modalKind === "balance"
-            ? { title: "Process Balance Payment", fields: PAYMENT_FIELDS }
-            : modalKind === "editAdvance"
-              ? { title: "Update Advance Payment UTR", fields: PAYMENT_FIELDS }
-              : modalKind === "editBalance"
-                ? { title: "Update Balance Payment UTR", fields: PAYMENT_FIELDS }
-                : null;
+        : modalKind === "editAdvance"
+          ? { title: "Update Advance Payment UTR", fields: PAYMENT_FIELDS }
+          : modalKind === "editBalance"
+            ? { title: "Update Balance Payment UTR", fields: PAYMENT_FIELDS }
+            : null;
 
   return (
     <View style={styles.card}>
@@ -379,7 +407,7 @@ export function ComplianceSection({
               onEdit={canManageFinance ? () => setModalKind("editAdvance") : undefined}
             />
           ) : canManageFinance ? (
-            <TouchableOpacity onPress={() => setModalKind("advance")} style={styles.primaryBtn}>
+            <TouchableOpacity onPress={() => setPayCategory("compliance_advance")} style={styles.primaryBtn}>
               <Text style={styles.primaryBtnText}>Initiate Advance Payment</Text>
             </TouchableOpacity>
           ) : (
@@ -413,7 +441,7 @@ export function ComplianceSection({
               onEdit={canManageFinance ? () => setModalKind("editBalance") : undefined}
             />
           ) : canManageFinance ? (
-            <TouchableOpacity onPress={() => setModalKind("balance")} style={styles.primaryBtn}>
+            <TouchableOpacity onPress={() => setPayCategory("compliance_balance")} style={styles.primaryBtn}>
               <Text style={styles.primaryBtnText}>Process Balance Payment</Text>
             </TouchableOpacity>
           ) : (
@@ -429,6 +457,36 @@ export function ComplianceSection({
         confirmLabel={submitting ? "Saving…" : "Confirm"}
         onCancel={closeModal}
         onSubmit={handleModalSubmit}
+      />
+      <CompliancePaymentConfirmModal
+        visible={payCategory != null}
+        summary={paymentSummary}
+        category={payCategory}
+        submitting={paying}
+        onCancel={() => {
+          if (!paying) setPayCategory(null);
+        }}
+        onConfirm={async (values) => {
+          if (!payCategory) return;
+          setPaying(true);
+          const { error } = await postCompliancePayment({
+            organizationId,
+            trip,
+            category: payCategory,
+            amount: values.amount,
+            paymentModeId: values.paymentModeId,
+            paymentModeLabel: values.paymentModeLabel,
+            utr: values.utr,
+          });
+          setPaying(false);
+          if (error) {
+            alertMessage("Couldn't post payment", error.message);
+            return;
+          }
+          setPayCategory(null);
+          setPaymentsRefreshKey((k) => k + 1);
+          onUpdated();
+        }}
       />
     </View>
   );

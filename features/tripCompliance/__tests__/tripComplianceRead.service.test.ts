@@ -147,20 +147,16 @@ describe("canMarkComplianceVerified", () => {
       doc({ id: "1", document_type: "lr", status: "verified" }),
       doc({ id: "2", document_type: "invoice", status: "pending" }),
       doc({ id: "3", document_type: "eway_bill", status: "verified" }),
-      doc({ id: "4", document_type: "insurance", status: "verified" }),
-      doc({ id: "5", document_type: "rc", status: "verified" }),
     ]);
     expect(result.ok).toBe(false);
     expect(result.missing).toEqual(["invoice"]);
   });
 
-  it("passes only once every required type is verified", () => {
+  it("passes only once LR, e-way bill, and invoice are verified", () => {
     const result = canMarkComplianceVerified([
       doc({ id: "1", document_type: "lr", status: "verified" }),
       doc({ id: "2", document_type: "invoice", status: "verified" }),
       doc({ id: "3", document_type: "eway_bill", status: "verified" }),
-      doc({ id: "4", document_type: "insurance", status: "verified" }),
-      doc({ id: "5", document_type: "rc", status: "verified" }),
     ]);
     expect(result.ok).toBe(true);
     expect(result.missing).toEqual([]);

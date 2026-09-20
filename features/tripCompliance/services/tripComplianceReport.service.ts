@@ -75,7 +75,7 @@ function toReportRow(summary: ComplianceTripSummary): ComplianceReportRow {
     driver: t.driver_display_name || "",
     vehicle: t.vehicle_display_number || "",
     complianceStatus: COMPLIANCE_STAGE_LABEL[summary.stage],
-    documentStatus: `${summary.documentCounts.verified}/${summary.documentCounts.total} verified`,
+    documentStatus: `${summary.checklist.verified}/${summary.checklist.total} verified`,
     complianceVerifiedAt: summary.complianceVerifiedAt ?? "",
     advanceAmount: summary.advance ? String(summary.advance.amount) : "",
     advanceStatus: summary.advance ? "PROCESSED" : "PENDING",

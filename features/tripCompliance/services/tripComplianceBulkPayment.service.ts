@@ -2,6 +2,13 @@ import { supabase } from "@/lib/supabase";
 import { PAYMENT_MODES } from "@/lib/paymentModes";
 import { interpretLedgerRowStructured } from "@/features/finance/ledger/ledgerEntryModel";
 import type { TripRow } from "@/features/trips/services/trips.service";
+import { fetchComplianceTransactions } from "@/features/tripCompliance/services/tripComplianceRead.service";
+import { evaluateCompliancePaymentGuard } from "@/features/tripCompliance/utils/compliancePaymentGuard.util";
+import {
+  summarizeRequiredTripDocuments,
+  type RequiredTripDocumentSummary,
+} from "@/features/tripCompliance/utils/complianceReadiness.util";
+import type { ComplianceDocumentRow } from "@/features/tripCompliance/tripCompliance.types";
 import {
   postCompliancePayment,
   type ComplianceLedgerCategory,
@@ -27,14 +34,51 @@ export type ComplianceBulkPaymentRow = {
 export type ComplianceBulkRowValidation = {
   row: ComplianceBulkPaymentRow;
   errors: string[];
+  gateReason?: string;
 };
 
 export type ComplianceBulkValidationResult = {
   valid: ComplianceBulkRowValidation[];
   invalid: ComplianceBulkRowValidation[];
+  blocked: ComplianceBulkRowValidation[];
+  alreadyPaid: ComplianceBulkRowValidation[];
+  eligibleTotal: number;
 };
 
 const VALID_MODE_IDS = new Set(PAYMENT_MODES.map((m) => m.id));
+
+async function fetchBulkTripDocuments(tripIds: string[]): Promise<Map<string, ComplianceDocumentRow[]>> {
+  const byTrip = new Map<string, ComplianceDocumentRow[]>();
+  if (tripIds.length === 0) return byTrip;
+  const { data, error } = await supabase()
+    .from("trip_documents")
+    .select("id, trip_id, document_type, file_name, storage_path, uploaded_at, status, verified_by, verified_at, rejection_reason")
+    .in("trip_id", tripIds);
+  if (error) throw new Error(error.message);
+  for (const row of (data ?? []) as ComplianceDocumentRow[]) {
+    const list = byTrip.get(row.trip_id) ?? [];
+    list.push(row);
+    byTrip.set(row.trip_id, list);
+  }
+  return byTrip;
+}
+
+function bulkRequirementBlockReason(
+  category: ComplianceLedgerCategory,
+  trip: TripRow | undefined,
+  required: RequiredTripDocumentSummary,
+): string | null {
+  if (category === "compliance_advance" && !trip?.compliance_verified_at) {
+    if (required.missingLabels[0]) return `${required.missingLabels[0]} missing`;
+    if (required.rejectedLabels[0]) return `Rejected — ${required.rejectedLabels[0]}`;
+    if (required.pendingLabels[0]) return `${required.pendingLabels[0]} pending verification`;
+    return "Compliance verification not completed";
+  }
+  if (category === "compliance_balance" && !trip?.pod_received_at) {
+    return "Hard-copy POD has not been marked received.";
+  }
+  return null;
+}
 
 /** Parse a minimal CSV (Trip ID,Amount,Mode,Date,UTR,Remarks) with a header row. */
 export function parseComplianceBulkPaymentCsv(csvText: string): ComplianceBulkPaymentRow[] {
@@ -127,7 +171,32 @@ export async function validateComplianceBulkPayments(params: {
     valid.push({ row, errors: [] });
   }
 
-  return { valid, invalid, tripsById };
+  const buckets = await fetchComplianceTransactions(tripIds);
+  const documentsByTrip = await fetchBulkTripDocuments(tripIds);
+  const eligible: ComplianceBulkRowValidation[] = [];
+  const blocked: ComplianceBulkRowValidation[] = [];
+  const alreadyPaid: ComplianceBulkRowValidation[] = [];
+  for (const item of valid) {
+    const bucket = buckets.get(item.row.tripId) ?? { advance: [], balance: [] };
+    const gate = evaluateCompliancePaymentGuard(params.category, bucket);
+    if (!gate.ok) {
+      const gated = { ...item, gateReason: gate.reason };
+      if (gate.kind === "already_paid") alreadyPaid.push(gated);
+      else blocked.push(gated);
+      continue;
+    }
+    const trip = tripsById.get(item.row.tripId);
+    const required = summarizeRequiredTripDocuments(documentsByTrip.get(item.row.tripId) ?? []);
+    const requirementReason = bulkRequirementBlockReason(params.category, trip, required);
+    if (requirementReason) {
+      blocked.push({ ...item, gateReason: requirementReason });
+      continue;
+    }
+    eligible.push(item);
+  }
+
+  const eligibleTotal = eligible.reduce((sum, item) => sum + item.row.amount, 0);
+  return { valid: eligible, invalid, blocked, alreadyPaid, eligibleTotal, tripsById };
 }
 
 /**

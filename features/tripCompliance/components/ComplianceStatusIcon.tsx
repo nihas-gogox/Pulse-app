@@ -14,10 +14,10 @@ export const COMPLIANCE_STATUS_META: Record<
   ComplianceDocRowStatus,
   { label: string; glyph: string; color: string; bg: string }
 > = {
-  missing: { label: "Missing", glyph: "!", color: Theme.warning, bg: Theme.warningMuted },
-  pending: { label: "Pending", glyph: "●", color: Theme.textMuted, bg: "#F1F2F6" },
-  verified: { label: "Verified", glyph: "✓", color: Theme.success, bg: "#E7F5EC" },
-  rejected: { label: "Rejected", glyph: "!", color: Theme.teslaRed, bg: "#FDEBEC" },
+  missing: { label: "Missing", glyph: "○", color: Theme.complianceDocNeedFg, bg: Theme.complianceDocNeedBg },
+  pending: { label: "Pending verification", glyph: "◷", color: Theme.warning, bg: Theme.complianceDocNeedBg },
+  verified: { label: "Verified", glyph: "✓", color: Theme.complianceDocOkFg, bg: Theme.complianceDocOkBg },
+  rejected: { label: "Rejected", glyph: "!", color: Theme.teslaRed, bg: Theme.complianceDocNeedBg },
 };
 
 export function ComplianceStatusChip({
@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
   },
-  chipCompact: { paddingHorizontal: 6, paddingVertical: 2 },
-  glyph: { fontSize: 11, fontWeight: "700" },
-  label: { fontSize: 11, fontWeight: "600" },
+  chipCompact: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 5 },
+  glyph: { fontSize: 10, fontWeight: "700" },
+  label: { fontSize: 10, fontWeight: "600" },
 });

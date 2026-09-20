@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { createLedgerEntry, updateLedgerEntry, type CreateLedgerEntryData } from "@/features/finance/services/finance.service";
 import { buildLedgerSyncDescriptionLine } from "@/features/finance/ledger/ledgerEntryModel";
 import type { TripRow } from "@/features/trips/services/trips.service";
+import { evaluateCompliancePaymentGuard, type ComplianceLedgerCategory } from "@/features/tripCompliance/utils/compliancePaymentGuard.util";
 import { fetchComplianceTransactions } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import type { ComplianceDocumentRow, ComplianceDocumentStatus } from "@/features/tripCompliance/tripCompliance.types";
 
@@ -35,7 +36,8 @@ export async function setTripDocumentVerification(params: {
  * Mark a trip's compliance fully verified. Goes through
  * `mark_trip_compliance_verified`, which re-derives the required-documents
  * gate server-side (never trusts the client's own check) and enforces
- * `trip_compliance.trip.mark_verified`.
+ * `trip_compliance.trip.mark_verified`. Required types are LR, invoice, and
+ * e-way bill — the same set as REQUIRED_COMPLIANCE_DOCUMENT_TYPES.
  */
 export async function markTripComplianceVerified(params: {
   tripId: string;
@@ -68,34 +70,16 @@ export async function recordHardCopyPodReceipt(params: {
   return { error: error ? new Error(error.message) : null };
 }
 
-export type ComplianceLedgerCategory = "compliance_advance" | "compliance_balance";
+export type { ComplianceLedgerCategory } from "@/features/tripCompliance/utils/compliancePaymentGuard.util";
+export { evaluateCompliancePaymentGuard } from "@/features/tripCompliance/utils/compliancePaymentGuard.util";
 
-/**
- * Guards shared by the single-payment UI and the bulk importer so neither
- * path can double-post: a trip may carry at most one `compliance_advance`
- * and one `compliance_balance` transaction. Balance additionally requires an
- * advance to already exist (matches the derived stage order) rather than
- * inferring anything from payment sequence — this is a presence check on
- * `ledger_category`, not a sequence heuristic.
- */
 export async function checkCompliancePaymentAllowed(params: {
   tripId: string;
   category: ComplianceLedgerCategory;
 }): Promise<{ ok: boolean; reason?: string }> {
   const byTrip = await fetchComplianceTransactions([params.tripId]);
   const bucket = byTrip.get(params.tripId) ?? { advance: [], balance: [] };
-  if (params.category === "compliance_advance" && bucket.advance.length > 0) {
-    return { ok: false, reason: "An advance payment has already been posted for this trip." };
-  }
-  if (params.category === "compliance_balance") {
-    if (bucket.advance.length === 0) {
-      return { ok: false, reason: "Advance payment must be posted before the balance payment." };
-    }
-    if (bucket.balance.length > 0) {
-      return { ok: false, reason: "This trip is already settled — a balance payment already exists." };
-    }
-  }
-  return { ok: true };
+  return evaluateCompliancePaymentGuard(params.category, bucket);
 }
 
 /**

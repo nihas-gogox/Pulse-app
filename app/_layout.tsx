@@ -82,7 +82,7 @@ import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persi
 import { QUERY_CACHE_BUSTER } from '@/lib/cache/cacheBuster';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { useFonts } from 'expo-font';
-import { Redirect, Stack, usePathname, useRouter, type ErrorBoundaryProps } from 'expo-router';
+import { Redirect, Stack, usePathname, useRouter, useSegments, type ErrorBoundaryProps } from 'expo-router';
 import { safePreventAutoHideAsync, safeHideSplashAsync } from '@/lib/safeSplashScreen.util';
 import { useQueryClient } from '@tanstack/react-query';
 import { installDriverInviteDeepLinkListener } from '@/lib/driverInviteDeepLink.util';
@@ -527,6 +527,7 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const _layoutWidth = useWebLayoutWidth();
   const pathname = usePathname();
+  const segments = useSegments();
   const auth = useOptionalAuth();
   const isDriverRole = auth?.profile?.role === 'driver';
   const isChatRoute =
@@ -551,6 +552,7 @@ function RootLayoutNav() {
     shouldRedirectDataPlaneRouteWithoutSession(
       Boolean(auth?.sessionAttached),
       pathname,
+      segments,
     )
   ) {
     return <Redirect href={ROUTES.SIGN_IN_DIRECT} />;
@@ -600,6 +602,7 @@ function RootLayoutNav() {
               <Stack.Screen name="driver-trip" options={{ animation: 'slide_from_right', headerShown: false }} />
               <Stack.Screen name="track" options={{ animation: 'slide_from_right', headerShown: false }} />
               <Stack.Screen name="fleet-operations" options={{ animation: 'slide_from_right', headerShown: false }} />
+              <Stack.Screen name="compliance" options={{ animation: 'slide_from_right', headerShown: false }} />
               <Stack.Screen name="create-indent" options={{ presentation: 'fullScreenModal' }} />
               <Stack.Screen name="log-incoming-pods" options={{ presentation: 'card', animation: 'slide_from_right' }} />
               <Stack.Screen name="invoicing-execute" options={{ presentation: 'card', animation: 'slide_from_right' }} />

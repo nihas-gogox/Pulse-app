@@ -1,163 +1,375 @@
 /**
- * The Compliance work-queue card — extends the existing trip-card visual
- * language (spacing, type scale, restrained color use) into a dedicated
- * verification card, rather than reusing TripsHubMobileTripCard unchanged.
- * Reads only already-fetched ComplianceTripSummary data; no new query.
+ * Compliance Verification card — trip identity, route, vehicle/driver,
+ * Trip/Vehicle/Driver 5-slot checklist, stage pill, and Verify Docs.
  */
-import React, { useMemo } from "react";
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Theme from "@/constants/Theme";
-import { ComplianceStatusChip } from "@/features/tripCompliance/components/ComplianceStatusIcon";
-import { deriveComplianceDocumentRows, complianceProgress, labelForDocType } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
-import { COMPLIANCE_STAGE_LABEL, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
+import { COMPLIANCE_STAGE_FILTER_LABEL, type ComplianceChecklistGroup, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
+import {
+  complianceEventAt,
+  complianceTripDisplayId,
+  formatComplianceTimestamp,
+  groupToneVisual,
+  splitPlace,
+  stageToneVisual,
+} from "@/features/tripCompliance/utils/complianceCardVisual.util";
+import { checklistTone, ensureComplianceChecklist } from "@/features/tripCompliance/utils/complianceChecklist.util";
+import {
+  deriveComplianceQueueReadiness,
+  paymentReadinessLabel,
+} from "@/features/tripCompliance/utils/complianceReadiness.util";
+import { Check, Clock, Eye, Truck, User } from "lucide-react-native";
+import React, { useMemo } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export type ComplianceTripCardProps = {
   summary: ComplianceTripSummary;
-  canMarkVerified: boolean;
-  markingVerified?: boolean;
-  onReviewDocuments: () => void;
+  onReviewDocuments: (group: ComplianceChecklistGroup["key"]) => void;
   onViewTrip: () => void;
-  onMarkVerified: () => void;
+  onOpenDetails?: () => void;
+  onPay?: () => void;
+  canManageFinance?: boolean;
 };
+
+function ChecklistGroupTile({
+  group,
+  countLabel,
+  onPress,
+}: {
+  group: ComplianceChecklistGroup;
+  countLabel: string;
+  onPress?: () => void;
+}) {
+  const tone = groupToneVisual(group.tone);
+  const content = (
+    <>
+      <View style={styles.groupHeader}>
+        <Text style={[styles.groupLabel, { color: tone.fg }]} numberOfLines={1}>
+          {group.label}
+        </Text>
+        <Eye size={11} color={tone.fg} strokeWidth={2.2} />
+      </View>
+      <View style={styles.groupDots}>
+        {group.slots.map((slot) => (
+          <View
+            key={slot.type}
+            style={[styles.groupDot, { backgroundColor: slot.verified ? tone.dot : tone.emptyDot }]}
+          />
+        ))}
+      </View>
+      <Text style={[styles.groupCount, { color: tone.fg }]}>{countLabel}</Text>
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={[styles.groupTile, { backgroundColor: tone.bg }]}>{content}</View>;
+  }
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${group.label} documents, ${countLabel}`}
+      style={[styles.groupTile, { backgroundColor: tone.bg }]}
+    >
+      {content}
+    </TouchableOpacity>
+  );
+}
 
 export function ComplianceTripCard({
   summary,
-  canMarkVerified,
-  markingVerified = false,
   onReviewDocuments,
   onViewTrip,
-  onMarkVerified,
+  onOpenDetails,
+  onPay,
+  canManageFinance = false,
 }: ComplianceTripCardProps) {
-  const rows = useMemo(() => deriveComplianceDocumentRows(summary.documents), [summary.documents]);
-  const { verified, total } = complianceProgress(rows);
-  const pendingCount = rows.filter((r) => r.required && r.status !== "verified").length;
-  const allVerified = total > 0 && verified === total;
   const trip = summary.trip;
+  const pickup = splitPlace(trip.pickup_area);
+  const drop = splitPlace(trip.drop_location);
+  const checklist = ensureComplianceChecklist(summary);
+  const readiness = useMemo(() => deriveComplianceQueueReadiness(summary), [summary]);
+  const required = readiness.requiredDocs;
+  const verifiedTripTypes = new Set(
+    summary.documents.filter((doc) => doc.status === "verified").map((doc) => doc.document_type),
+  );
+  const displayGroups = checklist.groups.map((group) => {
+    if (group.key !== "trip") return group;
+    const slots = group.slots.map((slot) => ({ ...slot, verified: verifiedTripTypes.has(slot.type) }));
+    return {
+      ...group,
+      slots,
+      verified: required.verified,
+      total: required.total,
+      tone: checklistTone(required.verified, required.total),
+    };
+  });
+  const stageTone = stageToneVisual(summary.stage);
+  const requiredTone = groupToneVisual(checklistTone(required.verified, required.total));
+  const tripId = complianceTripDisplayId(trip);
+  const when = formatComplianceTimestamp(complianceEventAt(trip));
+  const fullyVerified = Boolean(summary.complianceVerifiedAt);
+  const payLabel = paymentReadinessLabel(readiness);
+  const vehicleLabel = trip.vehicle_display_number?.trim() || "Unassigned";
+  const driverLabel = trip.driver_display_name?.trim() || "Unassigned";
 
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <Text style={styles.tripCode} numberOfLines={1}>
-            {trip.booking_ref ?? trip.id.slice(0, 8)}
-          </Text>
-          <Text style={styles.client} numberOfLines={1}>
-            {trip.client_name || "Client"}
-          </Text>
+          <View style={styles.iconWrap}>
+            <Truck size={12} color={Theme.complianceBulk} strokeWidth={2.1} />
+          </View>
+          <View style={styles.headerText}>
+            <Text style={styles.tripIdLabel}>TRIP ID</Text>
+            <TouchableOpacity
+              onPress={onOpenDetails ?? onViewTrip}
+              accessibilityRole="button"
+              accessibilityLabel="Open compliance details"
+            >
+              <Text style={styles.tripCode} numberOfLines={1}>
+                {tripId}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <View style={styles.stagePill}>
-          <Text style={styles.stagePillText}>{COMPLIANCE_STAGE_LABEL[summary.stage].toUpperCase()}</Text>
+        <View style={styles.timeWrap}>
+          <Clock size={11} color={Theme.textMuted} strokeWidth={2.1} />
+          <Text style={styles.timeText} numberOfLines={1}>
+            {when}
+          </Text>
         </View>
       </View>
 
-      <View style={styles.routeRow}>
-        <Text style={styles.routeText} numberOfLines={1}>
-          {trip.pickup_area}
-        </Text>
-        <Text style={styles.routeArrow}>───────►</Text>
-        <Text style={[styles.routeText, styles.routeTextEnd]} numberOfLines={1}>
-          {trip.drop_location}
-        </Text>
-      </View>
-
-      {total > 0 ? (
-        <View style={styles.progressSection}>
-          <Text style={styles.progressLabel}>DOCUMENT VERIFICATION</Text>
-          <View style={styles.progressDotsRow}>
-            {Array.from({ length: total }).map((_, i) => (
-              <View key={i} style={[styles.dot, i < verified && styles.dotFilled]} />
-            ))}
-            <Text style={styles.progressText}>
-              {verified} of {total} verified
+      <View style={styles.metaRow}>
+        <View style={styles.routeCol}>
+          <View style={styles.routeStop}>
+            <View style={styles.routeRail}>
+              <View style={[styles.routeDot, { backgroundColor: Theme.complianceRoutePickup }]} />
+              <View style={styles.routeLine} />
+            </View>
+            <View style={styles.routeCopy}>
+              <Text style={styles.routeCity} numberOfLines={1}>
+                {pickup.city}
+              </Text>
+              {pickup.region ? (
+                <Text style={styles.routeRegion} numberOfLines={1}>
+                  {pickup.region}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+          <View style={styles.routeStop}>
+            <View style={styles.routeRail}>
+              <View style={[styles.routeDot, { backgroundColor: Theme.complianceRouteDrop }]} />
+            </View>
+            <View style={styles.routeCopy}>
+              <Text style={styles.routeCity} numberOfLines={1}>
+                {drop.city}
+              </Text>
+              {drop.region ? (
+                <Text style={styles.routeRegion} numberOfLines={1}>
+                  {drop.region}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        </View>
+        <View style={styles.assetCol}>
+          <View style={styles.assetRow}>
+            <Truck size={11} color={Theme.textMuted} strokeWidth={2.1} />
+            <Text style={styles.assetText} numberOfLines={1}>
+              {vehicleLabel}
+            </Text>
+          </View>
+          <View style={styles.assetRow}>
+            <User size={11} color={Theme.textMuted} strokeWidth={2.1} />
+            <Text style={styles.assetText} numberOfLines={1}>
+              {driverLabel}
             </Text>
           </View>
         </View>
-      ) : (
-        <Text style={styles.noDocsText}>No documents uploaded yet</Text>
-      )}
+      </View>
 
-      {rows.length > 0 ? (
-        <View style={styles.chipsRow}>
-          {rows.map((row) => (
-            <ComplianceStatusChip
-              key={row.key}
-              status={row.status}
-              label={labelForDocType(row.type)}
-              compact
+      <View>
+        <View style={styles.checklistHeader}>
+          <Text style={styles.checklistTitle}>REQUIRED DOCUMENTS</Text>
+          <Text style={[styles.checklistProgress, { color: requiredTone.fg }]}>
+            {required.verified}/{required.total} verified
+          </Text>
+        </View>
+        <View style={styles.groupRow}>
+          {displayGroups.map((group) => (
+            <ChecklistGroupTile
+              key={group.key}
+              group={group}
+              countLabel={
+                group.key === "trip"
+                  ? `${required.verified}/${required.total} Verified`
+                  : `${group.verified}/${group.total} On file`
+              }
+              onPress={() => onReviewDocuments(group.key)}
             />
           ))}
         </View>
-      ) : null}
+      </View>
 
-      {allVerified ? (
-        <View style={styles.readyBanner}>
-          <Text style={styles.readyBannerTitle}>✓ All required documents verified</Text>
-          {canMarkVerified ? (
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              disabled={markingVerified}
-              onPress={onMarkVerified}
-            >
-              {markingVerified ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.primaryBtnText}>Mark Compliance Verified</Text>
-              )}
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      ) : (
-        <>
-          <Text style={styles.nextActionText}>
-            {total === 0
-              ? "No documents to review yet"
-              : `${pendingCount} document${pendingCount === 1 ? "" : "s"} need${pendingCount === 1 ? "s" : ""} verification`}
+      <View style={styles.blockerBox}>
+        <Text style={[styles.payLabel, readiness.paymentReady ? styles.payReady : styles.payBlocked]}>
+          {payLabel.label}
+        </Text>
+        {fullyVerified ? <Text style={styles.blockerLine}>Compliance Verified ✓</Text> : null}
+        <Text style={styles.blockerLine}>Next: {readiness.nextAction}</Text>
+        {readiness.blockerLines.slice(0, 3).map((line) => (
+          <Text key={line} style={styles.blockerLine}>
+            {line}
           </Text>
-          <TouchableOpacity style={styles.primaryBtn} onPress={onReviewDocuments}>
-            <Text style={styles.primaryBtnText}>Review Documents</Text>
-          </TouchableOpacity>
-        </>
-      )}
+        ))}
+      </View>
 
-      <TouchableOpacity onPress={onViewTrip} style={styles.secondaryBtn}>
-        <Text style={styles.secondaryBtnText}>View Trip</Text>
-      </TouchableOpacity>
+      <View style={styles.footerRow}>
+        <View style={[styles.stagePill, { backgroundColor: stageTone.bg }]}>
+          {summary.stage === "compliance_verified" || summary.stage === "payment_settled" ? (
+            <Check size={10} color={stageTone.fg} strokeWidth={2.6} />
+          ) : (
+            <View style={[styles.stageDot, { backgroundColor: stageTone.fg }]} />
+          )}
+          <Text style={[styles.stagePillText, { color: stageTone.fg }]} numberOfLines={1}>
+            {COMPLIANCE_STAGE_FILTER_LABEL[summary.stage] ?? summary.stage}
+          </Text>
+        </View>
+        {fullyVerified ? (
+          <TouchableOpacity
+            style={styles.verifiedBtn}
+            onPress={() => onReviewDocuments("trip")}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Documents verified"
+          >
+            <Check size={12} color={Theme.complianceVerifiedPillFg} strokeWidth={2.4} />
+            <Text style={styles.verifiedBtnText}>Compliance verified</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.verifyBtn}
+            onPress={() => onReviewDocuments("trip")}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Verify documents"
+          >
+            <Check size={12} color={Theme.complianceBulkText} strokeWidth={2.4} />
+            <Text style={styles.verifyBtnText}>Verify Docs</Text>
+          </TouchableOpacity>
+        )}
+        {canManageFinance && readiness.paymentReady && onPay ? (
+          <TouchableOpacity style={styles.verifyBtn} onPress={onPay} accessibilityRole="button">
+            <Text style={styles.verifyBtnText}>Pay</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
+    width: "100%",
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 14,
+    borderColor: Theme.complianceCardBorder,
+    padding: 12,
     gap: 10,
+    shadowColor: Theme.shadow,
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  headerLeft: { flex: 1 },
-  tripCode: { fontSize: 15, fontWeight: "700", color: Theme.textPrimary },
-  client: { fontSize: 12, color: Theme.textMuted, marginTop: 1 },
-  stagePill: { backgroundColor: "#F1F2F6", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  stagePillText: { fontSize: 9, fontWeight: "700", color: Theme.textMuted },
-  routeRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  routeText: { fontSize: 12, color: Theme.textPrimary, fontWeight: "600", flexShrink: 1 },
-  routeTextEnd: { textAlign: "right" },
-  routeArrow: { fontSize: 10, color: "#D1D5DB", flexShrink: 0 },
-  progressSection: { gap: 4 },
-  progressLabel: { fontSize: 9, fontWeight: "700", color: Theme.textMuted, letterSpacing: 0.5 },
-  progressDotsRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#E5E7EB" },
-  dotFilled: { backgroundColor: Theme.success },
-  progressText: { fontSize: 11, color: Theme.textMuted, marginLeft: 4 },
-  noDocsText: { fontSize: 12, color: Theme.textMuted },
-  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  nextActionText: { fontSize: 12, color: Theme.textMuted },
-  readyBanner: { backgroundColor: "#E7F5EC", borderRadius: 10, padding: 10, gap: 8 },
-  readyBannerTitle: { fontSize: 12, fontWeight: "700", color: Theme.success },
-  primaryBtn: { paddingVertical: 11, borderRadius: 10, backgroundColor: "#111827", alignItems: "center" },
-  primaryBtnText: { fontSize: 12, fontWeight: "700", color: "#FFFFFF" },
-  secondaryBtn: { alignItems: "center", paddingVertical: 4 },
-  secondaryBtnText: { fontSize: 12, fontWeight: "600", color: "#2563eb" },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  headerLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 7, minWidth: 0 },
+  iconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    backgroundColor: Theme.complianceIconWash,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerText: { flex: 1, minWidth: 0 },
+  tripIdLabel: { fontSize: 8, fontWeight: "700", color: Theme.textMuted, letterSpacing: 0.5, lineHeight: 10 },
+  tripCode: { fontSize: 13, fontWeight: "800", color: Theme.complianceBulk, marginTop: 0, lineHeight: 16 },
+  timeWrap: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0, maxWidth: "52%" },
+  timeText: { fontSize: 10, color: Theme.textMuted, fontWeight: "500" },
+  metaRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
+  routeCol: { flex: 1, minWidth: 0, gap: 2 },
+  routeStop: { flexDirection: "row", alignItems: "flex-start", gap: 6, minWidth: 0 },
+  routeRail: { width: 8, alignItems: "center", paddingTop: 3 },
+  routeDot: { width: 7, height: 7, borderRadius: 4 },
+  routeLine: {
+    width: 1.5,
+    height: 10,
+    backgroundColor: Theme.complianceCardBorder,
+    marginTop: 1,
+    marginBottom: 1,
+  },
+  routeCopy: { flex: 1, minWidth: 0 },
+  routeCity: { fontSize: 12, fontWeight: "700", color: Theme.textPrimary, lineHeight: 15 },
+  routeRegion: { fontSize: 9, color: Theme.textMuted, lineHeight: 12 },
+  assetCol: { flex: 0.85, minWidth: 0, maxWidth: 148, gap: 6 },
+  assetRow: { flexDirection: "row", alignItems: "center", gap: 5, minWidth: 0 },
+  assetText: { flex: 1, fontSize: 10, fontWeight: "600", color: Theme.textPrimary, minWidth: 0 },
+  checklistHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 6, marginBottom: 5 },
+  checklistTitle: { fontSize: 9, fontWeight: "700", color: Theme.textMuted, letterSpacing: 0.4 },
+  checklistProgress: { fontSize: 9, fontWeight: "700" },
+  groupRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  groupTile: { flex: 1, minWidth: 84, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 8, gap: 4 },
+  groupHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 3 },
+  groupLabel: { fontSize: 10, fontWeight: "700", flex: 1, minWidth: 0 },
+  groupDots: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 2 },
+  groupDot: { width: 5, height: 5, borderRadius: 3 },
+  groupCount: { fontSize: 8, fontWeight: "700" },
+  blockerBox: { gap: 2, paddingTop: 2 },
+  payLabel: { fontSize: 11, fontWeight: "800" },
+  payReady: { color: Theme.complianceStageSuccessFg },
+  payBlocked: { color: Theme.complianceStageDocsFg },
+  blockerLine: { fontSize: 10, color: Theme.textMuted, lineHeight: 14 },
+  footerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
+  stagePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: "100%",
+  },
+  stageDot: { width: 6, height: 6, borderRadius: 3 },
+  stagePillText: { fontSize: 11, fontWeight: "700", flexShrink: 1 },
+  verifyBtn: {
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: Theme.complianceBulk,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+  },
+  verifyBtnText: { fontSize: 12, fontWeight: "700", color: Theme.complianceBulkText },
+  verifiedBtn: {
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: Theme.complianceVerifiedPillBg,
+    borderWidth: 1,
+    borderColor: Theme.complianceVerifiedPillBorder,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+  },
+  verifiedBtnText: { fontSize: 12, fontWeight: "700", color: Theme.complianceVerifiedPillFg },
 });
