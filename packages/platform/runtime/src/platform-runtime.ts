@@ -34,11 +34,15 @@ export interface PlatformRuntime {
   ): Promise<ExecuteCommandResult<TResponse>>;
 }
 
-/** Stub — wired to Gateway + Command Store + Timeline in Sprint 2–4. */
+/**
+ * Async package stub. V2 Day-1 in-process wiring lives in
+ * `packages/pulse-v2/src/runtime/v2PlatformRuntime.ts` (Command Store only;
+ * Timeline / events are not implemented).
+ */
 export const PlatformRuntime: PlatformRuntime = {
   async executeCommand(_envelope, _handler) {
     throw new Error(
-      'PlatformRuntime not wired — implement in packages/platform/runtime after Gateway + Command Store',
+      'Use createV2PlatformRuntime in @pulse/v2 for in-process Command Store execution',
     );
   },
 };

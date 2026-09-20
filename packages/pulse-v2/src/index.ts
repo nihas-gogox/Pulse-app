@@ -38,6 +38,8 @@ export { assertV2DomainTables, scanV2DomainTables, scanV2SourceText } from "./ar
 export { assertV2ForbiddenImports, scanV2ForbiddenImports, scanV2ImportSource } from "./architecture/v2ImportGuard";
 export { createV2Persistence } from "./persistence/createPersistence";
 export { createCommandStore } from "./persistence/commandStore/createCommandStore";
+export { createV2PlatformRuntime } from "./runtime/v2PlatformRuntime";
+export { isV2CommandOperation, V2_COMMAND_OPERATIONS, V2_QUERY_OPERATIONS } from "./runtime/v2CommandOperations";
 export type {
   CommandStorePersistenceConfig,
 } from "./persistence/commandStore/createCommandStore";

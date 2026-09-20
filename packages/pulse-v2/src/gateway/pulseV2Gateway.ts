@@ -12,7 +12,12 @@ import type {
   MembershipResolveResult,
 } from "../identity/identityPort";
 import { createV2Persistence } from "../persistence/createPersistence";
+import { createCommandStore } from "../persistence/commandStore/createCommandStore";
+import type { CommandStoreRepository } from "../persistence/commandStore/commandStore.types";
 import { isV2PersistenceError } from "../persistence/v2PersistenceError";
+import { CommandStoreError } from "../persistence/commandStore/commandStoreError";
+import { isV2CommandOperation } from "../runtime/v2CommandOperations";
+import { createV2PlatformRuntime } from "../runtime/v2PlatformRuntime";
 import type {
   V2CreateWorkspaceRequest,
   V2CreateWorkspaceResponse,
@@ -24,6 +29,9 @@ import type {
 
 export type PulseV2GatewayOptions = {
   identityPort: IdentityPort;
+  /** Test/injection only. Default: memory or local-durable from env config. */
+  commandStore?: CommandStoreRepository;
+  createCommandId?: () => string;
 };
 
 function deny(
@@ -141,6 +149,17 @@ export function createPulseV2Gateway(
 ) {
   const config = assertV2PersistenceConfig(env);
   const persistence = createV2Persistence(config);
+  const commandStore =
+    options.commandStore ??
+    createCommandStore(
+      config.mode === "local-durable"
+        ? { mode: "local-durable", dataDir: config.dataDir }
+        : { mode: "memory" },
+    );
+  const runtime = createV2PlatformRuntime({
+    commandStore,
+    createCommandId: options.createCommandId,
+  });
 
   const dispatch = (
     request: V2GatewayRequest,
@@ -178,6 +197,9 @@ export function createPulseV2Gateway(
     if ("ok" in ctx) return ctx;
 
     try {
+      if (isV2CommandOperation(request.operation)) {
+        return runtime.executeCommand(request, ctx, () => dispatch(request, ctx));
+      }
       return dispatch(request, ctx);
     } catch (err) {
       if (isV2PersistenceError(err)) {
@@ -186,6 +208,9 @@ export function createPulseV2Gateway(
           err.kind === "duplicate" ? "duplicate entity id" : "persistence failed",
           correlationId,
         );
+      }
+      if (err instanceof CommandStoreError) {
+        return deny(err.code, err.message, correlationId);
       }
       throw err;
     }
@@ -262,6 +287,7 @@ export function createPulseV2Gateway(
   return {
     execute,
     createWorkspace,
+    commandStore,
     dataPlane: {
       mode: config.mode,
       supabaseUrl: config.supabaseUrl,

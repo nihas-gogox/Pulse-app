@@ -92,6 +92,26 @@ export function handleExecutionOperation(
     };
   }
 
+  if (operation === "getTripByOrderId") {
+    const orderId = String(payload.orderId ?? "").trim();
+    const trip = store.getTripByOrderId(ctx, orderId);
+    if (!trip) {
+      return {
+        ok: false,
+        code: "EXECUTION_NOT_FOUND",
+        message: `trips orderId not found: ${orderId}`,
+        correlationId: authz.correlationId,
+      };
+    }
+    return {
+      ok: true,
+      domain: "execution",
+      operation,
+      correlationId: authz.correlationId,
+      data: { trip },
+    };
+  }
+
   return {
     ok: false,
     code: "EXECUTION_UNKNOWN_OPERATION",

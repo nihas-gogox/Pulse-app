@@ -23,9 +23,10 @@
 | OPEN A — Implementation plan | **IMPLEMENTED locally** (`OPEN_A_IMPLEMENTATION_PLAN.md` remains the plan record) |
 | OPEN B — Permission catalog | **OPEN** |
 | RLS / hosted V2 / Slice 5 | **NOT AUTHORIZED** |
-| Command Store persistence (local adapter) | **COMPLETE** — memory + local-durable JSON; not wired into Gateway/Runtime |
+| Command Store persistence (local adapter) | **COMPLETE** — memory + local-durable JSON |
+| Command Store Gateway/Runtime integration | **COMPLETE** — mutating public execute() only; nested Execution is one command |
 | TimelineEntry contract v1 | **FROZEN** — types/docs only; no Timeline runtime or persistence |
-| Command Store runtime integration / Timeline implementation / Observatory | **NOT AUTHORIZED** |
+| Timeline implementation / Observatory / Event publishing | **NOT AUTHORIZED** |
 | Customer / product workflow | **BLOCKED** |
 | OPEN B runtime / RBAC | **NOT AUTHORIZED** |
 
@@ -38,19 +39,23 @@ Persistent Commerce/Execution: COMPLETE
 Persistence Hardening: COMPLETE
 Identity/Auth: COMPLETE
 Membership/Workspace persistence: COMPLETE (V2 Identity-owned, local only)
-Command Store persistence: COMPLETE (local adapter only; Gateway/Runtime not wired)
+Command Store persistence: COMPLETE
+Command Store Gateway/Runtime: COMPLETE (Timeline not wired)
 TimelineEntry contract: FROZEN (no runtime)
 RLS: NOT AUTHORIZED
 Hosted V2: NOT AUTHORIZED
 Production: FROZEN
 ```
 
-Slice 5 remains unauthorized. OPEN B remains unresolved. SEC-007 remains deferred. RLS, hosted V2, Command Store **runtime wiring**, Timeline **implementation**, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved.
+Slice 5 remains unauthorized. OPEN B remains unresolved. SEC-007 remains deferred. RLS, hosted V2, Timeline **implementation**, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved.
 
-Current runtime (local V2 Identity/Auth + durable Commerce/Execution, production untouched):
+Current runtime (local V2 Identity/Auth + durable Commerce/Execution + Command Store on mutating public execute(), production untouched):
 
 ```text
-Gateway → trusted AuthorizationContext → domain handlers → workspace-scoped persistence
+Gateway execute()
+  → trusted AuthorizationContext
+  → Command Store (commands only) → domain handlers → workspace-scoped persistence
+Queries skip Command Store. createWorkspace is Identity bootstrap, not Command Envelope v1.
 ```
 
 Trusted path: **validated Auth Subject → Pulse Actor (bind) → verified Membership → Workspace → AuthorizationContext**. Caller `actorId` / `workspaceId` are never authority. `membershipId` is a **selector**.
