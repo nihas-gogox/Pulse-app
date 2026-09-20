@@ -239,6 +239,8 @@ export type GetDocumentsByTripIdOptions = {
    * until the Documents/POD viewer is opened.
    */
   includeStorageFallback?: boolean;
+  /** Cap table rows (trip detail Docs tab). */
+  limit?: number;
 };
 
 export async function getDocumentsByTripId(
@@ -247,11 +249,14 @@ export async function getDocumentsByTripId(
 ): Promise<{ documents: TripDocumentRow[]; error: Error | null }> {
   const includeOcr = options?.includeOcr !== false;
   const includeStorageFallback = options?.includeStorageFallback !== false;
-  const { data, error } = await supabase()
-    .from("trip_documents")
-    .select("id, trip_id, file_name, storage_path, mime_type, size_bytes, uploaded_at, uploaded_by, document_type, document_number, ocr_job_id")
-    .eq("trip_id", tripId)
-    .order("uploaded_at", { ascending: false });
+  const { data, error } = await (() => {
+    const q = supabase()
+      .from("trip_documents")
+      .select("id, trip_id, file_name, storage_path, mime_type, size_bytes, uploaded_at, uploaded_by, document_type, document_number, ocr_job_id")
+      .eq("trip_id", tripId)
+      .order("uploaded_at", { ascending: false });
+    return options?.limit ? q.limit(options.limit) : q;
+  })();
   let tableError: Error | null = null;
   let rows: TripDocumentRow[] = [];
   if (error) {

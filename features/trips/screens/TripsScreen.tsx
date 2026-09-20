@@ -610,7 +610,9 @@ export default function TripsScreen() {
     ],
     enabled:
       !!orgId &&
-      shouldFetchHubDigitalPodFlags(showCompletedList) &&
+      shouldFetchHubDigitalPodFlags(showCompletedList, {
+        compactViewport: isMobileViewport,
+      }) &&
       podDocumentTripIdsSorted.length > 0,
     staleTime: 60_000,
     queryFn: async () => {

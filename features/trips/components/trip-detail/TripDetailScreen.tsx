@@ -27,7 +27,6 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOptionalActiveWorkspace } from "@/contexts/ActiveWorkspaceContext";
 import { getGroundOpsDocUploadEnabled } from "@/features/organization/services/organization.service";
-import { TripChatRoomSheet } from "@/features/chat/components/TripChatRoomSheet";
 import { useDocumentPreview } from "@/features/chat/components/DocumentPreviewModal";
 import { ChatDocumentThreadPreview } from "@/features/chat/components/ChatDocumentThreadPreview";
 import { resolveChatDocumentStorageUrl } from "@/features/chat/utils/resolveChatDocumentUrl.util";
@@ -84,7 +83,7 @@ import { useRouter } from "expo-router";
 import { Activity, MessageSquare, Zap } from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
 import LottieView from "lottie-react-native";
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -175,7 +174,14 @@ const TripAdjustmentModal = lazy(() =>
 );
 // TripDetailFinanceView is currently unused (inside dead {false && ...} block) — not imported.
 import type { TripDetailScreenProps } from "./TripDetailScreen.types";
-import { TripMap } from "./TripMap";
+const TripMap = lazy(() =>
+  import("./TripMap").then((m) => ({ default: m.TripMap })),
+);
+const TripChatRoomSheet = lazy(() =>
+  import("@/features/chat/components/TripChatRoomSheet").then((m) => ({
+    default: m.TripChatRoomSheet,
+  })),
+);
 import { ManifestDriverPingList } from "./ManifestDriverPingList";
 import { useTripDetail } from "./hooks/useTripDetail";
 import { useTrackingState } from "@/features/tracking/hooks/useTrackingState";
@@ -445,6 +451,14 @@ function alertIfVaultPickerRejected(
   if (!message) return false;
   Alert.alert("File not accepted", message);
   return true;
+}
+
+function DeferredTripMap(props: ComponentProps<typeof TripMap>) {
+  return (
+    <Suspense fallback={<View style={{ minHeight: 160 }} />}>
+      <TripMap {...props} />
+    </Suspense>
+  );
 }
 
 export default function TripDetailScreen({
@@ -965,6 +979,11 @@ export default function TripDetailScreen({
     const o = detail.trackingMapOriginCoordinate;
     const d = detail.trackingMapDestinationCoordinate;
     if (!o || !d) return;
+    const raw = detail.trip?.distance;
+    if (raw != null && raw !== "") {
+      const n = typeof raw === "number" ? raw : parseFloat(String(raw));
+      if (Number.isFinite(n) && n >= 0) return;
+    }
     let cancelled = false;
     getOptimalRoute(o, d)
       .then((result) => {
@@ -977,6 +996,7 @@ export default function TripDetailScreen({
       cancelled = true;
     };
   }, [
+    detail.trip?.distance,
     detail.trackingMapOriginCoordinate?.latitude,
     detail.trackingMapOriginCoordinate?.longitude,
     detail.trackingMapDestinationCoordinate?.latitude,
@@ -1133,7 +1153,7 @@ export default function TripDetailScreen({
   ]);
 
   useEffect(() => {
-    if (!manifestRouteFetchEndpoints) {
+    if (!manifestRouteFetchEndpoints || isTripCompleted(detail.trip)) {
       setManifestRouteEtaSeconds(null);
       return;
     }
@@ -1154,22 +1174,26 @@ export default function TripDetailScreen({
       cancelled = true;
     };
   }, [
+    detail.trip?.completed_at,
+    detail.trip?.status,
     manifestRouteFetchEndpoints?.from.latitude,
     manifestRouteFetchEndpoints?.from.longitude,
     manifestRouteFetchEndpoints?.to.latitude,
     manifestRouteFetchEndpoints?.to.longitude,
   ]);
 
-  // Trip Operations Platform, wired in once here -- LiveTrackingModal and
-  // TripDetailTrackingHub both consume liveTrackingPresentation below rather
-  // than each deriving their own stage/progress/ETA. See
-  // docs/TRIP_OPERATIONS_PLATFORM.md and liveTrackingPresentation.util.ts.
+  const liveTrackingOpsTripId =
+    canTripTrackingTab &&
+    driverMapTrackingEligible &&
+    (isDesktop || detail.showTrackingModal)
+      ? (detail.trip?.id ?? null)
+      : null;
   const { events: liveTrackingTimelineEvents } = useTripTimelineQuery(
-    detail.trip?.id ?? null,
+    liveTrackingOpsTripId,
     detail.trip?.created_at ?? null,
   );
   const { distanceCoveredM: liveTrackingDistanceCoveredM } = useTripCheckpointDistanceQuery(
-    detail.trip?.id ?? null,
+    liveTrackingOpsTripId,
   );
   const liveTrackingStageMetrics = useMemo(
     () => (detail.trip ? computeTripStageMetrics(detail.trip, liveTrackingTimelineEvents) : null),
@@ -3866,7 +3890,9 @@ export default function TripDetailScreen({
                     : undefined
                 }
               >
-                {canTripTrackingTab && driverMapTrackingEligible ? (
+                {canTripTrackingTab &&
+                driverMapTrackingEligible &&
+                (isDesktop || detail.showTrackingModal) ? (
                   <View style={styles.mobileOrderOpsSheet}>
                     <TripDetailTrackingHub
                       onOpenLiveTracking={() =>
@@ -4644,7 +4670,7 @@ export default function TripDetailScreen({
                         <WaitingForDriverLocationOverlay
                           visible={detail.waitingForNewDriverLocation}
                         />
-                        <TripMap
+                        <DeferredTripMap
                           source={(trip.pickup_area ?? "").trim() || undefined}
                           destination={
                             (trip.drop_location ?? "").trim() || undefined
@@ -5724,7 +5750,7 @@ export default function TripDetailScreen({
                   <WaitingForDriverLocationOverlay
                     visible={detail.waitingForNewDriverLocation}
                   />
-                  <TripMap
+                  <DeferredTripMap
                     source={(trip.pickup_area ?? "").trim() || undefined}
                     destination={(trip.drop_location ?? "").trim() || undefined}
                     sourceCoords={
@@ -6147,7 +6173,7 @@ export default function TripDetailScreen({
                         <WaitingForDriverLocationOverlay
                           visible={detail.waitingForNewDriverLocation}
                         />
-                        <TripMap
+                        <DeferredTripMap
                           source={(trip.pickup_area ?? "").trim() || undefined}
                           destination={
                             (trip.drop_location ?? "").trim() || undefined
@@ -7359,13 +7385,17 @@ export default function TripDetailScreen({
         />
       </Suspense>
 
-      <TripChatRoomSheet
-        visible={tripRoomOpen}
-        tripId={trip.id}
-        tripLabel={getTripDisplayNumber(trip, currentOrganization?.id)}
-        onClose={() => setTripRoomOpen(false)}
-        onViewTrip={() => setTripRoomOpen(false)}
-      />
+      {tripRoomOpen ? (
+        <Suspense fallback={null}>
+          <TripChatRoomSheet
+            visible
+            tripId={trip.id}
+            tripLabel={getTripDisplayNumber(trip, currentOrganization?.id)}
+            onClose={() => setTripRoomOpen(false)}
+            onViewTrip={() => setTripRoomOpen(false)}
+          />
+        </Suspense>
+      ) : null}
 
     </View>
     </TripProvider>

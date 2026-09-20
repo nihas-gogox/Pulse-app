@@ -115,7 +115,13 @@ import type { ReassignCompletedMeta } from "../../reassign/reassign.types";
 export type { ReassignCompletedMeta };
 import type { TripDetailTab } from "../TripDetailFinanceView";
 import { isPdfTripDoc, type TripDocItem } from "../tripDocTypes";
-import { shouldFetchTripSubcontractsOnDetail } from "../completedTripInitialLoad.util";
+import {
+  isNarrowWebViewport,
+  shouldFetchTripSubcontractsOnDetail,
+  shouldLoadTripTrackingQueries,
+  shouldPreferLightTripDetailFirstPaint,
+} from "../completedTripInitialLoad.util";
+import { Platform } from "react-native";
 
 import {
   resolveMapLocationLabel,
@@ -607,7 +613,7 @@ export function useTripDetail({
     [trip?.driver_id, latestAssignmentRow],
   );
 
-  const trackingBroadcastEnabled =
+  const trackingBroadcastEligible =
     isTrackingBroadcastV1Enabled() &&
     !!trip?.id &&
     isTripDriverMapEligible(
@@ -616,8 +622,20 @@ export function useTripDetail({
       effectiveDriverIdForLocation,
     );
 
+  const compactWebTrackingDefer = isNarrowWebViewport(
+    typeof window !== "undefined" ? window.innerWidth : undefined,
+    Platform.OS,
+  );
+  const trackingUiOpen =
+    showTrackingModal || showFullScreenMap || tripDetailTab === "tracking";
+  const trackingQueriesEnabled = shouldLoadTripTrackingQueries({
+    compactWeb: compactWebTrackingDefer,
+    trackingUiOpen,
+  });
+
   /** Load presence + checkpoint trail whenever a driver is on an open trip (incl. assigned). */
   const driverMapDataEnabled =
+    trackingQueriesEnabled &&
     !!trip?.id &&
     !!effectiveDriverIdForLocation &&
     isTripDriverMapEligible(
@@ -625,6 +643,9 @@ export function useTripDetail({
       trip.completed_at,
       effectiveDriverIdForLocation,
     );
+
+  const trackingBroadcastEnabled =
+    trackingQueriesEnabled && trackingBroadcastEligible;
 
   const liveTracking = useTripLiveTracking({
     tripId: trip?.id ?? null,
@@ -871,13 +892,21 @@ export function useTripDetail({
   // When ENABLE_TRIP_DETAIL_BUNDLE is true (global), bundleActive is true for all orgs.
   // Legacy load effects below are no-ops on the bundle path.
   // Delivered/completed (from list seed or trips.finite): skip get_trip_detail_bundle.
-  // Frozen so a later status update cannot swap rpc→light and drop party/audit fields.
+  // Narrow web: light trip row first so phones are not blocked on the bundle RPC + Leaflet.
+  // Frozen so a later status/resize cannot swap rpc→light and drop party/audit fields.
+  const completedLightOnly = peekCompletedTripForLightBundle(
+    tripId,
+    currentOrganization?.id ?? null,
+    queryClient,
+  );
   const [preferLightBundle] = useState(() =>
-    peekCompletedTripForLightBundle(
-      tripId,
-      currentOrganization?.id ?? null,
-      queryClient,
-    ),
+    shouldPreferLightTripDetailFirstPaint({
+      completed: completedLightOnly,
+      narrowWeb: isNarrowWebViewport(
+        typeof window !== "undefined" ? window.innerWidth : undefined,
+        Platform.OS,
+      ),
+    }),
   );
   const { bundle, isBundleLoading, bundleError } = useTripDetailBundleQuery(
     tripId,

@@ -9,7 +9,10 @@ import {
   shouldFetchHubDigitalPodFlags,
   shouldFetchOperationsSummary,
   shouldLoadTripDocumentsForViewer,
+  shouldLoadTripTrackingQueries,
+  shouldPreferLightTripDetailFirstPaint,
   shouldSkipExpenseTabAutoSelect,
+  isNarrowWebViewport,
 } from "../completedTripInitialLoad.util";
 
 const completed = { id: "t1", status: "delivered", completed_at: "2026-09-19T00:00:00Z", vehicle_id: "v1" };
@@ -50,6 +53,9 @@ describe("completed trip initial load contract", () => {
   it("does not scan hub trip_documents while History is showing", () => {
     expect(shouldFetchHubDigitalPodFlags(true)).toBe(false);
     expect(shouldFetchHubDigitalPodFlags(false)).toBe(true);
+    expect(shouldFetchHubDigitalPodFlags(false, { compactViewport: true })).toBe(
+      false,
+    );
   });
 
   it("live trip detail still runs ratings, manifest insights, subcontracts, and outbox flush", () => {
@@ -66,5 +72,29 @@ describe("completed trip initial load contract", () => {
   it("does not auto-switch completed trips to Expense", () => {
     expect(shouldSkipExpenseTabAutoSelect(completed)).toBe(true);
     expect(shouldSkipExpenseTabAutoSelect(inProgress)).toBe(false);
+  });
+
+  it("prefers light trip-detail first paint on completed or narrow web", () => {
+    expect(isNarrowWebViewport(390, "web")).toBe(true);
+    expect(isNarrowWebViewport(1440, "web")).toBe(false);
+    expect(isNarrowWebViewport(390, "ios")).toBe(false);
+    expect(
+      shouldPreferLightTripDetailFirstPaint({ completed: true, narrowWeb: false }),
+    ).toBe(true);
+    expect(
+      shouldPreferLightTripDetailFirstPaint({ completed: false, narrowWeb: true }),
+    ).toBe(true);
+    expect(
+      shouldPreferLightTripDetailFirstPaint({ completed: false, narrowWeb: false }),
+    ).toBe(false);
+    expect(
+      shouldLoadTripTrackingQueries({ compactWeb: true, trackingUiOpen: false }),
+    ).toBe(false);
+    expect(
+      shouldLoadTripTrackingQueries({ compactWeb: true, trackingUiOpen: true }),
+    ).toBe(true);
+    expect(
+      shouldLoadTripTrackingQueries({ compactWeb: false, trackingUiOpen: false }),
+    ).toBe(true);
   });
 });

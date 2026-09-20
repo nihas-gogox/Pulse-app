@@ -77,8 +77,11 @@ export function shouldLoadTripDocumentsForViewer(
 /** Hub digital-POD trip_documents scan — live ops list only, not History. */
 export function shouldFetchHubDigitalPodFlags(
   showCompletedList: boolean,
+  opts?: { compactViewport?: boolean },
 ): boolean {
-  return !showCompletedList;
+  if (showCompletedList) return false;
+  if (opts?.compactViewport) return false;
+  return true;
 }
 
 /** Subcontract rates: live trips only. */
@@ -97,4 +100,37 @@ export function shouldBackfillPostedExpensesToLedger(input: {
   if (isTripCompleted(input.trip)) return false;
   if (!input.trip.id || !input.trip.vehicle_id) return false;
   return true;
+}
+
+/** Phone / narrow web — skip Leaflet + full bundle RPC on first paint. */
+export const NARROW_WEB_TRIP_DETAIL_MAX_WIDTH = 1024;
+
+export function isNarrowWebViewport(
+  innerWidth: number | undefined,
+  platformOS: string,
+): boolean {
+  if (platformOS !== "web") return false;
+  if (innerWidth == null || !Number.isFinite(innerWidth)) return false;
+  return innerWidth < NARROW_WEB_TRIP_DETAIL_MAX_WIDTH;
+}
+
+/** Completed always; live trips on narrow web use the light trip row first. */
+export function shouldPreferLightTripDetailFirstPaint(input: {
+  completed: boolean;
+  narrowWeb: boolean;
+}): boolean {
+  return input.completed || input.narrowWeb;
+}
+
+/**
+ * Phone/narrow web must not open presence, checkpoints, geofence timeline, or
+ * GPS realtime until the user opens Track — those polls stacked onto Postgres
+ * while Dashboard showed Database Unhealthy (logs-43: 57014 / 25P03 / 57P05).
+ */
+export function shouldLoadTripTrackingQueries(input: {
+  compactWeb: boolean;
+  trackingUiOpen: boolean;
+}): boolean {
+  if (!input.compactWeb) return true;
+  return input.trackingUiOpen;
 }

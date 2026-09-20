@@ -252,37 +252,16 @@ async function fetchTripRowLight(
   return data as BundleTrip;
 }
 
-/** Matches get_trip_detail_bundle documents[] LIMIT. */
+/** Matches get_trip_detail_bundle documents[] LIMIT (Docs tab, not first paint). */
 export const LIGHT_BUNDLE_DOC_LIMIT = 20;
 /** Matches get_trip_detail_bundle transactions[] / adjustments[] LIMIT. */
 export const LIGHT_BUNDLE_TX_LIMIT = 50;
-
-const BUNDLE_DOC_SELECT =
-  "id, trip_id, file_name, storage_path, mime_type, size_bytes, uploaded_at, uploaded_by, document_type";
 
 const BUNDLE_TX_SELECT =
   "id, organization_id, trip_id, party_name, description, amount_in, amount_out, transaction_date, created_at, contact_id, contact_type, ledger_entity_type, ledger_flow_type, ledger_category";
 
 const BUNDLE_ADJ_SELECT =
   "id, trip_id, organization_id, type, impact, amount, reason, mission_key, created_at, created_by, voided_at, void_reason";
-
-async function fetchTripDocumentsForLightBundle(
-  tripId: string,
-  signal?: AbortSignal,
-): Promise<BundleDocument[]> {
-  const { data, error } = await withAbortSignal(
-    supabase()
-      .from("trip_documents")
-      .select(BUNDLE_DOC_SELECT)
-      .eq("trip_id", tripId)
-      .order("uploaded_at", { ascending: false })
-      .limit(LIGHT_BUNDLE_DOC_LIMIT),
-    signal,
-  );
-  throwIfCancelled(signal, error);
-  if (error || !data) return [];
-  return data as BundleDocument[];
-}
 
 async function fetchTripTransactionsForLightBundle(
   tripId: string,
@@ -320,18 +299,14 @@ async function fetchTripAdjustmentsForLightBundle(
   return data as BundleAdjustment[];
 }
 
-/** Table-only trip + documents. Ledger/adjustments wait until Finance is opened. */
+/** Table-only trip row. Documents wait until Docs; ledger until Finance. */
 async function composeLightTripDetailBundle(
   tripId: string,
   signal?: AbortSignal,
 ): Promise<TripDetailBundle | null> {
   const light = await fetchTripRowLight(tripId, signal);
   if (!light) return null;
-  const documents = await fetchTripDocumentsForLightBundle(tripId, signal);
-  return {
-    ...emptyBundleFromTrip(light),
-    documents,
-  };
+  return emptyBundleFromTrip(light);
 }
 
 export async function fetchLightTripDetailFinance(
