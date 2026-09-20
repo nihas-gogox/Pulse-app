@@ -17,6 +17,11 @@ export type {
 } from "./gateway/types";
 export type { AuthorizationContext } from "./identity/authorizationContext";
 export type {
+  CreateWorkspaceFailure,
+  CreateWorkspaceFailureReason,
+  CreateWorkspaceInput,
+  CreateWorkspaceResult,
+  CreateWorkspaceSuccess,
   IdentityPort,
   IdentityProof,
   MembershipRecord,

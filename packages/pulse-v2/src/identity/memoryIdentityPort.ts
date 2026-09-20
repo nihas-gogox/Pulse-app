@@ -1,4 +1,6 @@
 import type {
+  CreateWorkspaceInput,
+  CreateWorkspaceResult,
   IdentityPort,
   IdentityProof,
   MembershipRecord,
@@ -53,6 +55,9 @@ export function createMemoryIdentityPort(input: {
       }
       if (active.length > 1) return { ok: false, reason: "ambiguous" };
       return { ok: true, membership: active[0] };
+    },
+    createWorkspace(_input: CreateWorkspaceInput): CreateWorkspaceResult {
+      return { ok: false, reason: "not_implemented" };
     },
   };
   return port;

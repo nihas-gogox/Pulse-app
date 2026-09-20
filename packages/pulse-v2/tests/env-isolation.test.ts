@@ -61,6 +61,7 @@ describe("V2 Supabase environment isolation", () => {
           identityPort: {
             resolveActor: () => ({ ok: false, reason: "not_found" }),
             resolveMembership: () => ({ ok: false, reason: "not_found" }),
+            createWorkspace: () => ({ ok: false, reason: "not_implemented" }),
           },
         },
       ),

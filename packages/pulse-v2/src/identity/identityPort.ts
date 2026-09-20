@@ -45,11 +45,49 @@ export type MembershipResolveSuccess = {
 export type MembershipResolveResult = MembershipResolveSuccess | MembershipResolveFailure;
 
 /**
+ * Trusted execution context for Identity-owned Workspace bootstrap.
+ * actorId is Gateway output of resolveActor(IdentityProof), not caller proof.
+ * Does not accept identityProof, workspaceId, membershipId, role, or AuthorizationContext.
+ */
+export type CreateWorkspaceInput = {
+  actorId: string;
+  correlationId: string;
+  idempotencyKey: string;
+};
+
+export type CreateWorkspaceSuccess = {
+  ok: true;
+  workspaceId: string;
+  membershipId: string;
+  actorId: string;
+  membershipStatus: "active";
+  correlationId: string;
+};
+
+export type CreateWorkspaceFailureReason =
+  | "not_implemented"
+  | "failed"
+  | "in_flight"
+  | "conflict";
+
+export type CreateWorkspaceFailure = {
+  ok: false;
+  reason: CreateWorkspaceFailureReason;
+};
+
+export type CreateWorkspaceResult = CreateWorkspaceSuccess | CreateWorkspaceFailure;
+
+/**
  * Gateway identity authority. Implementations must not query production Identity.
  * Auth-subject → Actor mapping is OPEN; proof format is not specified here.
  * Caller request.actorId is never Actor authority.
+ *
+ * createWorkspace is Identity-owned bootstrap (Workspace + first Membership).
+ * Gateway must call resolveActor first; this method does not take IdentityProof.
+ * Idempotency/correlation are passed through; this type does not implement them.
  */
 export type IdentityPort = {
   resolveActor: (proof: IdentityProof) => ActorResolveResult;
   resolveMembership: (input: MembershipResolveInput) => MembershipResolveResult;
+  createWorkspace: (input: CreateWorkspaceInput) => CreateWorkspaceResult;
 };
