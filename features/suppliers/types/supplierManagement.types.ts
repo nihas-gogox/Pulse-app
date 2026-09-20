@@ -251,9 +251,14 @@ export type TimelineEvent = {
 
 // ── Main bundle ───────────────────────────────────────────────────────────────
 
+/** Trip fields the Supplier Overview/Finance panels actually read (id, status for the
+ * completed-trip count, supplier_rate for spend/revenue totals) — matches the columns
+ * `getTripsBySupplierForOrg` selects. */
+export type SupplierBundleTripRow = Pick<TripRow, "id" | "status" | "supplier_rate">;
+
 export type SupplierManagementBundle = {
   supplier: SupplierRow;
-  trips: TripRow[];
+  trips: SupplierBundleTripRow[];
   transactions: LedgerRow[];
   drivers: DriverRow[];
   /** Pending driver salary/advance requests filed under the supplier's own linked org, if linked. */
@@ -283,7 +288,9 @@ export type SupplierDriverSalaryRequest = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-export function buildSupplierPerformanceFromTrips(trips: TripRow[]): SupplierPerformanceMetrics {
+export function buildSupplierPerformanceFromTrips(
+  trips: SupplierBundleTripRow[],
+): SupplierPerformanceMetrics {
   const completed = trips.filter(
     (t) => t.status === "completed" || t.status === "done" || t.status === "delivered",
   );

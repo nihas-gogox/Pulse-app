@@ -5,7 +5,7 @@ import {
   mergeSupplierDisplayFields,
 } from "@/features/suppliers/services/suppliers.service";
 import { getTripsBySupplierForOrg } from "@/features/trips/services/trips.service";
-import type { TripRow } from "@/features/trips/services/trips.service";
+import { getTransactionsByOrganization } from "@/features/finance/services/finance.service";
 import type { DriverRow } from "@/features/drivers/services/drivers.service";
 import {
   buildSupplierPerformanceFromTrips,
@@ -24,10 +24,11 @@ export async function getSupplierManagementBundle(
   orgId: string,
   supplierId: string,
 ): Promise<{ error: Error | null; bundle: SupplierManagementBundle | null }> {
-  const [supplierRes, detailsRes, tripsRes, rpcRes] = await Promise.all([
+  const [supplierRes, detailsRes, tripsRes, txRes, rpcRes] = await Promise.all([
     getSupplierById(orgId, supplierId),
     getSupplierDetails(supplierId),
     getTripsBySupplierForOrg(orgId, supplierId),
+    getTransactionsByOrganization(orgId),
     supabase().rpc("get_supplier_management_bundle", {
       p_org_id: orgId,
       p_supplier_id: supplierId,
@@ -42,9 +43,10 @@ export async function getSupplierManagementBundle(
     !detailsRes.error && detailsRes.supplier
       ? mergeSupplierDisplayFields(supplierRes.supplier, detailsRes.supplier)
       : supplierRes.supplier;
-  // Scoped fetch only returns id/supplier_rate (enough for this screen's spend total);
-  // cast satisfies the shared bundle type for the unused legacy desktop panels consumer.
-  const supplierTrips = (tripsRes.trips ?? []) as unknown as TripRow[];
+  // Scoped fetch returns only id/status/supplier_rate — exactly the fields
+  // SupplierManagementBundle.trips and its consumers (Overview/Finance panels,
+  // buildSupplierPerformanceFromTrips) actually read. No cast needed.
+  const supplierTrips = tripsRes.trips ?? [];
   const rpcData = (rpcRes.data ?? {}) as Record<string, unknown>;
 
   // Drivers and salary requests belong to the supplier's OWN organization
@@ -133,7 +135,7 @@ export async function getSupplierManagementBundle(
     bundle: {
       supplier,
       trips: supplierTrips,
-      transactions: [],
+      transactions: txRes.transactions ?? [],
       drivers,
       driverSalaryRequests,
       contacts,

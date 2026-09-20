@@ -1245,14 +1245,17 @@ export async function getVehicleTripCount(
 export async function getTripsBySupplierForOrg(
   orgId: string,
   supplierId: string,
-): Promise<{ error: Error | null; trips: Pick<TripRow, "id" | "supplier_rate">[] }> {
+): Promise<{ error: Error | null; trips: Pick<TripRow, "id" | "supplier_rate" | "status">[] }> {
   const { data, error } = await supabase()
     .from("trips")
-    .select("id, supplier_rate")
+    .select("id, supplier_rate, status")
     .eq("organization_id", orgId)
     .eq("supplier_id", supplierId);
   if (error) return { error: new Error(error.message), trips: [] };
-  return { error: null, trips: (data ?? []) as Pick<TripRow, "id" | "supplier_rate">[] };
+  return {
+    error: null,
+    trips: (data ?? []) as Pick<TripRow, "id" | "supplier_rate" | "status">[],
+  };
 }
 
 /** Human-readable trip id for assignment conflict messages. */
