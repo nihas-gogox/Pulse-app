@@ -76,6 +76,7 @@ export type ComplianceDocumentRow = {
   file_name: string;
   storage_path: string;
   uploaded_at: string;
+  uploaded_by?: string | null;
   status: ComplianceDocumentStatus;
   verified_by: string | null;
   verified_at: string | null;

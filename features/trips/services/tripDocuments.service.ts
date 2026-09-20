@@ -23,7 +23,7 @@ import {
 } from "@/features/trips/services/ewayBillFields.util";
 
 const BUCKET = "trip-documents";
-const MAX_TRIP_DOC_BYTES = 10 * 1024 * 1024;
+export const MAX_TRIP_DOC_BYTES = 10 * 1024 * 1024;
 const MAX_TRIP_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
 /** Max simultaneous Storage `list()` calls across a trip's document-type subfolders. */
 const SUBFOLDER_LIST_CONCURRENCY = 3;
@@ -58,6 +58,19 @@ export function isTripDocumentsRestEndpointMissing(
   const m = String(err.message ?? "").toLowerCase();
   if (m.includes("trip_documents") && m.includes("not found")) return true;
   return false;
+}
+
+export function isTripDocumentsStoragePathConflict(
+  err: { message?: string; code?: string } | null | undefined,
+): boolean {
+  if (!err) return false;
+  const code = String(err.code ?? "");
+  const message = String(err.message ?? "").toLowerCase();
+  return (
+    code === "23505" ||
+    message.includes("trip_documents_storage_path_unique") ||
+    (message.includes("duplicate key") && message.includes("storage_path"))
+  );
 }
 
 /** Generate a UUID v4-style string (React Native has no global crypto). */
@@ -426,7 +439,7 @@ export async function uploadTripDocument(
   file: { arrayBuffer: ArrayBuffer; fileName: string; mimeType: string },
   documentType: TripDocumentType = 'pod',
   documentNumber?: string,
-  options?: { stopId?: string | null },
+  options?: { stopId?: string | null; replaceExistingOfType?: boolean },
 ): Promise<UploadTripDocumentResult> {
   if (!file.arrayBuffer?.byteLength) {
     return { doc: null, error: new Error("File is empty") };
@@ -458,21 +471,70 @@ export async function uploadTripDocument(
 
   const trimmedDocumentNumber = documentNumber?.trim() || null;
   const stopId = options?.stopId?.trim() || null;
+  const tripDocSelect =
+    "id, trip_id, file_name, storage_path, mime_type, size_bytes, uploaded_at, uploaded_by, document_type, document_number, ocr_job_id";
+  const metadata = {
+    trip_id: tripId,
+    file_name: file.fileName,
+    storage_path: path,
+    mime_type: file.mimeType || null,
+    size_bytes: file.arrayBuffer.byteLength,
+    uploaded_by: uploadedBy,
+    document_type: documentType,
+    document_number: trimmedDocumentNumber,
+    ...(stopId ? { stop_id: stopId } : {}),
+  };
+
+  if (options?.replaceExistingOfType) {
+    const { data: existingRows, error: existingError } = await supabase()
+      .from("trip_documents")
+      .select("id, storage_path, uploaded_at")
+      .eq("trip_id", tripId)
+      .eq("document_type", documentType)
+      .order("uploaded_at", { ascending: false })
+      .limit(1);
+    if (existingError && !isTripDocumentsMetaTableUnavailable(existingError)) {
+      return { doc: null, error: new Error(existingError.message) };
+    }
+    const existing = existingRows?.[0];
+    if (existing?.id && !String(existing.id).startsWith("storage-")) {
+      const { data: updated, error: updateError } = await supabase()
+        .from("trip_documents")
+        .update({
+          file_name: file.fileName,
+          storage_path: path,
+          mime_type: file.mimeType || null,
+          size_bytes: file.arrayBuffer.byteLength,
+          uploaded_by: uploadedBy,
+          document_number: trimmedDocumentNumber,
+          status: "pending",
+          verified_by: null,
+          verified_at: null,
+          rejection_reason: null,
+          ...(stopId ? { stop_id: stopId } : {}),
+        })
+        .eq("id", existing.id)
+        .select(tripDocSelect)
+        .single();
+      if (updateError) {
+        return { doc: null, error: new Error(updateError.message) };
+      }
+      if (existing.storage_path && existing.storage_path !== path) {
+        await supabase().storage.from(BUCKET).remove([existing.storage_path]);
+      }
+      const replacedDoc = {
+        ...(updated as TripDocumentRow),
+        document_type: ((updated as TripDocumentRow).document_type ?? documentType) as TripDocumentType,
+      };
+      if (documentType === "pod") publishPodUploadedEvent(tripId, replacedDoc);
+      return { doc: replacedDoc, error: null };
+    }
+  }
 
   const { data: row, error: insertError } = await supabase()
     .from("trip_documents")
-    .insert({
-      trip_id: tripId,
-      file_name: file.fileName,
-      storage_path: path,
-      mime_type: file.mimeType || null,
-      size_bytes: file.arrayBuffer.byteLength,
-      uploaded_by: uploadedBy,
-      document_type: documentType,
-      document_number: trimmedDocumentNumber,
-      ...(stopId ? { stop_id: stopId } : {}),
-    })
-    .select("id, trip_id, file_name, storage_path, mime_type, size_bytes, uploaded_at, uploaded_by, document_type, document_number, ocr_job_id")
+    .insert(metadata)
+    .select(tripDocSelect)
     .single();
 
   if (insertError) {
@@ -493,6 +555,28 @@ export async function uploadTripDocument(
       };
       if (documentType === "pod") publishPodUploadedEvent(tripId, fallbackDoc);
       return { doc: fallbackDoc, error: null };
+    }
+    if (isTripDocumentsStoragePathConflict(insertError)) {
+      const { data: existingByPath } = await supabase()
+        .from("trip_documents")
+        .select(tripDocSelect)
+        .eq("storage_path", path)
+        .maybeSingle();
+      if (existingByPath) {
+        return {
+          doc: {
+            ...(existingByPath as TripDocumentRow),
+            document_type: ((existingByPath as TripDocumentRow).document_type ?? documentType) as TripDocumentType,
+          },
+          error: null,
+        };
+      }
+      return {
+        doc: null,
+        error: new Error(
+          "This file is already on the trip. Close Review and open it again, or use Replace on the existing row.",
+        ),
+      };
     }
     return {
       doc: null,

@@ -3,6 +3,7 @@ import {
   deriveEntityComplianceRows,
   complianceProgress,
   labelForDocType,
+  requirementScopeLabel,
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import {
   COMPLIANCE_DRIVER_DOCUMENT_TYPES,
@@ -48,6 +49,22 @@ describe("deriveComplianceDocumentRows", () => {
     expect(podRow?.required).toBe(false);
     expect(podRow?.status).toBe("pending");
     expect(rows.filter((r) => r.required)).toHaveLength(3);
+  });
+
+  it("uses the latest file when several rows share a document type", () => {
+    const rows = deriveComplianceDocumentRows([
+      doc({ id: "old", document_type: "loading_slip", status: "pending", uploaded_at: "2026-09-20T19:00:00.000Z" }),
+      doc({
+        id: "new",
+        document_type: "loading_slip",
+        status: "verified",
+        uploaded_at: "2026-09-20T19:27:01.000Z",
+        file_name: "slip.jpg",
+      }),
+    ]);
+    const slip = rows.find((r) => r.type === "loading_slip");
+    expect(slip?.status).toBe("verified");
+    expect(slip?.doc?.id).toBe("new");
   });
 
   it("hides vehicle types that were uploaded against the trip", () => {
@@ -108,6 +125,13 @@ describe("deriveEntityComplianceRows", () => {
     ]);
     expect(rows.find((r) => r.type === "license")?.status).toBe("verified");
     expect(rows.find((r) => r.type === "aadhaar")?.status).toBe("missing");
+  });
+});
+
+describe("requirementScopeLabel", () => {
+  it("labels hardcoded trip extras as Additional, not Optional", () => {
+    expect(requirementScopeLabel(true)).toBe("Required");
+    expect(requirementScopeLabel(false)).toBe("Additional");
   });
 });
 

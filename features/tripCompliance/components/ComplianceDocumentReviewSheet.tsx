@@ -1,8 +1,8 @@
 /**
  * The focused Compliance review experience — opened from a trip card's
  * Trip/Vehicle/Driver tiles or Verify Docs. Two steps in one Modal: a
- * document list, then (after selecting a document) a preview pane with
- * Approve/Reject. Trip docs use trip_documents; vehicle/driver docs use
+ * document list with Approve/Decline on uploaded rows (Decline requires a note),
+ * then a preview pane. Trip docs use trip_documents; vehicle/driver docs use
  * entity_documents via documents.service.
  */
 import Theme from "@/constants/Theme";
@@ -23,23 +23,39 @@ import {
 } from "@/features/tripCompliance/services/complianceDocumentView.service";
 import { ComplianceInputModal } from "@/features/tripCompliance/components/ComplianceInputModal";
 import { COMPLIANCE_STATUS_META, ComplianceStatusChip } from "@/features/tripCompliance/components/ComplianceStatusIcon";
-import { setTripDocumentVerification } from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import { uploadTripDocument, isTripDocumentsStoragePathConflict, type TripDocumentType } from "@/features/trips/services/tripDocuments.service";
+import {
+  COMPLIANCE_TRIP_DOC_PICKER_TYPES,
+  complianceTripDocFormatHint,
+  validateComplianceTripDocumentFile,
+} from "@/features/tripCompliance/utils/complianceTripDocumentFormat.util";
+import { markTripComplianceVerified, setTripDocumentVerification } from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import { canMarkComplianceVerified } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import {
   COMPLIANCE_DRIVER_DOCUMENT_TYPES,
-  COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES,
   COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
   type ComplianceChecklistGroup,
   type ComplianceDocumentRow,
   type ComplianceEntityDocument,
+  type ComplianceTripSummary,
 } from "@/features/tripCompliance/tripCompliance.types";
 import {
   deriveComplianceDocumentRows,
   deriveEntityComplianceRows,
+  groupComplianceReviewRows,
   labelForDocType,
+  requirementScopeLabel,
+  requiredRowNextAction,
   type ComplianceDocRow,
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
+import {
+  canModerateComplianceRow,
+  complianceReviewDecisionActions,
+} from "@/features/tripCompliance/utils/complianceReviewActions.util";
+import { classifyPreviewFailure } from "@/features/tripCompliance/utils/compliancePreviewFailure.util";
+import { formatMarkComplianceVerifiedError } from "@/features/tripCompliance/utils/complianceMarkVerifiedError.util";
+import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
-import { uploadTripDocument, type TripDocumentType } from "@/features/trips/services/tripDocuments.service";
 import * as DocumentPicker from "expo-document-picker";
 import { ChevronLeft, Eye, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -87,9 +103,14 @@ export type ComplianceDocumentReviewSheetProps = {
   organizationId: string;
   actorId: string | null;
   documents: ComplianceDocumentRow[];
+  canViewDocuments?: boolean;
   canVerify: boolean;
+  canMarkVerified?: boolean;
+  canManageFinance?: boolean;
+  summary?: ComplianceTripSummary | null;
   initialSelectedKey?: string | null;
   onChanged: () => void;
+  onPay?: () => void;
   scope?: ComplianceReviewScope;
   vehicleId?: string | null;
   driverId?: string | null;
@@ -107,9 +128,14 @@ export function ComplianceDocumentReviewSheet({
   organizationId,
   actorId,
   documents,
+  canViewDocuments = true,
   canVerify,
+  canMarkVerified = false,
+  canManageFinance = false,
+  summary = null,
   initialSelectedKey = null,
   onChanged,
+  onPay,
   scope = "trip",
   vehicleId = null,
   driverId = null,
@@ -125,8 +151,14 @@ export function ComplianceDocumentReviewSheet({
   }, [scope, documents, vehicleDocuments, driverDocuments]);
   const [selectedKey, setSelectedKey] = useState<string | null>(initialSelectedKey);
   const [busy, setBusy] = useState(false);
+  const [busyRowKey, setBusyRowKey] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<ComplianceDocRow | null>(null);
   const [rejectVisible, setRejectVisible] = useState(false);
   const [uploadingMissing, setUploadingMissing] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [retryType, setRetryType] = useState<string | null>(null);
+  const [markingVerified, setMarkingVerified] = useState(false);
+  const [markVerifiedError, setMarkVerifiedError] = useState<string | null>(null);
   const [viewingKey, setViewingKey] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{
     title: string;
@@ -136,6 +168,9 @@ export function ComplianceDocumentReviewSheet({
     placeProof: StopProofDocumentSummary | null;
   } | null>(null);
 
+  const grouped = useMemo(() => groupComplianceReviewRows(rows), [rows]);
+  const tripVerifyCheck = useMemo(() => canMarkComplianceVerified(documents), [documents]);
+  const readiness = useMemo(() => (summary ? deriveComplianceQueueReadiness(summary) : null), [summary]);
   const selected: ComplianceDocRow | null = rows.find((r) => r.key === selectedKey) ?? null;
   const canModerateSelected =
     scope === "trip"
@@ -179,7 +214,12 @@ export function ComplianceDocumentReviewSheet({
         return;
       }
       if (!path) {
-        alertMessage("No document", `${title} has not been uploaded yet.`);
+        const failure = classifyPreviewFailure({ hasStoragePath: false });
+        alertMessage("Document missing", failure.message);
+        return;
+      }
+      if (!canViewDocuments) {
+        alertMessage("Permission denied", "You don't have permission to preview this file.");
         return;
       }
       setViewingKey(row.key);
@@ -197,84 +237,102 @@ export function ComplianceDocumentReviewSheet({
           placeProof: null,
         });
         if (!url) {
-          alertMessage("Couldn't open document", "No preview is available for this file.");
+          const failure = classifyPreviewFailure({ hasStoragePath: true, url: null, mime: guessCompliancePreviewMime(path, row.doc?.mime_type) });
+          alertMessage("Couldn't open document", failure.message);
         }
       } catch (e) {
         setLightbox(null);
-        alertMessage("Couldn't open document", (e as Error).message);
+        const failure = classifyPreviewFailure({ hasStoragePath: true, error: e });
+        alertMessage("Couldn't open document", failure.message);
       } finally {
         setViewingKey(null);
       }
     },
-    [scope, stopProofForRow],
+    [scope, stopProofForRow, canViewDocuments],
   );
 
   const selectedStopProof = stopProofForRow(selected);
 
-  const handleApprove = useCallback(async () => {
-    if (!actorId) return;
-    setBusy(true);
-    if (scope === "trip") {
-      if (!selected?.doc) {
-        setBusy(false);
-        return;
-      }
-      const { error } = await setTripDocumentVerification({
-        document: selected.doc,
-        organizationId,
-        actorId,
-        status: "verified",
-      });
-      setBusy(false);
-      if (error) {
-        alertMessage("Couldn't approve document", error.message);
-        return;
-      }
-    } else {
-      if (!selected?.entityDoc || selected.entityDoc.source === "vehicle-vault" || selected.entityDoc.source === "driver-kyc") {
-        setBusy(false);
-        return;
-      }
-      const { error } = await verifyDocument(selected.entityDoc.id, actorId);
-      setBusy(false);
-      if (error) {
-        alertMessage("Couldn't approve document", error.message);
-        return;
-      }
-    }
-    onChanged();
-  }, [selected, actorId, organizationId, onChanged, scope]);
-
-  const handleRejectSubmit = useCallback(
-    async (values: Record<string, string>) => {
-      if (!actorId) return;
+  const handleApprove = useCallback(
+    async (row: ComplianceDocRow | null) => {
+      if (!actorId || !row) return;
       setBusy(true);
+      setBusyRowKey(row.key);
       if (scope === "trip") {
-        if (!selected?.doc) {
+        if (!row.doc) {
           setBusy(false);
+          setBusyRowKey(null);
           return;
         }
         const { error } = await setTripDocumentVerification({
-          document: selected.doc,
+          document: row.doc,
+          organizationId,
+          actorId,
+          status: "verified",
+        });
+        setBusy(false);
+        setBusyRowKey(null);
+        if (error) {
+          alertMessage("Couldn't approve document", error.message);
+          return;
+        }
+      } else {
+        if (!row.entityDoc || row.entityDoc.source === "vehicle-vault" || row.entityDoc.source === "driver-kyc") {
+          setBusy(false);
+          setBusyRowKey(null);
+          return;
+        }
+        const { error } = await verifyDocument(row.entityDoc.id, actorId);
+        setBusy(false);
+        setBusyRowKey(null);
+        if (error) {
+          alertMessage("Couldn't approve document", error.message);
+          return;
+        }
+      }
+      onChanged();
+    },
+    [actorId, organizationId, onChanged, scope],
+  );
+
+  const handleRejectSubmit = useCallback(
+    async (values: Record<string, string>) => {
+      const row = rejectTarget ?? selected;
+      if (!actorId || !row) return;
+      setBusy(true);
+      setBusyRowKey(row.key);
+      if (scope === "trip") {
+        if (!row.doc) {
+          setBusy(false);
+          setBusyRowKey(null);
+          return;
+        }
+        const { error } = await setTripDocumentVerification({
+          document: row.doc,
           organizationId,
           actorId,
           status: "rejected",
           rejectionReason: values.reason,
         });
         setBusy(false);
+        setBusyRowKey(null);
         setRejectVisible(false);
+        setRejectTarget(null);
         if (error) {
           alertMessage("Couldn't reject document", error.message);
           return;
         }
       } else {
-        if (!selected?.entityDoc || selected.entityDoc.source === "vehicle-vault" || selected.entityDoc.source === "driver-kyc") {
+        if (!row.entityDoc || row.entityDoc.source === "vehicle-vault" || row.entityDoc.source === "driver-kyc") {
           setBusy(false);
+          setBusyRowKey(null);
           return;
         }
-        const { error } = await rejectDocument(selected.entityDoc.id, values.reason);
+        const { error } = await rejectDocument(row.entityDoc.id, values.reason);
         setBusy(false);
+        setBusyRowKey(null);
         setRejectVisible(false);
+        setRejectTarget(null);
         if (error) {
           alertMessage("Couldn't reject document", error.message);
           return;
@@ -282,28 +340,72 @@ export function ComplianceDocumentReviewSheet({
       }
       onChanged();
     },
-    [selected, actorId, organizationId, onChanged, scope],
+    [rejectTarget, selected, actorId, organizationId, onChanged, scope],
   );
+
+  const handleMarkVerified = useCallback(async () => {
+    if (!actorId) {
+      const message = "Your session is missing an actor id. Sign in again, then retry.";
+      setMarkVerifiedError(message);
+      alertMessage("Couldn't mark compliance verified", message);
+      return;
+    }
+    if (!tripVerifyCheck.ok) return;
+    setMarkVerifiedError(null);
+    setMarkingVerified(true);
+    const { error } = await markTripComplianceVerified({ tripId, actorId });
+    setMarkingVerified(false);
+    if (error) {
+      const message = formatMarkComplianceVerifiedError(error.message);
+      setMarkVerifiedError(message);
+      alertMessage("Couldn't mark compliance verified", message);
+      return;
+    }
+    onChanged();
+  }, [actorId, tripVerifyCheck.ok, tripId, onChanged]);
 
   const handleAddMissing = useCallback(
     async (type: string) => {
       if (!actorId) return;
+      if (uploadingMissing) return;
       if (!entityAssigned) {
         alertMessage("Nothing to upload", unassignedMessage);
         return;
       }
+      setUploadError(null);
+      setRetryType(type);
       setUploadingMissing(true);
       try {
-        const res = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"], copyToCacheDirectory: true });
+        const res = await DocumentPicker.getDocumentAsync({
+          type: [...COMPLIANCE_TRIP_DOC_PICKER_TYPES],
+          copyToCacheDirectory: true,
+        });
         if (res.canceled || !res.assets[0]) return;
         const asset = res.assets[0];
+        const fileName = asset.name ?? `${type}.pdf`;
+        if (typeof asset.size === "number") {
+          const early = validateComplianceTripDocumentFile({
+            fileName,
+            mimeType: asset.mimeType,
+            byteLength: asset.size,
+          });
+          if (!early.ok) throw new Error(early.reason);
+        }
         const arrayBuffer = await fetch(asset.uri).then((r) => r.arrayBuffer());
+        const format = validateComplianceTripDocumentFile({
+          fileName,
+          mimeType: asset.mimeType,
+          byteLength: arrayBuffer.byteLength,
+        });
+        if (!format.ok) throw new Error(format.reason);
         if (scope === "trip") {
           const { error } = await uploadTripDocument(
             tripId,
             actorId,
-            { arrayBuffer, fileName: asset.name ?? `${type}.pdf`, mimeType: asset.mimeType ?? "application/pdf" },
+            { arrayBuffer, fileName, mimeType: format.mimeType },
             type as TripDocumentType,
+            undefined,
+            { replaceExistingOfType: true },
           );
           if (error) throw error;
         } else if (scope === "vehicle" && VAULT_VEHICLE_TYPES.has(type) && vehicleId) {
@@ -318,8 +420,8 @@ export function ComplianceDocumentReviewSheet({
             type as VehicleComplianceDocType,
             {
               arrayBuffer,
-              fileName: asset.name ?? `${type}.pdf`,
-              mimeType: asset.mimeType ?? "application/pdf",
+              fileName,
+              mimeType: format.mimeType,
             },
             expiry,
             vehicle?.documents ?? null,
@@ -337,8 +439,8 @@ export function ComplianceDocumentReviewSheet({
             docType: type,
             file: {
               arrayBuffer,
-              mimeType: asset.mimeType ?? "application/pdf",
-              fileName: asset.name ?? `${type}.pdf`,
+              mimeType: format.mimeType,
+              fileName,
             },
             uploadedBy: actorId,
           };
@@ -348,13 +450,22 @@ export function ComplianceDocumentReviewSheet({
           if (error) throw error;
         }
         onChanged();
+        setRetryType(null);
       } catch (e) {
-        alertMessage("Couldn't add document", (e as Error).message);
+        const message = (e as Error).message;
+        if (isTripDocumentsStoragePathConflict({ message })) {
+          onChanged();
+          setRetryType(null);
+          setUploadError(null);
+          return;
+        }
+        setUploadError(message);
+        alertMessage("Couldn't add document", message);
       } finally {
         setUploadingMissing(false);
       }
     },
-    [tripId, actorId, onChanged, scope, entityAssigned, entityId, organizationId, rows, unassignedMessage, vehicleId],
+    [tripId, actorId, onChanged, scope, entityAssigned, entityId, organizationId, rows, unassignedMessage, vehicleId, uploadingMissing],
   );
 
   const uploadedAt = selected?.doc?.uploaded_at ?? selected?.entityDoc?.created_at ?? null;
@@ -387,55 +498,202 @@ export function ComplianceDocumentReviewSheet({
           {!selected ? (
             <ScrollView style={styles.listScroll}>
               {!entityAssigned ? <Text style={styles.unassigned}>{unassignedMessage}</Text> : null}
-              {rows.map((row, index) => {
-                const meta = COMPLIANCE_STATUS_META[row.status];
-                const showRequiredLabel = index === 0;
-                const showOtherLabel = scope === "trip" && row.type === COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES[0];
-                return (
-                  <View key={row.key}>
-                    {showRequiredLabel ? <Text style={styles.sectionLabel}>{copy.section}</Text> : null}
-                    {showOtherLabel ? <Text style={[styles.sectionLabel, styles.sectionLabelSpaced]}>OTHER DOCUMENTS</Text> : null}
-                    <View style={styles.docRow}>
-                      <TouchableOpacity
-                        style={styles.docRowMain}
-                        disabled={row.status === "missing"}
-                        onPress={() => setSelectedKey(row.key)}
-                      >
-                        <Text style={styles.docRowLabel}>{labelForDocType(row.type)}</Text>
-                        <ComplianceStatusChip status={row.status} label={meta.label} compact />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => void openRowPreview(row)}
-                        disabled={viewingKey != null}
-                        style={styles.eyeBtn}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        accessibilityRole="button"
-                        accessibilityLabel={`View ${labelForDocType(row.type)}`}
-                      >
-                        {viewingKey === row.key ? (
-                          <ActivityIndicator size="small" color={Theme.textMuted} />
-                        ) : (
-                          <Eye
-                            size={16}
-                            color={row.doc?.storage_path || row.entityDoc?.storage_path ? Theme.textPrimary : Theme.textMuted}
-                            strokeWidth={2.2}
-                          />
-                        )}
-                      </TouchableOpacity>
-                      {canVerify && entityAssigned ? (
-                        <TouchableOpacity
-                          disabled={uploadingMissing}
-                          onPress={() => handleAddMissing(row.type)}
-                          style={styles.addBtn}
-                        >
-                          <Text style={styles.addBtnText}>{uploadingMissing ? "…" : row.status === "missing" ? "Upload" : "Replace"}</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
+              <Text style={styles.hint}>{complianceTripDocFormatHint()}</Text>
+              {scope === "trip" && readiness ? (
+                <View style={styles.requiredSummary}>
+                  <Text style={styles.sectionLabel}>REQUIRED DOCUMENTS</Text>
+                  <Text style={styles.requiredCount}>
+                    {readiness.requiredDocs.verified} / {readiness.requiredDocs.total} verified
+                  </Text>
+                  <Text style={styles.docMetaLine}>
+                    Verified {readiness.requiredDocs.verified} · Pending {readiness.requiredDocs.pending} · Missing{" "}
+                    {readiness.requiredDocs.missing} · Rejected {readiness.requiredDocs.rejected}
+                  </Text>
+                  <Text style={styles.docMetaLine}>Next: {readiness.nextAction}</Text>
+                  <Text style={[styles.docMetaLine, readiness.paymentReady ? undefined : styles.rejectReasonText]}>
+                    {readiness.paymentReady ? "Payment ready" : `Payment blocked — ${readiness.blockerLines[0] ?? "not ready"}`}
+                  </Text>
+                </View>
+              ) : null}
+              {uploadingMissing ? <Text style={styles.hint}>Uploading…</Text> : null}
+              {uploadError ? (
+                <Text style={styles.rejectReasonText}>
+                  Upload failed: {uploadError}
+                  {retryType && canVerify ? " Use Retry on that row." : ""}
+                </Text>
+              ) : null}
+              {(
+                [
+                  ["Needs action", grouped.needsAction],
+                  ["Missing", grouped.missing],
+                  ["Pending verification", grouped.pending],
+                  ["Verified", grouped.verified],
+                ] as const
+              ).map(([title, groupRows]) =>
+                groupRows.length === 0 ? null : (
+                  <View key={title}>
+                    <Text style={[styles.sectionLabel, styles.sectionLabelSpaced]}>{title.toUpperCase()}</Text>
+                    {groupRows.map((row) => {
+                      const meta = COMPLIANCE_STATUS_META[row.status];
+                      const decisions = complianceReviewDecisionActions(row);
+                      const canModerate = canVerify && canModerateComplianceRow(row, scope);
+                      const rowBusy = busy && busyRowKey === row.key;
+                      return (
+                        <View key={row.key} style={styles.docBlock}>
+                          <View style={styles.docRow}>
+                          <TouchableOpacity
+                            style={styles.docRowMain}
+                            disabled={row.status === "missing"}
+                            onPress={() => setSelectedKey(row.key)}
+                          >
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={styles.docRowLabel}>{labelForDocType(row.type)}</Text>
+                              <Text style={styles.docMetaLine}>{requirementScopeLabel(row.required)}</Text>
+                              <Text style={styles.docMetaLine}>
+                                {row.doc?.uploaded_at ? `Uploaded ${formatDate(row.doc.uploaded_at)}` : row.entityDoc?.created_at ? `Uploaded ${formatDate(row.entityDoc.created_at)}` : "Not uploaded"}
+                                {row.doc?.file_name
+                                  ? ` · ${row.doc.file_name}`
+                                  : row.doc?.uploaded_by
+                                    ? ` · ${row.doc.uploaded_by.slice(0, 8)}`
+                                    : ""}
+                              </Text>
+                              {row.status === "rejected" && (row.doc?.rejection_reason || row.entityDoc?.notes) ? (
+                                <Text style={styles.rejectReasonText} numberOfLines={2}>
+                                  Rejected — {row.doc?.rejection_reason || row.entityDoc?.notes}
+                                </Text>
+                              ) : (
+                                <Text style={styles.docMetaLine}>{requiredRowNextAction(row)}</Text>
+                              )}
+                            </View>
+                            <ComplianceStatusChip status={row.status} label={meta.label} compact />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => void openRowPreview(row)}
+                            disabled={viewingKey != null || !canViewDocuments}
+                            style={styles.eyeBtn}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`View ${labelForDocType(row.type)}`}
+                          >
+                            {viewingKey === row.key ? (
+                              <ActivityIndicator size="small" color={Theme.textMuted} />
+                            ) : (
+                              <Eye
+                                size={16}
+                                color={row.doc?.storage_path || row.entityDoc?.storage_path ? Theme.textPrimary : Theme.textMuted}
+                                strokeWidth={2.2}
+                              />
+                            )}
+                          </TouchableOpacity>
+                          {canVerify && entityAssigned ? (
+                            <TouchableOpacity
+                              disabled={uploadingMissing}
+                              onPress={() => handleAddMissing(row.type)}
+                              style={styles.addBtn}
+                            >
+                              <Text style={styles.addBtnText}>
+                                {uploadingMissing && retryType === row.type
+                                  ? "Uploading…"
+                                  : uploadError && retryType === row.type
+                                    ? "Retry"
+                                    : row.status === "missing"
+                                      ? "Upload"
+                                      : "Replace"}
+                              </Text>
+                            </TouchableOpacity>
+                          ) : null}
+                          </View>
+                          {canModerate && (decisions.canApprove || decisions.canDecline) ? (
+                            <View style={styles.decisionRow}>
+                              {rowBusy ? (
+                                <ActivityIndicator size="small" color={Theme.textMuted} />
+                              ) : (
+                                <>
+                                  {decisions.canApprove ? (
+                                    <TouchableOpacity
+                                      style={styles.decisionApproveBtn}
+                                      disabled={busy}
+                                      onPress={() => void handleApprove(row)}
+                                      accessibilityRole="button"
+                                      accessibilityLabel={`Approve ${labelForDocType(row.type)}`}
+                                    >
+                                      <Text style={styles.approveBtnText}>Approve</Text>
+                                    </TouchableOpacity>
+                                  ) : null}
+                                  {decisions.canDecline ? (
+                                    <TouchableOpacity
+                                      style={styles.decisionDeclineBtn}
+                                      disabled={busy}
+                                      onPress={() => {
+                                        setRejectTarget(row);
+                                        setRejectVisible(true);
+                                      }}
+                                      accessibilityRole="button"
+                                      accessibilityLabel={`Decline ${labelForDocType(row.type)}`}
+                                    >
+                                      <Text style={styles.rejectBtnText}>Decline</Text>
+                                    </TouchableOpacity>
+                                  ) : null}
+                                </>
+                              )}
+                            </View>
+                          ) : row.status === "missing" ? (
+                            <Text style={styles.docMetaLine}>Upload a file before Approve / Decline.</Text>
+                          ) : null}
+                        </View>
+                      );
+                    })}
                   </View>
-                );
-              })}
-              <Text style={styles.hint}>{copy.hint}</Text>
+                ),
+              )}
+              {scope === "trip" && canMarkVerified && summary?.complianceVerifiedAt ? (
+                <Text style={styles.hint}>Compliance Verified ✓</Text>
+              ) : null}
+              {scope === "trip" && canMarkVerified && !summary?.complianceVerifiedAt ? (
+                <View>
+                  {!tripVerifyCheck.ok ? (
+                    <Text style={styles.rejectReasonText}>
+                      {[
+                        readiness?.requiredDocs.missingLabels.length
+                          ? `Missing: ${readiness.requiredDocs.missingLabels.join(", ")}`
+                          : null,
+                        readiness?.requiredDocs.pendingLabels.length
+                          ? `Pending: ${readiness.requiredDocs.pendingLabels.join(", ")}`
+                          : null,
+                        readiness?.requiredDocs.rejectedLabels.length
+                          ? `Rejected: ${readiness.requiredDocs.rejectedLabels.join(", ")}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </Text>
+                  ) : null}
+                  {markVerifiedError ? (
+                    <Text style={styles.rejectReasonText}>{markVerifiedError}</Text>
+                  ) : null}
+                <TouchableOpacity
+                  style={[styles.openDocBtn, !tripVerifyCheck.ok && styles.addBtn]}
+                  disabled={!tripVerifyCheck.ok || markingVerified}
+                  onPress={() => void handleMarkVerified()}
+                >
+                  <Text style={styles.openDocBtnText}>
+                    {markingVerified
+                      ? "Marking verified…"
+                      : tripVerifyCheck.ok
+                        ? "Mark Compliance Verified"
+                        : "Mark Compliance Verified — blocked"}
+                  </Text>
+                </TouchableOpacity>
+                </View>
+              ) : null}
+              {scope === "trip" && canManageFinance && readiness?.paymentReady && onPay ? (
+                <TouchableOpacity style={styles.openDocBtn} onPress={onPay}>
+                  <Text style={styles.openDocBtnText}>Pay {readiness.readyCategory === "compliance_balance" ? "balance" : "advance"}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {scope === "trip" && readiness ? (
+                <Text style={styles.hint}>{readiness.blockerLines[0] ?? "Payment ready."}</Text>
+              ) : null}
             </ScrollView>
           ) : (
             <ScrollView style={styles.previewScroll}>
@@ -465,7 +723,10 @@ export function ComplianceDocumentReviewSheet({
               </View>
               <Text style={styles.docTitle}>{labelForDocType(selected.type)}</Text>
               <Text style={styles.docMeta}>
-                {uploadedAt ? `Uploaded ${formatDate(uploadedAt)}` : ""} · {statusMeta?.label ?? selected.status}
+                {uploadedAt ? `Uploaded ${formatDate(uploadedAt)}` : "Not uploaded"}
+                {selected.doc?.uploaded_by ? ` · ${selected.doc.uploaded_by.slice(0, 8)}` : ""}
+                {" · "}
+                {statusMeta?.label ?? selected.status}
                 {selected.status === "verified" && verifiedAt ? ` ${formatDate(verifiedAt)}` : ""}
               </Text>
               {selected.status === "rejected" && rejectionReason ? (
@@ -479,13 +740,19 @@ export function ComplianceDocumentReviewSheet({
                   ) : (
                     <>
                       {selected.status !== "verified" ? (
-                        <TouchableOpacity style={styles.approveBtn} onPress={handleApprove}>
-                          <Text style={styles.approveBtnText}>✓ Approve</Text>
+                        <TouchableOpacity style={styles.approveBtn} onPress={() => void handleApprove(selected)} disabled={busy}>
+                          <Text style={styles.approveBtnText}>{busy ? "Approving…" : "Approve"}</Text>
                         </TouchableOpacity>
                       ) : null}
                       {selected.status !== "rejected" ? (
-                        <TouchableOpacity style={styles.rejectBtn} onPress={() => setRejectVisible(true)}>
-                          <Text style={styles.rejectBtnText}>Reject</Text>
+                        <TouchableOpacity
+                          style={styles.rejectBtn}
+                          onPress={() => {
+                            setRejectTarget(selected);
+                            setRejectVisible(true);
+                          }}
+                        >
+                          <Text style={styles.rejectBtnText}>Decline</Text>
                         </TouchableOpacity>
                       ) : null}
                     </>
@@ -499,10 +766,13 @@ export function ComplianceDocumentReviewSheet({
 
       <ComplianceInputModal
         visible={rejectVisible}
-        title="Reject document"
-        fields={[{ key: "reason", label: "Why is this document being rejected?", placeholder: "Enter reason", required: true }]}
-        confirmLabel="Reject Document"
-        onCancel={() => setRejectVisible(false)}
+        title="Decline document"
+        fields={[{ key: "reason", label: "Note — why is this document being declined?", placeholder: "Enter reason", required: true }]}
+        confirmLabel="Decline with note"
+        onCancel={() => {
+          setRejectVisible(false);
+          setRejectTarget(null);
+        }}
         onSubmit={handleRejectSubmit}
       />
       <ComplianceDocumentPreviewModal
@@ -520,7 +790,7 @@ export function ComplianceDocumentReviewSheet({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(15,23,42,0.45)", alignItems: "center", justifyContent: "center", padding: 16 },
-  sheet: { width: "100%", maxWidth: 400, maxHeight: "72%", backgroundColor: Theme.cardWhite, borderRadius: 14, overflow: "hidden" },
+  sheet: { width: "100%", maxWidth: 520, maxHeight: "80%", backgroundColor: Theme.cardWhite, borderRadius: 14, overflow: "hidden" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -533,7 +803,8 @@ const styles = StyleSheet.create({
   headerSubtitle: { fontSize: 12, color: Theme.textMuted, marginTop: 2 },
   backBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   backBtnText: { fontSize: 13, fontWeight: "600", color: Theme.textPrimary },
-  listScroll: { padding: 16 },
+  requiredSummary: { gap: 4, marginTop: 8, marginBottom: 4 },
+  requiredCount: { fontSize: 14, fontWeight: "700", color: Theme.textPrimary },
   unassigned: { fontSize: 12, color: Theme.textMuted, marginBottom: 10, lineHeight: 16 },
   sectionLabel: { fontSize: 10, fontWeight: "700", color: Theme.textMuted, letterSpacing: 0.5, marginBottom: 8 },
   sectionLabelSpaced: { marginTop: 14 },
@@ -544,6 +815,28 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: Theme.complianceCardBorder,
+  },
+  docBlock: { borderTopWidth: 0 },
+  decisionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingBottom: 10, alignItems: "center" },
+  decisionApproveBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minHeight: 36,
+    borderRadius: 8,
+    backgroundColor: Theme.success,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+  },
+  decisionDeclineBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minHeight: 36,
+    borderRadius: 8,
+    backgroundColor: Theme.complianceDocNeedBg,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
   },
   docRowMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
   docRowLabel: { flex: 1, fontSize: 13, fontWeight: "600", color: Theme.textPrimary, minWidth: 0 },
@@ -557,6 +850,7 @@ const styles = StyleSheet.create({
   },
   addBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: Theme.buttonDark, minHeight: 28, justifyContent: "center" },
   addBtnText: { fontSize: 11, fontWeight: "700", color: Theme.buttonDarkText },
+  listScroll: { flexGrow: 1 },
   hint: { fontSize: 12, color: Theme.textMuted, textAlign: "center", marginTop: 16 },
   previewScroll: { padding: 16 },
   previewBox: {
@@ -583,6 +877,7 @@ const styles = StyleSheet.create({
   docTitle: { fontSize: 15, fontWeight: "700", color: Theme.textPrimary },
   docMeta: { fontSize: 12, color: Theme.textMuted, marginTop: 2 },
   rejectReasonText: { fontSize: 12, color: Theme.teslaRed, marginTop: 6 },
+  docMetaLine: { fontSize: 11, color: Theme.textMuted, marginTop: 2 },
   actionsRow: { flexDirection: "row", gap: 10, marginTop: 16 },
   approveBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: Theme.success, alignItems: "center" },
   approveBtnText: { fontSize: 13, fontWeight: "700", color: Theme.buttonDarkText },

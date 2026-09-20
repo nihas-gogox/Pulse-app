@@ -12,7 +12,7 @@ import Theme from "@/constants/Theme";
 import { useLayoutInsets } from "@/lib/layoutInsets";
 import { useMemberAccess } from "@/lib/useMemberAccess";
 import { useComplianceProductEnabled } from "@/features/tripCompliance/hooks/useComplianceProductEnabled";
-import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOptionalOrganization } from "@/contexts/OrganizationContext";
 import { ChromeBelowTopNavLoadingScreen } from "@/components/chromeLoadingScreens";
 import {
   complianceReportToCsv,
@@ -20,7 +20,7 @@ import {
   type ComplianceReportFilters,
   type ComplianceReportRow,
 } from "@/features/tripCompliance/services/tripComplianceReport.service";
-import { COMPLIANCE_STAGE_LABEL, COMPLIANCE_STAGES } from "@/features/tripCompliance/tripCompliance.types";
+import { COMPLIANCE_STAGE_FILTER_LABEL, COMPLIANCE_STAGES } from "@/features/tripCompliance/tripCompliance.types";
 
 function triggerWebDownload(blob: Blob, fileName: string): void {
   const objectUrl = URL.createObjectURL(blob);
@@ -51,10 +51,10 @@ async function exportCsv(csv: string, fileName: string) {
 }
 
 const PAYMENT_STATUS_OPTIONS: { id: ComplianceReportFilters["paymentStatus"]; label: string }[] = [
-  { id: "any", label: "ALL" },
-  { id: "unpaid", label: "UNPAID" },
-  { id: "advance_paid", label: "ADVANCE PAID" },
-  { id: "balance_paid", label: "SETTLED" },
+  { id: "any", label: "All" },
+  { id: "unpaid", label: "Unpaid" },
+  { id: "advance_paid", label: "Advance paid" },
+  { id: "balance_paid", label: "Settled" },
 ];
 
 export default function ComplianceReportScreen() {
@@ -62,8 +62,8 @@ export default function ComplianceReportScreen() {
   const { can: canSurface, isLoading: accessLoading } = useMemberAccess();
   const canViewFinance = canSurface("trip_compliance.finance.view");
   const { enabled: complianceEnabled, isLoading: productsLoading } = useComplianceProductEnabled();
-  const { currentOrganization } = useOrganization();
-  const orgId = currentOrganization?.id ?? "";
+  const orgCtx = useOptionalOrganization();
+  const orgId = orgCtx?.currentOrganization?.id ?? "";
 
   const [stage, setStage] = useState<ComplianceReportFilters["stage"]>("all");
   const [paymentStatus, setPaymentStatus] = useState<ComplianceReportFilters["paymentStatus"]>("any");
@@ -99,7 +99,7 @@ export default function ComplianceReportScreen() {
     }
   }, [rows]);
 
-  if (accessLoading || productsLoading) return <ChromeBelowTopNavLoadingScreen variant="preparing" />;
+  if (orgCtx === undefined || accessLoading || productsLoading) return <ChromeBelowTopNavLoadingScreen variant="preparing" />;
 
   // Mirrors /compliance's own gate — RBAC alone isn't enough, the workspace
   // toggle must also be on, or this screen stays reachable via direct URL
@@ -117,18 +117,31 @@ export default function ComplianceReportScreen() {
   }
 
   return (
-    <ScrollView style={[styles.screen, { paddingTop: contentTopInset }]} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={[styles.screen, { paddingTop: contentTopInset }]}
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: layout.scrollBottomPadding(24), paddingHorizontal: Layout.screenPaddingHorizontal },
+      ]}
+    >
       <Text style={styles.title}>Compliance Report</Text>
 
       <Text style={styles.subheader}>Compliance stage</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipScrollContent}
+      >
         <TouchableOpacity onPress={() => setStage("all")} style={[styles.chip, stage === "all" && styles.chipActive]}>
-          <Text style={[styles.chipText, stage === "all" && styles.chipTextActive]}>ALL</Text>
+          <Text style={[styles.chipText, stage === "all" && styles.chipTextActive]} numberOfLines={1}>
+            All
+          </Text>
         </TouchableOpacity>
         {COMPLIANCE_STAGES.map((s) => (
           <TouchableOpacity key={s} onPress={() => setStage(s)} style={[styles.chip, stage === s && styles.chipActive]}>
-            <Text style={[styles.chipText, stage === s && styles.chipTextActive]}>
-              {COMPLIANCE_STAGE_LABEL[s].toUpperCase()}
+            <Text style={[styles.chipText, stage === s && styles.chipTextActive]} numberOfLines={1}>
+              {COMPLIANCE_STAGE_FILTER_LABEL[s]}
             </Text>
           </TouchableOpacity>
         ))}
@@ -142,7 +155,9 @@ export default function ComplianceReportScreen() {
             onPress={() => setPaymentStatus(opt.id)}
             style={[styles.chip, paymentStatus === opt.id && styles.chipActive]}
           >
-            <Text style={[styles.chipText, paymentStatus === opt.id && styles.chipTextActive]}>{opt.label}</Text>
+            <Text style={[styles.chipText, paymentStatus === opt.id && styles.chipTextActive]} numberOfLines={1}>
+              {opt.label}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -180,32 +195,43 @@ export default function ComplianceReportScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Theme.screenBackground },
-  content: { padding: 16, paddingBottom: 48, gap: 8 },
-  title: { fontSize: 20, fontWeight: "700", color: Theme.textPrimary, marginBottom: 6 },
-  subheader: { fontSize: 12, fontWeight: "700", color: Theme.textMuted, marginTop: 8 },
-  chipRow: { marginBottom: 4 },
+  screen: { flex: 1, backgroundColor: Theme.compliancePageBg },
+  content: { paddingTop: Layout.spacingMedium, gap: Layout.spacingLarge },
+  title: { fontSize: 20, fontWeight: "800", color: Theme.textPrimaryDark, lineHeight: 24 },
+  subheader: { fontSize: 12, fontWeight: "700", color: Theme.textMuted },
+  chipScrollContent: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 2, paddingRight: 4 },
   chipRowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
-    marginRight: 8,
-    marginBottom: 8,
+    flexShrink: 0,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#F1F2F6",
+    backgroundColor: Theme.cardWhite,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    minHeight: 40,
+    justifyContent: "center",
   },
-  chipActive: { backgroundColor: "#111827" },
-  chipText: { fontSize: 11, fontWeight: "600", color: Theme.textMuted },
-  chipTextActive: { color: "#FFFFFF" },
-  primaryBtn: { marginTop: 10, paddingVertical: 12, borderRadius: 10, backgroundColor: "#111827", alignItems: "center" },
-  primaryBtnText: { fontSize: 13, color: "#FFFFFF", fontWeight: "700" },
-  secondaryBtn: { paddingVertical: 8, alignItems: "flex-start" },
-  secondaryBtnText: { fontSize: 12, color: "#2563eb", fontWeight: "700" },
-  errorText: { fontSize: 12, color: "#d93025", marginTop: 8 },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  message: { fontSize: 12, color: Theme.textMuted },
-  resultsWrap: { marginTop: 12, gap: 6 },
-  rowPreview: { borderTopWidth: 1, borderTopColor: "#F1F2F6", paddingVertical: 6 },
-  rowPreviewTitle: { fontSize: 12, fontWeight: "700", color: Theme.textPrimary },
-  rowPreviewMeta: { fontSize: 11, color: Theme.textMuted, marginTop: 2 },
+  chipActive: { backgroundColor: Theme.buttonDark, borderColor: Theme.buttonDark },
+  chipText: { fontSize: 12, fontWeight: "600", color: Theme.textMuted },
+  chipTextActive: { color: Theme.buttonDarkText },
+  primaryBtn: {
+    minHeight: Layout.minTouchTargetSize,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: Theme.buttonDark,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryBtnText: { fontSize: 14, color: Theme.buttonDarkText, fontWeight: "700" },
+  secondaryBtn: { minHeight: Layout.minTouchTargetSize, paddingVertical: 8, alignItems: "flex-start", justifyContent: "center" },
+  secondaryBtnText: { fontSize: 13, color: Theme.complianceBulk, fontWeight: "700" },
+  errorText: { fontSize: 13, color: Theme.teslaRed },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: Theme.compliancePageBg },
+  message: { fontSize: 13, color: Theme.textMuted },
+  resultsWrap: { gap: 8 },
+  rowPreview: { borderTopWidth: 1, borderTopColor: Theme.border, paddingVertical: 10 },
+  rowPreviewTitle: { fontSize: 13, fontWeight: "700", color: Theme.textPrimary },
+  rowPreviewMeta: { fontSize: 12, color: Theme.textMuted, marginTop: 4, lineHeight: 18 },
 });

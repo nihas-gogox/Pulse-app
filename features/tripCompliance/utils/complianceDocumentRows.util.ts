@@ -45,6 +45,17 @@ export type ComplianceDocRow = {
   entityDoc: ComplianceEntityDocument | null;
 };
 
+function latestDocByType(documents: ComplianceDocumentRow[]): Map<string | null, ComplianceDocumentRow> {
+  const byType = new Map<string | null, ComplianceDocumentRow>();
+  for (const doc of documents) {
+    const current = byType.get(doc.document_type);
+    if (!current || (doc.uploaded_at ?? "") > (current.uploaded_at ?? "")) {
+      byType.set(doc.document_type, doc);
+    }
+  }
+  return byType;
+}
+
 function rowForType(
   type: string,
   required: boolean,
@@ -95,13 +106,43 @@ export function deriveEntityComplianceRows(
 
 /** Required trip types first, then other trip upload options only. */
 export function deriveComplianceDocumentRows(documents: ComplianceDocumentRow[]): ComplianceDocRow[] {
-  const byType = new Map(documents.map((d) => [d.document_type, d]));
+  const byType = latestDocByType(documents);
   const requiredRows = REQUIRED_COMPLIANCE_DOCUMENT_TYPES.map((type) => rowForType(type, true, byType));
   const otherRows = COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES.map((type) => rowForType(type, false, byType));
   return [...requiredRows, ...otherRows];
 }
 
 /** Progress is always measured against required documents only. */
+export function groupComplianceReviewRows(rows: ComplianceDocRow[]): {
+  needsAction: ComplianceDocRow[];
+  missing: ComplianceDocRow[];
+  pending: ComplianceDocRow[];
+  verified: ComplianceDocRow[];
+} {
+  const needsAction: ComplianceDocRow[] = [];
+  const missing: ComplianceDocRow[] = [];
+  const pending: ComplianceDocRow[] = [];
+  const verified: ComplianceDocRow[] = [];
+  for (const row of rows) {
+    if (row.status === "rejected") needsAction.push(row);
+    else if (row.status === "missing") missing.push(row);
+    else if (row.status === "verified") verified.push(row);
+    else pending.push(row);
+  }
+  return { needsAction, missing, pending, verified };
+}
+
+export function requirementScopeLabel(required: boolean): string {
+  return required ? "Required" : "Additional";
+}
+
+export function requiredRowNextAction(row: ComplianceDocRow): string {
+  if (row.status === "missing") return "Upload a file before Approve / Decline.";
+  if (row.status === "pending") return "Preview then Approve or Decline.";
+  if (row.status === "rejected") return "Replace the file, then Approve.";
+  return "View, or Decline if this file should not stay verified.";
+}
+
 export function complianceProgress(rows: ComplianceDocRow[]): { verified: number; total: number } {
   const required = rows.filter((r) => r.required);
   return { verified: required.filter((r) => r.status === "verified").length, total: required.length };

@@ -6,10 +6,11 @@
  * Documents" — no duplicate approve/reject wiring.
  */
 import Theme from "@/constants/Theme";
-import { ComplianceStatusChip } from "@/features/tripCompliance/components/ComplianceStatusIcon";
-import { COMPLIANCE_STAGE_LABEL, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
-import { deriveComplianceDocumentRows, labelForDocType } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
-import { ensureComplianceChecklist } from "@/features/tripCompliance/utils/complianceChecklist.util";
+import { COMPLIANCE_STATUS_META, ComplianceStatusChip } from "@/features/tripCompliance/components/ComplianceStatusIcon";
+import { COMPLIANCE_STAGE_FILTER_LABEL, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
+import { deriveComplianceDocumentRows, labelForDocType, complianceProgress, requirementScopeLabel } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
+import { deriveComplianceQueueReadiness, paymentReadinessLabel } from "@/features/tripCompliance/utils/complianceReadiness.util";
+import { stageToneVisual } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import { ChevronDown, ChevronRight } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -20,6 +21,8 @@ export type ComplianceTripsTableProps = {
   onOpenDetails?: (tripId: string) => void;
   /** Opens the review sheet; documentKey null opens straight to the document list. */
   onReview: (tripId: string, documentKey: string | null) => void;
+  onPay?: (tripId: string) => void;
+  canManageFinance?: boolean;
 };
 
 function TripRowContent({
@@ -27,15 +30,22 @@ function TripRowContent({
   onOpenTrip,
   onOpenDetails,
   onReview,
+  onPay,
+  canManageFinance = false,
 }: {
   summary: ComplianceTripSummary;
   onOpenTrip: (tripId: string) => void;
   onOpenDetails?: (tripId: string) => void;
   onReview: (tripId: string, documentKey: string | null) => void;
+  onPay?: (tripId: string) => void;
+  canManageFinance?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const rows = useMemo(() => deriveComplianceDocumentRows(summary.documents), [summary.documents]);
-  const checklist = ensureComplianceChecklist(summary);
+  const progress = complianceProgress(rows);
+  const readiness = useMemo(() => deriveComplianceQueueReadiness(summary), [summary]);
+  const payLabel = paymentReadinessLabel(readiness);
+  const stageTone = stageToneVisual(summary.stage);
 
   return (
     <View>
@@ -58,15 +68,29 @@ function TripRowContent({
             {summary.trip.client_name || "—"}
           </Text>
         </TouchableOpacity>
-        <Text style={[styles.cell, styles.colStage]}>{COMPLIANCE_STAGE_LABEL[summary.stage]}</Text>
+        <View style={styles.colStage}>
+          <View style={[styles.stagePill, { backgroundColor: stageTone.bg }]}>
+            <Text style={[styles.stagePillText, { color: stageTone.fg }]} numberOfLines={1}>
+              {COMPLIANCE_STAGE_FILTER_LABEL[summary.stage]}
+            </Text>
+          </View>
+        </View>
         <View style={styles.colDocs}>
           {rows.slice(0, 4).map((row) => (
             <ComplianceStatusChip key={row.key} status={row.status} label={labelForDocType(row.type)} compact />
           ))}
         </View>
         <Text style={[styles.cell, styles.colProgress]}>
-          {`${checklist.verified} / ${checklist.total}`}
+          {`Verified ${progress.verified}/${progress.total}`}
         </Text>
+        <View style={styles.colBlockers}>
+          <Text style={[styles.cell, readiness.paymentReady ? styles.readyText : styles.blockedText]} numberOfLines={1}>
+            {payLabel.label}
+          </Text>
+          <Text style={styles.muted} numberOfLines={2}>
+            {readiness.nextAction}
+          </Text>
+        </View>
         <Text style={[styles.cell, styles.colMoney]}>
           {summary.advance ? `₹${summary.advance.amount.toLocaleString("en-IN")}` : "—"}
         </Text>
@@ -80,6 +104,11 @@ function TripRowContent({
           <TouchableOpacity onPress={() => onOpenTrip(summary.trip.id)}>
             <Text style={[styles.actionLink, styles.viewTripLink]}>View Trip</Text>
           </TouchableOpacity>
+          {canManageFinance && readiness.paymentReady && onPay ? (
+            <TouchableOpacity onPress={() => onPay(summary.trip.id)}>
+              <Text style={styles.actionLink}>Pay</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
@@ -87,8 +116,10 @@ function TripRowContent({
         <View style={styles.expandedWrap}>
           {rows.map((row) => (
             <View key={row.key} style={styles.expandedRow}>
-              <Text style={styles.expandedDocLabel}>{labelForDocType(row.type)}</Text>
-              <ComplianceStatusChip status={row.status} label={row.status === "missing" ? "Missing" : row.status} compact />
+              <Text style={styles.expandedDocLabel}>
+                {labelForDocType(row.type)} · {requirementScopeLabel(row.required)}
+              </Text>
+              <ComplianceStatusChip status={row.status} label={COMPLIANCE_STATUS_META[row.status].label} compact />
               <View style={styles.expandedActions}>
                 {row.status === "missing" ? (
                   <TouchableOpacity onPress={() => onReview(summary.trip.id, row.key)}>
@@ -120,16 +151,24 @@ function TripRowContent({
   );
 }
 
-export function ComplianceTripsTable({ summaries, onOpenTrip, onOpenDetails, onReview }: ComplianceTripsTableProps) {
+export function ComplianceTripsTable({
+  summaries,
+  onOpenTrip,
+  onOpenDetails,
+  onReview,
+  onPay,
+  canManageFinance,
+}: ComplianceTripsTableProps) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator style={styles.tableScroll}>
       <View style={styles.table}>
         <View style={[styles.row, styles.headerRow]}>
           <View style={styles.expandToggle} />
           <Text style={[styles.cell, styles.colTrip, styles.headerText]}>Trip</Text>
-          <Text style={[styles.cell, styles.colStage, styles.headerText]}>Compliance</Text>
+          <Text style={[styles.cell, styles.colStage, styles.headerText]}>Stage</Text>
           <Text style={[styles.cell, styles.colDocs, styles.headerText]}>Documents</Text>
-          <Text style={[styles.cell, styles.colProgress, styles.headerText]}>Progress</Text>
+          <Text style={[styles.cell, styles.colProgress, styles.headerText]}>Verified</Text>
+          <Text style={[styles.cell, styles.colBlockers, styles.headerText]}>Payment</Text>
           <Text style={[styles.cell, styles.colMoney, styles.headerText]}>Advance</Text>
           <Text style={[styles.cell, styles.colMoney, styles.headerText]}>Balance</Text>
           <Text style={[styles.cell, styles.colAction, styles.headerText]}>Action</Text>
@@ -142,6 +181,8 @@ export function ComplianceTripsTable({ summaries, onOpenTrip, onOpenDetails, onR
             onOpenTrip={onOpenTrip}
             onOpenDetails={onOpenDetails}
             onReview={onReview}
+            onPay={onPay}
+            canManageFinance={canManageFinance}
           />
         ))}
       </View>
@@ -151,39 +192,57 @@ export function ComplianceTripsTable({ summaries, onOpenTrip, onOpenDetails, onR
 
 const styles = StyleSheet.create({
   tableScroll: { flexGrow: 0 },
-  table: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, overflow: "hidden", minWidth: 720 },
+  table: {
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    borderRadius: 12,
+    overflow: "hidden",
+    minWidth: 920,
+    backgroundColor: Theme.cardWhite,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
     borderTopWidth: 1,
-    borderTopColor: "#F1F2F6",
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    gap: 6,
+    borderTopColor: Theme.border,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    gap: 8,
   },
-  headerRow: { borderTopWidth: 0, backgroundColor: "#FAFAFC", paddingVertical: 6 },
-  headerText: { fontSize: 10, fontWeight: "700", color: Theme.textMuted, textTransform: "uppercase" },
-  expandToggle: { width: 20, alignItems: "center" },
-  cell: { fontSize: 12, color: Theme.textPrimary },
+  headerRow: { borderTopWidth: 0, backgroundColor: Theme.compliancePageBg, paddingVertical: 10 },
+  headerText: { fontSize: 10, fontWeight: "700", color: Theme.textMuted, textTransform: "uppercase", letterSpacing: 0.3 },
+  expandToggle: { width: 28, minHeight: 40, alignItems: "center", justifyContent: "center" },
+  cell: { fontSize: 13, color: Theme.textPrimary, fontWeight: "500" },
   muted: { color: Theme.textMuted, fontSize: 11 },
-  colTrip: { flex: 1.4, minWidth: 100 },
-  colStage: { flex: 1.2, minWidth: 100 },
+  colTrip: { flex: 1.4, minWidth: 110 },
+  colStage: { flex: 1.1, minWidth: 128, justifyContent: "center" },
+  stagePill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    maxWidth: "100%",
+  },
+  stagePillText: { fontSize: 11, fontWeight: "700" },
   colDocs: { flex: 1.8, minWidth: 140, flexDirection: "row", flexWrap: "wrap", gap: 4 },
-  colProgress: { flex: 0.7, minWidth: 55 },
-  colMoney: { flex: 0.8, minWidth: 70 },
-  colAction: { flex: 1.2, minWidth: 110, flexDirection: "row", gap: 8 },
-  actionLink: { fontSize: 11, fontWeight: "700", color: "#2563eb" },
+  colProgress: { flex: 0.9, minWidth: 88 },
+  colBlockers: { flex: 1.4, minWidth: 150 },
+  readyText: { color: Theme.complianceStageSuccessFg, fontWeight: "700" },
+  blockedText: { color: Theme.complianceStageDocsFg, fontWeight: "700" },
+  colMoney: { flex: 0.8, minWidth: 76 },
+  colAction: { flex: 1.2, minWidth: 124, flexDirection: "row", flexWrap: "wrap", gap: 10, alignItems: "center" },
+  actionLink: { fontSize: 12, fontWeight: "700", color: Theme.complianceBulk },
   viewTripLink: { color: Theme.textMuted },
   rejectLink: { color: Theme.teslaRed },
-  expandedWrap: { backgroundColor: "#FAFAFC", paddingLeft: 26, paddingRight: 8 },
+  expandedWrap: { backgroundColor: Theme.compliancePageBg, paddingLeft: 38, paddingRight: 10 },
   expandedRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: "#F1F2F6",
+    borderTopColor: Theme.border,
   },
-  expandedDocLabel: { width: 90, fontSize: 12, fontWeight: "600", color: Theme.textPrimary },
+  expandedDocLabel: { width: 96, fontSize: 13, fontWeight: "600", color: Theme.textPrimary },
   expandedActions: { flexDirection: "row", flexWrap: "wrap", marginLeft: "auto" },
 });

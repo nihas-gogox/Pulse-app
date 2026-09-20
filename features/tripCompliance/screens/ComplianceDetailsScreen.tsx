@@ -4,15 +4,19 @@ import { DetailRow, DetailSection } from "@/components/DetailPageLayout";
 import Layout from "@/constants/Layout";
 import Theme from "@/constants/Theme";
 import { useAuth } from "@/contexts/AuthContext";
-import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOptionalOrganization } from "@/contexts/OrganizationContext";
 import { ComplianceDocumentReviewSheet } from "@/features/tripCompliance/components/ComplianceDocumentReviewSheet";
+import { CompliancePaymentConfirmModal } from "@/features/tripCompliance/components/CompliancePaymentConfirmModal";
 import { ComplianceTripCard } from "@/features/tripCompliance/components/ComplianceTripCard";
 import { useComplianceProductEnabled } from "@/features/tripCompliance/hooks/useComplianceProductEnabled";
 import {
   useComplianceTripQuery,
   useInvalidateComplianceTrips,
 } from "@/features/tripCompliance/hooks/useComplianceTripsQuery";
-import { COMPLIANCE_STAGE_LABEL } from "@/features/tripCompliance/tripCompliance.types";
+import { postCompliancePayment, type ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import { COMPLIANCE_STAGE_LABEL, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
+import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
+import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { useLayoutInsets } from "@/lib/layoutInsets";
 import { ROUTES } from "@/lib/routes";
 import { useMemberAccess } from "@/lib/useMemberAccess";
@@ -27,18 +31,24 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
   const { can: canSurface, isLoading: accessLoading } = useMemberAccess();
   const { enabled: complianceEnabled, isLoading: productsLoading } = useComplianceProductEnabled();
   const canViewCompliance = complianceEnabled && canSurface("trip_compliance.tab");
+  const canViewDocuments = canSurface("trip_compliance.documents.view");
   const canVerifyDocuments = canSurface("trip_compliance.documents.verify");
+  const canMarkVerified = canSurface("trip_compliance.trip.mark_verified");
+  const canManageFinance = canSurface("trip_compliance.finance.manage");
   const { user } = useAuth();
-  const { currentOrganization } = useOrganization();
-  const { data: summary, isLoading, isError, error, refetch } = useComplianceTripQuery(tripId);
+  const orgCtx = useOptionalOrganization();
+  const currentOrganization = orgCtx?.currentOrganization ?? null;
+  const { data: summary, isLoading, isError, error, refetch, isFetching } = useComplianceTripQuery(tripId);
   const invalidate = useInvalidateComplianceTrips();
   const [review, setReview] = useState<{
     open: boolean;
     scope: "trip" | "vehicle" | "driver";
   }>({ open: false, scope: "trip" });
+  const [pay, setPay] = useState<{ summary: ComplianceTripSummary; category: ComplianceLedgerCategory } | null>(null);
+  const [paying, setPaying] = useState(false);
   const contentTopInset = layout.isDesktopWeb ? Layout.desktopTopNavOffset : layout.top;
 
-  if (accessLoading || productsLoading || isLoading) {
+  if (orgCtx === undefined || accessLoading || productsLoading || (isLoading && !summary)) {
     return <ChromeBelowTopNavLoadingScreen variant="preparing" />;
   }
 
@@ -60,17 +70,34 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
   return (
     <ScrollView
       style={[styles.screen, { paddingTop: contentTopInset }]}
-      contentContainerStyle={[styles.content, { paddingBottom: 48 + layout.bottom }]}
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingBottom: layout.scrollBottomPadding(24),
+          paddingHorizontal: Layout.screenPaddingHorizontal,
+        },
+      ]}
     >
       <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
         <ChevronLeft size={16} color={Theme.textMuted} strokeWidth={2.2} />
         <Text style={styles.backText}>Back</Text>
       </TouchableOpacity>
 
+      {isFetching ? <Text style={styles.backText}>Updating…</Text> : null}
+
       <ComplianceTripCard
         summary={summary}
         onReviewDocuments={(scope) => setReview({ open: true, scope })}
         onViewTrip={() => router.push(ROUTES.tripDetail(trip.id) as Parameters<typeof router.push>[0])}
+        onPay={() => {
+          const readiness = deriveComplianceQueueReadiness(summary);
+          if (!readiness.readyCategory) {
+            alertMessage("Payment blocked", readiness.blockerLines[0] ?? "This trip is not ready for payment.");
+            return;
+          }
+          setPay({ summary, category: readiness.readyCategory });
+        }}
+        canManageFinance={canManageFinance}
       />
 
       <DetailSection title="Trip Information">
@@ -107,10 +134,19 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
         organizationId={currentOrganization?.id ?? ""}
         actorId={user?.uid ?? null}
         documents={summary.documents}
+        canViewDocuments={canViewDocuments}
         canVerify={canVerifyDocuments}
+        canMarkVerified={canMarkVerified}
+        canManageFinance={canManageFinance}
+        summary={summary}
         onChanged={() => {
-          invalidate();
+          invalidate(trip.id);
           void refetch();
+        }}
+        onPay={() => {
+          const readiness = deriveComplianceQueueReadiness(summary);
+          if (!readiness.readyCategory) return;
+          setPay({ summary, category: readiness.readyCategory });
         }}
         scope={review.scope}
         vehicleId={trip.vehicle_id}
@@ -120,13 +156,43 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
         vehicleLabel={trip.vehicle_display_number?.trim() || "Unassigned"}
         driverLabel={trip.driver_display_name?.trim() || "Unassigned"}
       />
+      <CompliancePaymentConfirmModal
+        visible={pay != null}
+        summary={pay?.summary ?? null}
+        category={pay?.category ?? null}
+        submitting={paying}
+        onCancel={() => {
+          if (!paying) setPay(null);
+        }}
+        onConfirm={async (values) => {
+          if (!pay || !currentOrganization?.id) return;
+          setPaying(true);
+          const { error: payError } = await postCompliancePayment({
+            organizationId: currentOrganization.id,
+            trip: pay.summary.trip,
+            category: pay.category,
+            amount: values.amount,
+            paymentModeId: values.paymentModeId,
+            paymentModeLabel: values.paymentModeLabel,
+            utr: values.utr,
+          });
+          setPaying(false);
+          if (payError) {
+            alertMessage("Couldn't post payment", payError.message);
+            return;
+          }
+          setPay(null);
+          invalidate(trip.id);
+          void refetch();
+        }}
+      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Theme.compliancePageBg },
-  content: { padding: 24, gap: 16 },
-  backBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", minHeight: 44 },
+  content: { paddingTop: Layout.spacingMedium, gap: Layout.spacingLarge },
+  backBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", minHeight: Layout.minTouchTargetSize },
   backText: { fontSize: 13, fontWeight: "600", color: Theme.textMuted },
 });

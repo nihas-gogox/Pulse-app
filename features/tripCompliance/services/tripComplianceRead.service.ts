@@ -48,6 +48,7 @@ type RawTripDocRow = {
   file_name: string;
   storage_path: string;
   uploaded_at: string;
+  uploaded_by?: string | null;
   status?: ComplianceDocumentRow["status"];
   verified_by?: string | null;
   verified_at?: string | null;
@@ -66,7 +67,7 @@ async function fetchTripDocumentsForTrips(
   const withStatus = await supabase()
     .from("trip_documents")
     .select(
-      "id, trip_id, document_type, file_name, storage_path, uploaded_at, status, verified_by, verified_at, rejection_reason, mime_type, document_number",
+      "id, trip_id, document_type, file_name, storage_path, uploaded_at, uploaded_by, status, verified_by, verified_at, rejection_reason, mime_type, document_number",
     )
     .in("trip_id", tripIds);
 
@@ -75,7 +76,7 @@ async function fetchTripDocumentsForTrips(
     // uploaded document as 'pending' so the UI still renders sensibly.
     const fallback = await supabase()
       .from("trip_documents")
-      .select("id, trip_id, document_type, file_name, storage_path, uploaded_at")
+      .select("id, trip_id, document_type, file_name, storage_path, uploaded_at, uploaded_by")
       .in("trip_id", tripIds);
     if (fallback.error) throw new Error(fallback.error.message);
     rows = (fallback.data ?? []).map((r) => ({ ...r, status: "pending" as const }));
@@ -93,6 +94,7 @@ async function fetchTripDocumentsForTrips(
       file_name: r.file_name,
       storage_path: r.storage_path,
       uploaded_at: r.uploaded_at,
+      uploaded_by: r.uploaded_by ?? null,
       status: r.status ?? "pending",
       verified_by: r.verified_by ?? null,
       verified_at: r.verified_at ?? null,

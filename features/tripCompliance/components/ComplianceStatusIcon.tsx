@@ -14,10 +14,10 @@ export const COMPLIANCE_STATUS_META: Record<
   ComplianceDocRowStatus,
   { label: string; glyph: string; color: string; bg: string }
 > = {
-  missing: { label: "Missing", glyph: "!", color: Theme.complianceDocNeedFg, bg: Theme.complianceDocNeedBg },
-  pending: { label: "Pending", glyph: "!", color: Theme.complianceDocNeedFg, bg: Theme.complianceDocNeedBg },
+  missing: { label: "Missing", glyph: "○", color: Theme.complianceDocNeedFg, bg: Theme.complianceDocNeedBg },
+  pending: { label: "Pending verification", glyph: "◷", color: Theme.warning, bg: Theme.complianceDocNeedBg },
   verified: { label: "Verified", glyph: "✓", color: Theme.complianceDocOkFg, bg: Theme.complianceDocOkBg },
-  rejected: { label: "Rejected", glyph: "!", color: Theme.teslaRed, bg: "#FDEBEC" },
+  rejected: { label: "Rejected", glyph: "!", color: Theme.teslaRed, bg: Theme.complianceDocNeedBg },
 };
 
 export function ComplianceStatusChip({

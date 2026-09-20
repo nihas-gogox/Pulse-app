@@ -190,5 +190,13 @@ describe('data-plane route without session', () => {
     expect(shouldRedirectDataPlaneRouteWithoutSession(false, '/trips')).toBe(true);
     expect(shouldRedirectDataPlaneRouteWithoutSession(false, '/workspace')).toBe(true);
     expect(shouldRedirectDataPlaneRouteWithoutSession(false, '/driver-trip/xyz')).toBe(true);
+    expect(shouldRedirectDataPlaneRouteWithoutSession(false, '/compliance')).toBe(true);
+  });
+
+  it('redirects when pathname lags on / but segments already match a private route', () => {
+    expect(shouldRedirectDataPlaneRouteWithoutSession(false, '/', ['compliance'])).toBe(true);
+    expect(shouldRedirectDataPlaneRouteWithoutSession(false, '/', ['(tabs)'])).toBe(true);
+    expect(shouldRedirectDataPlaneRouteWithoutSession(false, '/', [])).toBe(false);
+    expect(shouldRedirectDataPlaneRouteWithoutSession(false, '/', ['index'])).toBe(false);
   });
 });

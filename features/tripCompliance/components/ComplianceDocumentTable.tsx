@@ -15,6 +15,10 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import * as DocumentPicker from "expo-document-picker";
 import Theme from "@/constants/Theme";
 import { uploadTripDocument, type TripDocumentType } from "@/features/trips/services/tripDocuments.service";
+import {
+  COMPLIANCE_TRIP_DOC_PICKER_TYPES,
+  validateComplianceTripDocumentFile,
+} from "@/features/tripCompliance/utils/complianceTripDocumentFormat.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import type { ComplianceDocumentRow } from "@/features/tripCompliance/tripCompliance.types";
 import {
@@ -71,17 +75,34 @@ export function ComplianceDocumentTable({
       setUploadingType(type);
       try {
         const res = await DocumentPicker.getDocumentAsync({
-          type: ["application/pdf", "image/*"],
+          type: [...COMPLIANCE_TRIP_DOC_PICKER_TYPES],
           copyToCacheDirectory: true,
         });
         if (res.canceled || !res.assets[0]) return;
         const asset = res.assets[0];
+        const fileName = asset.name ?? `${type}.pdf`;
+        if (typeof asset.size === "number") {
+          const early = validateComplianceTripDocumentFile({
+            fileName,
+            mimeType: asset.mimeType,
+            byteLength: asset.size,
+          });
+          if (!early.ok) throw new Error(early.reason);
+        }
         const arrayBuffer = await fetch(asset.uri).then((r) => r.arrayBuffer());
+        const format = validateComplianceTripDocumentFile({
+          fileName,
+          mimeType: asset.mimeType,
+          byteLength: arrayBuffer.byteLength,
+        });
+        if (!format.ok) throw new Error(format.reason);
         const { error } = await uploadTripDocument(
           tripId,
           actorId,
-          { arrayBuffer, fileName: asset.name ?? `${type}.pdf`, mimeType: asset.mimeType ?? "application/pdf" },
+          { arrayBuffer, fileName, mimeType: format.mimeType },
           type as TripDocumentType,
+          undefined,
+          { replaceExistingOfType: true },
         );
         if (error) throw error;
         onUploaded();

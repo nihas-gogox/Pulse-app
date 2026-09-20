@@ -5,6 +5,7 @@
  */
 import Theme from "@/constants/Theme";
 import { PdfViewer } from "@/components/PdfViewer";
+import { complianceTripDocPreviewKind } from "@/features/tripCompliance/utils/complianceTripDocumentFormat.util";
 import type { StopProofDocumentSummary } from "@/features/driver/job-card/deliveryProof";
 import { X } from "lucide-react-native";
 import React from "react";
@@ -27,6 +28,8 @@ export function ComplianceDocumentPreviewModal({
   loading,
   placeProof,
   onClose,
+  emptyMessage,
+  onUnreadable,
 }: {
   visible: boolean;
   title: string;
@@ -35,8 +38,10 @@ export function ComplianceDocumentPreviewModal({
   loading: boolean;
   placeProof: StopProofDocumentSummary | null;
   onClose: () => void;
+  emptyMessage?: string | null;
+  onUnreadable?: () => void;
 }) {
-  const isPdf = (mime ?? "").includes("pdf");
+  const previewKind = complianceTripDocPreviewKind(mime);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -71,14 +76,24 @@ export function ComplianceDocumentPreviewModal({
               <ActivityIndicator size="large" color={Theme.textMuted} />
               <Text style={styles.loadingText}>Loading…</Text>
             </View>
-          ) : url && isPdf ? (
+          ) : url && previewKind === "pdf" ? (
             <View style={styles.pdfWrap}>
               <PdfViewer pdfUri={url} />
             </View>
-          ) : url ? (
-            <Image source={{ uri: url }} style={styles.image} resizeMode="contain" />
+          ) : url && previewKind === "image" ? (
+            <Image
+              source={{ uri: url }}
+              style={styles.image}
+              resizeMode="contain"
+              onError={() => onUnreadable?.()}
+            />
           ) : (
-            <Text style={styles.missing}>No preview is available for this file.</Text>
+            <Text style={styles.missing}>
+              {emptyMessage ??
+                (url
+                  ? "This file type can't be previewed here. Download it from Trip documents if you need to inspect it."
+                  : "No preview is available for this file.")}
+            </Text>
           )}
         </Pressable>
       </Pressable>
