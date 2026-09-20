@@ -34,3 +34,24 @@ export type V2GatewayError = {
 export type V2GatewayResponse = V2GatewayResult | V2GatewayError;
 
 export type V2Execute = (request: V2GatewayRequest) => V2GatewayResponse;
+
+/**
+ * Public Gateway bootstrap request. Not execute(). Not Actor/Workspace authority.
+ * actorId / workspaceId / membershipId / role are not fields of this type.
+ */
+export type V2CreateWorkspaceRequest = {
+  identityProof: string;
+  correlationId: string;
+  idempotencyKey: string;
+};
+
+export type V2CreateWorkspaceSuccess = {
+  ok: true;
+  workspaceId: string;
+  membershipId: string;
+  actorId: string;
+  membershipStatus: "active";
+  correlationId: string;
+};
+
+export type V2CreateWorkspaceResponse = V2CreateWorkspaceSuccess | V2GatewayError;

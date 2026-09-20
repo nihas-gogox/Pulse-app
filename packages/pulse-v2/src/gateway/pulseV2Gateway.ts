@@ -2,10 +2,13 @@ import { handleCommerceOperation } from "../domains/commerce/api";
 import { handleExecutionOperation } from "../domains/execution/api";
 import { assertV2PersistenceConfig } from "../env/v2SupabaseEnv";
 import type { AuthorizationContext } from "../identity/authorizationContext";
-import type { IdentityPort } from "../identity/identityPort";
+import type { CreateWorkspaceResult, IdentityPort } from "../identity/identityPort";
 import { createV2Persistence } from "../persistence/createPersistence";
 import type {
+  V2CreateWorkspaceRequest,
+  V2CreateWorkspaceResponse,
   V2Execute,
+  V2GatewayError,
   V2GatewayRequest,
   V2GatewayResponse,
 } from "./types";
@@ -18,7 +21,7 @@ function deny(
   code: string,
   message: string,
   correlationId: string,
-): V2GatewayResponse {
+): V2GatewayError {
   return { ok: false, code, message, correlationId };
 }
 
@@ -134,7 +137,59 @@ export function createPulseV2Gateway(
     return dispatch(request, ctx);
   };
 
-  return { execute, dataPlane: { mode: config.mode, supabaseUrl: config.supabaseUrl } };
+  const createWorkspace = (
+    request: V2CreateWorkspaceRequest,
+  ): V2CreateWorkspaceResponse => {
+    const correlationId = request.correlationId.trim();
+    if (!correlationId) {
+      return deny("V2_GATEWAY_INVALID", "correlationId is required", "");
+    }
+    const idempotencyKey = request.idempotencyKey.trim();
+    if (!idempotencyKey) {
+      return deny("V2_GATEWAY_INVALID", "idempotencyKey is required", correlationId);
+    }
+    const identityProof = request.identityProof.trim();
+    if (!identityProof) {
+      return deny("V2_GATEWAY_INVALID", "identityProof is required", correlationId);
+    }
+
+    const actorResolved = options.identityPort.resolveActor({ value: identityProof });
+    if (!actorResolved.ok) {
+      return deny(
+        "V2_UNAUTHENTICATED",
+        `actor resolution failed: ${actorResolved.reason}`,
+        correlationId,
+      );
+    }
+
+    const identityResult: CreateWorkspaceResult = options.identityPort.createWorkspace({
+      actorId: actorResolved.actorId,
+      correlationId,
+      idempotencyKey,
+    });
+    if (!identityResult.ok) {
+      return deny(
+        "V2_WORKSPACE_CREATE_FAILED",
+        `workspace creation failed: ${identityResult.reason}`,
+        correlationId,
+      );
+    }
+
+    return {
+      ok: true,
+      workspaceId: identityResult.workspaceId,
+      membershipId: identityResult.membershipId,
+      actorId: identityResult.actorId,
+      membershipStatus: identityResult.membershipStatus,
+      correlationId,
+    };
+  };
+
+  return {
+    execute,
+    createWorkspace,
+    dataPlane: { mode: config.mode, supabaseUrl: config.supabaseUrl },
+  };
 }
 
 export type PulseV2Gateway = ReturnType<typeof createPulseV2Gateway>;

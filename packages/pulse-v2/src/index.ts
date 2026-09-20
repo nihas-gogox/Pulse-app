@@ -11,6 +11,8 @@ export {
 export { createPulseV2Gateway } from "./gateway/pulseV2Gateway";
 export type { PulseV2Gateway, PulseV2GatewayOptions } from "./gateway/pulseV2Gateway";
 export type {
+  V2CreateWorkspaceRequest,
+  V2CreateWorkspaceResponse,
   V2Execute,
   V2GatewayRequest,
   V2GatewayResponse,
