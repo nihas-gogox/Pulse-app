@@ -15,7 +15,8 @@
 | SEC-001 | **CLOSED** (`5f7c43e4` review) |
 | SEC-006 | **CLOSED** (`87720396`) |
 | SEC-007 | **DEFERRED** (not a security prerequisite) |
-| V2 implementation | **FROZEN AFTER SEC-006** — no next implementation gate authorized |
+| V2 implementation | **UNFROZEN for Persistent Commerce/Execution only** — Identity/Auth still frozen |
+| Persistent Commerce/Execution | **AUTHORIZED** (owner: AUTHORIZE PERSISTENT COMMERCE/EXECUTION) |
 | OPEN A — Auth Subject → Actor | **RESOLVED — MODEL B** (`OPEN_A_DECISION.md`) |
 | OPEN A — Implementation plan | **READY** (`OPEN_A_IMPLEMENTATION_PLAN.md`) — **code NOT authorized** |
 | OPEN B — Permission catalog | **OPEN** |
@@ -26,9 +27,21 @@
 
 Quality contract: `PULSE_V2_QUALITY_CHARTER.md`. Gate C: local-only. Production Auth, `auth.users`, `organization_members`, production migrations, and the Oct 1 line remain **untouched**.
 
-**After SEC-006, no subsequent implementation gate is currently authorized.** The next implementation slice requires explicit owner authorization. OPEN A is an approved architectural design but **not** implementation authorization. OPEN B remains unresolved. SEC-007 remains deferred. Persistent Identity/Auth, persistent Membership/Workspace, RLS, hosted V2, Command Store, Timeline, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved.
+Owner authorization for this slice (nothing else):
 
-Current runtime (memory Identity, memory persistence, local-only infra, production untouched):
+```text
+Commerce persistence: AUTHORIZED
+Execution persistence: AUTHORIZED
+Identity/Auth: NOT AUTHORIZED
+Membership/Workspace persistence: NOT AUTHORIZED
+RLS: NOT AUTHORIZED
+Hosted V2: NOT AUTHORIZED
+Production: FROZEN
+```
+
+Slice 5 and Identity/Auth remain unauthorized. OPEN A is an approved architectural design but **not** implementation authorization. OPEN B remains unresolved. SEC-007 remains deferred. Persistent Identity, persistent Membership/Workspace, Auth, RLS, hosted V2, Command Store, Timeline, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved.
+
+Current runtime (memory Identity, Commerce/Execution may use local durable persistence, production untouched):
 
 ```text
 Gateway → trusted AuthorizationContext → domain handlers → workspace-scoped persistence
