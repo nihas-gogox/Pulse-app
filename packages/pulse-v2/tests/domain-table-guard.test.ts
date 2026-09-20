@@ -15,6 +15,11 @@ import {
   scanDomainHandlerAccess,
   scanDomainHandlerAccessSource,
 } from "../src/architecture/domainHandlerAccessGuard";
+import {
+  assertPersistenceTenancy,
+  scanPersistenceTenancy,
+  scanPersistenceTenancySource,
+} from "../src/architecture/persistenceTenancyGuard";
 
 const SRC = path.join(__dirname, "../src");
 
@@ -128,5 +133,21 @@ describe("Domain handler Gateway-only access", () => {
         `import type { handleCommerceOperation } from "../domains/commerce/api";`,
       ),
     ).toEqual([]);
+  });
+});
+
+describe("Persistence tenancy from trusted context", () => {
+  it("allows current V2 domain handlers (no payload.workspaceId tenancy)", () => {
+    expect(() => assertPersistenceTenancy(SRC)).not.toThrow();
+    expect(scanPersistenceTenancy(SRC)).toEqual([]);
+  });
+
+  it("rejects a Commerce handler that persists payload.workspaceId", () => {
+    const violations = scanPersistenceTenancySource(
+      "domains/commerce/api.ts",
+      `const workspaceId = String(payload.workspaceId ?? "");`,
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.file).toBe("domains/commerce/api.ts");
   });
 });

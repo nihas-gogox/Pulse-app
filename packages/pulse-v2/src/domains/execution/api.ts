@@ -6,6 +6,7 @@ import {
 import type { V2TenantContext } from "../../persistence/tenantContext";
 import type { ExecutionRepository } from "./repository";
 
+/** Persistence tenancy is copied from the sealed AuthorizationContext only. */
 function persistenceCtx(authz: AuthorizationContext): V2TenantContext {
   return { workspaceId: authz.workspaceId, actorUserId: authz.actorId };
 }
