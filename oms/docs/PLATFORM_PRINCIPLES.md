@@ -138,7 +138,7 @@ Protect with consistent IDs, eventing on every transition, and strict ownership 
 
 10. **Timeline ≠ Event Store.** Append-only; never update or delete. Observatory reads Timeline — not memory.
 
-11. **Frozen envelopes.** [COMMAND_ENVELOPE](./contracts/COMMAND_ENVELOPE.md) and [EVENT_ENVELOPE](./contracts/EVENT_ENVELOPE.md) — never remove fields; only add optional ones.
+11. **Frozen envelopes.** [COMMAND_ENVELOPE](./contracts/COMMAND_ENVELOPE.md), [EVENT_ENVELOPE](./contracts/EVENT_ENVELOPE.md), and [TIMELINE_ENTRY](./contracts/TIMELINE_ENTRY.md) — never remove fields; only add optional ones.
 
 12. **Gateway is the only external entry.** Sprint 2+. No service directly callable.
 

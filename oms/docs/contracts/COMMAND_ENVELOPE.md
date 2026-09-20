@@ -4,7 +4,7 @@
 
 All mutating requests enter the platform through the Gateway as a **Command Envelope**. The Command Store persists the full record; `PlatformRuntime.executeCommand()` is the only path business services should use to handle commands.
 
-Related: [EVENT_ENVELOPE.md](./EVENT_ENVELOPE.md) · [PLATFORM_ENTITY_MODEL.md](../PLATFORM_ENTITY_MODEL.md) · TypeScript: `@pulse/contracts`
+Related: [EVENT_ENVELOPE.md](./EVENT_ENVELOPE.md) · [TIMELINE_ENTRY.md](./TIMELINE_ENTRY.md) · [PLATFORM_ENTITY_MODEL.md](../PLATFORM_ENTITY_MODEL.md) · TypeScript: `@pulse/contracts`
 
 ---
 

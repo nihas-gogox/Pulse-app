@@ -4,7 +4,7 @@
 
 Domain events propagate state between services. Each event also produces one **append-only** Platform Timeline entry (written by Gateway / Platform Runtime — never by business services directly).
 
-Related: [COMMAND_ENVELOPE.md](./COMMAND_ENVELOPE.md) · TypeScript: `@pulse/contracts`
+Related: [COMMAND_ENVELOPE.md](./COMMAND_ENVELOPE.md) · [TIMELINE_ENTRY.md](./TIMELINE_ENTRY.md) · TypeScript: `@pulse/contracts`
 
 ---
 
