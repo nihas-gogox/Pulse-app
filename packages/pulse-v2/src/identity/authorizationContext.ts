@@ -22,19 +22,6 @@ export type AuthorizationContext = Readonly<{
 }> & { readonly [authorizationContextBrand]: true };
 
 /**
- * SEC-002 domain-entry check. A plain object, spread clone, or `as AuthorizationContext`
- * assertion never carries the non-enumerable brand, so it is rejected here. Domains use
- * this to verify; only `sealTrustedAuthorizationContext` (Gateway-only) may seal.
- */
-export function isTrustedAuthorizationContext(value: unknown): value is AuthorizationContext {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (value as Record<PropertyKey, unknown>)[authorizationContextBrand] === true
-  );
-}
-
-/**
  * Gateway-only sealer. Does not resolve Actor/Membership.
  * IdentityPort must not call this.
  */
