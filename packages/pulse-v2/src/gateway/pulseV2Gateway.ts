@@ -1,7 +1,10 @@
 import { handleCommerceOperation } from "../domains/commerce/api";
 import { handleExecutionOperation } from "../domains/execution/api";
 import { assertV2PersistenceConfig } from "../env/v2SupabaseEnv";
-import type { AuthorizationContext } from "../identity/authorizationContext";
+import {
+  sealTrustedAuthorizationContext,
+  type AuthorizationContext,
+} from "../identity/authorizationContext";
 import type { CreateWorkspaceResult, IdentityPort } from "../identity/identityPort";
 import { createV2Persistence } from "../persistence/createPersistence";
 import type {
@@ -79,7 +82,7 @@ function resolveAuthorizationContext(
     );
   }
 
-  return Object.freeze({
+  return sealTrustedAuthorizationContext({
     actorId: resolved.membership.actorId,
     membershipId: resolved.membership.membershipId,
     workspaceId: trustedWorkspaceId,

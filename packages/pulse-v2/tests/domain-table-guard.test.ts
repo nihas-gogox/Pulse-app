@@ -1,5 +1,10 @@
 import path from "node:path";
 import {
+  assertAuthorizationContextConstruction,
+  scanAuthorizationContextConstruction,
+  scanAuthorizationContextConstructionSource,
+} from "../src/architecture/authorizationContextConstructionGuard";
+import {
   assertV2DomainTables,
   extractFromTables,
   scanV2DomainTables,
@@ -60,5 +65,29 @@ describe("V2 domain table guard", () => {
       `client.schema("v2_commerce").from("trips")`,
     );
     expect(violations.some((v) => v.table === "trips")).toBe(true);
+  });
+});
+
+describe("AuthorizationContext construction boundary", () => {
+  it("allows current V2 src (sealer only in Gateway + definition)", () => {
+    expect(() => assertAuthorizationContextConstruction(SRC)).not.toThrow();
+    expect(scanAuthorizationContextConstruction(SRC)).toEqual([]);
+  });
+
+  it("rejects domain use of the sealer", () => {
+    const violations = scanAuthorizationContextConstructionSource(
+      "domains/commerce/api.ts",
+      `import { sealTrustedAuthorizationContext } from "../../identity/authorizationContext";`,
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.file).toBe("domains/commerce/api.ts");
+  });
+
+  it("rejects IdentityPort use of the sealer", () => {
+    const violations = scanAuthorizationContextConstructionSource(
+      "identity/memoryIdentityPort.ts",
+      `sealTrustedAuthorizationContext({ actorId: "x" });`,
+    );
+    expect(violations).toHaveLength(1);
   });
 });
