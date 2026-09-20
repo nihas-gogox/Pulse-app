@@ -11,15 +11,28 @@
 | Gate C — Infrastructure | **CLOSED — LOCAL V2-ONLY** — ADR-015 |
 | V2 Quality Charter | **ESTABLISHED** — `PULSE_V2_QUALITY_CHARTER.md` |
 | Slice 4 — Authorization **design** | **OWNER-ACCEPTED** (`SLICE_4_AUTHORIZATION_DESIGN.md`) |
-| Slice 4 — Runtime (trusted ctx + SEC-001) | **FROZEN** at `a60aad5a` |
+| Slice 4 — Runtime (trusted ctx + SEC-001) | Established at `a60aad5a`; later hardening through SEC-006 |
 | SEC-001 | **CLOSED** (`5f7c43e4` review) |
+| SEC-006 | **CLOSED** (`87720396`) |
+| SEC-007 | **DEFERRED** (not a security prerequisite) |
+| V2 implementation | **FROZEN AFTER SEC-006** — no next implementation gate authorized |
 | OPEN A — Auth Subject → Actor | **RESOLVED — MODEL B** (`OPEN_A_DECISION.md`) |
 | OPEN A — Implementation plan | **READY** (`OPEN_A_IMPLEMENTATION_PLAN.md`) — **code NOT authorized** |
 | OPEN B — Permission catalog | **OPEN** |
 | Auth / Membership persistence / RLS / hosted V2 / Slice 5 | **NOT AUTHORIZED** |
+| Command Store / Timeline / Observatory | **NOT AUTHORIZED** |
 | Customer / product workflow | **BLOCKED** |
+| OPEN B runtime / RBAC | **NOT AUTHORIZED** |
 
-Quality contract: `PULSE_V2_QUALITY_CHARTER.md`. Gate C: local V2-only. Production Auth, `auth.users`, `organization_members`, production migrations, and the Oct 1 line remain **untouched**.
+Quality contract: `PULSE_V2_QUALITY_CHARTER.md`. Gate C: local-only. Production Auth, `auth.users`, `organization_members`, production migrations, and the Oct 1 line remain **untouched**.
+
+**After SEC-006, no subsequent implementation gate is currently authorized.** The next implementation slice requires explicit owner authorization. OPEN A is an approved architectural design but **not** implementation authorization. OPEN B remains unresolved. SEC-007 remains deferred. Persistent Identity/Auth, persistent Membership/Workspace, RLS, hosted V2, Command Store, Timeline, Observatory, customer proof, and RBAC implementation remain unauthorized unless separately approved.
+
+Current runtime (memory Identity, memory persistence, local-only infra, production untouched):
+
+```text
+Gateway → trusted AuthorizationContext → domain handlers → workspace-scoped persistence
+```
 
 Trusted path: **validated Auth Subject → Pulse Actor (bind) → verified Membership → Workspace → AuthorizationContext**. Caller `actorId` / `workspaceId` are never authority. `membershipId` is a **selector**.
 
