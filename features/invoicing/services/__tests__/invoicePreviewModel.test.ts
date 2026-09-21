@@ -50,6 +50,8 @@ function trip(overrides: Partial<InvoicingTripView> = {}): InvoicingTripView {
     physicalPodReceived: true,
     digitalPodPresent: true,
     tripStatus: "completed",
+    invoiced: false,
+    issuedInvoiceNumber: null,
     ...overrides,
   };
 }

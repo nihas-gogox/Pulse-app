@@ -41,9 +41,9 @@ import {
   invoiceNeedsDigitalPodLookup,
   invoiceSelectionClientIdentityError,
   invoiceTripPodHint,
-  isTripEligibleForInvoicePodPolicy,
   type InvoicePodEvidence,
 } from "@/features/invoicing/utils/invoicePodEnforcement.util";
+import { evaluateFinanceWorkflowTrip } from "@/features/invoicing/utils/financeWorkflowState.util";
 import type { InvoicePodPolicy } from "@/features/invoicing/utils/invoicePodPolicy.util";
 import type {
   InvoicePayload,
@@ -123,16 +123,39 @@ function tripPodEvidence(trip: InvoicingTripView): InvoicePodEvidence {
 function resolveTripInvoicePodPolicy(
   trip: InvoicingTripView,
   policies: Record<string, unknown> | undefined,
-  workspacePodRequired: boolean,
-): { policy: InvoicePodPolicy; source: "client" | "workspace" } | { error: string } {
+): { policy: InvoicePodPolicy; source: "client" } | { error: string } {
   const clientId = (trip.client_id ?? "").trim();
   const raw = clientId ? policies?.[clientId] : null;
   const resolved = effectiveInvoicePodPolicyFromClientRaw({
     clientPolicyRaw: clientId ? raw : null,
-    workspacePodRequired,
   });
   if (!resolved.ok) return { error: resolved.error };
   return { policy: resolved.policy, source: resolved.source };
+}
+
+function workflowForInvoiceTrip(
+  trip: InvoicingTripView,
+  policies: Record<string, unknown> | undefined,
+) {
+  const resolved = resolveTripInvoicePodPolicy(
+    trip,
+    policies,
+  );
+  if ("error" in resolved) {
+    return { error: resolved.error as string, state: null };
+  }
+  return {
+    error: null as string | null,
+    state: evaluateFinanceWorkflowTrip({
+      tripStatus: trip.tripStatus,
+      policy: resolved.policy,
+      physicalPodReceived: trip.physicalPodReceived === true,
+      digitalPodPresent: trip.digitalPodPresent === true,
+      invoiced: trip.invoiced === true,
+    }),
+    source: resolved.source,
+    policy: resolved.policy,
+  };
 }
 
 function PodRequiredToggle({
@@ -371,13 +394,12 @@ export function InvoicingExecuteScreen({
           const resolved = resolveTripInvoicePodPolicy(
             trip,
             clientPolicies,
-            podRequired,
           );
           if ("error" in resolved) return false;
           return invoiceNeedsDigitalPodLookup(resolved.policy);
         })
         .map((trip) => trip.internal_id),
-    [allTrips, clientPolicies, podRequired],
+    [allTrips, clientPolicies],
   );
   const digitalPodsQuery = useInvoiceDigitalPodTripIdsQuery(
     tripScopeId,
@@ -397,6 +419,8 @@ export function InvoicingExecuteScreen({
             ? "received"
             : "pending") as InvoicingTripView["status"],
         checks: { ...trip.checks, podReceived: digitalPodPresent },
+        invoiced: trip.invoiced === true,
+        issuedInvoiceNumber: trip.issuedInvoiceNumber ?? null,
       };
     });
   }, [allTrips, digitalPodsQuery.data]);
@@ -567,19 +591,24 @@ export function InvoicingExecuteScreen({
   const invoiceableTrips = useMemo(
     () =>
       clientTrips.filter((trip) => {
-        const resolved = resolveTripInvoicePodPolicy(
+        const resolved = workflowForInvoiceTrip(
           trip,
           clientPolicies,
-          podRequired,
         );
-        if ("error" in resolved) return false;
-        return isTripEligibleForInvoicePodPolicy(
-          resolved.policy,
-          tripPodEvidence(trip),
-        );
+        return resolved.state?.invoiceable === true;
       }),
-    [clientTrips, clientPolicies, podRequired],
+    [clientTrips, clientPolicies],
   );
+
+  const clientWorkflowCounts = useMemo(() => {
+    let unbilled = 0;
+    let invoiced = 0;
+    for (const trip of clientTripsBase) {
+      if (trip.invoiced) invoiced += 1;
+      else unbilled += 1;
+    }
+    return { unbilled, invoiced };
+  }, [clientTripsBase]);
   const allClientTripsSelected =
     invoiceableTrips.length > 0 &&
     invoiceableTrips.every((t) => selectedTripIds.includes(t.id));
@@ -596,21 +625,16 @@ export function InvoicingExecuteScreen({
 
       const applyTripSeed = (seedIds: string[]) => {
         if (seedIds.length === 0) return;
-        const eligible = filterTripsByPodRequired(tripsForInvoice, podRequired);
+            const eligible = filterTripsByPodRequired(tripsForInvoice, podRequired);
         setSelectedTripIds(
           restoreInvoiceDraftTripIds(
             seedIds,
             eligible.filter((trip) => {
-              const resolved = resolveTripInvoicePodPolicy(
+              const resolved = workflowForInvoiceTrip(
                 trip,
                 clientPolicies,
-                podRequired,
               );
-              if ("error" in resolved) return false;
-              return isTripEligibleForInvoicePodPolicy(
-                resolved.policy,
-                tripPodEvidence(trip),
-              );
+              return resolved.state?.invoiceable === true;
             }),
             false,
           ),
@@ -736,37 +760,38 @@ export function InvoicingExecuteScreen({
 
   const isTripInvoiceable = useCallback(
     (trip: InvoicingTripView) => {
-      const resolved = resolveTripInvoicePodPolicy(
-        trip,
-        clientPolicies,
-        podRequired,
-      );
-      if ("error" in resolved) return false;
-      return isTripEligibleForInvoicePodPolicy(
-        resolved.policy,
-        tripPodEvidence(trip),
-      );
+      const resolved = workflowForInvoiceTrip(trip, clientPolicies);
+      return resolved.state?.invoiceable === true;
     },
-    [clientPolicies, podRequired],
+    [clientPolicies],
   );
 
   const tripInvoiceBlockedHint = useCallback(
     (trip: InvoicingTripView) => {
-      const resolved = resolveTripInvoicePodPolicy(
-        trip,
-        clientPolicies,
-        podRequired,
-      );
-      if ("error" in resolved) return resolved.error;
+      const resolved = workflowForInvoiceTrip(trip, clientPolicies);
+      if (resolved.error) return resolved.error;
+      if (resolved.state?.invoiceState === "issued") {
+        return trip.issuedInvoiceNumber
+          ? `Already on invoice ${trip.issuedInvoiceNumber}.`
+          : "This trip is already allocated to an issued invoice.";
+      }
+      if (resolved.state?.invoiceState === "not_completed") {
+        return "Only completed trips can be invoiced.";
+      }
+      if (resolved.state?.invoiceState === "blocked_policy") {
+        return resolved.error ?? "This client has no invoicing POD policy.";
+      }
       return (
-        invoiceTripPodHint(
-          resolved.policy,
-          tripPodEvidence(trip),
-          resolved.source,
-        ) ?? "This trip cannot be selected for invoicing."
+        (resolved.policy
+          ? invoiceTripPodHint(
+              resolved.policy,
+              tripPodEvidence(trip),
+              resolved.source,
+            )
+          : null) ?? "This trip cannot be selected for invoicing."
       );
     },
-    [clientPolicies, podRequired],
+    [clientPolicies],
   );
 
   const selectedInvoiceIssueBlockedReason = useMemo(() => {
@@ -776,7 +801,6 @@ export function InvoicingExecuteScreen({
     const resolved = resolveTripInvoicePodPolicy(
       selectedTrips[0],
       clientPolicies,
-      podRequired,
     );
     if ("error" in resolved) return resolved.error;
     return invoiceIssuePodPolicyReason(
@@ -784,7 +808,7 @@ export function InvoicingExecuteScreen({
       selectedTrips.map(tripPodEvidence),
       resolved.source,
     );
-  }, [clientPolicies, podRequired, selectedTrips]);
+  }, [clientPolicies, selectedTrips]);
 
   const handleToggleTrip = useCallback((id: string) => {
     const trip = tripsById.get(id);
@@ -793,31 +817,18 @@ export function InvoicingExecuteScreen({
     }
     setSelectedTripIds((prev) => {
       if (prev.includes(id)) return prev.filter((i) => i !== id);
-      const resolved = resolveTripInvoicePodPolicy(
-        trip,
-        clientPolicies,
-        podRequired,
-      );
-      if ("error" in resolved) return prev;
-      if (!isTripEligibleForInvoicePodPolicy(resolved.policy, tripPodEvidence(trip))) {
+      const resolved = workflowForInvoiceTrip(trip, clientPolicies);
+      if (!resolved.state?.invoiceable) {
         return prev;
       }
       return [...prev, id];
     });
-  }, [clientPolicies, podRequired, tripsById]);
+  }, [clientPolicies, tripsById]);
 
   const handleSelectAll = useCallback(() => {
     const invoiceableForSelect = clientTrips.filter((trip) => {
-      const resolved = resolveTripInvoicePodPolicy(
-        trip,
-        clientPolicies,
-        podRequired,
-      );
-      if ("error" in resolved) return false;
-      return isTripEligibleForInvoicePodPolicy(
-        resolved.policy,
-        tripPodEvidence(trip),
-      );
+      const resolved = workflowForInvoiceTrip(trip, clientPolicies);
+      return resolved.state?.invoiceable === true;
     });
 
     if (invoiceableForSelect.length === 0) {
@@ -835,7 +846,7 @@ export function InvoicingExecuteScreen({
       const ids = invoiceableForSelect.map((t) => t.id);
       setSelectedTripIds((prev) => Array.from(new Set([...prev, ...ids])));
     }
-  }, [clientTrips, clientPolicies, podRequired, selectedTripIds]);
+  }, [clientTrips, clientPolicies, selectedTripIds]);
 
   const handleCreateInvoice = useCallback(async () => {
     if (buildBlockedReason) {
@@ -850,16 +861,11 @@ export function InvoicingExecuteScreen({
     if (tripIds.length === 0) {
       const invoiceableIds = clientTrips
         .filter((trip) => {
-          const resolved = resolveTripInvoicePodPolicy(
+          const resolved = workflowForInvoiceTrip(
             trip,
             clientPolicies,
-            podRequired,
           );
-          if ("error" in resolved) return false;
-          return isTripEligibleForInvoicePodPolicy(
-            resolved.policy,
-            tripPodEvidence(trip),
-          );
+          return resolved.state?.invoiceable === true;
         })
         .map((t) => t.id);
       if (invoiceableIds.length === 0) {
@@ -1574,7 +1580,14 @@ export function InvoicingExecuteScreen({
               <View style={styles.rightPanel}>
                 <PendingBillingInsightPanel
                   partnerLabel={activeClientLabel}
+                  partnerClientId={
+                    activeClient && !activeClient.startsWith("name:")
+                      ? activeClient
+                      : null
+                  }
                   tripCount={clientTripsBase.length}
+                  unbilledTripCount={clientWorkflowCounts.unbilled}
+                  invoicedTripCount={clientWorkflowCounts.invoiced}
                   eligibleCount={invoiceableTrips.length}
                   selectedCount={selectedTripIds.length}
                   selectedFreight={selectedTrips.reduce(

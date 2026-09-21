@@ -9,6 +9,7 @@ export type IssuedInvoiceListRow = {
   invoice_number: string;
   invoice_date: string;
   due_date: string | null;
+  client_id: string | null;
   client_name: string | null;
   total_amount: number;
   status: string;
@@ -26,7 +27,7 @@ export async function fetchIssuedInvoicesForOrg(
     const { data, error } = await supabase()
       .from("invoices")
       .select(
-        "id, invoice_number, invoice_date, due_date, client_name, total_amount, status, trip_ids",
+        "id, invoice_number, invoice_date, due_date, client_id, client_name, total_amount, status, trip_ids",
       )
       .eq("org_id", orgId)
       .order("invoice_date", { ascending: false });
@@ -51,6 +52,7 @@ export async function fetchIssuedInvoicesForOrg(
         invoice_number: str((row as { invoice_number?: unknown }).invoice_number),
         invoice_date: str((row as { invoice_date?: unknown }).invoice_date),
         due_date: str((row as { due_date?: unknown }).due_date) || null,
+        client_id: str((row as { client_id?: unknown }).client_id) || null,
         client_name: str((row as { client_name?: unknown }).client_name) || null,
         total_amount: total,
         status: str((row as { status?: unknown }).status) || "sent",

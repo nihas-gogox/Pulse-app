@@ -7,6 +7,7 @@ import Theme from "@/constants/Theme";
 import { IssuedInvoiceCard } from "@/features/invoicing/components/IssuedInvoiceCard";
 import type { IssuedInvoiceListRow } from "@/features/invoicing/services/invoiceList.service";
 import { issuedInvoicesForPodToggle } from "@/features/invoicing/utils/invoicePodRequired.util";
+import { issuedInvoicesForClient } from "@/features/invoicing/utils/issuedInvoiceMatch.util";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 function formatInr(n: number): string {
@@ -16,39 +17,43 @@ function formatInr(n: number): string {
   })}`;
 }
 
-function normalizeName(value: string | null | undefined): string {
-  return (value ?? "").trim().toLowerCase();
-}
-
 export function PendingBillingInsightPanel({
   partnerLabel,
+  partnerClientId,
   tripCount,
+  unbilledTripCount,
   eligibleCount,
   selectedCount,
   selectedFreight,
   pendingFreight,
   completedTripCount,
   notCompletedTripCount,
+  invoicedTripCount,
   podRequired,
   blockedReason,
   invoices,
 }: {
   partnerLabel?: string | null;
+  partnerClientId?: string | null;
   tripCount: number;
+  unbilledTripCount: number;
   eligibleCount: number;
   selectedCount: number;
   selectedFreight: number;
   pendingFreight: number;
   completedTripCount: number;
   notCompletedTripCount: number;
+  invoicedTripCount: number;
   podRequired: boolean;
   blockedReason?: string | null;
   invoices: IssuedInvoiceListRow[];
 }) {
   const visible = issuedInvoicesForPodToggle(invoices, podRequired);
-  const partnerKey = normalizeName(partnerLabel);
-  const partnerInvoices = partnerKey
-    ? visible.filter((row) => normalizeName(row.client_name) === partnerKey)
+  const partnerInvoices = partnerLabel || partnerClientId
+    ? issuedInvoicesForClient(visible, {
+        clientId: partnerClientId,
+        clientName: partnerLabel,
+      })
     : visible;
   const issuedTotal = partnerInvoices.reduce(
     (sum, row) => sum + (Number.isFinite(row.total_amount) ? row.total_amount : 0),
@@ -58,10 +63,12 @@ export function PendingBillingInsightPanel({
   const interpretation = buildInterpretation({
     partnerLabel,
     tripCount,
+    unbilledTripCount,
     eligibleCount,
     selectedCount,
     completedTripCount,
     notCompletedTripCount,
+    invoicedTripCount,
     podRequired,
     blockedReason,
     issuedCount: partnerInvoices.length,
@@ -86,7 +93,7 @@ export function PendingBillingInsightPanel({
         ) : (
           <>
             <View style={styles.metricGrid}>
-              <Metric label="Listed trips" value={String(tripCount)} />
+              <Metric label="Unbilled trips" value={String(unbilledTripCount)} />
               <Metric label="Eligible" value={String(eligibleCount)} />
               <Metric label="Selected" value={String(selectedCount)} />
               <Metric
@@ -164,20 +171,24 @@ function Metric({ label, value }: { label: string; value: string }) {
 function buildInterpretation({
   partnerLabel,
   tripCount,
+  unbilledTripCount,
   eligibleCount,
   selectedCount,
   completedTripCount,
   notCompletedTripCount,
+  invoicedTripCount,
   podRequired,
   blockedReason,
   issuedCount,
 }: {
   partnerLabel?: string | null;
   tripCount: number;
+  unbilledTripCount: number;
   eligibleCount: number;
   selectedCount: number;
   completedTripCount: number;
   notCompletedTripCount: number;
+  invoicedTripCount: number;
   podRequired: boolean;
   blockedReason?: string | null;
   issuedCount: number;
@@ -192,9 +203,9 @@ function buildInterpretation({
     ? "POD Required is ON — issue stays blocked for trips missing the client's required proof of delivery."
     : "POD Required is OFF — eligibility still follows each client's invoicing POD policy.";
   if (selectedCount === 0) {
-    return `${partnerLabel} has ${tripCount} listed trip${tripCount === 1 ? "" : "s"} (${completedTripCount} completed, ${notCompletedTripCount} not completed). ${eligibleCount} are eligible to invoice. ${podLine} Select eligible rows, then Create Invoice above. ${issuedCount} issued invoice${issuedCount === 1 ? "" : "s"} already on file for this partner.`;
+    return `${partnerLabel} has ${unbilledTripCount} unbilled trip${unbilledTripCount === 1 ? "" : "s"} of ${tripCount} completed/open (${completedTripCount} completed, ${notCompletedTripCount} not completed). ${eligibleCount} are eligible to invoice. ${invoicedTripCount} trip${invoicedTripCount === 1 ? "" : "s"} already allocated to issued invoices. ${podLine} Select eligible rows, then Create Invoice above. ${issuedCount} issued invoice${issuedCount === 1 ? "" : "s"} already on file for this partner.`;
   }
-  return `${selectedCount} trip${selectedCount === 1 ? "" : "s"} selected for ${partnerLabel} (${eligibleCount} eligible of ${tripCount} listed). ${podLine} Review the draft on the Create Invoice page before issuing. ${issuedCount} prior invoice${issuedCount === 1 ? "" : "s"} shown below.`;
+  return `${selectedCount} trip${selectedCount === 1 ? "" : "s"} selected for ${partnerLabel} (${eligibleCount} eligible of ${unbilledTripCount} unbilled). ${podLine} Review the draft on the Create Invoice page before issuing. ${issuedCount} prior invoice${issuedCount === 1 ? "" : "s"} shown below.`;
 }
 
 const styles = StyleSheet.create({

@@ -13,7 +13,11 @@ import {
   mergeTripsForPodOrg,
   withIssuedInvoiceOverlay,
 } from "@/features/pod-reconciliation/services/podReconciliationService";
-import { tripPodIsReceived } from "@/features/trips/services/tripDocumentLrPod.service";
+import {
+  tripIsDeliveredStatus,
+  tripPodIsReceived,
+} from "@/features/trips/services/tripDocumentLrPod.service";
+import { INVOICE_TRIP_NOT_COMPLETED } from "@/features/invoicing/utils/financeWorkflowState.util";
 import { syncDomainRows } from "@/lib/cache/domainSync";
 import { mergeDeltaRows } from "@/lib/cache/mergeDelta";
 import { supabase } from "@/lib/supabase";
@@ -26,6 +30,7 @@ import {
 import {
   INVOICE_POD_HARD_COPY_REQUIRED,
   INVOICE_POD_LEGACY_REQUIRED,
+  INVOICE_POD_POLICY_UNCONFIGURED,
   INVOICE_POD_SOFT_COPY_REQUIRED,
   conflictingInvoicePodOptions,
   effectiveInvoicePodPolicyFromClientRaw,
@@ -34,7 +39,6 @@ import {
   isTripEligibleForInvoicePodPolicy,
 } from "@/features/invoicing/utils/invoicePodEnforcement.util";
 import type { InvoicePodPolicy } from "@/features/invoicing/utils/invoicePodPolicy.util";
-import { loadWorkspaceInvoicePodRequired } from "@/features/invoicing/utils/invoicePodRequired.util";
 
 export type TripStatus =
   | "approved"
@@ -68,6 +72,9 @@ export interface InvoicingTripView {
   digitalPodPresent: boolean;
   /** Operational trips.status — not invoice Approved/Pending. */
   tripStatus: string;
+  /** True when this trip id appears on an issued/sent invoice. */
+  invoiced: boolean;
+  issuedInvoiceNumber: string | null;
 }
 
 export interface AdditionalCharge {
@@ -162,7 +169,7 @@ function addDaysIso(isoDate: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** FY segment from allocate_invoice_number (`INV/{fy}/#####`). */
+/** FY segment from an issued invoice number (`INV/{fy}/#####`). */
 export function financialYearFromAllocatedNumber(
   invoiceNumber: string,
 ): string | null {
@@ -311,20 +318,34 @@ export async function fetchDigitalPodTripIdsForInvoice(
   return found;
 }
 
-async function fetchInvoicedTripIdsForOrg(orgId: string): Promise<Set<string>> {
-  const found = new Set<string>();
+async function fetchInvoiceAllocationsForOrg(orgId: string): Promise<{
+  invoicedIds: Set<string>;
+  invoiceNumberByTripId: Map<string, string>;
+}> {
+  const invoicedIds = new Set<string>();
+  const invoiceNumberByTripId = new Map<string, string>();
   const { data, error } = await supabase()
     .from("invoices")
-    .select("trip_ids")
+    .select("invoice_number, trip_ids")
     .eq("org_id", orgId);
   if (error) throw toAppError(error);
   for (const row of data ?? []) {
+    const number = str((row as { invoice_number?: string | null }).invoice_number);
     const ids = (row as { trip_ids?: string[] | null }).trip_ids ?? [];
     for (const id of ids) {
-      if (id) found.add(id);
+      if (!id) continue;
+      invoicedIds.add(id);
+      if (number && !invoiceNumberByTripId.has(id)) {
+        invoiceNumberByTripId.set(id, number);
+      }
     }
   }
-  return found;
+  return { invoicedIds, invoiceNumberByTripId };
+}
+
+async function fetchInvoicedTripIdsForOrg(orgId: string): Promise<Set<string>> {
+  const { invoicedIds } = await fetchInvoiceAllocationsForOrg(orgId);
+  return invoicedIds;
 }
 
 export function getTripStringId(row: TripRecord): string {
@@ -352,6 +373,8 @@ function mapRowToView(
   supplierNameById: Map<string, string> | undefined,
   hasPod: boolean,
   physicalPodReceived: boolean,
+  invoiced: boolean,
+  issuedInvoiceNumber: string | null,
 ): InvoicingTripView {
   const tripDate = str((row as { pickup_date?: string | null }).pickup_date);
   const ppLocation = str((row as { pickup_area?: string | null }).pickup_area);
@@ -385,6 +408,8 @@ function mapRowToView(
     physicalPodReceived,
     digitalPodPresent: hasPod,
     tripStatus: str((row as { status?: string | null }).status),
+    invoiced,
+    issuedInvoiceNumber,
   };
 }
 
@@ -418,15 +443,14 @@ export async function fetchInvoicingTrips(
       const row = map.get(id);
       return row != null && !("pod_received_at" in row);
     });
-    const [invoicedTripIds, physicalStampById] = await Promise.all([
-      fetchInvoicedTripIdsForOrg(orgId),
+    const [allocations, physicalStampById] = await Promise.all([
+      fetchInvoiceAllocationsForOrg(orgId),
       fetchPhysicalPodReceivedAtByIds(missingPhysicalStampIds),
     ]);
-    const eligible = merged.filter((t) => !invoicedTripIds.has(str(t.id)));
 
     const supplierIds = Array.from(
       new Set(
-        eligible
+        merged
           .map((trip) =>
             str((trip as { supplier_id?: string | null }).supplier_id),
           )
@@ -451,7 +475,7 @@ export async function fetchInvoicingTrips(
       }
     }
 
-    const views = eligible.map((row) => {
+    const views = merged.map((row) => {
       const id = str(row.id);
       const stamp =
         row.pod_received_at !== undefined
@@ -462,6 +486,8 @@ export async function fetchInvoicingTrips(
         supplierNameById,
         false,
         tripPodIsReceived({ pod_received_at: stamp }),
+        allocations.invoicedIds.has(id),
+        allocations.invoiceNumberByTripId.get(id) ?? null,
       );
     });
     return { error: null, trips: views };
@@ -637,19 +663,8 @@ async function enforceInvoicePodGate(args: {
     );
   }
 
-  const parsedProbe = effectiveInvoicePodPolicyFromClientRaw({
-    clientPolicyRaw,
-    workspacePodRequired: false,
-  });
-  if (!parsedProbe.ok) throw new Error(parsedProbe.error);
-
-  let workspacePodRequired = false;
-  if (parsedProbe.source === "workspace") {
-    workspacePodRequired = await loadWorkspaceInvoicePodRequired(args.orgId);
-  }
   const resolved = effectiveInvoicePodPolicyFromClientRaw({
     clientPolicyRaw,
-    workspacePodRequired,
   });
   if (!resolved.ok) throw new Error(resolved.error);
   const policy = resolved.policy;
@@ -711,7 +726,7 @@ export async function executeInvoiceCreation(
     const { data: candidates, error: candidateError } = await supabase()
       .from("trips")
       .select(
-        "id, organization_id, trip_number, display_trip_id, booking_ref, trip_operational_code, trip_code, client_id, client_name, client_price, pickup_date, pickup_area, drop_location, notes, pod_received_at",
+        "id, organization_id, trip_number, display_trip_id, booking_ref, trip_operational_code, trip_code, client_id, client_name, client_price, pickup_date, pickup_area, drop_location, notes, pod_received_at, status",
       )
       .in("id", sanitizedIds);
 
@@ -722,6 +737,13 @@ export async function executeInvoiceCreation(
       throw new Error(
         "Some selected trips are no longer available for invoicing. Please refresh.",
       );
+    }
+
+    const incomplete = rows.some(
+      (row) => !tripIsDeliveredStatus(str((row as { status?: string | null }).status)),
+    );
+    if (incomplete) {
+      throw new Error(INVOICE_TRIP_NOT_COMPLETED);
     }
 
     const orgIds = Array.from(
@@ -746,19 +768,6 @@ export async function executeInvoiceCreation(
     const invoicedTripIds = await fetchInvoicedTripIdsForOrg(orgId);
     if (sanitizedIds.some((id) => invoicedTripIds.has(id))) {
       throw new Error("One or more selected trips have already been invoiced.");
-    }
-
-    const { data: seqData, error: seqError } = await supabase().rpc(
-      "allocate_invoice_number",
-      { p_org_id: orgId },
-    );
-    if (seqError || seqData == null || String(seqData).trim() === "") {
-      throw new Error("Could not allocate an invoice number. Please try again.");
-    }
-    const invoiceNumber = String(seqData).trim();
-    const financialYear = financialYearFromAllocatedNumber(invoiceNumber);
-    if (!financialYear) {
-      throw new Error("Could not allocate an invoice number. Please try again.");
     }
 
     const tripAmounts = rows.map(
@@ -800,6 +809,9 @@ export async function executeInvoiceCreation(
       ),
     );
     const clientId = clientIds.length === 1 ? clientIds[0] : null;
+    if (!clientId) {
+      throw new Error(INVOICE_POD_POLICY_UNCONFIGURED);
+    }
     const clientName =
       (typeof payload?.clientName === "string" && payload.clientName.trim()) ||
       str((rows[0] as { client_name?: string | null }).client_name) ||
@@ -812,31 +824,31 @@ export async function executeInvoiceCreation(
         ? payload.createdBy
         : null;
 
-    const { error: insertError } = await supabase()
-      .from("invoices")
-      .insert({
-        org_id: orgId,
-        invoice_number: invoiceNumber,
-        financial_year: financialYear,
-        client_id: clientId,
-        client_name: clientName,
-        invoice_date: invoiceDate,
-        due_date: dueDate,
-        trip_ids: sanitizedIds,
-        subtotal,
-        gst_rate: computed.gstRate,
-        sgst_amount: sgstAmount,
-        cgst_amount: cgstAmount,
-        igst_amount: 0,
-        total_amount: totalAmount,
-        notes:
-          typeof payload?.notes === "string" ? payload.notes : null,
-        status: "sent",
-        pdf_storage_path: null,
-        created_by: createdBy,
-      });
-
-    if (insertError) throw toAppError(insertError);
+    const { data: issuedNumber, error: issueError } = await supabase().rpc(
+      "issue_customer_invoice",
+      {
+        p_org_id: orgId,
+        p_client_id: clientId,
+        p_client_name: clientName,
+        p_trip_ids: sanitizedIds,
+        p_subtotal: subtotal,
+        p_gst_rate: computed.gstRate,
+        p_sgst_amount: sgstAmount,
+        p_cgst_amount: cgstAmount,
+        p_igst_amount: 0,
+        p_total_amount: totalAmount,
+        p_notes: typeof payload?.notes === "string" ? payload.notes : null,
+        p_invoice_date: invoiceDate,
+        p_due_date: dueDate,
+        p_created_by: createdBy,
+      },
+    );
+    if (issueError || issuedNumber == null || String(issuedNumber).trim() === "") {
+      throw issueError
+        ? toAppError(issueError)
+        : new Error("Could not allocate an invoice number. Please try again.");
+    }
+    const invoiceNumber = String(issuedNumber).trim();
 
     const EVENT_CONCURRENCY = 5;
     const runOne = async (id: string) => {
