@@ -10,6 +10,7 @@ import { useTabBarAwareScrollProps } from "@/contexts/DemoTabBarScrollContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useActiveWorkspace } from "@/contexts/ActiveWorkspaceContext";
 import { InvoicePreviewPanel } from "@/features/invoicing/components/InvoicePreviewPanel";
+import { InvoiceDraftsPanel } from "@/features/invoicing/components/InvoiceDraftsPanel";
 import { IssuedInvoicesPanel } from "@/features/invoicing/components/IssuedInvoicesPanel";
 import { PendingBillingInsightPanel } from "@/features/invoicing/components/PendingBillingInsightPanel";
 import { ClientProfileScreen } from "@/features/clients/components/ClientProfileScreen";
@@ -43,7 +44,15 @@ import {
   invoiceTripPodHint,
   type InvoicePodEvidence,
 } from "@/features/invoicing/utils/invoicePodEnforcement.util";
-import { evaluateFinanceWorkflowTrip } from "@/features/invoicing/utils/financeWorkflowState.util";
+import {
+  evaluateFinanceWorkflowTrip,
+  summarizeFinanceClientPicture,
+} from "@/features/invoicing/utils/financeWorkflowState.util";
+import { issueIdempotencyKey } from "@/features/invoicing/utils/invoiceLifecycle.util";
+import {
+  discardInvoiceDraft,
+  saveInvoiceDraft,
+} from "@/features/invoicing/services/invoiceDraft.service";
 import type { InvoicePodPolicy } from "@/features/invoicing/utils/invoicePodPolicy.util";
 import type {
   InvoicePayload,
@@ -57,6 +66,7 @@ import {
   useInvoiceClientPodPoliciesQuery,
   useInvoiceDigitalPodTripIdsQuery,
   useInvoicingExecuteTripsQuery,
+  useDraftInvoicesQuery,
   useIssuedInvoicesQuery,
 } from "@/lib/queries/useInvoicingExecuteQueries";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
@@ -152,6 +162,7 @@ function workflowForInvoiceTrip(
       physicalPodReceived: trip.physicalPodReceived === true,
       digitalPodPresent: trip.digitalPodPresent === true,
       invoiced: trip.invoiced === true,
+      inDraft: trip.inDraft === true,
     }),
     source: resolved.source,
     policy: resolved.policy,
@@ -244,7 +255,7 @@ function PodRequiredToggle({
   );
 }
 
-type InvoiceBillingSurface = "pending" | "issued";
+type InvoiceBillingSurface = "pending" | "drafts" | "issued";
 
 function InvoiceBillingSurfaceTabs({
   value,
@@ -258,6 +269,7 @@ function InvoiceBillingSurfaceTabs({
       {(
         [
           { key: "pending", label: "Pending Billing" },
+          { key: "drafts", label: "Drafts" },
           { key: "issued", label: "Issued Invoices" },
         ] as const
       ).map((tab) => {
@@ -295,6 +307,7 @@ export function InvoicingExecuteScreen({
   const createParams = useLocalSearchParams<{
     trips?: string | string[];
     client?: string | string[];
+    draft?: string | string[];
   }>();
   const productShell = usePulseProductShell();
   const inProductShell =
@@ -342,8 +355,16 @@ export function InvoicingExecuteScreen({
     isRefetching: issuedRefetching,
     refetch: refetchIssued,
   } = useIssuedInvoicesQuery(orgId);
+  const { data: draftInvoices = [] } = useDraftInvoicesQuery(orgId);
   const issueMutation = useExecuteInvoiceMutation(orgId);
   const issueInFlight = useRef(false);
+  const issueIdempotencyRef = useRef<string | null>(null);
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const [issuedReceipt, setIssuedReceipt] = useState<{
+    invoiceNumber: string;
+    tripCount: number;
+    totalAmount: number;
+  } | null>(null);
 
   const [invoiceSurface, setInvoiceSurface] =
     useState<InvoiceBillingSurface>("pending");
@@ -421,6 +442,8 @@ export function InvoicingExecuteScreen({
         checks: { ...trip.checks, podReceived: digitalPodPresent },
         invoiced: trip.invoiced === true,
         issuedInvoiceNumber: trip.issuedInvoiceNumber ?? null,
+        inDraft: trip.inDraft === true,
+        draftInvoiceNumber: trip.draftInvoiceNumber ?? null,
       };
     });
   }, [allTrips, digitalPodsQuery.data]);
@@ -600,15 +623,54 @@ export function InvoicingExecuteScreen({
     [clientTrips, clientPolicies],
   );
 
+  const clientPicture = useMemo(() => {
+    const clientId =
+      activeClient && !activeClient.startsWith("name:") ? activeClient : "";
+    if (!clientId) return null;
+    const resolved = effectiveInvoicePodPolicyFromClientRaw({
+      clientPolicyRaw: clientPolicies?.[clientId],
+    });
+    return summarizeFinanceClientPicture({
+      clientId,
+      clientName: activeClientLabel,
+      clientPolicy: resolved.ok ? resolved.policy : null,
+      trips: clientTripsBase.map((trip) => ({
+        id: trip.internal_id || trip.id,
+        tripStatus: trip.tripStatus,
+        client_id: trip.client_id,
+        client_price: trip.amount,
+        physicalPodReceived: trip.physicalPodReceived === true,
+        digitalPodPresent: trip.digitalPodPresent === true,
+      })),
+      issuedInvoices: [...issuedInvoices, ...draftInvoices],
+    });
+  }, [
+    activeClient,
+    activeClientLabel,
+    clientPolicies,
+    clientTripsBase,
+    draftInvoices,
+    issuedInvoices,
+  ]);
+
   const clientWorkflowCounts = useMemo(() => {
+    if (clientPicture) {
+      return {
+        unbilled: clientPicture.unbilledTripCount,
+        invoiced: clientPicture.invoicedTripCount,
+        completed: clientPicture.completedTripCount,
+        podPending: clientPicture.podPendingTripCount,
+        draft: clientPicture.draftTripCount,
+      };
+    }
     let unbilled = 0;
     let invoiced = 0;
     for (const trip of clientTripsBase) {
       if (trip.invoiced) invoiced += 1;
       else unbilled += 1;
     }
-    return { unbilled, invoiced };
-  }, [clientTripsBase]);
+    return { unbilled, invoiced, completed: 0, podPending: 0, draft: 0 };
+  }, [clientPicture, clientTripsBase]);
   const allClientTripsSelected =
     invoiceableTrips.length > 0 &&
     invoiceableTrips.every((t) => selectedTripIds.includes(t.id));
@@ -660,6 +722,8 @@ export function InvoicingExecuteScreen({
       try {
         const paramTrips = parseCreateTripIdsParam(createParams.trips);
         const paramClient = parseCreateClientParam(createParams.client);
+        const paramDraft = parseCreateClientParam(createParams.draft);
+        if (paramDraft) setActiveDraftId(paramDraft);
         const raw = await AsyncStorage.getItem(`invoicing_execute_draft_${orgId}`);
 
         if (!raw) {
@@ -775,6 +839,11 @@ export function InvoicingExecuteScreen({
           ? `Already on invoice ${trip.issuedInvoiceNumber}.`
           : "This trip is already allocated to an issued invoice.";
       }
+      if (resolved.state?.invoiceState === "draft") {
+        return trip.draftInvoiceNumber
+          ? `Reserved on draft ${trip.draftInvoiceNumber}. Resume or cancel that draft to invoice elsewhere.`
+          : "This trip is reserved on a draft invoice.";
+      }
       if (resolved.state?.invoiceState === "not_completed") {
         return "Only completed trips can be invoiced.";
       }
@@ -879,6 +948,51 @@ export function InvoicingExecuteScreen({
       setSelectedTripIds(invoiceableIds);
     }
 
+    const clientId =
+      activeClient.startsWith("name:") ? null : activeClient;
+    if (orgId && clientId) {
+      const selected = tripIds
+        .map((id) => tripsById.get(id))
+        .filter(Boolean) as InvoicingTripView[];
+      const internalIds = selected
+        .map((trip) => trip.internal_id)
+        .filter((id) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            id,
+          ),
+        );
+      const freight = selected.reduce(
+        (sum, trip) => sum + (Number(trip.amount) || 0),
+        0,
+      );
+      if (internalIds.length > 0) {
+        const saved = await saveInvoiceDraft({
+          orgId,
+          clientId,
+          clientName: activeClientLabel,
+          tripIds: internalIds,
+          subtotal: freight,
+          gstRate: 0,
+          sgstAmount: 0,
+          cgstAmount: 0,
+          igstAmount: 0,
+          totalAmount: freight,
+          createdBy: user?.uid ?? profile?.uid ?? null,
+        });
+        if (saved.error) {
+          Alert.alert("Create draft", saved.error.message);
+          return;
+        }
+        setActiveDraftId(saved.draftId ?? null);
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.invoicing.drafts(orgId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.invoicing.trips(orgId),
+        });
+      }
+    }
+
     const payload = {
       activeClient,
       selectedTripIds: tripIds,
@@ -903,6 +1017,7 @@ export function InvoicingExecuteScreen({
     const qs = new URLSearchParams();
     qs.set("trips", tripIds.join(","));
     if (activeClient) qs.set("client", activeClient);
+    if (activeDraftId) qs.set("draft", activeDraftId);
     router.push(
       `${ROUTES.INVOICING_EXECUTE_CREATE}?${qs.toString()}` as never,
     );
@@ -915,11 +1030,17 @@ export function InvoicingExecuteScreen({
     endDate,
     orgId,
     podRequired,
+    profile?.uid,
+    queryClient,
     router,
     searchQuery,
     selectedTripIds,
     startDate,
     step,
+    tripsById,
+    user?.uid,
+    activeClientLabel,
+    activeDraftId,
   ]);
 
   const selectClient = (clientName: string) => {
@@ -954,27 +1075,43 @@ export function InvoicingExecuteScreen({
       const internalIds = args.internalIds.filter(Boolean);
       if (internalIds.length === 0) return;
       issueInFlight.current = true;
+      if (!issueIdempotencyRef.current) {
+        issueIdempotencyRef.current = issueIdempotencyKey();
+      }
       issueMutation.mutate(
         {
           internalIds,
           payload: {
             ...args.payload,
             createdBy: user?.uid ?? profile?.uid ?? null,
+            draftId: activeDraftId ?? undefined,
+            idempotencyKey: issueIdempotencyRef.current,
           },
         },
         {
           onSuccess: (result) => {
+            const invoiceNumber = result.invoiceNumber ?? "";
+            setIssuedReceipt({
+              invoiceNumber,
+              tripCount: internalIds.length,
+              totalAmount: Number(args.payload.calculations?.totalAmount ?? 0),
+            });
             Alert.alert(
               "Invoice issued",
-              result.invoiceNumber
-                ? `Invoice ${result.invoiceNumber} was created.`
-                : "Invoice created.",
+              invoiceNumber
+                ? `Invoice ${invoiceNumber} was issued for ${internalIds.length} trip${internalIds.length === 1 ? "" : "s"}.`
+                : "Invoice issued. No trips were left in a partial state.",
             );
             setSelectedTripIds([]);
+            setActiveDraftId(null);
+            issueIdempotencyRef.current = null;
             setInvoiceSurface("issued");
             if (tripScopeId) {
               void queryClient.invalidateQueries({
                 queryKey: queryKeys.invoicing.trips(tripScopeId),
+              });
+              void queryClient.invalidateQueries({
+                queryKey: queryKeys.invoicing.drafts(tripScopeId),
               });
             }
             if (mode === "create") {
@@ -993,6 +1130,7 @@ export function InvoicingExecuteScreen({
       );
     },
     [
+      activeDraftId,
       issueMutation,
       mode,
       podRequired,
@@ -1522,15 +1660,81 @@ export function InvoicingExecuteScreen({
             />
           ) : null}
         </View>
-        {invoiceSurface === "issued" ? (
-          <IssuedInvoicesPanel
-            invoices={issuedInvoices}
-            podRequired={podRequired}
-            refreshing={issuedRefetching}
-            onRefresh={() => {
-              void refetchIssued();
+        {invoiceSurface === "drafts" ? (
+          <InvoiceDraftsPanel
+            drafts={draftInvoices}
+            partnerClientId={
+              activeClient && !activeClient.startsWith("name:")
+                ? activeClient
+                : null
+            }
+            partnerLabel={activeClientLabel}
+            onResume={(draft) => {
+              setActiveDraftId(draft.id);
+              if (draft.client_id) setActiveClient(draft.client_id);
+              const qs = new URLSearchParams();
+              qs.set("trips", (draft.trip_ids ?? []).join(","));
+              if (draft.client_id) qs.set("client", draft.client_id);
+              qs.set("draft", draft.id);
+              router.push(
+                `${ROUTES.INVOICING_EXECUTE_CREATE}?${qs.toString()}` as never,
+              );
+            }}
+            onCancel={(draft) => {
+              if (!orgId) return;
+              Alert.alert(
+                "Cancel draft",
+                "This releases reserved trips. The draft is cancelled, not deleted.",
+                [
+                  { text: "Keep draft", style: "cancel" },
+                  {
+                    text: "Cancel draft",
+                    style: "destructive",
+                    onPress: () => {
+                      void discardInvoiceDraft(orgId, draft.id).then((res) => {
+                        if (res.error) {
+                          Alert.alert("Cancel draft", res.error.message);
+                          return;
+                        }
+                        if (activeDraftId === draft.id) setActiveDraftId(null);
+                        void queryClient.invalidateQueries({
+                          queryKey: queryKeys.invoicing.drafts(orgId),
+                        });
+                        void queryClient.invalidateQueries({
+                          queryKey: queryKeys.invoicing.trips(orgId),
+                        });
+                      });
+                    },
+                  },
+                ],
+              );
             }}
           />
+        ) : invoiceSurface === "issued" ? (
+          <View style={{ flex: 1 }}>
+            {issuedReceipt ? (
+              <View style={styles.issueReceipt}>
+                <Text style={styles.issueReceiptTitle}>
+                  Invoice {issuedReceipt.invoiceNumber} issued successfully
+                </Text>
+                <Text style={styles.issueReceiptBody}>
+                  {issuedReceipt.tripCount} trip
+                  {issuedReceipt.tripCount === 1 ? "" : "s"} invoiced
+                  {issuedReceipt.totalAmount > 0
+                    ? ` · ₹${issuedReceipt.totalAmount.toLocaleString("en-IN")}`
+                    : ""}
+                </Text>
+              </View>
+            ) : null}
+            <IssuedInvoicesPanel
+              invoices={issuedInvoices}
+              podRequired={podRequired}
+              refreshing={issuedRefetching}
+              onRefresh={() => {
+                void refetchIssued();
+              }}
+            />
+          </View>
         ) : isLargeScreen ? (
           <View style={styles.splitLayout}>
             <View style={styles.sidebar}>{renderSidebar()}</View>
@@ -1598,8 +1802,12 @@ export function InvoicingExecuteScreen({
                     (sum, trip) => sum + (Number(trip.amount) || 0),
                     0,
                   )}
-                  completedTripCount={completionCounts.completed}
+                  completedTripCount={
+                    clientPicture?.completedTripCount ?? completionCounts.completed
+                  }
                   notCompletedTripCount={completionCounts.notCompleted}
+                  podPendingTripCount={clientWorkflowCounts.podPending}
+                  draftTripCount={clientWorkflowCounts.draft}
                   podRequired={podRequired}
                   blockedReason={buildBlockedReason}
                   invoices={issuedInvoices}
@@ -3448,4 +3656,24 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   blockedBtnText: { color: Theme.buttonPrimaryText, fontWeight: "700" },
+  issueReceipt: {
+    marginHorizontal: Layout.screenPaddingHorizontal,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.surfaceBorder,
+    backgroundColor: Theme.cardWhite,
+  },
+  issueReceiptTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: Theme.textPrimary,
+  },
+  issueReceiptBody: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: "600",
+    color: Theme.textSecondary,
+  },
 });

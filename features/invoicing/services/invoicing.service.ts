@@ -75,6 +75,8 @@ export interface InvoicingTripView {
   /** True when this trip id appears on an issued/sent invoice. */
   invoiced: boolean;
   issuedInvoiceNumber: string | null;
+  inDraft: boolean;
+  draftInvoiceNumber: string | null;
 }
 
 export interface AdditionalCharge {
@@ -321,26 +323,41 @@ export async function fetchDigitalPodTripIdsForInvoice(
 async function fetchInvoiceAllocationsForOrg(orgId: string): Promise<{
   invoicedIds: Set<string>;
   invoiceNumberByTripId: Map<string, string>;
+  draftIds: Set<string>;
+  draftNumberByTripId: Map<string, string>;
 }> {
   const invoicedIds = new Set<string>();
   const invoiceNumberByTripId = new Map<string, string>();
+  const draftIds = new Set<string>();
+  const draftNumberByTripId = new Map<string, string>();
   const { data, error } = await supabase()
     .from("invoices")
-    .select("invoice_number, trip_ids")
+    .select("invoice_number, trip_ids, status")
     .eq("org_id", orgId);
   if (error) throw toAppError(error);
   for (const row of data ?? []) {
+    const status = str((row as { status?: string | null }).status).toLowerCase();
+    if (status === "void" || status === "cancelled") continue;
     const number = str((row as { invoice_number?: string | null }).invoice_number);
     const ids = (row as { trip_ids?: string[] | null }).trip_ids ?? [];
+    const issued = status === "sent" || status === "paid";
+    const draft = status === "draft";
     for (const id of ids) {
       if (!id) continue;
-      invoicedIds.add(id);
-      if (number && !invoiceNumberByTripId.has(id)) {
-        invoiceNumberByTripId.set(id, number);
+      if (issued) {
+        invoicedIds.add(id);
+        if (number && !invoiceNumberByTripId.has(id)) {
+          invoiceNumberByTripId.set(id, number);
+        }
+      } else if (draft) {
+        draftIds.add(id);
+        if (number && !draftNumberByTripId.has(id)) {
+          draftNumberByTripId.set(id, number);
+        }
       }
     }
   }
-  return { invoicedIds, invoiceNumberByTripId };
+  return { invoicedIds, invoiceNumberByTripId, draftIds, draftNumberByTripId };
 }
 
 async function fetchInvoicedTripIdsForOrg(orgId: string): Promise<Set<string>> {
@@ -375,6 +392,8 @@ function mapRowToView(
   physicalPodReceived: boolean,
   invoiced: boolean,
   issuedInvoiceNumber: string | null,
+  inDraft = false,
+  draftInvoiceNumber: string | null = null,
 ): InvoicingTripView {
   const tripDate = str((row as { pickup_date?: string | null }).pickup_date);
   const ppLocation = str((row as { pickup_area?: string | null }).pickup_area);
@@ -410,6 +429,8 @@ function mapRowToView(
     tripStatus: str((row as { status?: string | null }).status),
     invoiced,
     issuedInvoiceNumber,
+    inDraft,
+    draftInvoiceNumber,
   };
 }
 
@@ -488,6 +509,8 @@ export async function fetchInvoicingTrips(
         tripPodIsReceived({ pod_received_at: stamp }),
         allocations.invoicedIds.has(id),
         allocations.invoiceNumberByTripId.get(id) ?? null,
+        allocations.draftIds.has(id),
+        allocations.draftNumberByTripId.get(id) ?? null,
       );
     });
     return { error: null, trips: views };
@@ -584,8 +607,11 @@ export interface InvoicePayload {
     subtotal?: number;
     sgst?: number;
     cgst?: number;
+    igst?: number;
     totalAmount?: number;
   };
+  draftId?: string;
+  idempotencyKey?: string;
 }
 
 /**
@@ -796,6 +822,10 @@ export async function executeInvoiceCreation(
       typeof calc?.cgst === "number" && Number.isFinite(calc.cgst)
         ? calc.cgst
         : computed.cgst;
+    const igstAmount =
+      typeof calc?.igst === "number" && Number.isFinite(calc.igst)
+        ? calc.igst
+        : computed.igst;
     const totalAmount =
       typeof calc?.totalAmount === "number" && Number.isFinite(calc.totalAmount)
         ? calc.totalAmount
@@ -835,12 +865,21 @@ export async function executeInvoiceCreation(
         p_gst_rate: computed.gstRate,
         p_sgst_amount: sgstAmount,
         p_cgst_amount: cgstAmount,
-        p_igst_amount: 0,
+        p_igst_amount: igstAmount,
         p_total_amount: totalAmount,
         p_notes: typeof payload?.notes === "string" ? payload.notes : null,
         p_invoice_date: invoiceDate,
         p_due_date: dueDate,
         p_created_by: createdBy,
+        p_draft_id:
+          typeof payload?.draftId === "string" && isUuid(payload.draftId)
+            ? payload.draftId
+            : null,
+        p_idempotency_key:
+          typeof payload?.idempotencyKey === "string" &&
+          payload.idempotencyKey.trim()
+            ? payload.idempotencyKey.trim()
+            : null,
       },
     );
     if (issueError || issuedNumber == null || String(issuedNumber).trim() === "") {

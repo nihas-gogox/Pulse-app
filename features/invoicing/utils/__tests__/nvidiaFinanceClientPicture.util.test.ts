@@ -64,6 +64,9 @@ describe("Nvidia a — Finance Pro client picture", () => {
 
     expect(picture).toEqual({
       listedTripCount: 3,
+      completedTripCount: 2,
+      podPendingTripCount: 0,
+      draftTripCount: 0,
       unbilledTripCount: 1,
       eligibleTripCount: 0,
       invoicedTripCount: 2,
@@ -87,7 +90,10 @@ describe("Nvidia a — Finance Pro client picture", () => {
       issuedInvoices: issued,
     });
 
+    expect(picture.completedTripCount).toBe(3);
+    expect(picture.unbilledTripCount).toBe(1);
     expect(picture.eligibleTripCount).toBe(0);
+    expect(picture.invoicedTripCount).toBe(2);
     expect(picture.blockedTripCount).toBe(1);
     expect(picture.createInvoiceEnabled).toBe(false);
   });
@@ -108,6 +114,37 @@ describe("Nvidia a — Finance Pro client picture", () => {
     expect(picture.eligibleTripCount).toBe(1);
     expect(picture.createInvoiceEnabled).toBe(true);
     expect(picture.issuedInvoiceValue).toBe(156750);
+
+    const afterIssue = summarizeFinanceClientPicture({
+      clientId: NVIDIA,
+      clientName: "Nvidia a",
+      clientPolicy: "hard_copy",
+      trips: nvidiaTrips({
+        status: "completed",
+        physicalPodReceived: true,
+        digitalPodPresent: false,
+      }),
+      issuedInvoices: [
+        ...issued,
+        {
+          id: "inv-2",
+          client_id: NVIDIA,
+          client_name: "Nvidia a",
+          trip_ids: ["trip-3"],
+          total_amount: 10000,
+          status: "sent",
+        },
+      ],
+    });
+    expect(afterIssue).toMatchObject({
+      completedTripCount: 3,
+      invoicedTripCount: 3,
+      eligibleTripCount: 0,
+      podPendingTripCount: 0,
+      unbilledTripCount: 0,
+      issuedInvoiceCount: 2,
+      createInvoiceEnabled: false,
+    });
 
     const hardCopySrc = readFileSync(
       join(

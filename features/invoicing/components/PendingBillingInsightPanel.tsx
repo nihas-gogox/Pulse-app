@@ -29,6 +29,8 @@ export function PendingBillingInsightPanel({
   completedTripCount,
   notCompletedTripCount,
   invoicedTripCount,
+  podPendingTripCount = 0,
+  draftTripCount = 0,
   podRequired,
   blockedReason,
   invoices,
@@ -44,6 +46,8 @@ export function PendingBillingInsightPanel({
   completedTripCount: number;
   notCompletedTripCount: number;
   invoicedTripCount: number;
+  podPendingTripCount?: number;
+  draftTripCount?: number;
   podRequired: boolean;
   blockedReason?: string | null;
   invoices: IssuedInvoiceListRow[];
@@ -93,8 +97,11 @@ export function PendingBillingInsightPanel({
         ) : (
           <>
             <View style={styles.metricGrid}>
-              <Metric label="Unbilled trips" value={String(unbilledTripCount)} />
+              <Metric label="Completed" value={String(completedTripCount)} />
+              <Metric label="Blocked — POD pending" value={String(podPendingTripCount)} />
               <Metric label="Eligible" value={String(eligibleCount)} />
+              <Metric label="In draft" value={String(draftTripCount)} />
+              <Metric label="Already invoiced" value={String(invoicedTripCount)} />
               <Metric label="Selected" value={String(selectedCount)} />
               <Metric
                 label="Selected freight"

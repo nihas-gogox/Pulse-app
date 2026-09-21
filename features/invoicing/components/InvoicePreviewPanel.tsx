@@ -335,6 +335,7 @@ export function InvoicePreviewPanel({
           subtotal: draft.tax.taxable_base,
           sgst: draft.tax.sgst_amount,
           cgst: draft.tax.cgst_amount,
+          igst: draft.tax.igst_amount,
           totalAmount: draft.tax.total_amount,
         },
       },

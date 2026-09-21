@@ -95,6 +95,21 @@ describe("evaluateFinanceWorkflowTrip", () => {
     expect(ok.invoiceable).toBe(true);
   });
 
+  it("draft allocation is not issued and is not selectable", () => {
+    const s = evaluateFinanceWorkflowTrip({
+      tripStatus: "completed",
+      policy: "none",
+      physicalPodReceived: false,
+      digitalPodPresent: false,
+      invoiced: false,
+      inDraft: true,
+    });
+    expect(s).toMatchObject({
+      invoiceState: "draft",
+      invoiceable: false,
+    });
+  });
+
   it("G — NULL policy is unconfigured and never invoiceable", () => {
     const s = evaluateFinanceWorkflowTrip({
       tripStatus: "completed",

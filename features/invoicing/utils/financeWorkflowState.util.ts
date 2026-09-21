@@ -12,6 +12,10 @@ import { tripIsDeliveredStatus } from "@/features/trips/services/tripDocumentLrP
 import type { InvoicePodPolicy } from "@/features/invoicing/utils/invoicePodPolicy.util";
 import { isTripEligibleForInvoicePodPolicy } from "@/features/invoicing/utils/invoicePodEnforcement.util";
 import { issuedInvoicesForClient } from "@/features/invoicing/utils/issuedInvoiceMatch.util";
+import {
+  invoiceStatusIsDraft,
+  invoiceStatusIsIssued,
+} from "@/features/invoicing/utils/invoiceLifecycle.util";
 
 export type FinancePodState =
   | "not_required"
@@ -23,6 +27,7 @@ export type FinanceInvoiceState =
   | "blocked_pod"
   | "blocked_policy"
   | "eligible"
+  | "draft"
   | "issued";
 
 export type FinanceWorkflowTripInput = {
@@ -31,6 +36,7 @@ export type FinanceWorkflowTripInput = {
   physicalPodReceived: boolean;
   digitalPodPresent: boolean;
   invoiced: boolean;
+  inDraft?: boolean;
 };
 
 export type FinanceWorkflowTripState = {
@@ -68,6 +74,14 @@ export function evaluateFinanceWorkflowTrip(
       completed,
       podState,
       invoiceState: "issued",
+      invoiceable: false,
+    };
+  }
+  if (input.inDraft) {
+    return {
+      completed,
+      podState,
+      invoiceState: "draft",
       invoiceable: false,
     };
   }
@@ -113,6 +127,8 @@ export function financeInvoiceStatusLabel(state: FinanceInvoiceState): string {
       return "Invoiced";
     case "eligible":
       return "Ready for Invoice";
+    case "draft":
+      return "In Draft";
     case "blocked_pod":
       return "Invoice Blocked";
     case "blocked_policy":
@@ -158,6 +174,9 @@ export type FinanceClientPictureInvoice = {
 
 export type FinanceClientPictureSummary = {
   listedTripCount: number;
+  completedTripCount: number;
+  podPendingTripCount: number;
+  draftTripCount: number;
   unbilledTripCount: number;
   eligibleTripCount: number;
   invoicedTripCount: number;
@@ -175,12 +194,13 @@ export function summarizeFinanceClientPicture(args: {
   trips: FinanceClientPictureTrip[];
   issuedInvoices: FinanceClientPictureInvoice[];
 }): FinanceClientPictureSummary {
-  const allocated = new Set<string>();
+  const issuedIds = new Set<string>();
+  const draftIds = new Set<string>();
   for (const inv of args.issuedInvoices) {
-    const status = (inv.status ?? "").trim().toLowerCase();
-    if (status === "void" || status === "cancelled") continue;
     for (const id of inv.trip_ids ?? []) {
-      if (id) allocated.add(id);
+      if (!id) continue;
+      if (invoiceStatusIsIssued(inv.status)) issuedIds.add(id);
+      else if (invoiceStatusIsDraft(inv.status)) draftIds.add(id);
     }
   }
 
@@ -192,19 +212,25 @@ export function summarizeFinanceClientPicture(args: {
   let eligibleTripCount = 0;
   let invoicedTripCount = 0;
   let blockedTripCount = 0;
+  let completedTripCount = 0;
+  let podPendingTripCount = 0;
+  let draftTripCount = 0;
 
   for (const trip of listed) {
-    const invoiced = allocated.has(trip.id);
     const state = evaluateFinanceWorkflowTrip({
       tripStatus: trip.tripStatus,
       policy: args.clientPolicy,
       physicalPodReceived: trip.physicalPodReceived,
       digitalPodPresent: trip.digitalPodPresent,
-      invoiced,
+      invoiced: issuedIds.has(trip.id),
+      inDraft: draftIds.has(trip.id) && !issuedIds.has(trip.id),
     });
+    if (state.completed) completedTripCount += 1;
     if (state.invoiceState === "issued") invoicedTripCount += 1;
+    else if (state.invoiceState === "draft") draftTripCount += 1;
     else unbilledTripCount += 1;
     if (state.invoiceable) eligibleTripCount += 1;
+    if (state.invoiceState === "blocked_pod") podPendingTripCount += 1;
     if (
       state.invoiceState === "blocked_pod" ||
       state.invoiceState === "blocked_policy" ||
@@ -215,17 +241,19 @@ export function summarizeFinanceClientPicture(args: {
   }
 
   const matched = issuedInvoicesForClient(
-    args.issuedInvoices.map((row) => ({
-      id: row.id,
-      invoice_number: "",
-      invoice_date: "",
-      due_date: null,
-      client_id: row.client_id ?? null,
-      client_name: row.client_name ?? null,
-      total_amount: Number(row.total_amount ?? 0),
-      status: row.status ?? "",
-      trip_ids: Array.isArray(row.trip_ids) ? row.trip_ids : [],
-    })),
+    args.issuedInvoices
+      .filter((row) => invoiceStatusIsIssued(row.status))
+      .map((row) => ({
+        id: row.id,
+        invoice_number: "",
+        invoice_date: "",
+        due_date: null,
+        client_id: row.client_id ?? null,
+        client_name: row.client_name ?? null,
+        total_amount: Number(row.total_amount ?? 0),
+        status: row.status ?? "",
+        trip_ids: Array.isArray(row.trip_ids) ? row.trip_ids : [],
+      })),
     { clientId: args.clientId, clientName: args.clientName },
   );
 
@@ -236,6 +264,9 @@ export function summarizeFinanceClientPicture(args: {
 
   return {
     listedTripCount: listed.length,
+    completedTripCount,
+    podPendingTripCount,
+    draftTripCount,
     unbilledTripCount,
     eligibleTripCount,
     invoicedTripCount,

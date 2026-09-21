@@ -91,7 +91,10 @@ function mockHappyPath(opts?: {
 }) {
   const trips = opts?.trips ?? candidateTrips;
   const podTripIds = opts?.podTripIds ?? trips.map((t) => t.id);
-  const existing = (opts?.existingTripIds ?? []).map((trip_ids) => ({ trip_ids }));
+  const existing = (opts?.existingTripIds ?? []).map((trip_ids) => ({
+    trip_ids,
+    status: "sent",
+  }));
   const mockInsert = jest.fn(() =>
     Promise.resolve({ data: null, error: opts?.insertError ?? null }),
   );
@@ -172,6 +175,44 @@ describe('executeInvoiceCreation — live invoices architecture', () => {
       eventType: 'invoice.generated',
       payload: { invoice_no: ALLOCATED },
     });
+  });
+
+  it('forwards draft id and idempotency key into the issue RPC', async () => {
+    mockHappyPath();
+    const { error } = await executeInvoiceCreation([TRIP_1, TRIP_2], {
+      draftId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      idempotencyKey: 'issue-key-1',
+    });
+    expect(error).toBeNull();
+    expect(mockRpc).toHaveBeenCalledWith(
+      'issue_customer_invoice',
+      expect.objectContaining({
+        p_draft_id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        p_idempotency_key: 'issue-key-1',
+      }),
+    );
+  });
+
+  it('retries with the same idempotency key do not insert locally', async () => {
+    mockHappyPath();
+    const first = await executeInvoiceCreation([TRIP_1, TRIP_2], {
+      idempotencyKey: 'retry-key',
+    });
+    const second = await executeInvoiceCreation([TRIP_1, TRIP_2], {
+      idempotencyKey: 'retry-key',
+    });
+    expect(first.invoiceNumber).toBe(ALLOCATED);
+    expect(second.invoiceNumber).toBe(ALLOCATED);
+    expect(
+      mockRpc.mock.calls.every((call) => call[0] === 'issue_customer_invoice'),
+    ).toBe(true);
+    expect(
+      mockRpc.mock.calls.every(
+        (call) =>
+          (call[1] as { p_idempotency_key?: string }).p_idempotency_key ===
+          'retry-key',
+      ),
+    ).toBe(true);
   });
 
   it('A: requirePod=true + digital POD present succeeds', async () => {

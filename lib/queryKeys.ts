@@ -285,6 +285,7 @@ export const queryKeys = {
     draftClientsRoot: ["q", "invoicing", "draft-clients"] as const,
     /** Existing public.invoices rows for the Invoice product history surface. */
     issued: (orgId: string) => ["q", "invoicing", "issued", orgId] as const,
+    drafts: (orgId: string) => ["q", "invoicing", "drafts", orgId] as const,
     clientPodPolicies: (orgId: string, idsKey: string) =>
       ["q", "invoicing", "client-pod-policies", orgId, idsKey] as const,
     digitalPods: (orgId: string, idsKey: string) =>

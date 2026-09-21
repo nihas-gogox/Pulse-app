@@ -17,6 +17,15 @@ describe("issue_customer_invoice — atomic issuance contract", () => {
     expect(sql).toContain("allocate_invoice_number");
     expect(sql).toContain("INSERT INTO public.invoices");
     expect(sql).toContain("trip_ids && p_trip_ids");
+    const draftSql = readFileSync(
+      join(
+        process.cwd(),
+        "supabase/migrations/20270922021844_invoice_issue_draft_idempotency.sql",
+      ),
+      "utf8",
+    );
+    expect(draftSql).toContain("issue_idempotency_key");
+    expect(draftSql).toContain("p_draft_id");
     expect(sql).not.toMatch(/INSERT INTO public\.trip_workflow_events/i);
   });
 

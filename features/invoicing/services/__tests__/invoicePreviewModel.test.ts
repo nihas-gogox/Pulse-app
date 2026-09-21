@@ -52,6 +52,8 @@ function trip(overrides: Partial<InvoicingTripView> = {}): InvoicingTripView {
     tripStatus: "completed",
     invoiced: false,
     issuedInvoiceNumber: null,
+    inDraft: false,
+    draftInvoiceNumber: null,
     ...overrides,
   };
 }

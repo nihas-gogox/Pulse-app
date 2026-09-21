@@ -43,6 +43,29 @@ describe("issuedInvoicesForClient", () => {
     ).toEqual([invoices[0]]);
   });
 
+  it("never mixes two clients that share the same display name", () => {
+    const twins = [
+      row({
+        id: "n1",
+        client_id: "nvidia-a",
+        client_name: "Nvidia",
+        total_amount: 100,
+      }),
+      row({
+        id: "n2",
+        client_id: "nvidia-b",
+        client_name: "Nvidia",
+        total_amount: 200,
+      }),
+    ];
+    expect(
+      issuedInvoicesForClient(twins, {
+        clientId: "nvidia-a",
+        clientName: "Nvidia",
+      }).map((row) => row.id),
+    ).toEqual(["n1"]);
+  });
+
   it("falls back to normalized name when client_id is absent on the invoice", () => {
     const nameless = [
       row({ id: "c", client_id: null, client_name: "Nvidia A", total_amount: 1 }),
