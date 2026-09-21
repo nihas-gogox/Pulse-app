@@ -21,7 +21,9 @@ export type TripWorkflowEventType =
   | 'pod.uploaded'
   | 'invoice.generated'
   | 'supplier.payment_recorded'
-  | 'client.payment_received';
+  | 'client.payment_received'
+  | 'compliance.approved_with_exception'
+  | 'compliance.vehicle_document_reused';
 
 /** All single-occurrence events — only one may exist per trip. */
 const SINGLETON_EVENTS = new Set<TripWorkflowEventType>([

@@ -11,6 +11,7 @@ import {
 import type { ComplianceDocumentRow } from "@/features/tripCompliance/tripCompliance.types";
 import {
   postCompliancePayment,
+  validateCompliancePaymentAmount,
   type ComplianceLedgerCategory,
 } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 
@@ -123,13 +124,18 @@ export async function validateComplianceBulkPayments(params: {
 
   const { data: existingTxns, error: txnErr } = await supabase()
     .from("transactions")
-    .select("trip_id, description, ledger_category")
+    .select("trip_id, description, payment_reference, ledger_category")
     .in("trip_id", tripIds)
     .eq("ledger_category", params.category);
   if (txnErr) throw new Error(txnErr.message);
   const existingUtrsByTrip = new Map<string, Set<string>>();
   for (const t of existingTxns ?? []) {
-    const utr = interpretLedgerRowStructured(t as { description?: string | null }).reference_number;
+    // Structured column (migration 20260921105432) is authoritative; older
+    // rows written before it existed fall back to the text-parsed value —
+    // see Phase 3 Section 4 on why description alone isn't trusted going forward.
+    const utr =
+      (t as { payment_reference?: string | null }).payment_reference ??
+      interpretLedgerRowStructured(t as { description?: string | null }).reference_number;
     if (!utr) continue;
     const set = existingUtrsByTrip.get(t.trip_id as string) ?? new Set<string>();
     set.add(utr.toUpperCase());
@@ -147,6 +153,10 @@ export async function validateComplianceBulkPayments(params: {
     const trip = tripsById.get(row.tripId);
     if (row.tripId && !trip) errors.push("Trip ID not found in this organization");
     if (!Number.isFinite(row.amount) || row.amount <= 0) errors.push("Invalid amount");
+    else if (trip) {
+      const amountCheck = validateCompliancePaymentAmount({ amount: row.amount, trip });
+      if (!amountCheck.ok) errors.push(amountCheck.reason ?? "Amount mismatch");
+    }
     if (!VALID_MODE_IDS.has(row.paymentModeId as (typeof PAYMENT_MODES)[number]["id"])) {
       errors.push(`Invalid payment mode "${row.paymentModeId}"`);
     }

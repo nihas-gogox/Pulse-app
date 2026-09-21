@@ -23,6 +23,24 @@ import {
 } from "@/features/trips/services/ewayBillFields.util";
 
 const BUCKET = "trip-documents";
+/** Synthetic marker written by use_vehicle_document_for_trip — never a trip-documents object. */
+const VEHICLE_DOCUMENT_REF_PREFIX = "ref:vehicle-document:";
+
+const TRIP_DOCUMENTS_SELECT =
+  "id, trip_id, file_name, storage_path, mime_type, size_bytes, uploaded_at, uploaded_by, document_type, document_number, ocr_job_id";
+const TRIP_DOCUMENTS_SELECT_WITH_SOURCE = `${TRIP_DOCUMENTS_SELECT}, source_entity_document_id`;
+
+function isVehicleDocumentReferenceStoragePath(storagePath: string | null | undefined): boolean {
+  return Boolean(storagePath && storagePath.startsWith(VEHICLE_DOCUMENT_REF_PREFIX));
+}
+
+function isMissingTripDocumentsColumn(err: { message?: string; code?: string } | null | undefined): boolean {
+  if (!err) return false;
+  const code = String(err.code ?? "").toUpperCase();
+  if (code === "42703" || code === "PGRST204") return true;
+  const message = String(err.message ?? "").toLowerCase();
+  return message.includes("source_entity_document_id") && (message.includes("does not exist") || message.includes("schema cache"));
+}
 export const MAX_TRIP_DOC_BYTES = 10 * 1024 * 1024;
 const MAX_TRIP_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
 /** Max simultaneous Storage `list()` calls across a trip's document-type subfolders. */
@@ -113,6 +131,12 @@ export interface TripDocumentRow {
   document_number?: string | null;
   /** Printed LR date from OCR (client-enriched; not a dedicated column). */
   document_date?: string | null;
+  /**
+   * Exact `entity_documents.id` when this row is reused workspace-vehicle
+   * evidence. Null for a normal trip-documents upload. Authoritative pin —
+   * do not infer reuse from storage_path alone when this is present.
+   */
+  source_entity_document_id?: string | null;
 }
 
 export interface UploadTripDocumentResult {
@@ -203,6 +227,9 @@ const tripDocSignedUrls = createStorageSignedUrlCache({
  * Use for "View" in the app.
  */
 export async function getDocumentViewUrl(storagePath: string): Promise<string> {
+  if (isVehicleDocumentReferenceStoragePath(storagePath)) {
+    return "";
+  }
   const signed = await tripDocSignedUrls.getUrl(storagePath);
   if (signed) return signed;
   const { data: publicData } = supabase().storage.from(BUCKET).getPublicUrl(storagePath);
@@ -216,6 +243,9 @@ export async function getDocumentViewUrl(storagePath: string): Promise<string> {
 export async function tryGetDocumentViewUrl(
   storagePath: string,
 ): Promise<string | null> {
+  if (isVehicleDocumentReferenceStoragePath(storagePath)) {
+    return null;
+  }
   return tripDocSignedUrls.getUrl(storagePath);
 }
 
@@ -223,7 +253,13 @@ export async function tryGetDocumentViewUrl(
 export async function getDocumentViewUrls(
   storagePaths: string[],
 ): Promise<Record<string, string | null>> {
-  return tripDocSignedUrls.getUrls(storagePaths);
+  const physical = storagePaths.filter((path) => !isVehicleDocumentReferenceStoragePath(path));
+  const signed = physical.length > 0 ? await tripDocSignedUrls.getUrls(physical) : {};
+  const byPath: Record<string, string | null> = {};
+  for (const path of storagePaths) {
+    byPath[path] = isVehicleDocumentReferenceStoragePath(path) ? null : (signed[path] ?? null);
+  }
+  return byPath;
 }
 
 /** True for real storage objects; false for folder markers / placeholders after delete. */
@@ -262,21 +298,25 @@ export async function getDocumentsByTripId(
 ): Promise<{ documents: TripDocumentRow[]; error: Error | null }> {
   const includeOcr = options?.includeOcr !== false;
   const includeStorageFallback = options?.includeStorageFallback !== false;
-  const { data, error } = await (() => {
+  const runSelect = (columns: string) => {
     const q = supabase()
       .from("trip_documents")
-      .select("id, trip_id, file_name, storage_path, mime_type, size_bytes, uploaded_at, uploaded_by, document_type, document_number, ocr_job_id")
+      .select(columns)
       .eq("trip_id", tripId)
       .order("uploaded_at", { ascending: false });
     return options?.limit ? q.limit(options.limit) : q;
-  })();
+  };
+  let { data, error } = await runSelect(TRIP_DOCUMENTS_SELECT_WITH_SOURCE);
+  if (error && isMissingTripDocumentsColumn(error)) {
+    ({ data, error } = await runSelect(TRIP_DOCUMENTS_SELECT));
+  }
   let tableError: Error | null = null;
   let rows: TripDocumentRow[] = [];
   if (error) {
     tableError = new Error(error.message);
   } else {
     rows = (data ?? []).map((r) => {
-      const row = r as TripDocumentRow;
+      const row = r as unknown as TripDocumentRow;
       return {
         ...row,
         document_type: row.document_type ?? 'pod',
@@ -429,6 +469,74 @@ function publishPodUploadedEvent(tripId: string, doc: TripDocumentRow): void {
     });
 }
 
+type ReplacedTripDocumentSnapshot = {
+  id: string;
+  file_name: string;
+  storage_path: string;
+  document_number: string | null;
+  uploaded_at: string;
+  uploaded_by: string | null;
+  status: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
+  rejection_reason: string | null;
+};
+
+/**
+ * Writes a `document_audit_log` row (action='replaced') snapshotting the
+ * superseded document's full state — same entity_type/entity_id convention
+ * `verify_trip_document` already uses for trip_documents (entity_id is the
+ * trip_documents.id, document_id stays null since that FK targets
+ * entity_documents, not trip_documents). Best-effort: swallows its own
+ * errors so a legitimate replace is never blocked by an audit-write hiccup.
+ */
+async function recordTripDocumentReplacedAudit(params: {
+  tripId: string;
+  existing: ReplacedTripDocumentSnapshot;
+  newStoragePath: string;
+  newFileName: string;
+  actorId: string;
+}): Promise<void> {
+  const { tripId, existing, newStoragePath, newFileName, actorId } = params;
+  try {
+    const { data: trip, error: tripError } = await supabase()
+      .from("trips")
+      .select("organization_id")
+      .eq("id", tripId)
+      .maybeSingle();
+    const organizationId = !tripError ? (trip as { organization_id?: string | null } | null)?.organization_id : null;
+    if (!organizationId) return;
+
+    await supabase()
+      .from("document_audit_log")
+      .insert({
+        document_id: null,
+        organization_id: organizationId,
+        entity_type: "trip_document",
+        entity_id: existing.id,
+        action: "replaced",
+        actor_id: actorId,
+        old_status: existing.status ?? "pending",
+        new_status: "pending",
+        notes: `Replaced by re-upload (${newFileName}).`,
+        metadata: {
+          old_storage_path: existing.storage_path,
+          old_file_name: existing.file_name,
+          old_document_number: existing.document_number,
+          old_uploaded_by: existing.uploaded_by,
+          old_uploaded_at: existing.uploaded_at,
+          old_verified_by: existing.verified_by,
+          old_verified_at: existing.verified_at,
+          old_rejection_reason: existing.rejection_reason,
+          new_storage_path: newStoragePath,
+          new_file_name: newFileName,
+        },
+      });
+  } catch (err) {
+    if (__DEV__) console.warn("[tripDocuments] recordTripDocumentReplacedAudit failed:", err);
+  }
+}
+
 /**
  * Upload a trip document. Pass documentType to correctly classify the file.
  * Storage path: {tripId}/{documentType}/{uuid}.{ext}
@@ -488,7 +596,9 @@ export async function uploadTripDocument(
   if (options?.replaceExistingOfType) {
     const { data: existingRows, error: existingError } = await supabase()
       .from("trip_documents")
-      .select("id, storage_path, uploaded_at")
+      .select(
+        "id, file_name, storage_path, document_number, uploaded_at, uploaded_by, status, verified_by, verified_at, rejection_reason",
+      )
       .eq("trip_id", tripId)
       .eq("document_type", documentType)
       .order("uploaded_at", { ascending: false })
@@ -519,9 +629,18 @@ export async function uploadTripDocument(
       if (updateError) {
         return { doc: null, error: new Error(updateError.message) };
       }
-      if (existing.storage_path && existing.storage_path !== path) {
-        await supabase().storage.from(BUCKET).remove([existing.storage_path]);
-      }
+      // Preserve the superseded version's history: what it was, who uploaded
+      // and verified it, and when — before it's overwritten above. Never
+      // deletes the old storage file, so its content stays retrievable via
+      // this audit row's metadata.old_storage_path. Best-effort: a failure
+      // here must not block a legitimate replace.
+      void recordTripDocumentReplacedAudit({
+        tripId,
+        existing,
+        newStoragePath: path,
+        newFileName: file.fileName,
+        actorId: uploadedBy,
+      });
       const replacedDoc = {
         ...(updated as TripDocumentRow),
         document_type: ((updated as TripDocumentRow).document_type ?? documentType) as TripDocumentType,

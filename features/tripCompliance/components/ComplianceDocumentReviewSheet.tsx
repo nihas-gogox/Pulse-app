@@ -19,6 +19,7 @@ import { describeStopProofDocument, type StopProofDocumentSummary } from "@/feat
 import { ComplianceDocumentPreviewModal } from "@/features/tripCompliance/components/ComplianceDocumentPreviewModal";
 import {
   guessCompliancePreviewMime,
+  resolveComplianceActorDetails,
   signCompliancePreviewUrl,
 } from "@/features/tripCompliance/services/complianceDocumentView.service";
 import { ComplianceInputModal } from "@/features/tripCompliance/components/ComplianceInputModal";
@@ -29,8 +30,12 @@ import {
   complianceTripDocFormatHint,
   validateComplianceTripDocumentFile,
 } from "@/features/tripCompliance/utils/complianceTripDocumentFormat.util";
-import { markTripComplianceVerified, setTripDocumentVerification } from "@/features/tripCompliance/services/tripComplianceWrite.service";
-import { canMarkComplianceVerified } from "@/features/tripCompliance/services/tripComplianceRead.service";
+import {
+  approveComplianceWithException,
+  markTripComplianceVerified,
+  setTripDocumentVerification,
+} from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import { canApproveComplianceWithException, canMarkComplianceVerified } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import {
   COMPLIANCE_DRIVER_DOCUMENT_TYPES,
   COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
@@ -53,13 +58,32 @@ import {
   complianceReviewDecisionActions,
 } from "@/features/tripCompliance/utils/complianceReviewActions.util";
 import { classifyPreviewFailure } from "@/features/tripCompliance/utils/compliancePreviewFailure.util";
+import { buildComplianceDocumentActivity, type ComplianceActorDetail, type ComplianceDocumentActivityEntry } from "@/features/tripCompliance/utils/complianceDocumentActivity.util";
 import { formatMarkComplianceVerifiedError } from "@/features/tripCompliance/utils/complianceMarkVerifiedError.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
+import { HUB_MOBILE_TICKET_REF } from "@/components/hub/hubMobileTicketTokens";
 import * as DocumentPicker from "expo-document-picker";
-import { ChevronLeft, Eye, X } from "lucide-react-native";
+import { ChevronLeft, Eye, Upload, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+  type ViewStyle,
+} from "react-native";
+
+const REF = HUB_MOBILE_TICKET_REF;
+/** Side-by-side Pending | Verified columns when the sheet has room. */
+const REVIEW_SPLIT_MIN_WIDTH = 720;
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -144,6 +168,8 @@ export function ComplianceDocumentReviewSheet({
   vehicleLabel = "Unassigned",
   driverLabel = "Unassigned",
 }: ComplianceDocumentReviewSheetProps) {
+  const { width: windowWidth } = useWindowDimensions();
+  const splitColumns = windowWidth >= REVIEW_SPLIT_MIN_WIDTH;
   const rows = useMemo(() => {
     if (scope === "vehicle") return deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, vehicleDocuments);
     if (scope === "driver") return deriveEntityComplianceRows(COMPLIANCE_DRIVER_DOCUMENT_TYPES, driverDocuments);
@@ -159,17 +185,34 @@ export function ComplianceDocumentReviewSheet({
   const [retryType, setRetryType] = useState<string | null>(null);
   const [markingVerified, setMarkingVerified] = useState(false);
   const [markVerifiedError, setMarkVerifiedError] = useState<string | null>(null);
+  const [exceptionPanelOpen, setExceptionPanelOpen] = useState(false);
+  const [exceptionComment, setExceptionComment] = useState("");
+  const [approvingException, setApprovingException] = useState(false);
+  const [exceptionError, setExceptionError] = useState<string | null>(null);
   const [viewingKey, setViewingKey] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{
+    rowKey: string;
     title: string;
+    fileName: string | null;
     url: string | null;
     mime: string | null;
     loading: boolean;
     placeProof: StopProofDocumentSummary | null;
+    activity: ComplianceDocumentActivityEntry[];
+    actorDetails: Record<string, ComplianceActorDetail>;
   } | null>(null);
 
   const grouped = useMemo(() => groupComplianceReviewRows(rows), [rows]);
+  const pendingRows = useMemo(
+    () => [...grouped.needsAction, ...grouped.missing, ...grouped.pending],
+    [grouped],
+  );
+  const verifiedRows = grouped.verified;
   const tripVerifyCheck = useMemo(() => canMarkComplianceVerified(documents), [documents]);
+  const exceptionCheck = useMemo(
+    () => canApproveComplianceWithException({ documents, complianceVerifiedAt: summary?.complianceVerifiedAt ?? null }),
+    [documents, summary],
+  );
   const readiness = useMemo(() => (summary ? deriveComplianceQueueReadiness(summary) : null), [summary]);
   const selected: ComplianceDocRow | null = rows.find((r) => r.key === selectedKey) ?? null;
   const canModerateSelected =
@@ -190,6 +233,9 @@ export function ComplianceDocumentReviewSheet({
       setSelectedKey(initialSelectedKey);
     } else {
       setLightbox(null);
+      setExceptionPanelOpen(false);
+      setExceptionComment("");
+      setExceptionError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, tripId, scope]);
@@ -209,8 +255,23 @@ export function ComplianceDocumentReviewSheet({
       const path = row.doc?.storage_path ?? row.entityDoc?.storage_path ?? null;
       const placeProof = stopProofForRow(row);
       const title = labelForDocType(row.type);
+      const fileName = row.doc?.file_name ?? null;
+      const activity = buildComplianceDocumentActivity(row);
       if (placeProof) {
-        setLightbox({ title, url: null, mime: "text/plain", loading: false, placeProof });
+        setLightbox({
+          rowKey: row.key,
+          title,
+          fileName,
+          url: null,
+          mime: "text/plain",
+          loading: false,
+          placeProof,
+          activity,
+          actorDetails: {},
+        });
+        void resolveComplianceActorDetails(activity.map((entry) => entry.actorId), organizationId).then((actorDetails) => {
+          setLightbox((current) => (current?.rowKey === row.key ? { ...current, actorDetails } : current));
+        });
         return;
       }
       if (!path) {
@@ -223,18 +284,37 @@ export function ComplianceDocumentReviewSheet({
         return;
       }
       setViewingKey(row.key);
-      setLightbox({ title, url: null, mime: null, loading: true, placeProof: null });
+      setLightbox({
+        rowKey: row.key,
+        title,
+        fileName,
+        url: null,
+        mime: null,
+        loading: true,
+        placeProof: null,
+        activity,
+        actorDetails: {},
+      });
       try {
-        const url = await signCompliancePreviewUrl({
-          storagePath: path,
-          source: scope === "trip" ? "trip" : row.entityDoc?.source,
-        });
+        const [url, actorDetails] = await Promise.all([
+          signCompliancePreviewUrl({
+            storagePath: path,
+            source: scope === "trip" ? "trip" : row.entityDoc?.source,
+            sourceEntityDocumentId: row.doc?.source_entity_document_id,
+            organizationId,
+          }),
+          resolveComplianceActorDetails(activity.map((entry) => entry.actorId), organizationId),
+        ]);
         setLightbox({
+          rowKey: row.key,
           title,
+          fileName,
           url,
           mime: guessCompliancePreviewMime(path, row.doc?.mime_type),
           loading: false,
           placeProof: null,
+          activity,
+          actorDetails,
         });
         if (!url) {
           const failure = classifyPreviewFailure({ hasStoragePath: true, url: null, mime: guessCompliancePreviewMime(path, row.doc?.mime_type) });
@@ -248,7 +328,7 @@ export function ComplianceDocumentReviewSheet({
         setViewingKey(null);
       }
     },
-    [scope, stopProofForRow, canViewDocuments],
+    [scope, stopProofForRow, canViewDocuments, organizationId],
   );
 
   const selectedStopProof = stopProofForRow(selected);
@@ -364,6 +444,22 @@ export function ComplianceDocumentReviewSheet({
     onChanged();
   }, [actorId, tripVerifyCheck.ok, tripId, onChanged]);
 
+  const handleApproveWithException = useCallback(async () => {
+    if (!exceptionComment.trim()) return;
+    setExceptionError(null);
+    setApprovingException(true);
+    const { error } = await approveComplianceWithException({ tripId, comment: exceptionComment });
+    setApprovingException(false);
+    if (error) {
+      setExceptionError(error.message);
+      alertMessage("Couldn't approve with exception", error.message);
+      return;
+    }
+    setExceptionPanelOpen(false);
+    setExceptionComment("");
+    onChanged();
+  }, [exceptionComment, tripId, onChanged]);
+
   const handleAddMissing = useCallback(
     async (type: string) => {
       if (!actorId) return;
@@ -473,11 +569,189 @@ export function ComplianceDocumentReviewSheet({
   const rejectionReason = selected?.doc?.rejection_reason ?? selected?.entityDoc?.notes ?? null;
   const statusMeta = selected ? COMPLIANCE_STATUS_META[selected.status] : null;
 
+  const renderDocRow = (row: ComplianceDocRow, index: number) => {
+    const meta = COMPLIANCE_STATUS_META[row.status];
+    const decisions = complianceReviewDecisionActions(row);
+    const canModerate = canVerify && canModerateComplianceRow(row, scope);
+    const rowBusy = busy && busyRowKey === row.key;
+    const uploadLabel =
+      uploadingMissing && retryType === row.type
+        ? "Uploading…"
+        : uploadError && retryType === row.type
+          ? "Retry"
+          : row.status === "missing"
+            ? "Upload"
+            : "Replace";
+    return (
+      <View key={row.key} style={[styles.docBlock, index > 0 && styles.docBlockBorder]}>
+        <View style={styles.docRow}>
+          <TouchableOpacity
+            style={styles.docRowMain}
+            disabled={row.status === "missing"}
+            onPress={() => setSelectedKey(row.key)}
+          >
+            <View style={styles.docCopy}>
+              <View style={styles.docTitleRow}>
+                <Text style={styles.docRowLabel} numberOfLines={1}>
+                  {labelForDocType(row.type)}
+                </Text>
+                <Text
+                  style={[
+                    styles.scopeTag,
+                    row.required ? styles.scopeTagRequired : styles.scopeTagOptional,
+                  ]}
+                >
+                  {requirementScopeLabel(row.required)}
+                </Text>
+              </View>
+              <Text style={styles.docMetaLine} numberOfLines={1}>
+                {row.doc?.uploaded_at
+                  ? `Uploaded ${formatDate(row.doc.uploaded_at)}`
+                  : row.entityDoc?.created_at
+                    ? `Uploaded ${formatDate(row.entityDoc.created_at)}`
+                    : "Not uploaded"}
+                {row.doc?.file_name
+                  ? ` · ${row.doc.file_name}`
+                  : row.doc?.uploaded_by
+                    ? ` · ${row.doc.uploaded_by.slice(0, 8)}`
+                    : ""}
+              </Text>
+              {row.status === "rejected" && (row.doc?.rejection_reason || row.entityDoc?.notes) ? (
+                <Text style={styles.rejectReasonText} numberOfLines={2}>
+                  Rejected — {row.doc?.rejection_reason || row.entityDoc?.notes}
+                </Text>
+              ) : (
+                <Text style={styles.docMetaLine} numberOfLines={2}>
+                  {requiredRowNextAction(row)}
+                </Text>
+              )}
+            </View>
+          </TouchableOpacity>
+          <View style={styles.docActions}>
+            <ComplianceStatusChip status={row.status} label={meta.label} compact />
+            <View style={styles.docActionBtns}>
+              <TouchableOpacity
+                onPress={() => void openRowPreview(row)}
+                disabled={viewingKey != null || !canViewDocuments}
+                style={styles.eyeBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${labelForDocType(row.type)}`}
+              >
+                {viewingKey === row.key ? (
+                  <ActivityIndicator size="small" color={Theme.textMuted} />
+                ) : (
+                  <Eye
+                    size={15}
+                    color={
+                      row.doc?.storage_path || row.entityDoc?.storage_path
+                        ? Theme.textPrimary
+                        : Theme.textMuted
+                    }
+                    strokeWidth={2.2}
+                  />
+                )}
+              </TouchableOpacity>
+              {canVerify && entityAssigned ? (
+                <TouchableOpacity
+                  disabled={uploadingMissing}
+                  onPress={() => handleAddMissing(row.type)}
+                  style={styles.addBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${uploadLabel} ${labelForDocType(row.type)}`}
+                >
+                  <Upload size={12} color={Theme.buttonPrimaryText} strokeWidth={2.4} />
+                  <Text style={styles.addBtnText}>{uploadLabel}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        </View>
+        {canModerate && (decisions.canApprove || decisions.canDecline) ? (
+          <View style={styles.decisionRow}>
+            {rowBusy ? (
+              <ActivityIndicator size="small" color={Theme.textMuted} />
+            ) : (
+              <>
+                {decisions.canApprove ? (
+                  <TouchableOpacity
+                    style={styles.decisionApproveBtn}
+                    disabled={busy}
+                    onPress={() => void handleApprove(row)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Approve ${labelForDocType(row.type)}`}
+                  >
+                    <Text style={styles.approveBtnText}>Approve</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {decisions.canDecline ? (
+                  <TouchableOpacity
+                    style={styles.decisionDeclineBtn}
+                    disabled={busy}
+                    onPress={() => {
+                      setRejectTarget(row);
+                      setRejectVisible(true);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Decline ${labelForDocType(row.type)}`}
+                  >
+                    <Text style={styles.rejectBtnText}>Decline</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </>
+            )}
+          </View>
+        ) : null}
+      </View>
+    );
+  };
+
+  const renderColumn = (
+    title: string,
+    columnRows: ComplianceDocRow[],
+    tone: "pending" | "verified",
+  ) => (
+    <View style={[styles.boardColumn, tone === "verified" ? styles.boardColumnVerified : styles.boardColumnPending]}>
+      <View style={styles.boardColumnHeader}>
+        <Text
+          style={[
+            styles.boardColumnTitle,
+            tone === "verified" ? styles.boardColumnTitleVerified : styles.boardColumnTitlePending,
+          ]}
+        >
+          {title}
+        </Text>
+        <View
+          style={[
+            styles.boardColumnBadge,
+            tone === "verified" ? styles.boardColumnBadgeVerified : styles.boardColumnBadgePending,
+          ]}
+        >
+          <Text
+            style={[
+              styles.boardColumnBadgeText,
+              tone === "verified" ? styles.boardColumnBadgeTextVerified : styles.boardColumnBadgeTextPending,
+            ]}
+          >
+            {columnRows.length}
+          </Text>
+        </View>
+      </View>
+      {columnRows.length === 0 ? (
+        <Text style={styles.boardEmpty}>
+          {tone === "verified" ? "No verified documents yet." : "Nothing pending."}
+        </Text>
+      ) : (
+        <View style={styles.groupCard}>{columnRows.map((row, index) => renderDocRow(row, index))}</View>
+      )}
+    </View>
+  );
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, splitColumns && styles.sheetWide]}>
           <View style={styles.header}>
             {selected ? (
               <TouchableOpacity style={styles.backBtn} onPress={() => setSelectedKey(null)}>
@@ -485,172 +759,155 @@ export function ComplianceDocumentReviewSheet({
                 <Text style={styles.backBtnText}>Back to documents</Text>
               </TouchableOpacity>
             ) : (
-              <View>
+              <View style={styles.headerCopy}>
                 <Text style={styles.headerTitle}>{copy.title}</Text>
-                <Text style={styles.headerSubtitle}>{subtitle}</Text>
+                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                  {subtitle}
+                </Text>
               </View>
             )}
-            <TouchableOpacity onPress={onClose} accessibilityLabel="Close">
+            <TouchableOpacity
+              onPress={onClose}
+              accessibilityLabel="Close"
+              style={styles.closeBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
               <X size={18} color={Theme.textMuted} strokeWidth={2} />
             </TouchableOpacity>
           </View>
 
           {!selected ? (
-            <ScrollView style={styles.listScroll}>
+            <ScrollView
+              style={styles.listScroll}
+              contentContainerStyle={styles.listContent}
+              keyboardShouldPersistTaps="handled"
+            >
               {!entityAssigned ? <Text style={styles.unassigned}>{unassignedMessage}</Text> : null}
-              <Text style={styles.hint}>{complianceTripDocFormatHint()}</Text>
-              {scope === "trip" && readiness ? (
-                <View style={styles.requiredSummary}>
-                  <Text style={styles.sectionLabel}>REQUIRED DOCUMENTS</Text>
-                  <Text style={styles.requiredCount}>
-                    {readiness.requiredDocs.verified} / {readiness.requiredDocs.total} verified
+              <View style={styles.summaryBoard}>
+                <View style={[styles.summaryTile, styles.summaryTilePending]}>
+                  <Text style={[styles.summaryTileLabel, styles.summaryTileLabelPending]}>Pending</Text>
+                  <Text style={[styles.summaryTileValue, styles.summaryTileValuePending]}>
+                    {scope === "trip" && readiness
+                      ? readiness.requiredDocs.pending +
+                        readiness.requiredDocs.missing +
+                        readiness.requiredDocs.rejected
+                      : pendingRows.length}
                   </Text>
-                  <Text style={styles.docMetaLine}>
-                    Verified {readiness.requiredDocs.verified} · Pending {readiness.requiredDocs.pending} · Missing{" "}
-                    {readiness.requiredDocs.missing} · Rejected {readiness.requiredDocs.rejected}
-                  </Text>
-                  <Text style={styles.docMetaLine}>Next: {readiness.nextAction}</Text>
-                  <Text style={[styles.docMetaLine, readiness.paymentReady ? undefined : styles.rejectReasonText]}>
-                    {readiness.paymentReady ? "Payment ready" : `Payment blocked — ${readiness.blockerLines[0] ?? "not ready"}`}
+                  <Text style={styles.summaryTileContent} numberOfLines={2}>
+                    {scope === "trip" && readiness
+                      ? [
+                          readiness.requiredDocs.missing > 0
+                            ? `${readiness.requiredDocs.missing} missing`
+                            : null,
+                          readiness.requiredDocs.pending > 0
+                            ? `${readiness.requiredDocs.pending} in review`
+                            : null,
+                          readiness.requiredDocs.rejected > 0
+                            ? `${readiness.requiredDocs.rejected} rejected`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "None pending"
+                      : pendingRows.length === 0
+                        ? "None pending"
+                        : `${pendingRows.length} document${pendingRows.length === 1 ? "" : "s"}`}
                   </Text>
                 </View>
+                <View style={[styles.summaryTile, styles.summaryTileVerified]}>
+                  <Text style={[styles.summaryTileLabel, styles.summaryTileLabelVerified]}>Verified</Text>
+                  <Text
+                    style={[
+                      styles.summaryTileValue,
+                      scope === "trip" &&
+                        readiness &&
+                        readiness.requiredDocs.verified === readiness.requiredDocs.total &&
+                        readiness.requiredDocs.total > 0 &&
+                        styles.summaryTileValueOk,
+                    ]}
+                  >
+                    {scope === "trip" && readiness
+                      ? `${readiness.requiredDocs.verified}/${readiness.requiredDocs.total}`
+                      : verifiedRows.length}
+                  </Text>
+                  <Text style={styles.summaryTileContent} numberOfLines={2}>
+                    {scope === "trip" && readiness
+                      ? readiness.requiredDocs.verified === readiness.requiredDocs.total &&
+                        readiness.requiredDocs.total > 0
+                        ? "All required docs verified"
+                        : "Required trip documents"
+                      : verifiedRows.length === 0
+                        ? "None verified yet"
+                        : `${verifiedRows.length} document${verifiedRows.length === 1 ? "" : "s"}`}
+                  </Text>
+                </View>
+              </View>
+              {scope === "trip" && readiness ? (
+                <View style={styles.requiredSummary}>
+                  <Text style={styles.nextActionLine}>Next: {readiness.nextAction}</Text>
+                  <View
+                    style={[
+                      styles.paymentBanner,
+                      readiness.paymentReady ? styles.paymentBannerReady : styles.paymentBannerBlocked,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.paymentBannerText,
+                        readiness.paymentReady
+                          ? styles.paymentBannerTextReady
+                          : styles.paymentBannerTextBlocked,
+                      ]}
+                    >
+                      {readiness.paymentReady
+                        ? "Payment ready"
+                        : `Payment blocked — ${readiness.blockerLines[0] ?? "not ready"}`}
+                    </Text>
+                  </View>
+                </View>
               ) : null}
-              {uploadingMissing ? <Text style={styles.hint}>Uploading…</Text> : null}
+              <Text style={styles.hint}>{complianceTripDocFormatHint()}</Text>
+              {uploadingMissing ? <Text style={styles.inlineStatus}>Uploading…</Text> : null}
               {uploadError ? (
                 <Text style={styles.rejectReasonText}>
                   Upload failed: {uploadError}
                   {retryType && canVerify ? " Use Retry on that row." : ""}
                 </Text>
               ) : null}
-              {(
-                [
-                  ["Needs action", grouped.needsAction],
-                  ["Missing", grouped.missing],
-                  ["Pending verification", grouped.pending],
-                  ["Verified", grouped.verified],
-                ] as const
-              ).map(([title, groupRows]) =>
-                groupRows.length === 0 ? null : (
-                  <View key={title}>
-                    <Text style={[styles.sectionLabel, styles.sectionLabelSpaced]}>{title.toUpperCase()}</Text>
-                    {groupRows.map((row) => {
-                      const meta = COMPLIANCE_STATUS_META[row.status];
-                      const decisions = complianceReviewDecisionActions(row);
-                      const canModerate = canVerify && canModerateComplianceRow(row, scope);
-                      const rowBusy = busy && busyRowKey === row.key;
-                      return (
-                        <View key={row.key} style={styles.docBlock}>
-                          <View style={styles.docRow}>
-                          <TouchableOpacity
-                            style={styles.docRowMain}
-                            disabled={row.status === "missing"}
-                            onPress={() => setSelectedKey(row.key)}
-                          >
-                            <View style={{ flex: 1, minWidth: 0 }}>
-                              <Text style={styles.docRowLabel}>{labelForDocType(row.type)}</Text>
-                              <Text style={styles.docMetaLine}>{requirementScopeLabel(row.required)}</Text>
-                              <Text style={styles.docMetaLine}>
-                                {row.doc?.uploaded_at ? `Uploaded ${formatDate(row.doc.uploaded_at)}` : row.entityDoc?.created_at ? `Uploaded ${formatDate(row.entityDoc.created_at)}` : "Not uploaded"}
-                                {row.doc?.file_name
-                                  ? ` · ${row.doc.file_name}`
-                                  : row.doc?.uploaded_by
-                                    ? ` · ${row.doc.uploaded_by.slice(0, 8)}`
-                                    : ""}
-                              </Text>
-                              {row.status === "rejected" && (row.doc?.rejection_reason || row.entityDoc?.notes) ? (
-                                <Text style={styles.rejectReasonText} numberOfLines={2}>
-                                  Rejected — {row.doc?.rejection_reason || row.entityDoc?.notes}
-                                </Text>
-                              ) : (
-                                <Text style={styles.docMetaLine}>{requiredRowNextAction(row)}</Text>
-                              )}
-                            </View>
-                            <ComplianceStatusChip status={row.status} label={meta.label} compact />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => void openRowPreview(row)}
-                            disabled={viewingKey != null || !canViewDocuments}
-                            style={styles.eyeBtn}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            accessibilityRole="button"
-                            accessibilityLabel={`View ${labelForDocType(row.type)}`}
-                          >
-                            {viewingKey === row.key ? (
-                              <ActivityIndicator size="small" color={Theme.textMuted} />
-                            ) : (
-                              <Eye
-                                size={16}
-                                color={row.doc?.storage_path || row.entityDoc?.storage_path ? Theme.textPrimary : Theme.textMuted}
-                                strokeWidth={2.2}
-                              />
-                            )}
-                          </TouchableOpacity>
-                          {canVerify && entityAssigned ? (
-                            <TouchableOpacity
-                              disabled={uploadingMissing}
-                              onPress={() => handleAddMissing(row.type)}
-                              style={styles.addBtn}
-                            >
-                              <Text style={styles.addBtnText}>
-                                {uploadingMissing && retryType === row.type
-                                  ? "Uploading…"
-                                  : uploadError && retryType === row.type
-                                    ? "Retry"
-                                    : row.status === "missing"
-                                      ? "Upload"
-                                      : "Replace"}
-                              </Text>
-                            </TouchableOpacity>
-                          ) : null}
-                          </View>
-                          {canModerate && (decisions.canApprove || decisions.canDecline) ? (
-                            <View style={styles.decisionRow}>
-                              {rowBusy ? (
-                                <ActivityIndicator size="small" color={Theme.textMuted} />
-                              ) : (
-                                <>
-                                  {decisions.canApprove ? (
-                                    <TouchableOpacity
-                                      style={styles.decisionApproveBtn}
-                                      disabled={busy}
-                                      onPress={() => void handleApprove(row)}
-                                      accessibilityRole="button"
-                                      accessibilityLabel={`Approve ${labelForDocType(row.type)}`}
-                                    >
-                                      <Text style={styles.approveBtnText}>Approve</Text>
-                                    </TouchableOpacity>
-                                  ) : null}
-                                  {decisions.canDecline ? (
-                                    <TouchableOpacity
-                                      style={styles.decisionDeclineBtn}
-                                      disabled={busy}
-                                      onPress={() => {
-                                        setRejectTarget(row);
-                                        setRejectVisible(true);
-                                      }}
-                                      accessibilityRole="button"
-                                      accessibilityLabel={`Decline ${labelForDocType(row.type)}`}
-                                    >
-                                      <Text style={styles.rejectBtnText}>Decline</Text>
-                                    </TouchableOpacity>
-                                  ) : null}
-                                </>
-                              )}
-                            </View>
-                          ) : row.status === "missing" ? (
-                            <Text style={styles.docMetaLine}>Upload a file before Approve / Decline.</Text>
-                          ) : null}
-                        </View>
-                      );
-                    })}
-                  </View>
-                ),
-              )}
-              {scope === "trip" && canMarkVerified && summary?.complianceVerifiedAt ? (
-                <Text style={styles.hint}>Compliance Verified ✓</Text>
+
+              <View style={[styles.boardRow, !splitColumns && styles.boardRowStack]}>
+                {renderColumn("Pending", pendingRows, "pending")}
+                {renderColumn("Verified", verifiedRows, "verified")}
+              </View>
+              {scope === "trip" && canMarkVerified && summary?.complianceDecision === "approved_with_exception" ? (
+                <View style={styles.requiredSummary}>
+                  <Text style={styles.sectionLabel}>APPROVED WITH EXCEPTION</Text>
+                  <Text style={styles.docMetaLine}>
+                    Outstanding:{" "}
+                    {[
+                      ...(summary.complianceOutstandingSummary?.missing ?? []),
+                      ...(summary.complianceOutstandingSummary?.pending_verification ?? []),
+                      ...(summary.complianceOutstandingSummary?.rejected ?? []),
+                    ]
+                      .map((type) => labelForDocType(type))
+                      .join(", ") || "none"}
+                  </Text>
+                  <Text style={styles.docMetaLine}>Comment: {summary.complianceExceptionReason ?? "—"}</Text>
+                  <Text style={styles.docMetaLine}>
+                    Approved by: {summary.complianceVerifiedBy ? summary.complianceVerifiedBy.slice(0, 8) : "—"}
+                  </Text>
+                  <Text style={styles.docMetaLine}>Approved at: {formatDate(summary.complianceVerifiedAt)}</Text>
+                </View>
+              ) : null}
+              {scope === "trip" &&
+              canMarkVerified &&
+              summary?.complianceVerifiedAt &&
+              summary?.complianceDecision !== "approved_with_exception" ? (
+                <View style={styles.verifiedBanner}>
+                  <Text style={styles.verifiedBannerText}>Compliance Verified ✓</Text>
+                </View>
               ) : null}
               {scope === "trip" && canMarkVerified && !summary?.complianceVerifiedAt ? (
-                <View>
+                <View style={styles.footerActionsBlock}>
                   {!tripVerifyCheck.ok ? (
                     <Text style={styles.rejectReasonText}>
                       {[
@@ -671,28 +928,88 @@ export function ComplianceDocumentReviewSheet({
                   {markVerifiedError ? (
                     <Text style={styles.rejectReasonText}>{markVerifiedError}</Text>
                   ) : null}
-                <TouchableOpacity
-                  style={[styles.openDocBtn, !tripVerifyCheck.ok && styles.addBtn]}
-                  disabled={!tripVerifyCheck.ok || markingVerified}
-                  onPress={() => void handleMarkVerified()}
-                >
-                  <Text style={styles.openDocBtnText}>
-                    {markingVerified
-                      ? "Marking verified…"
-                      : tripVerifyCheck.ok
-                        ? "Mark Compliance Verified"
-                        : "Mark Compliance Verified — blocked"}
-                  </Text>
-                </TouchableOpacity>
+                  {tripVerifyCheck.ok ? (
+                    <TouchableOpacity
+                      style={styles.primaryCta}
+                      disabled={markingVerified}
+                      onPress={() => void handleMarkVerified()}
+                    >
+                      <Text style={styles.primaryCtaText}>
+                        {markingVerified ? "Marking verified…" : "Mark Compliance Verified"}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : !exceptionPanelOpen ? (
+                    <TouchableOpacity
+                      style={[styles.primaryCta, !exceptionCheck.ok && styles.primaryCtaDisabled]}
+                      disabled={!exceptionCheck.ok}
+                      onPress={() => setExceptionPanelOpen(true)}
+                    >
+                      <Text style={styles.primaryCtaText}>Approve with Exception</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.exceptionPanel}>
+                      <Text style={styles.sectionLabel}>COMPLIANCE EXCEPTION</Text>
+                      {exceptionCheck.outstanding.missing.length ? (
+                        <Text style={styles.docMetaLine}>
+                          Missing: {exceptionCheck.outstanding.missing.map((t) => labelForDocType(t)).join(", ")}
+                        </Text>
+                      ) : null}
+                      {exceptionCheck.outstanding.pending_verification.length ? (
+                        <Text style={styles.docMetaLine}>
+                          Pending Verification:{" "}
+                          {exceptionCheck.outstanding.pending_verification.map((t) => labelForDocType(t)).join(", ")}
+                        </Text>
+                      ) : null}
+                      {exceptionCheck.outstanding.rejected.length ? (
+                        <Text style={styles.docMetaLine}>
+                          Rejected: {exceptionCheck.outstanding.rejected.map((t) => labelForDocType(t)).join(", ")}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.exceptionHint}>
+                        This approves the trip for advance processing despite the outstanding documents above.
+                      </Text>
+                      <Text style={styles.label}>Reason / Comment (required)</Text>
+                      <TextInput
+                        style={styles.exceptionCommentInput}
+                        placeholder="Why is this being approved with an exception?"
+                        value={exceptionComment}
+                        onChangeText={setExceptionComment}
+                        multiline
+                        numberOfLines={3}
+                      />
+                      {exceptionError ? <Text style={styles.rejectReasonText}>{exceptionError}</Text> : null}
+                      <View style={styles.actionsRow}>
+                        <TouchableOpacity
+                          style={styles.rejectBtn}
+                          disabled={approvingException}
+                          onPress={() => {
+                            setExceptionPanelOpen(false);
+                            setExceptionComment("");
+                            setExceptionError(null);
+                          }}
+                        >
+                          <Text style={styles.rejectBtnText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.approveBtn, !exceptionComment.trim() && styles.approveBtnDisabled]}
+                          disabled={!exceptionComment.trim() || approvingException}
+                          onPress={() => void handleApproveWithException()}
+                        >
+                          <Text style={styles.approveBtnText}>
+                            {approvingException ? "Approving…" : "Approve with Exception"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
                 </View>
               ) : null}
               {scope === "trip" && canManageFinance && readiness?.paymentReady && onPay ? (
-                <TouchableOpacity style={styles.openDocBtn} onPress={onPay}>
-                  <Text style={styles.openDocBtnText}>Pay {readiness.readyCategory === "compliance_balance" ? "balance" : "advance"}</Text>
+                <TouchableOpacity style={styles.primaryCta} onPress={onPay}>
+                  <Text style={styles.primaryCtaText}>
+                    Pay {readiness.readyCategory === "compliance_balance" ? "balance" : "advance"}
+                  </Text>
                 </TouchableOpacity>
-              ) : null}
-              {scope === "trip" && readiness ? (
-                <Text style={styles.hint}>{readiness.blockerLines[0] ?? "Payment ready."}</Text>
               ) : null}
             </ScrollView>
           ) : (
@@ -778,10 +1095,13 @@ export function ComplianceDocumentReviewSheet({
       <ComplianceDocumentPreviewModal
         visible={lightbox != null}
         title={lightbox?.title ?? ""}
+        fileName={lightbox?.fileName}
         url={lightbox?.url ?? null}
         mime={lightbox?.mime ?? null}
         loading={Boolean(lightbox?.loading)}
         placeProof={lightbox?.placeProof ?? null}
+        activity={lightbox?.activity}
+        actorDetails={lightbox?.actorDetails}
         onClose={() => setLightbox(null)}
       />
     </Modal>
@@ -789,35 +1109,284 @@ export function ComplianceDocumentReviewSheet({
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(15,23,42,0.45)", alignItems: "center", justifyContent: "center", padding: 16 },
-  sheet: { width: "100%", maxWidth: 520, maxHeight: "80%", backgroundColor: Theme.cardWhite, borderRadius: 14, overflow: "hidden" },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  },
+  sheet: {
+    width: "100%",
+    maxWidth: 560,
+    maxHeight: "86%",
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 12px 40px rgba(15, 23, 42, 0.18)",
+      } as ViewStyle,
+      default: {
+        shadowColor: "#0f172a",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.16,
+        shadowRadius: 20,
+        elevation: 8,
+      },
+    }),
+  },
+  /** Desktop: wider for two-column summary + board, not full-screen. */
+  sheetWide: {
+    maxWidth: 880,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Theme.complianceCardBorder,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: REF.hairline,
   },
-  headerTitle: { fontSize: 15, fontWeight: "700", color: Theme.textPrimary },
-  headerSubtitle: { fontSize: 12, color: Theme.textMuted, marginTop: 2 },
-  backBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  headerCopy: { flex: 1, minWidth: 0, gap: 2 },
+  headerTitle: { fontSize: 16, fontWeight: "700", color: REF.ink, letterSpacing: -0.2 },
+  headerSubtitle: { fontSize: 12, color: REF.muted, fontWeight: "500" },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Theme.compliancePageBg,
+  },
+  backBtn: { flexDirection: "row", alignItems: "center", gap: 4, flex: 1, minWidth: 0 },
   backBtnText: { fontSize: 13, fontWeight: "600", color: Theme.textPrimary },
-  requiredSummary: { gap: 4, marginTop: 8, marginBottom: 4 },
-  requiredCount: { fontSize: 14, fontWeight: "700", color: Theme.textPrimary },
-  unassigned: { fontSize: 12, color: Theme.textMuted, marginBottom: 10, lineHeight: 16 },
-  sectionLabel: { fontSize: 10, fontWeight: "700", color: Theme.textMuted, letterSpacing: 0.5, marginBottom: 8 },
-  sectionLabelSpaced: { marginTop: 14 },
-  docRow: {
+  listScroll: { flexGrow: 1 },
+  listContent: { padding: 16, gap: 12, paddingBottom: 20 },
+  summaryBoard: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 10,
+  },
+  summaryTile: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 4,
+    minHeight: 96,
+    justifyContent: "center",
+  },
+  summaryTilePending: {
+    backgroundColor: Theme.complianceStageDocsBg,
+    borderColor: Theme.complianceGroupDangerDot,
+  },
+  summaryTileVerified: {
+    backgroundColor: Theme.complianceStageSuccessBg,
+    borderColor: Theme.complianceGroupSuccessDot,
+  },
+  summaryTileLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  summaryTileLabelPending: { color: Theme.complianceStageDocsFg },
+  summaryTileLabelVerified: { color: Theme.complianceStageSuccessFg },
+  summaryTileValue: {
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.6,
+    lineHeight: 32,
+    color: REF.ink,
+  },
+  summaryTileValuePending: { color: Theme.complianceStageDocsFg },
+  summaryTileValueOk: { color: Theme.complianceStageSuccessFg },
+  summaryTileContent: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: Theme.textMuted,
+    lineHeight: 16,
+  },
+  requiredSummary: {
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: Theme.compliancePageBg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: REF.hairline,
+  },
+  nextActionLine: { fontSize: 12, fontWeight: "600", color: Theme.textPrimary, lineHeight: 16 },
+  paymentBanner: {
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  paymentBannerBlocked: { backgroundColor: Theme.complianceStageDocsBg },
+  paymentBannerReady: { backgroundColor: Theme.complianceStageSuccessBg },
+  paymentBannerText: { fontSize: 12, fontWeight: "700", lineHeight: 16 },
+  paymentBannerTextBlocked: { color: Theme.complianceStageDocsFg },
+  paymentBannerTextReady: { color: Theme.complianceStageSuccessFg },
+  unassigned: { fontSize: 12, color: Theme.textMuted, lineHeight: 16 },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: REF.muted,
+    letterSpacing: 0.5,
+  },
+  boardRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  boardRowStack: {
+    flexDirection: "column",
+  },
+  boardColumn: {
+    flex: 1,
+    minWidth: 0,
+    gap: 8,
+  },
+  boardColumnPending: {},
+  boardColumnVerified: {},
+  boardColumnHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: Theme.complianceCardBorder,
+    justifyContent: "space-between",
+    gap: 8,
+    paddingHorizontal: 2,
   },
-  docBlock: { borderTopWidth: 0 },
-  decisionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingBottom: 10, alignItems: "center" },
+  boardColumnTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  boardColumnTitlePending: { color: Theme.complianceStageDocsFg },
+  boardColumnTitleVerified: { color: Theme.complianceStageSuccessFg },
+  boardColumnBadge: {
+    minWidth: 24,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    alignItems: "center",
+  },
+  boardColumnBadgePending: { backgroundColor: Theme.complianceStageDocsBg },
+  boardColumnBadgeVerified: { backgroundColor: Theme.complianceStageSuccessBg },
+  boardColumnBadgeText: { fontSize: 11, fontWeight: "800" },
+  boardColumnBadgeTextPending: { color: Theme.complianceStageDocsFg },
+  boardColumnBadgeTextVerified: { color: Theme.complianceStageSuccessFg },
+  boardEmpty: {
+    fontSize: 12,
+    color: REF.muted,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    textAlign: "center",
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: REF.hairline,
+    backgroundColor: Theme.compliancePageBg,
+  },
+  groupCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    backgroundColor: Theme.cardWhite,
+    overflow: "hidden",
+  },
+  label: { fontSize: 12, fontWeight: "600", color: Theme.textMuted, marginTop: 4 },
+  exceptionPanel: {
+    gap: 6,
+    marginTop: 4,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: Theme.compliancePageBg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: REF.hairline,
+  },
+  exceptionHint: { fontSize: 12, color: Theme.textMuted, lineHeight: 16 },
+  exceptionCommentInput: {
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: Theme.textPrimary,
+    minHeight: 72,
+    textAlignVertical: "top",
+    backgroundColor: Theme.cardWhite,
+  },
+  docBlock: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  docBlockBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: REF.hairline,
+  },
+  docRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  docRowMain: { flex: 1, minWidth: 0 },
+  docCopy: { flex: 1, minWidth: 0, gap: 3 },
+  docTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  docRowLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: REF.ink,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  scopeTag: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  scopeTagRequired: {
+    color: Theme.complianceStageDocsFg,
+    backgroundColor: Theme.complianceStageDocsBg,
+  },
+  scopeTagOptional: {
+    color: REF.muted,
+    backgroundColor: Theme.compliancePageBg,
+  },
+  docActions: {
+    flexShrink: 0,
+    alignItems: "flex-end",
+    gap: 8,
+    maxWidth: "46%",
+  },
+  docActionBtns: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  decisionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "center",
+  },
   decisionApproveBtn: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -826,7 +1395,6 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.success,
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "flex-start",
   },
   decisionDeclineBtn: {
     paddingHorizontal: 14,
@@ -836,22 +1404,68 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.complianceDocNeedBg,
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "flex-start",
   },
-  docRowMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
-  docRowLabel: { flex: 1, fontSize: 13, fontWeight: "600", color: Theme.textPrimary, minWidth: 0 },
   eyeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: Theme.compliancePageBg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: REF.hairline,
   },
-  addBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: Theme.buttonDark, minHeight: 28, justifyContent: "center" },
-  addBtnText: { fontSize: 11, fontWeight: "700", color: Theme.buttonDarkText },
-  listScroll: { flexGrow: 1 },
-  hint: { fontSize: 12, color: Theme.textMuted, textAlign: "center", marginTop: 16 },
+  addBtn: {
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: Theme.buttonPrimaryRadius,
+    backgroundColor: Theme.buttonPrimary,
+    borderWidth: Theme.buttonPrimaryBorderWidth,
+    borderColor: Theme.buttonPrimaryBorder,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  addBtnText: { fontSize: 12, fontWeight: "700", color: Theme.buttonPrimaryText },
+  hint: {
+    fontSize: 11,
+    color: REF.muted,
+    lineHeight: 15,
+    textAlign: "left",
+  },
+  inlineStatus: { fontSize: 12, color: Theme.textMuted, fontWeight: "600" },
+  footerActionsBlock: { gap: 10, marginTop: 4 },
+  verifiedBanner: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: Theme.complianceVerifiedPillBg,
+    borderWidth: 1,
+    borderColor: Theme.complianceVerifiedPillBorder,
+  },
+  verifiedBannerText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Theme.complianceVerifiedPillFg,
+    textAlign: "center",
+  },
+  primaryCta: {
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderRadius: Theme.buttonPrimaryRadius,
+    backgroundColor: Theme.buttonPrimary,
+    borderWidth: Theme.buttonPrimaryBorderWidth,
+    borderColor: Theme.buttonPrimaryBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryCtaDisabled: { opacity: 0.45 },
+  primaryCtaText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Theme.buttonPrimaryText,
+  },
   previewScroll: { padding: 16 },
   previewBox: {
     backgroundColor: Theme.compliancePageBg,
@@ -860,26 +1474,38 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     marginBottom: 12,
-  },
-  inlinePreview: {
-    width: "100%",
-    height: 220,
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: Theme.cardWhite,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: REF.hairline,
   },
   previewBoxLabel: { fontSize: 10, fontWeight: "700", color: Theme.textMuted, letterSpacing: 0.5 },
   placeProofBox: { width: "100%", alignItems: "center", gap: 6, paddingVertical: 12 },
   placeProofLabel: { fontSize: 16, fontWeight: "700", color: Theme.textPrimary, textAlign: "center" },
   placeProofHint: { fontSize: 12, color: Theme.textMuted, textAlign: "center", lineHeight: 16 },
-  openDocBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: Theme.buttonDark },
-  openDocBtnText: { fontSize: 12, fontWeight: "700", color: Theme.buttonDarkText },
+  openDocBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 40,
+    borderRadius: Theme.buttonPrimaryRadius,
+    backgroundColor: Theme.buttonPrimary,
+    borderWidth: Theme.buttonPrimaryBorderWidth,
+    borderColor: Theme.buttonPrimaryBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  openDocBtnText: { fontSize: 12, fontWeight: "700", color: Theme.buttonPrimaryText },
   docTitle: { fontSize: 15, fontWeight: "700", color: Theme.textPrimary },
   docMeta: { fontSize: 12, color: Theme.textMuted, marginTop: 2 },
-  rejectReasonText: { fontSize: 12, color: Theme.teslaRed, marginTop: 6 },
-  docMetaLine: { fontSize: 11, color: Theme.textMuted, marginTop: 2 },
-  actionsRow: { flexDirection: "row", gap: 10, marginTop: 16 },
-  approveBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: Theme.success, alignItems: "center" },
+  rejectReasonText: { fontSize: 12, color: Theme.teslaRed, lineHeight: 16 },
+  docMetaLine: { fontSize: 11, color: Theme.textMuted, lineHeight: 15 },
+  actionsRow: { flexDirection: "row", gap: 10, marginTop: 8 },
+  approveBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: Theme.success,
+    alignItems: "center",
+  },
+  approveBtnDisabled: { opacity: 0.45 },
   approveBtnText: { fontSize: 13, fontWeight: "700", color: Theme.buttonDarkText },
   rejectBtn: {
     flex: 1,

@@ -7,10 +7,10 @@
  */
 import Theme from "@/constants/Theme";
 import { COMPLIANCE_STATUS_META, ComplianceStatusChip } from "@/features/tripCompliance/components/ComplianceStatusIcon";
-import { COMPLIANCE_STAGE_FILTER_LABEL, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
+import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import { deriveComplianceDocumentRows, labelForDocType, complianceProgress, requirementScopeLabel } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import { deriveComplianceQueueReadiness, paymentReadinessLabel } from "@/features/tripCompliance/utils/complianceReadiness.util";
-import { stageToneVisual } from "@/features/tripCompliance/utils/complianceCardVisual.util";
+import { paymentStatusVisual, shouldShowPaymentStatusPill, verificationStatusVisual } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import { ChevronDown, ChevronRight } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -45,7 +45,9 @@ function TripRowContent({
   const progress = complianceProgress(rows);
   const readiness = useMemo(() => deriveComplianceQueueReadiness(summary), [summary]);
   const payLabel = paymentReadinessLabel(readiness);
-  const stageTone = stageToneVisual(summary.stage);
+  const verification = verificationStatusVisual(summary);
+  const payment = paymentStatusVisual(summary);
+  const showPaymentPill = shouldShowPaymentStatusPill(summary);
 
   return (
     <View>
@@ -69,11 +71,18 @@ function TripRowContent({
           </Text>
         </TouchableOpacity>
         <View style={styles.colStage}>
-          <View style={[styles.stagePill, { backgroundColor: stageTone.bg }]}>
-            <Text style={[styles.stagePillText, { color: stageTone.fg }]} numberOfLines={1}>
-              {COMPLIANCE_STAGE_FILTER_LABEL[summary.stage]}
+          <View style={[styles.stagePill, { backgroundColor: verification.tone.bg }]}>
+            <Text style={[styles.stagePillText, { color: verification.tone.fg }]} numberOfLines={1}>
+              {verification.label}
             </Text>
           </View>
+          {showPaymentPill ? (
+            <View style={[styles.stagePill, styles.stagePillSpaced, { backgroundColor: payment.tone.bg }]}>
+              <Text style={[styles.stagePillText, { color: payment.tone.fg }]} numberOfLines={1}>
+                {payment.label}
+              </Text>
+            </View>
+          ) : null}
         </View>
         <View style={styles.colDocs}>
           {rows.slice(0, 4).map((row) => (
@@ -215,7 +224,7 @@ const styles = StyleSheet.create({
   cell: { fontSize: 13, color: Theme.textPrimary, fontWeight: "500" },
   muted: { color: Theme.textMuted, fontSize: 11 },
   colTrip: { flex: 1.4, minWidth: 110 },
-  colStage: { flex: 1.1, minWidth: 128, justifyContent: "center" },
+  colStage: { flex: 1.2, minWidth: 140, justifyContent: "center", gap: 4 },
   stagePill: {
     alignSelf: "flex-start",
     paddingHorizontal: 8,
@@ -223,6 +232,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     maxWidth: "100%",
   },
+  stagePillSpaced: { marginTop: 0 },
   stagePillText: { fontSize: 11, fontWeight: "700" },
   colDocs: { flex: 1.8, minWidth: 140, flexDirection: "row", flexWrap: "wrap", gap: 4 },
   colProgress: { flex: 0.9, minWidth: 88 },

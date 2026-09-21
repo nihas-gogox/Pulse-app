@@ -8103,6 +8103,7 @@ export type Database = {
           mime_type: string | null
           ocr_job_id: string | null
           size_bytes: number | null
+          source_entity_document_id: string | null
           storage_path: string
           trip_id: string
           uploaded_at: string
@@ -8115,6 +8116,7 @@ export type Database = {
           mime_type?: string | null
           ocr_job_id?: string | null
           size_bytes?: number | null
+          source_entity_document_id?: string | null
           storage_path: string
           trip_id: string
           uploaded_at?: string
@@ -8128,6 +8130,7 @@ export type Database = {
           ocr_job_id?: string | null
           size_bytes?: number | null
           storage_path?: string
+          source_entity_document_id?: string | null
           trip_id?: string
           uploaded_at?: string
           uploaded_by?: string | null
@@ -8138,6 +8141,13 @@ export type Database = {
             columns: ["ocr_job_id"]
             isOneToOne: false
             referencedRelation: "ocr_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_documents_source_entity_document_id_fkey"
+            columns: ["source_entity_document_id"]
+            isOneToOne: false
+            referencedRelation: "entity_documents"
             referencedColumns: ["id"]
           },
           {

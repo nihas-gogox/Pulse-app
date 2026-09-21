@@ -72,6 +72,9 @@ export function paymentStatusVisual(summary: ComplianceTripSummary): ComplianceP
   if (summary.stage === "balance_pending") {
     return { label: "Balance Pending", tone: COMPLIANCE_STAGE_TONE.balance_pending };
   }
+  if (summary.stage === "hard_copy_pod_received") {
+    return { label: "POD Received", tone: COMPLIANCE_STAGE_TONE.hard_copy_pod_received };
+  }
   if (summary.advance || summary.stage === "advance_payment_processed") {
     return { label: "Advance Processed", tone: COMPLIANCE_STAGE_TONE.advance_payment_processed };
   }
@@ -79,6 +82,59 @@ export function paymentStatusVisual(summary: ComplianceTripSummary): ComplianceP
     label: "Pending",
     tone: COMPLIANCE_STAGE_TONE.pending_for_docs,
   };
+}
+
+/**
+ * Verification status independent of payment stage.
+ * Advance can be posted before docs are verified — this pill still shows
+ * Pending Docs / Compliance Pending / Verified / Exception.
+ */
+export type ComplianceVerificationStatusVisual = {
+  label: string;
+  tone: ComplianceTone;
+  kind: "pending_docs" | "compliance_pending" | "verified" | "exception";
+};
+
+export function verificationStatusVisual(
+  summary: ComplianceTripSummary,
+): ComplianceVerificationStatusVisual {
+  if (summary.complianceVerifiedAt) {
+    if (summary.complianceDecision === "approved_with_exception") {
+      return {
+        label: "Exception",
+        tone: COMPLIANCE_STAGE_TONE.hard_copy_pod_received,
+        kind: "exception",
+      };
+    }
+    return {
+      label: "Verified",
+      tone: COMPLIANCE_STAGE_TONE.compliance_verified,
+      kind: "verified",
+    };
+  }
+  if (summary.documentCounts.total === 0) {
+    return {
+      label: "Pending Docs",
+      tone: COMPLIANCE_STAGE_TONE.pending_for_docs,
+      kind: "pending_docs",
+    };
+  }
+  return {
+    label: "Compliance Pending",
+    tone: COMPLIANCE_STAGE_TONE.compliance_pending,
+    kind: "compliance_pending",
+  };
+}
+
+/** True when payment/pipeline progressed past verification — show both pills. */
+export function shouldShowPaymentStatusPill(summary: ComplianceTripSummary): boolean {
+  if (summary.advance || summary.balance) return true;
+  return (
+    summary.stage === "advance_payment_processed" ||
+    summary.stage === "hard_copy_pod_received" ||
+    summary.stage === "balance_pending" ||
+    summary.stage === "payment_settled"
+  );
 }
 
 export function splitPlace(value: string | null | undefined): { city: string; region: string } {

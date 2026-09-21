@@ -1,6 +1,9 @@
 import {
   deriveComplianceStage,
   canMarkComplianceVerified,
+  buildComplianceOutstandingSummary,
+  canApproveComplianceWithException,
+  advanceFromTripReceipts,
 } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import type { ComplianceDocumentRow } from "@/features/tripCompliance/tripCompliance.types";
 
@@ -79,6 +82,19 @@ describe("deriveComplianceStage", () => {
     ).toBe("advance_payment_processed");
   });
 
+  it("keeps ADVANCE_PAYMENT_PROCESSED when Finance already collected amount_paid but docs/verification are incomplete", () => {
+    expect(
+      deriveComplianceStage({
+        documentCount: 0,
+        complianceVerifiedAt: null,
+        advance: PAYMENT,
+        tripStatus: "assigned",
+        hardCopyReceived: false,
+        balance: null,
+      }),
+    ).toBe("advance_payment_processed");
+  });
+
   it("is HARD_COPY_POD_RECEIVED once delivered but hard-copy POD not yet marked received", () => {
     expect(
       deriveComplianceStage({
@@ -116,6 +132,30 @@ describe("deriveComplianceStage", () => {
         balance: PAYMENT,
       }),
     ).toBe("payment_settled");
+  });
+});
+
+describe("advanceFromTripReceipts", () => {
+  it("treats trips.amount_paid as an advance signal", () => {
+    expect(
+      advanceFromTripReceipts({
+        id: "trip-1",
+        amount_paid: 11000,
+        updated_at: "2026-09-21T10:00:00Z",
+        created_at: "2026-09-01T00:00:00Z",
+      }),
+    ).toMatchObject({ amount: 11000, transactionId: "amount-paid:trip-1" });
+  });
+
+  it("ignores unpaid trips", () => {
+    expect(
+      advanceFromTripReceipts({
+        id: "trip-1",
+        amount_paid: 0,
+        updated_at: "2026-09-21T10:00:00Z",
+        created_at: "2026-09-01T00:00:00Z",
+      }),
+    ).toBeNull();
   });
 });
 
@@ -160,5 +200,76 @@ describe("canMarkComplianceVerified", () => {
     ]);
     expect(result.ok).toBe(true);
     expect(result.missing).toEqual([]);
+  });
+});
+
+describe("buildComplianceOutstandingSummary", () => {
+  it("captures a missing required document (no row at all)", () => {
+    const result = buildComplianceOutstandingSummary([
+      doc({ id: "1", document_type: "lr", status: "verified" }),
+      doc({ id: "2", document_type: "invoice", status: "verified" }),
+    ]);
+    expect(result.missing).toEqual(["eway_bill"]);
+    expect(result.pending_verification).toEqual([]);
+    expect(result.rejected).toEqual([]);
+  });
+
+  it("captures a pending-verification required document", () => {
+    const result = buildComplianceOutstandingSummary([
+      doc({ id: "1", document_type: "lr", status: "verified" }),
+      doc({ id: "2", document_type: "invoice", status: "pending" }),
+      doc({ id: "3", document_type: "eway_bill", status: "verified" }),
+    ]);
+    expect(result.pending_verification).toEqual(["invoice"]);
+    expect(result.missing).toEqual([]);
+  });
+
+  it("captures a rejected required document", () => {
+    const result = buildComplianceOutstandingSummary([
+      doc({ id: "1", document_type: "lr", status: "verified" }),
+      doc({ id: "2", document_type: "invoice", status: "rejected" }),
+      doc({ id: "3", document_type: "eway_bill", status: "verified" }),
+    ]);
+    expect(result.rejected).toEqual(["invoice"]);
+  });
+
+  it("is empty once every required type is verified", () => {
+    const result = buildComplianceOutstandingSummary([
+      doc({ id: "1", document_type: "lr", status: "verified" }),
+      doc({ id: "2", document_type: "invoice", status: "verified" }),
+      doc({ id: "3", document_type: "eway_bill", status: "verified" }),
+    ]);
+    expect(result).toEqual({ missing: [], pending_verification: [], rejected: [] });
+  });
+});
+
+describe("canApproveComplianceWithException", () => {
+  it("is eligible when the trip has outstanding required docs and hasn't been decided", () => {
+    const result = canApproveComplianceWithException({
+      documents: [doc({ id: "1", document_type: "lr", status: "verified" })],
+      complianceVerifiedAt: null,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.outstanding.missing).toEqual(expect.arrayContaining(["invoice", "eway_bill"]));
+  });
+
+  it("is not eligible once every required doc is verified — normal approval applies instead", () => {
+    const result = canApproveComplianceWithException({
+      documents: [
+        doc({ id: "1", document_type: "lr", status: "verified" }),
+        doc({ id: "2", document_type: "invoice", status: "verified" }),
+        doc({ id: "3", document_type: "eway_bill", status: "verified" }),
+      ],
+      complianceVerifiedAt: null,
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("is not eligible once the trip already has a compliance decision", () => {
+    const result = canApproveComplianceWithException({
+      documents: [doc({ id: "1", document_type: "lr", status: "verified" })],
+      complianceVerifiedAt: "2026-09-01T00:00:00Z",
+    });
+    expect(result.ok).toBe(false);
   });
 });

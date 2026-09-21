@@ -252,6 +252,8 @@ export interface CreateLedgerEntryData {
   ledger_entity_type?: string | null;
   ledger_flow_type?: string | null;
   ledger_category?: string | null;
+  /** Structured payment reference/UTR (transactions.payment_reference). When omitted, derived from `description` for backward compatibility. */
+  payment_reference?: string | null;
 }
 
 type LedgerContactType = "client" | "supplier" | "driver" | "dco";
@@ -627,6 +629,7 @@ function enrichLedgerMetaFromRow(
     ledger_entity_type: entry.ledger_entity_type ?? s.entity_type,
     ledger_flow_type: entry.ledger_flow_type ?? s.transaction_type,
     ledger_category: entry.ledger_category ?? s.category,
+    payment_reference: entry.payment_reference ?? s.reference_number,
   };
 }
 
@@ -826,6 +829,7 @@ export function toLedgerRow(row: {
   ledger_entity_type?: string | null;
   ledger_flow_type?: string | null;
   ledger_category?: string | null;
+  payment_reference?: string | null;
   created_by?: string | null;
 }): LedgerRow {
   const descriptionRaw = row.description ?? "ENTRY";
@@ -884,7 +888,7 @@ export function toLedgerRow(row: {
       (row.ledger_category ?? "").trim() ||
       normalizePrimaryCategory(descriptionRaw),
     payment_mode: parsePaymentMode(descriptionRaw),
-    payment_reference: parsePaymentReference(descriptionRaw),
+    payment_reference: row.payment_reference ?? parsePaymentReference(descriptionRaw),
     ...deriveReconciliationMeta({
       description,
       descriptionRaw,
@@ -1282,6 +1286,18 @@ async function tryNotifyLinkedPartyChatAfterLedgerInsert(
   }
 }
 
+/**
+ * Postgres error `code` (e.g. '23505' unique_violation) is otherwise dropped
+ * on the floor by `new Error(error.message)` — callers that need to
+ * distinguish a duplicate-key violation (e.g. postCompliancePayment's
+ * "already processed" translation) need it preserved.
+ */
+function ledgerWriteError(error: { message: string; code?: string }): Error {
+  const err = new Error(error.message) as Error & { code?: string };
+  if (error.code) err.code = error.code;
+  return err;
+}
+
 export async function createLedgerEntry(
   orgId: string,
   entry: CreateLedgerEntryData,
@@ -1433,6 +1449,7 @@ export async function createLedgerEntry(
     ledger_entity_type: enriched.ledger_entity_type ?? null,
     ledger_flow_type: enriched.ledger_flow_type ?? null,
     ledger_category: enriched.ledger_category ?? null,
+    payment_reference: enriched.payment_reference ?? null,
   };
 
   // Prefer getSession (local) over getUser (network). Never block Confirm Sync
@@ -1499,7 +1516,7 @@ export async function createLedgerEntry(
     }
   }
 
-  if (error) return { error: new Error(error.message), row: null };
+  if (error) return { error: ledgerWriteError(error), row: null };
 
   const row = data as InsertedTxnRowForChat & {
     organization_id: string;
@@ -1620,6 +1637,7 @@ export async function updateLedgerEntry(
     ledger_entity_type: enriched.ledger_entity_type ?? null,
     ledger_flow_type: enriched.ledger_flow_type ?? null,
     ledger_category: enriched.ledger_category ?? null,
+    payment_reference: enriched.payment_reference ?? null,
   };
 
   let { data, error } = await supabase()
@@ -1675,7 +1693,7 @@ export async function updateLedgerEntry(
     }
   }
 
-  if (error) return { error: new Error(error.message), row: null };
+  if (error) return { error: ledgerWriteError(error), row: null };
   if (!data) return { error: new Error("Update returned no row"), row: null };
 
   const row = data as {

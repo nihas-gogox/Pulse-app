@@ -4,7 +4,31 @@ jest.mock("@/features/finance/services/finance.service", () => ({
   updateLedgerEntry: jest.fn(),
 }));
 
-import { checkCompliancePaymentAllowed } from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import { createLedgerEntry } from "@/features/finance/services/finance.service";
+import {
+  checkCompliancePaymentAllowed,
+  postCompliancePayment,
+  validateCompliancePaymentAmount,
+} from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import type { TripRow } from "@/features/trips/services/trips.service";
+
+const mockCreateLedgerEntry = createLedgerEntry as jest.Mock;
+
+// compliance_verified_at/pod_received_at default to "eligible" so existing
+// tests that don't care about the Phase 6 prerequisite gate aren't affected
+// by it; tests that DO care override explicitly.
+function makeTrip(overrides: Partial<TripRow> = {}): TripRow {
+  return {
+    id: "trip-1",
+    booking_ref: "TRP001",
+    client_name: "Acme Logistics",
+    client_id: "client-1",
+    client_price: 50000,
+    compliance_verified_at: "2026-09-01T00:00:00Z",
+    pod_received_at: "2026-09-15T00:00:00Z",
+    ...overrides,
+  } as TripRow;
+}
 
 function mockMakeThenable<T>(result: { data: T; error: null }) {
   const builder: Record<string, unknown> = {};
@@ -73,5 +97,164 @@ describe("checkCompliancePaymentAllowed — duplicate payment / already-settled 
     };
     const result = await checkCompliancePaymentAllowed({ tripId: "trip-1", category: "compliance_balance" });
     expect(result.ok).toBe(true);
+  });
+});
+
+describe("validateCompliancePaymentAmount — sanity ceiling against trip value", () => {
+  it("passes when the amount is within the trip's client_price", () => {
+    expect(validateCompliancePaymentAmount({ amount: 25000, trip: { client_price: 50000 } }).ok).toBe(true);
+  });
+
+  it("passes when amount equals client_price exactly", () => {
+    expect(validateCompliancePaymentAmount({ amount: 50000, trip: { client_price: 50000 } }).ok).toBe(true);
+  });
+
+  it("fails when the amount exceeds client_price", () => {
+    const result = validateCompliancePaymentAmount({ amount: 75000, trip: { client_price: 50000 } });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/exceeds the trip value/i);
+  });
+
+  it("does not check when client_price is unset — no business rule to invent", () => {
+    expect(validateCompliancePaymentAmount({ amount: 999999, trip: { client_price: 0 } }).ok).toBe(true);
+  });
+});
+
+describe("postCompliancePayment — amount ceiling, structured reference, duplicate translation", () => {
+  beforeEach(() => {
+    mockTxnsResult = { data: [], error: null };
+    mockCreateLedgerEntry.mockReset();
+  });
+
+  it("blocks posting when the amount exceeds the trip's client_price, without calling createLedgerEntry", async () => {
+    const result = await postCompliancePayment({
+      organizationId: "org-1",
+      trip: makeTrip({ client_price: 50000 }),
+      category: "compliance_advance",
+      amount: 200000,
+      paymentModeId: "CASH",
+      paymentModeLabel: "Cash",
+    });
+    expect(result.error?.message).toMatch(/exceeds the trip value/i);
+    expect(mockCreateLedgerEntry).not.toHaveBeenCalled();
+  });
+
+  it("passes the UTR through as a structured payment_reference, not only embedded in description", async () => {
+    mockCreateLedgerEntry.mockResolvedValue({ error: null, row: {} });
+    await postCompliancePayment({
+      organizationId: "org-1",
+      trip: makeTrip(),
+      category: "compliance_advance",
+      amount: 25000,
+      paymentModeId: "UPI",
+      paymentModeLabel: "UPI",
+      utr: "  TEST-ADV-001  ",
+    });
+    expect(mockCreateLedgerEntry).toHaveBeenCalledWith(
+      "org-1",
+      expect.objectContaining({ payment_reference: "TEST-ADV-001" }),
+    );
+  });
+
+  it('translates a 23505 duplicate-key error into an "already posted" message, not a raw DB error', async () => {
+    const dbError = new Error('duplicate key value violates unique constraint "ux_transactions_compliance_trip_category"');
+    (dbError as Error & { code?: string }).code = "23505";
+    mockCreateLedgerEntry.mockResolvedValue({ error: dbError, row: null });
+
+    const result = await postCompliancePayment({
+      organizationId: "org-1",
+      trip: makeTrip(),
+      category: "compliance_advance",
+      amount: 25000,
+      paymentModeId: "UPI",
+      paymentModeLabel: "UPI",
+      utr: "TEST-ADV-001",
+    });
+    expect(result.error?.message).toMatch(/already been posted/i);
+    expect(result.error?.message).not.toMatch(/constraint/i);
+  });
+
+  it("passes through a non-duplicate ledger error unchanged", async () => {
+    mockCreateLedgerEntry.mockResolvedValue({ error: new Error("network timeout"), row: null });
+    const result = await postCompliancePayment({
+      organizationId: "org-1",
+      trip: makeTrip(),
+      category: "compliance_advance",
+      amount: 25000,
+      paymentModeId: "UPI",
+      paymentModeLabel: "UPI",
+      utr: "TEST-ADV-001",
+    });
+    expect(result.error?.message).toBe("network timeout");
+  });
+});
+
+describe("postCompliancePayment — Phase 6 server-side settlement-prerequisite gate", () => {
+  beforeEach(() => {
+    mockTxnsResult = { data: [], error: null };
+    mockCreateLedgerEntry.mockReset();
+  });
+
+  it("blocks an advance for a trip with no compliance approval, without calling createLedgerEntry", async () => {
+    const result = await postCompliancePayment({
+      organizationId: "org-1",
+      trip: makeTrip({ compliance_verified_at: null }),
+      category: "compliance_advance",
+      amount: 25000,
+      paymentModeId: "CASH",
+      paymentModeLabel: "Cash",
+    });
+    expect(result.error?.message).toMatch(/compliance must be approved/i);
+    expect(mockCreateLedgerEntry).not.toHaveBeenCalled();
+  });
+
+  it("allows an advance once compliance_verified_at is set — exception approval counts, no compliance_decision check needed", async () => {
+    mockCreateLedgerEntry.mockResolvedValue({ error: null, row: {} });
+    const result = await postCompliancePayment({
+      organizationId: "org-1",
+      // compliance_verified_at set by approve_trip_compliance_with_exception()
+      // just like mark_trip_compliance_verified() — same field, same check.
+      trip: makeTrip({ compliance_verified_at: "2026-09-01T00:00:00Z" }),
+      category: "compliance_advance",
+      amount: 25000,
+      paymentModeId: "CASH",
+      paymentModeLabel: "Cash",
+    });
+    expect(result.error).toBeNull();
+    expect(mockCreateLedgerEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks a balance payment for a trip with no hard-copy POD received, without calling createLedgerEntry", async () => {
+    mockTxnsResult = {
+      data: [{ trip_id: "trip-1", ledger_category: "compliance_advance", description: "Compliance Advance | Mode: CASH" }],
+      error: null,
+    };
+    const result = await postCompliancePayment({
+      organizationId: "org-1",
+      trip: makeTrip({ pod_received_at: null }),
+      category: "compliance_balance",
+      amount: 25000,
+      paymentModeId: "CASH",
+      paymentModeLabel: "Cash",
+    });
+    expect(result.error?.message).toMatch(/hard-copy pod must be received/i);
+    expect(mockCreateLedgerEntry).not.toHaveBeenCalled();
+  });
+
+  it('translates a 42501 RLS rejection (stale client state disagreeing with the DB) into a clear message, not a raw "row violates policy" error', async () => {
+    const rlsError = new Error('new row violates row-level security policy for table "transactions"');
+    (rlsError as Error & { code?: string }).code = "42501";
+    mockCreateLedgerEntry.mockResolvedValue({ error: rlsError, row: null });
+
+    const result = await postCompliancePayment({
+      organizationId: "org-1",
+      trip: makeTrip(), // client believes it's eligible; DB (mocked) disagrees
+      category: "compliance_advance",
+      amount: 25000,
+      paymentModeId: "CASH",
+      paymentModeLabel: "Cash",
+    });
+    expect(result.error?.message).toMatch(/compliance must be approved/i);
+    expect(result.error?.message).not.toMatch(/row-level security|policy/i);
   });
 });

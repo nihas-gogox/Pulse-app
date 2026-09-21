@@ -1,4 +1,13 @@
-import { paymentStatusVisual, pendingDocumentsCopy, splitPlace, complianceTripDisplayId, formatComplianceTimestamp, matchesComplianceTripSearch } from "@/features/tripCompliance/utils/complianceCardVisual.util";
+import {
+  paymentStatusVisual,
+  pendingDocumentsCopy,
+  splitPlace,
+  complianceTripDisplayId,
+  formatComplianceTimestamp,
+  matchesComplianceTripSearch,
+  verificationStatusVisual,
+  shouldShowPaymentStatusPill,
+} from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import { emptyComplianceChecklist } from "@/features/tripCompliance/utils/complianceChecklist.util";
 import type { TripRow } from "@/features/trips/services/trips.service";
@@ -14,6 +23,8 @@ function summary(overrides: Partial<ComplianceTripSummary> = {}): ComplianceTrip
     checklist: emptyComplianceChecklist(),
     complianceVerifiedAt: null,
     complianceVerifiedBy: null,
+    complianceDecision: null,
+    complianceOutstandingSummary: null,
     advance: null,
     balance: null,
     hardCopyPod: { received: false, receivedAt: null, courier: null, awbNumber: null, receivedBy: null },
@@ -30,6 +41,72 @@ describe("complianceCardVisual", () => {
     expect(paymentStatusVisual(summary()).label).toBe("Pending");
     expect(paymentStatusVisual(summary({ stage: "advance_payment_processed" })).label).toBe("Advance Processed");
     expect(paymentStatusVisual(summary({ stage: "balance_pending" })).label).toBe("Balance Pending");
+  });
+
+  it("keeps verification status independent of advance payment", () => {
+    expect(verificationStatusVisual(summary({ documentCounts: { total: 0, verified: 0, rejected: 0, pending: 0 } })).label).toBe(
+      "Pending Docs",
+    );
+    expect(
+      verificationStatusVisual(
+        summary({
+          stage: "advance_payment_processed",
+          advance: {
+            amount: 1000,
+            paymentMode: "UPI",
+            utr: "x",
+            paidAt: "2026-09-01",
+            actorId: null,
+            transactionId: "tx1",
+          },
+          documentCounts: { total: 2, verified: 0, rejected: 0, pending: 2 },
+        }),
+      ).label,
+    ).toBe("Compliance Pending");
+    expect(
+      verificationStatusVisual(
+        summary({
+          stage: "advance_payment_processed",
+          complianceVerifiedAt: "2026-09-01",
+          complianceDecision: "approved",
+          advance: {
+            amount: 1000,
+            paymentMode: "UPI",
+            utr: "x",
+            paidAt: "2026-09-01",
+            actorId: null,
+            transactionId: "tx1",
+          },
+        }),
+      ).label,
+    ).toBe("Verified");
+    expect(
+      verificationStatusVisual(
+        summary({
+          complianceVerifiedAt: "2026-09-01",
+          complianceDecision: "approved_with_exception",
+        }),
+      ).label,
+    ).toBe("Exception");
+  });
+
+  it("shows payment pill once advance or later pipeline stages exist", () => {
+    expect(shouldShowPaymentStatusPill(summary())).toBe(false);
+    expect(shouldShowPaymentStatusPill(summary({ stage: "advance_payment_processed" }))).toBe(true);
+    expect(
+      shouldShowPaymentStatusPill(
+        summary({
+          advance: {
+            amount: 1,
+            paymentMode: null,
+            utr: null,
+            paidAt: "2026-09-01",
+            actorId: null,
+            transactionId: "tx",
+          },
+        }),
+      ),
+    ).toBe(true);
   });
 
   it("uses screenshot copy for pending documents", () => {

@@ -26,6 +26,7 @@ import {
     getSupplierDetails,
 } from "@/features/suppliers/services/suppliers.service";
 import { getVehicleDocumentViewUrl, getVehicleDocumentViewUrls } from "@/features/vehicles/services/vehicleDocuments.service";
+import { resolveTripDocumentPreviewUrl } from "@/features/tripCompliance/services/vehicleDocumentReuse.service";
 import { getVehicleById } from "@/features/vehicles/services/vehicles.service";
 import type { VehicleDocuments } from "@/features/vehicles/utils/vehicleDocuments.util";
 import {
@@ -2504,10 +2505,15 @@ export function useTripDetail({
     setDocPreviewLoading(true);
     setDocPreviewUrl(null);
     setDocPreviewError(false);
+    const matchingTripDoc = tripDocuments.find((d) => d.storage_path === docPreviewStoragePath);
     const urlPromise =
       selectedDoc.docSource === "vehicle"
         ? getVehicleDocumentViewUrl(docPreviewStoragePath)
-        : tripDocumentsService.getDocumentViewUrl(docPreviewStoragePath);
+        : resolveTripDocumentPreviewUrl({
+            storagePath: docPreviewStoragePath,
+            sourceEntityDocumentId: matchingTripDoc?.source_entity_document_id,
+            organizationId: trip?.organization_id,
+          }).then((url) => url ?? "");
     urlPromise
       .then((url) => {
         if (isActive) {
@@ -2524,7 +2530,7 @@ export function useTripDetail({
     return () => {
       isActive = false;
     };
-  }, [selectedDoc, docPreviewStoragePath, isGalleryPreviewDoc]);
+  }, [selectedDoc, docPreviewStoragePath, isGalleryPreviewDoc, tripDocuments, trip?.organization_id]);
 
   const galleryPreviewDocs = useMemo(() => {
     if (!selectedDoc || !isGalleryPreviewDoc) return [];

@@ -10,13 +10,15 @@ import {
   normalizeVaultVehicleNumber,
   vehicleVaultDocumentsToEntityDocs,
 } from "@/features/tripCompliance/utils/complianceVaultDocuments.util";
-import { runWithConcurrencyLimit } from "@/features/trips/services/tripDocumentLrPod.service";
+import { runWithConcurrencyLimit, tripPodIsReceived } from "@/features/trips/services/tripDocumentLrPod.service";
 import { getVehicleForTripViewer } from "@/features/vehicles/services/vehicles.service";
 import type { VehicleDocuments } from "@/features/vehicles/utils/vehicleDocuments.util";
 import {
   REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
+  type ComplianceDecision,
   type ComplianceDocumentRow,
   type ComplianceEntityDocument,
+  type ComplianceOutstandingSummary,
   type ComplianceStage,
   type CompliancePaymentSummary,
   type ComplianceTripSummary,
@@ -55,6 +57,7 @@ type RawTripDocRow = {
   rejection_reason?: string | null;
   mime_type?: string | null;
   document_number?: string | null;
+  source_entity_document_id?: string | null;
 };
 
 async function fetchTripDocumentsForTrips(
@@ -63,13 +66,22 @@ async function fetchTripDocumentsForTrips(
   const byTrip = new Map<string, ComplianceDocumentRow[]>();
   if (tripIds.length === 0) return byTrip;
 
+  const SELECT_WITH_STATUS =
+    "id, trip_id, document_type, file_name, storage_path, uploaded_at, uploaded_by, status, verified_by, verified_at, rejection_reason, mime_type, document_number";
+  const SELECT_WITH_STATUS_AND_SOURCE = `${SELECT_WITH_STATUS}, source_entity_document_id`;
+
   let rows: RawTripDocRow[] = [];
-  const withStatus = await supabase()
+  let withStatus = await supabase()
     .from("trip_documents")
-    .select(
-      "id, trip_id, document_type, file_name, storage_path, uploaded_at, uploaded_by, status, verified_by, verified_at, rejection_reason, mime_type, document_number",
-    )
+    .select(SELECT_WITH_STATUS_AND_SOURCE)
     .in("trip_id", tripIds);
+
+  if (withStatus.error && isMissingColumnOrRelation(withStatus.error)) {
+    withStatus = await supabase()
+      .from("trip_documents")
+      .select(SELECT_WITH_STATUS)
+      .in("trip_id", tripIds);
+  }
 
   if (withStatus.error && isMissingColumnOrRelation(withStatus.error)) {
     // Pre-migration fallback: no verification columns yet, treat every
@@ -101,6 +113,7 @@ async function fetchTripDocumentsForTrips(
       rejection_reason: r.rejection_reason ?? null,
       mime_type: r.mime_type ?? null,
       document_number: r.document_number ?? null,
+      source_entity_document_id: r.source_entity_document_id ?? null,
     };
     const list = byTrip.get(doc.trip_id) ?? [];
     list.push(doc);
@@ -112,9 +125,20 @@ async function fetchTripDocumentsForTrips(
 type ComplianceTripFlags = {
   compliance_verified_at: string | null;
   compliance_verified_by: string | null;
+  compliance_decision: ComplianceDecision | null;
+  compliance_exception_reason: string | null;
+  compliance_outstanding_summary: ComplianceOutstandingSummary | null;
   pod_hard_copy_courier: string | null;
   pod_hard_copy_awb_number: string | null;
   pod_hard_copy_received_by: string | null;
+  /**
+   * Phase 4: the actual hard-copy-POD-received signal. `pod_received_at` is
+   * the pre-existing, pervasively-used field (POD reconciliation, Invoicing's
+   * POD-required gate, Log Incoming PODs' own pending-trips filter) — the
+   * courier/AWB/received-by columns above are supplementary metadata only,
+   * not the gate. See tripDocumentLrPod.service.ts's markTripHardCopyPodReceived().
+   */
+  pod_received_at: string | null;
 };
 
 async function fetchComplianceTripFlags(
@@ -126,7 +150,7 @@ async function fetchComplianceTripFlags(
   const { data, error } = await supabase()
     .from("trips")
     .select(
-      "id, compliance_verified_at, compliance_verified_by, pod_hard_copy_courier, pod_hard_copy_awb_number, pod_hard_copy_received_by",
+      "id, compliance_verified_at, compliance_verified_by, compliance_decision, compliance_exception_reason, compliance_outstanding_summary, pod_hard_copy_courier, pod_hard_copy_awb_number, pod_hard_copy_received_by, pod_received_at",
     )
     .in("id", tripIds);
 
@@ -135,12 +159,17 @@ async function fetchComplianceTripFlags(
     throw new Error(error.message);
   }
   for (const row of data ?? []) {
+    const r = row as Record<string, unknown>;
     byTrip.set(row.id as string, {
-      compliance_verified_at: (row as Record<string, unknown>).compliance_verified_at as string | null,
-      compliance_verified_by: (row as Record<string, unknown>).compliance_verified_by as string | null,
-      pod_hard_copy_courier: (row as Record<string, unknown>).pod_hard_copy_courier as string | null,
-      pod_hard_copy_awb_number: (row as Record<string, unknown>).pod_hard_copy_awb_number as string | null,
-      pod_hard_copy_received_by: (row as Record<string, unknown>).pod_hard_copy_received_by as string | null,
+      compliance_verified_at: r.compliance_verified_at as string | null,
+      compliance_verified_by: r.compliance_verified_by as string | null,
+      compliance_decision: (r.compliance_decision as ComplianceDecision | null) ?? null,
+      compliance_exception_reason: (r.compliance_exception_reason as string | null) ?? null,
+      compliance_outstanding_summary: (r.compliance_outstanding_summary as ComplianceOutstandingSummary | null) ?? null,
+      pod_hard_copy_courier: r.pod_hard_copy_courier as string | null,
+      pod_hard_copy_awb_number: r.pod_hard_copy_awb_number as string | null,
+      pod_hard_copy_received_by: r.pod_hard_copy_received_by as string | null,
+      pod_received_at: r.pod_received_at as string | null,
     });
   }
   return byTrip;
@@ -193,8 +222,10 @@ function toEntityDocument(doc: DocumentRow): ComplianceEntityDocument {
     storage_path: doc.storage_path,
     expiry_date: doc.expiry_date,
     verified_at: doc.verified_at,
+    verified_by: doc.verified_by,
     notes: doc.notes,
     created_at: doc.created_at,
+    created_by: doc.created_by,
     source: "entity",
   };
 }
@@ -217,8 +248,32 @@ export function toPaymentSummary(rows: RawTxnRow[]): CompliancePaymentSummary | 
 }
 
 /**
+ * Finance-posted client receipts (trips.amount_paid) count as advance for the
+ * queue even when they were not tagged `ledger_category = compliance_advance`.
+ * Ops often collects advance from the ledger before marking Compliance Verified.
+ */
+export function advanceFromTripReceipts(
+  trip: Pick<TripRow, "id" | "amount_paid" | "updated_at" | "created_at">,
+): CompliancePaymentSummary | null {
+  const amount = Number(trip.amount_paid ?? 0);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return {
+    amount,
+    paymentMode: null,
+    utr: null,
+    paidAt: trip.updated_at ?? trip.created_at ?? new Date().toISOString(),
+    actorId: null,
+    transactionId: `amount-paid:${trip.id}`,
+  };
+}
+
+/**
  * Derives the single displayed compliance stage for a trip from independent
  * signals — never a persisted status column (Phase 4's explicit instruction).
+ *
+ * Payment progress wins over missing documents: a trip with client receipts
+ * must not disappear from Advance Processed just because trip_documents is
+ * empty or Compliance Verified was never stamped.
  *
  * Documented interpretation of a genuine spec ambiguity: "HARD_COPY_POD_RECEIVED"
  * and "BALANCE_PENDING" describe what is, functionally, the same instant (Phase 11:
@@ -237,13 +292,14 @@ export function deriveComplianceStage(input: {
   hardCopyReceived: boolean;
   balance: CompliancePaymentSummary | null;
 }): ComplianceStage {
+  if (input.balance) return "payment_settled";
+  if (input.advance && input.tripStatus === "delivered") {
+    return input.hardCopyReceived ? "balance_pending" : "hard_copy_pod_received";
+  }
+  if (input.advance) return "advance_payment_processed";
+  if (input.complianceVerifiedAt) return "compliance_verified";
   if (input.documentCount === 0) return "pending_for_docs";
-  if (!input.complianceVerifiedAt) return "compliance_pending";
-  if (!input.advance) return "compliance_verified";
-  if (input.tripStatus !== "delivered") return "advance_payment_processed";
-  if (!input.hardCopyReceived) return "hard_copy_pod_received";
-  if (!input.balance) return "balance_pending";
-  return "payment_settled";
+  return "compliance_pending";
 }
 
 async function fetchEntityDocumentsForTrips(
@@ -464,9 +520,13 @@ export async function buildComplianceTripSummaries(
     const documents = docsByTrip.get(trip.id) ?? [];
     const flags = flagsByTrip.get(trip.id);
     const txns = txnsByTrip.get(trip.id) ?? { advance: [], balance: [] };
-    const advance = toPaymentSummary(txns.advance);
+    const taggedAdvance = toPaymentSummary(txns.advance);
+    const advance = taggedAdvance ?? advanceFromTripReceipts(trip);
     const balance = toPaymentSummary(txns.balance);
-    const hardCopyReceived = Boolean(flags?.pod_hard_copy_courier || flags?.pod_hard_copy_awb_number || flags?.pod_hard_copy_received_by);
+    // Phase 4: the gate is pod_received_at (the pre-existing, pervasively-used
+    // signal), not the courier/AWB/received-by columns — those are display
+    // metadata only. See ComplianceTripFlags.pod_received_at above.
+    const hardCopyReceived = tripPodIsReceived({ pod_received_at: flags?.pod_received_at ?? null });
     const entityVehicleDocs = trip.vehicle_id
       ? (entityDocsById.get(trip.vehicle_id) ?? []).filter((d) => d.entity_type === "vehicle").map(toEntityDocument)
       : [];
@@ -513,6 +573,9 @@ export async function buildComplianceTripSummaries(
       checklist,
       complianceVerifiedAt: flags?.compliance_verified_at ?? null,
       complianceVerifiedBy: flags?.compliance_verified_by ?? null,
+      complianceDecision: flags?.compliance_decision ?? null,
+      complianceExceptionReason: flags?.compliance_exception_reason ?? null,
+      complianceOutstandingSummary: flags?.compliance_outstanding_summary ?? null,
       advance,
       balance,
       hardCopyPod: {
@@ -538,4 +601,40 @@ export function canMarkComplianceVerified(documents: ComplianceDocumentRow[]): {
     if (!doc || doc.status !== "verified") missing.push(type);
   }
   return { ok: missing.length === 0, missing };
+}
+
+/**
+ * Client-side mirror of `approve_trip_compliance_with_exception`'s outstanding
+ * capture — for display only. The RPC re-derives this server-side; this is
+ * never trusted as authorization, only used to render the confirmation panel.
+ */
+export function buildComplianceOutstandingSummary(
+  documents: ComplianceDocumentRow[],
+): ComplianceOutstandingSummary {
+  const byType = new Map(documents.map((d) => [d.document_type, d]));
+  const missing: string[] = [];
+  const pending_verification: string[] = [];
+  const rejected: string[] = [];
+  for (const type of REQUIRED_COMPLIANCE_DOCUMENT_TYPES) {
+    const doc = byType.get(type);
+    if (!doc) missing.push(type);
+    else if (doc.status === "pending") pending_verification.push(type);
+    else if (doc.status === "rejected") rejected.push(type);
+  }
+  return { missing, pending_verification, rejected };
+}
+
+/**
+ * A trip is eligible for "Approve with Exception" only while it hasn't been
+ * decided yet and at least one required document is outstanding — a fully
+ * compliant trip should go through normal `mark_trip_compliance_verified`.
+ */
+export function canApproveComplianceWithException(input: {
+  documents: ComplianceDocumentRow[];
+  complianceVerifiedAt: string | null;
+}): { ok: boolean; outstanding: ComplianceOutstandingSummary } {
+  const outstanding = buildComplianceOutstandingSummary(input.documents);
+  const hasOutstanding =
+    outstanding.missing.length > 0 || outstanding.pending_verification.length > 0 || outstanding.rejected.length > 0;
+  return { ok: hasOutstanding && !input.complianceVerifiedAt, outstanding };
 }

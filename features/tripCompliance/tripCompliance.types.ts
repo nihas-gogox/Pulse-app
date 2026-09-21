@@ -69,6 +69,19 @@ export type ComplianceChecklist = {
 
 export type ComplianceDocumentStatus = "pending" | "verified" | "rejected";
 
+/**
+ * How `compliance_verified_at`/`compliance_verified_by` was reached. Null
+ * until a decision is made. Distinct from `ComplianceStage` — this only
+ * disambiguates the approval path, it never gates the settlement stage.
+ */
+export type ComplianceDecision = "approved" | "approved_with_exception";
+
+export type ComplianceOutstandingSummary = {
+  missing: string[];
+  pending_verification: string[];
+  rejected: string[];
+};
+
 export type ComplianceDocumentRow = {
   id: string;
   trip_id: string;
@@ -83,6 +96,7 @@ export type ComplianceDocumentRow = {
   rejection_reason: string | null;
   mime_type?: string | null;
   document_number?: string | null;
+  source_entity_document_id?: string | null;
 };
 
 /** Vehicle/driver docs shown on Compliance — vault JSONB, KYC, or entity_documents. */
@@ -97,8 +111,10 @@ export type ComplianceEntityDocument = {
   storage_path: string | null;
   expiry_date: string | null;
   verified_at: string | null;
+  verified_by?: string | null;
   notes: string | null;
   created_at: string;
+  created_by?: string | null;
   source?: ComplianceEntityDocumentSource;
 };
 
@@ -122,6 +138,9 @@ export type ComplianceTripSummary = {
   checklist: ComplianceChecklist;
   complianceVerifiedAt: string | null;
   complianceVerifiedBy: string | null;
+  complianceDecision: ComplianceDecision | null;
+  complianceExceptionReason: string | null;
+  complianceOutstandingSummary: ComplianceOutstandingSummary | null;
   advance: CompliancePaymentSummary | null;
   balance: CompliancePaymentSummary | null;
   hardCopyPod: {

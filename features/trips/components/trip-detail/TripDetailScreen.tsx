@@ -236,7 +236,7 @@ const TripExpensesScreen = lazy(() =>
 import { isAssetExecutionTrip, shouldShowTripExpenseHub } from "@/features/trips/domain/tripExecutionModel";
 import { isDcoOperatingTrip } from "@/features/trips/domain/tripDcoOperating";
 import { getMoverAssetTripIdForIndent } from "@/features/trips/services/trips.service";
-import { tripIsDeliveredStatus } from "@/features/trips/services/tripDocumentLrPod.service";
+import { tripIsDeliveredStatus, tripPodIsReceived } from "@/features/trips/services/tripDocumentLrPod.service";
 import { FeedbackPlaceholder } from "./parts/FeedbackPlaceholder";
 import { ManifestPulseStepIcon } from "./parts/ManifestPulseStepIcon";
 import { ExpenseListCard } from "./parts/ExpenseListCard";
@@ -5828,9 +5828,7 @@ export default function TripDetailScreen({
                   tripDocuments={detail.tripDocuments}
                   tripDelivered={tripIsDeliveredStatus(trip.status)}
                   complianceVerifiedAt={trip.compliance_verified_at ?? null}
-                  hardCopyPodReceived={Boolean(
-                    trip.pod_hard_copy_courier || trip.pod_hard_copy_awb_number || trip.pod_hard_copy_received_by,
-                  )}
+                  hardCopyPodReceived={tripPodIsReceived({ pod_received_at: trip.pod_received_at })}
                   canVerifyDocuments={canSurface("trip_compliance.documents.verify")}
                   canMarkVerified={canSurface("trip_compliance.trip.mark_verified")}
                   canManagePod={canSurface("trip_compliance.pod.manage")}

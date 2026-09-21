@@ -142,31 +142,98 @@ export function tripPodStatusFlags(args: {
 }
 
 /**
- * Mark physical POD received — same write as the Log Incoming POD flow.
- * Timestamp is ISO now unless a received-at is supplied (preserve caller semantics).
+ * The ONE authoritative hard-copy-POD-receipt operation (Phase 4) — every
+ * caller (Trip Detail, Log Incoming PODs, the Compliance panel) converges
+ * here. Goes through `record_trip_hard_copy_pod` (SECURITY DEFINER,
+ * `trip_compliance.pod.manage` enforced server-side), which stamps
+ * `trips.pod_received_at` — the same field POD reconciliation, Invoicing's
+ * POD-required gate, and Log Incoming PODs' own pending-trips filter already
+ * read — so a receipt recorded from any surface is visible to all of them.
+ * Idempotent: the RPC no-ops (returns false) on a trip that already has
+ * `pod_received_at` set, without touching the original timestamp/actor or
+ * writing a duplicate audit event. The timestamp is always server time
+ * (`now()` inside the RPC) — never client-supplied, so two callers racing
+ * can't disagree about when the trip was actually received.
  */
 export async function markTripHardCopyPodReceived(
-  tripInternalId: string,
-  receivedAt: string = new Date().toISOString(),
-): Promise<{ error: Error | null }> {
-  const id = String(tripInternalId ?? "").trim();
+  tripId: string,
+  metadata?: {
+    courier?: string | null;
+    awbNumber?: string | null;
+    receivedBy?: string | null;
+    comment?: string | null;
+  },
+): Promise<{ error: Error | null; alreadyReceived?: boolean }> {
+  const id = String(tripId ?? "").trim();
   if (!id) return { error: new Error("Trip is not linked.") };
-  const { data, error } = await supabase()
-    .from("trips")
-    .update({ pod_received_at: receivedAt })
-    .eq("id", id)
-    .select("id, pod_received_at")
-    .maybeSingle();
+  const { data, error } = await supabase().rpc("record_trip_hard_copy_pod", {
+    p_trip_id: id,
+    p_courier: metadata?.courier?.trim() || null,
+    p_awb_number: metadata?.awbNumber?.trim() || null,
+    p_received_by: metadata?.receivedBy?.trim() || null,
+    p_comment: metadata?.comment?.trim() || null,
+  });
   if (error) {
-    console.error("[tripDocumentLrPod] pod_received_at update:", error);
+    console.error("[tripDocumentLrPod] record_trip_hard_copy_pod:", error);
     return { error: new Error(error.message) };
   }
-  if (!data?.id) {
-    return {
-      error: new Error("Could not stamp hard-copy POD on this trip."),
-    };
+  return { error: null, alreadyReceived: data === false };
+}
+
+export type TripHardCopyPodReceipt = {
+  received: boolean;
+  receivedAt: string | null;
+  courier: string | null;
+  awbNumber: string | null;
+  receivedBy: string | null;
+  comment: string | null;
+  actorId: string | null;
+};
+
+/**
+ * Supplementary read for display (Trip Detail's post-receipt state, Phase 4
+ * Section 14) — courier/AWB/received-by live on `trips`, the comment lives
+ * in the `trip_workflow_events` row the RPC writes (Section 9's preference
+ * for reusing existing audit/event storage over a new column).
+ */
+export async function fetchTripHardCopyPodReceipt(
+  tripId: string,
+): Promise<{ error: Error | null; receipt: TripHardCopyPodReceipt | null }> {
+  const id = String(tripId ?? "").trim();
+  if (!id) return { error: new Error("Trip is not linked."), receipt: null };
+
+  const { data: trip, error: tripError } = await supabase()
+    .from("trips")
+    .select("pod_received_at, pod_hard_copy_courier, pod_hard_copy_awb_number, pod_hard_copy_received_by")
+    .eq("id", id)
+    .maybeSingle();
+  if (tripError) return { error: new Error(tripError.message), receipt: null };
+  if (!trip?.pod_received_at) {
+    return { error: null, receipt: { received: false, receivedAt: null, courier: null, awbNumber: null, receivedBy: null, comment: null, actorId: null } };
   }
-  return { error: null };
+
+  const { data: event } = await supabase()
+    .from("trip_workflow_events")
+    .select("payload, actor_id")
+    .eq("trip_id", id)
+    .eq("event_type", "pod.hard_copy_received")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const payload = (event?.payload ?? {}) as { comment?: string | null };
+
+  return {
+    error: null,
+    receipt: {
+      received: true,
+      receivedAt: trip.pod_received_at as string,
+      courier: (trip.pod_hard_copy_courier as string | null) ?? null,
+      awbNumber: (trip.pod_hard_copy_awb_number as string | null) ?? null,
+      receivedBy: (trip.pod_hard_copy_received_by as string | null) ?? null,
+      comment: payload.comment ?? null,
+      actorId: (event?.actor_id as string | null) ?? null,
+    },
+  };
 }
 
 export function receivedLrNumbersForTrip(

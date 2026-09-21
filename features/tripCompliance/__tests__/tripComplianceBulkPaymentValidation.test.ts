@@ -200,6 +200,37 @@ describe("validateComplianceBulkPayments", () => {
     expect(result.blocked[0].gateReason).toBe("Compliance verification not completed");
   });
 
+  it("rejects a duplicate reference read from the structured payment_reference column, not just parsed description", async () => {
+    mockTxnsResult = {
+      data: [
+        {
+          trip_id: "trip-1",
+          description: "Compliance Advance | Mode: UPI",
+          payment_reference: "UTR001",
+          ledger_category: "compliance_advance",
+        },
+      ],
+      error: null,
+    };
+    const result = await validateComplianceBulkPayments({
+      organizationId: "org-1",
+      category: "compliance_advance",
+      rows: [{ rowIndex: 2, tripId: "trip-1", amount: 5000, paymentModeId: "UPI", utr: "UTR001" }],
+    });
+    expect(result.invalid[0].errors.some((e) => e.includes("Duplicate UTR"))).toBe(true);
+  });
+
+  it("rejects a row whose amount exceeds the trip's client_price", async () => {
+    const tripWithPrice = { id: "trip-1", organization_id: "org-1", client_price: 10000 } as unknown as TripRow;
+    mockTripsResult = { data: [tripWithPrice, TRIP_2], error: null };
+    const result = await validateComplianceBulkPayments({
+      organizationId: "org-1",
+      category: "compliance_advance",
+      rows: [{ rowIndex: 2, tripId: "trip-1", amount: 50000, paymentModeId: "CASH" }],
+    });
+    expect(result.invalid[0].errors.some((e) => e.includes("exceeds the trip value"))).toBe(true);
+  });
+
   it("sends already-posted advances to alreadyPaid instead of eligible", async () => {
     mockTxnsResult = {
       data: [{ trip_id: "trip-1", ledger_category: "compliance_advance", description: "Compliance Advance | Mode: UPI" }],

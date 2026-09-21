@@ -11,7 +11,9 @@ import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert
 import { supabase } from "@/lib/supabase";
 import { PAYMENT_MODES } from "@/lib/paymentModes";
 import { describeStopProofDocument } from "@/features/driver/job-card/deliveryProof";
-import { getDocumentViewUrl, type TripDocumentRow } from "@/features/trips/services/tripDocuments.service";
+import { type TripDocumentRow } from "@/features/trips/services/tripDocuments.service";
+import { resolveTripDocumentPreviewUrl } from "@/features/tripCompliance/services/vehicleDocumentReuse.service";
+import { markTripHardCopyPodReceived } from "@/features/trips/services/tripDocumentLrPod.service";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import {
   canMarkComplianceVerified,
@@ -21,7 +23,6 @@ import {
 import {
   markTripComplianceVerified,
   postCompliancePayment,
-  recordHardCopyPodReceipt,
   setTripDocumentVerification,
   updateCompliancePaymentUtr,
 } from "@/features/tripCompliance/services/tripComplianceWrite.service";
@@ -34,6 +35,7 @@ import type {
 import { ComplianceInputModal, type ComplianceInputField } from "@/features/tripCompliance/components/ComplianceInputModal";
 import { CompliancePaymentConfirmModal } from "@/features/tripCompliance/components/CompliancePaymentConfirmModal";
 import { ComplianceDocumentTable } from "@/features/tripCompliance/components/ComplianceDocumentTable";
+import { VehicleDocumentReuseSection } from "@/features/tripCompliance/components/VehicleDocumentReuseSection";
 import { emptyComplianceChecklist } from "@/features/tripCompliance/utils/complianceChecklist.util";
 import type { ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 
@@ -198,6 +200,7 @@ export function ComplianceSection({
         rejection_reason: complianceById[d.id]?.rejection_reason ?? null,
         mime_type: d.mime_type,
         document_number: d.document_number,
+        source_entity_document_id: d.source_entity_document_id ?? null,
       })),
     [tripDocuments, complianceById],
   );
@@ -213,6 +216,9 @@ export function ComplianceSection({
       checklist: emptyComplianceChecklist(),
       complianceVerifiedAt,
       complianceVerifiedBy: null,
+      complianceDecision: null,
+      complianceExceptionReason: null,
+      complianceOutstandingSummary: null,
       advance: payments.advance,
       balance: payments.balance,
       hardCopyPod: {
@@ -245,9 +251,14 @@ export function ComplianceSection({
       );
       return;
     }
-    const url = await getDocumentViewUrl(doc.storage_path);
+    const url = await resolveTripDocumentPreviewUrl({
+      storagePath: doc.storage_path,
+      sourceEntityDocumentId: doc.source_entity_document_id,
+      organizationId,
+    });
     if (url) void Linking.openURL(url);
-  }, []);
+    else alertMessage("Couldn't preview document", "This file is not available.");
+  }, [organizationId]);
 
   const handleVerify = useCallback(
     async (doc: ComplianceDocumentRow) => {
@@ -300,8 +311,7 @@ export function ComplianceSection({
           });
           if (error) throw error;
         } else if (modalKind === "pod") {
-          const { error } = await recordHardCopyPodReceipt({
-            tripId,
+          const { error } = await markTripHardCopyPodReceived(tripId, {
             courier: values.courier,
             awbNumber: values.awb,
             receivedBy: values.receivedBy,
@@ -382,6 +392,18 @@ export function ComplianceSection({
           onUploaded={onUpdated}
         />
       )}
+
+      {trip.vehicle_id ? (
+        <VehicleDocumentReuseSection
+          tripId={tripId}
+          organizationId={organizationId}
+          vehicleId={trip.vehicle_id}
+          actorId={actorId}
+          canUseExistingDocument={canVerifyDocuments}
+          canUploadFresh={canVerifyDocuments}
+          onUpdated={onUpdated}
+        />
+      ) : null}
 
       {canMarkVerified && !complianceVerifiedAt ? (
         <TouchableOpacity
