@@ -1,5 +1,6 @@
-import { InvoicingExecuteScreen } from "@/features/invoicing/InvoicingExecuteScreen";
+import { FinanceInvoiceAdminScreen } from "@/features/invoicing/screens/FinanceInvoiceAdminScreen";
 
+/** Trip bulk create path retired — Finance admin only. */
 export default function InvoicingExecuteCreateRoute() {
-  return <InvoicingExecuteScreen mode="create" />;
+  return <FinanceInvoiceAdminScreen />;
 }

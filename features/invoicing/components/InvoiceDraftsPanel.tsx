@@ -1,6 +1,7 @@
 import Theme from "@/constants/Theme";
 import Layout from "@/constants/Layout";
 import type { IssuedInvoiceListRow } from "@/features/invoicing/services/invoiceList.service";
+import { financeInvoiceHistoryFields } from "@/features/invoicing/utils/invoiceSource.util";
 import { issuedInvoicesForClient } from "@/features/invoicing/utils/issuedInvoiceMatch.util";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -65,9 +66,14 @@ export function InvoiceDraftsPanel({
             {item.invoice_number}
           </Text>
           <Text style={styles.meta}>
-            {(item.trip_ids?.length ?? 0)} trip
-            {(item.trip_ids?.length ?? 0) === 1 ? "" : "s"} ·{" "}
-            {formatInr(item.total_amount)}
+            {(() => {
+              const history = financeInvoiceHistoryFields({
+                invoice_source: item.invoice_source,
+                sales_order_number: item.sales_order_number,
+                trip_ids: item.trip_ids,
+              });
+              return `${history.source} · ${history.reference} · ${formatInr(item.total_amount)}`;
+            })()}
           </Text>
           <Text style={styles.meta}>
             Updated {formatWhen(item.updated_at || item.created_at)}

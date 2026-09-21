@@ -91,6 +91,7 @@ describe("Nvidia a — Finance Pro client picture", () => {
     });
 
     expect(picture.completedTripCount).toBe(3);
+    expect(picture.podPendingTripCount).toBe(1);
     expect(picture.unbilledTripCount).toBe(1);
     expect(picture.eligibleTripCount).toBe(0);
     expect(picture.invoicedTripCount).toBe(2);

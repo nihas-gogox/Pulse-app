@@ -3,6 +3,7 @@
  * Does not allocate numbers, compute GST, or write AR.
  */
 import { supabase } from "@/lib/supabase";
+import { applySalesOrderNumbers } from "@/features/invoicing/utils/invoiceSource.util";
 
 export type IssuedInvoiceListRow = {
   id: string;
@@ -14,6 +15,10 @@ export type IssuedInvoiceListRow = {
   total_amount: number;
   status: string;
   trip_ids: string[];
+  invoice_source?: string | null;
+  sales_order_id?: string | null;
+  sales_order_number?: string | null;
+  plan_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   notes?: string | null;
@@ -24,6 +29,31 @@ function str(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+async function attachSalesOrderNumbers(
+  invoices: IssuedInvoiceListRow[],
+): Promise<IssuedInvoiceListRow[]> {
+  const ids = [
+    ...new Set(
+      invoices
+        .map((row) => (row.sales_order_id ?? "").trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (ids.length === 0) return invoices;
+  const { data, error } = await supabase()
+    .from("sales_orders")
+    .select("id, order_number")
+    .in("id", ids);
+  if (error || !data) return invoices;
+  const numbersById: Record<string, string> = {};
+  for (const row of data) {
+    const id = str((row as { id?: unknown }).id);
+    const number = str((row as { order_number?: unknown }).order_number);
+    if (id && number) numbersById[id] = number;
+  }
+  return applySalesOrderNumbers(invoices, numbersById);
+}
+
 export async function fetchIssuedInvoicesForOrg(
   orgId: string,
 ): Promise<{ error: Error | null; invoices: IssuedInvoiceListRow[] }> {
@@ -31,7 +61,7 @@ export async function fetchIssuedInvoicesForOrg(
     const { data, error } = await supabase()
       .from("invoices")
       .select(
-        "id, invoice_number, invoice_date, due_date, client_id, client_name, total_amount, status, trip_ids",
+        "id, invoice_number, invoice_date, due_date, client_id, client_name, total_amount, status, trip_ids, invoice_source, sales_order_id",
       )
       .eq("org_id", orgId)
       .in("status", ["sent", "paid"])
@@ -62,10 +92,15 @@ export async function fetchIssuedInvoicesForOrg(
         total_amount: total,
         status: str((row as { status?: unknown }).status) || "sent",
         trip_ids: tripIds,
+        invoice_source:
+          str((row as { invoice_source?: unknown }).invoice_source) || "trip",
+        sales_order_id:
+          str((row as { sales_order_id?: unknown }).sales_order_id) || null,
+        sales_order_number: null,
       };
     });
 
-    return { error: null, invoices };
+    return { error: null, invoices: await attachSalesOrderNumbers(invoices) };
   } catch (e) {
     return {
       error: e instanceof Error ? e : new Error(String(e)),
@@ -81,7 +116,7 @@ export async function fetchDraftInvoicesForOrg(
     const { data, error } = await supabase()
       .from("invoices")
       .select(
-        "id, invoice_number, invoice_date, due_date, client_id, client_name, total_amount, status, trip_ids, created_at, updated_at, notes, payment_terms",
+        "id, invoice_number, invoice_date, due_date, client_id, client_name, total_amount, status, trip_ids, created_at, updated_at, notes, payment_terms, invoice_source, sales_order_id",
       )
       .eq("org_id", orgId)
       .eq("status", "draft")
@@ -116,10 +151,15 @@ export async function fetchDraftInvoicesForOrg(
         updated_at: str((row as { updated_at?: unknown }).updated_at) || null,
         notes: str((row as { notes?: unknown }).notes) || null,
         payment_terms: str((row as { payment_terms?: unknown }).payment_terms) || null,
+        invoice_source:
+          str((row as { invoice_source?: unknown }).invoice_source) || "trip",
+        sales_order_id:
+          str((row as { sales_order_id?: unknown }).sales_order_id) || null,
+        sales_order_number: null,
       };
     });
 
-    return { error: null, invoices };
+    return { error: null, invoices: await attachSalesOrderNumbers(invoices) };
   } catch (e) {
     return {
       error: e instanceof Error ? e : new Error(String(e)),

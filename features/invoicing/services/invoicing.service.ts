@@ -17,6 +17,11 @@ import {
   tripIsDeliveredStatus,
   tripPodIsReceived,
 } from "@/features/trips/services/tripDocumentLrPod.service";
+import {
+  resolveInvoiceTripDriverName,
+  resolveInvoiceTripLrNumber,
+  resolveInvoiceTripSupplierName,
+} from "@/features/invoicing/utils/invoiceTripOperational.util";
 import { INVOICE_TRIP_NOT_COMPLETED } from "@/features/invoicing/utils/financeWorkflowState.util";
 import { syncDomainRows } from "@/lib/cache/domainSync";
 import { mergeDeltaRows } from "@/lib/cache/mergeDelta";
@@ -60,6 +65,8 @@ export interface InvoicingTripView {
   client_id: string | null;
   client: string;
   supplier_name: string;
+  driver_name?: string | null;
+  lr_number?: string | null;
   route: string;
   date: string;
   amount: number;
@@ -106,7 +113,7 @@ export interface PodReconciliationSummary {
 }
 
 const LIVE_TRIP_SELECT =
-  "id, organization_id, trip_operational_code, trip_code, display_trip_id, trip_number, booking_ref, supplier_id, client_id, client_name, client_price, status, pickup_date, pickup_area, drop_location, notes, created_at, pod_received_at";
+  "id, organization_id, trip_operational_code, trip_code, display_trip_id, trip_number, booking_ref, supplier_id, driver_id, driver_display_name, client_id, client_name, client_price, status, pickup_date, pickup_area, drop_location, notes, created_at, pod_received_at";
 
 const POD_IN_CHUNK = 40;
 const UUID_RE =
@@ -133,6 +140,8 @@ type TripRecord = Pick<
 > & {
   client_id?: string | null;
   pod_received_at?: string | null;
+  driver_id?: string | null;
+  driver_display_name?: string | null;
 };
 
 function str(v: unknown): string {
@@ -155,7 +164,7 @@ function resolveSupplierName(
 ): string {
   const supplierId = str((row as { supplier_id?: string | null }).supplier_id);
   const byId = supplierId ? str(supplierNameById?.get(supplierId)) : "";
-  return byId || "Unknown Supplier";
+  return resolveInvoiceTripSupplierName({ lookupName: byId }) || "—";
 }
 
 function parseNetDays(paymentTerms: string | undefined): number {
@@ -388,6 +397,7 @@ export function getTripStringId(row: TripRecord): string {
 function mapRowToView(
   row: TripRecord,
   supplierNameById: Map<string, string> | undefined,
+  driverNameById: Map<string, string> | undefined,
   hasPod: boolean,
   physicalPodReceived: boolean,
   invoiced: boolean,
@@ -411,6 +421,21 @@ function mapRowToView(
     client_id: clientId || null,
     client: str((row as { client_name?: string | null }).client_name) || "—",
     supplier_name: resolveSupplierName(row, supplierNameById),
+    driver_name: resolveInvoiceTripDriverName({
+      displayName: str(
+        (row as { driver_display_name?: string | null }).driver_display_name,
+      ),
+      lookupName: str(
+        (row as { driver_id?: string | null }).driver_id
+          ? driverNameById?.get(
+              str((row as { driver_id?: string | null }).driver_id),
+            )
+          : "",
+      ),
+    }),
+    lr_number: resolveInvoiceTripLrNumber({
+      bookingRef: str((row as { booking_ref?: string | null }).booking_ref),
+    }),
     route,
     date: tripDate,
     amount:
@@ -479,6 +504,14 @@ export async function fetchInvoicingTrips(
       ),
     );
     const supplierNameById = new Map<string, string>();
+    const driverNameById = new Map<string, string>();
+    const driverIds = Array.from(
+      new Set(
+        merged
+          .map((row) => str((row as { driver_id?: string | null }).driver_id))
+          .filter(Boolean),
+      ),
+    );
 
     if (supplierIds.length > 0) {
       const { data: supData } = await supabase()
@@ -496,6 +529,18 @@ export async function fetchInvoicingTrips(
       }
     }
 
+    if (driverIds.length > 0) {
+      const { data: driverData } = await supabase()
+        .from("drivers")
+        .select("id, name")
+        .in("id", driverIds);
+      for (const d of driverData ?? []) {
+        const id = str((d as { id?: string | null }).id);
+        const name = str((d as { name?: string | null }).name);
+        if (id && name) driverNameById.set(id, name);
+      }
+    }
+
     const views = merged.map((row) => {
       const id = str(row.id);
       const stamp =
@@ -505,6 +550,7 @@ export async function fetchInvoicingTrips(
       return mapRowToView(
         row,
         supplierNameById,
+        driverNameById,
         false,
         tripPodIsReceived({ pod_received_at: stamp }),
         allocations.invoicedIds.has(id),

@@ -290,6 +290,10 @@ export const queryKeys = {
       ["q", "invoicing", "client-pod-policies", orgId, idsKey] as const,
     digitalPods: (orgId: string, idsKey: string) =>
       ["q", "invoicing", "digital-pods", orgId, idsKey] as const,
+    commerceOrder: (orgId: string, orderId: string) =>
+      ["q", "invoicing", "commerce-order", orgId, orderId] as const,
+    manualPlans: (orgId: string, clientId: string) =>
+      ["q", "invoicing", "manual-plans", orgId, clientId] as const,
   },
 
   posts: {
