@@ -16,6 +16,7 @@ import { fetchExecutionPlanRouteSummaries } from '@/features/network/services/fe
 import { indentDisplayOriginDest } from '@/features/network/utils/executionPlanRouteSummary';
 import { looksLikePlannerStopSummary } from '@/features/network/utils/storyDisplay';
 import { supabase } from '@/lib/supabase';
+import { isSupabaseCircuitOpen } from '@/lib/supabaseHttp.util';
 import { isCommerceDataQueryEnabled } from '@/lib/suite/productLock';
 
 export { indentStoryExpiresAt, isIndentStoryLive } from '@/features/network/utils/indentStoryWindow.util';
@@ -132,6 +133,10 @@ export async function getIndentStoryStates(
 ): Promise<{ error: Error | null; byIndentId: Record<string, IndentStoryState> }> {
   const ids = [...new Set(indentIds.filter(Boolean))];
   if (!orgId || ids.length === 0) {
+    return { error: null, byIndentId: {} };
+  }
+
+  if (isSupabaseCircuitOpen()) {
     return { error: null, byIndentId: {} };
   }
 

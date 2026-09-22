@@ -3,17 +3,17 @@
  * showed 504s on auth + rest while diagnostic crons were also failing to start;
  * retrying those 504s held the remaining pool slots. */
 /** 544 is Cloudflare/custom origin timeout (avatars/storage in the 2026-09-22 cascade). */
-const ORIGIN_DOWN_STATUSES = new Set([500, 503, 504, 521, 544]);
+/** 502 is origin-down, not a transient proxy hop — retrying it held pool slots. */
+const ORIGIN_DOWN_STATUSES = new Set([500, 502, 503, 504, 521, 544]);
 
 /** Transient proxy / rate-limit statuses that are worth a short retry.
- * 500 is excluded: PostgREST Warp "thread killed by timeout" and statement
- * timeouts both surface as 500. Retrying them held the pool through the
- * 2026-09-21 unhealthy cascade.
- * 504 is excluded: waiting for a pool connection will not get faster on retry. */
-const TRANSIENT_RETRY_STATUSES = new Set([408, 425, 429, 502, 520, 522, 524]);
+ * 500/502/504 are excluded: they open the shared origin circuit instead. */
+const TRANSIENT_RETRY_STATUSES = new Set([408, 425, 429, 520, 522, 524]);
+
+const SERVICE_UNAVAILABLE_CODES = new Set(['PGRST002', 'PGRST003']);
 
 const ORIGIN_DOWN_MESSAGE =
-  /503|521|57P03|not accepting connections|database system is shutting down|web server is down|origin is unreachable/i;
+  /503|521|57P03|PGRST00[23]|not accepting connections|database system is shutting down|web server is down|origin is unreachable/i;
 
 /** Normalize Cloudflare / HTML error bodies from Supabase into short retryable messages. */
 export function normalizeInfrastructureErrorMessage(message: string): string {
@@ -41,6 +41,9 @@ export function isOriginDownError(error: unknown): boolean {
   if (typeof status === 'number' && ORIGIN_DOWN_STATUSES.has(status)) return true;
   const code = (error as { code?: unknown } | null)?.code;
   if (typeof code === 'string' && code.toUpperCase() === '57P03') return true;
+  if (typeof code === 'string' && SERVICE_UNAVAILABLE_CODES.has(code.toUpperCase())) {
+    return true;
+  }
   const message =
     error instanceof Error
       ? error.message
@@ -70,13 +73,6 @@ export function isInfrastructureErrorMessage(message: string): boolean {
     message,
   );
 }
-
-/**
- * PostgREST service-level failures: PGRST002 (schema cache could not be loaded)
- * and PGRST003 (could not acquire a pool connection). Both surface as 503 and
- * mean "the API layer is unavailable", never "this user has no rows".
- */
-const SERVICE_UNAVAILABLE_CODES = new Set(['PGRST002', 'PGRST003']);
 
 /**
  * True when a failure came from the API/DB layer being unavailable rather than
@@ -161,21 +157,127 @@ export function canRetryFetchAttempt(args: {
 export const SUPABASE_CIRCUIT_COOLDOWN_MS = 45_000;
 
 let circuitOpenUntilMs = 0;
+let halfOpenProbeInFlight = false;
 
-export function noteSupabaseOriginDown(): void {
+export type SupabaseHttpMetrics = {
+  inFlight: number;
+  queued: number;
+  circuitRejects: number;
+  queueRejects: number;
+  timeouts: number;
+  status5xx: number;
+  pgrst003: number;
+};
+
+const metrics: SupabaseHttpMetrics = {
+  inFlight: 0,
+  queued: 0,
+  circuitRejects: 0,
+  queueRejects: 0,
+  timeouts: 0,
+  status5xx: 0,
+  pgrst003: 0,
+};
+
+export function getSupabaseHttpMetrics(): SupabaseHttpMetrics {
+  return { ...metrics, queued: dataFetchConcurrencyGate.queuedCount, inFlight: dataFetchConcurrencyGate.activeCount };
+}
+
+export function resetSupabaseHttpMetrics(): void {
+  metrics.circuitRejects = 0;
+  metrics.queueRejects = 0;
+  metrics.timeouts = 0;
+  metrics.status5xx = 0;
+  metrics.pgrst003 = 0;
+}
+
+export function recordSupabaseHttpTimeout(): void {
+  metrics.timeouts += 1;
+}
+
+export function recordSupabaseHttp5xx(status?: number, code?: string): void {
+  if (typeof status === 'number' && status >= 500) metrics.status5xx += 1;
+  if (code && code.toUpperCase() === 'PGRST003') metrics.pgrst003 += 1;
+}
+
+export function noteSupabaseOriginDown(code?: string): void {
   circuitOpenUntilMs = Date.now() + SUPABASE_CIRCUIT_COOLDOWN_MS;
+  halfOpenProbeInFlight = false;
+  if (code && code.toUpperCase() === 'PGRST003') metrics.pgrst003 += 1;
 }
 
 export function noteSupabaseHealthy(): void {
   circuitOpenUntilMs = 0;
+  halfOpenProbeInFlight = false;
 }
 
+/**
+ * Fully open during cooldown. After cooldown, stays latched until a single
+ * successful probe (`admitSupabaseRequest` + `noteSupabaseHealthy`) so screens
+ * cannot stampede PostgREST the moment the 45s window ends.
+ */
 export function isSupabaseCircuitOpen(now = Date.now()): boolean {
-  return now < circuitOpenUntilMs;
+  if (circuitOpenUntilMs === 0) return false;
+  if (now < circuitOpenUntilMs) return true;
+  return true;
+}
+
+export type SupabaseCircuitAdmission = 'allow' | 'probe' | 'reject';
+
+/** One shared origin circuit. Auth token refresh is admitted separately by the caller. */
+export function admitSupabaseRequest(now = Date.now()): SupabaseCircuitAdmission {
+  if (circuitOpenUntilMs === 0) return 'allow';
+  if (now < circuitOpenUntilMs) {
+    metrics.circuitRejects += 1;
+    return 'reject';
+  }
+  if (halfOpenProbeInFlight) {
+    metrics.circuitRejects += 1;
+    return 'reject';
+  }
+  halfOpenProbeInFlight = true;
+  return 'probe';
+}
+
+export function finishSupabaseCircuitProbe(ok: boolean): void {
+  if (!halfOpenProbeInFlight && circuitOpenUntilMs === 0) return;
+  if (ok) {
+    noteSupabaseHealthy();
+    return;
+  }
+  noteSupabaseOriginDown();
+}
+
+/**
+ * A client-side request timeout means the DB didn't answer inside the
+ * request budget — as strong a signal of an unhealthy origin as a received
+ * 500/503/504, but TIMEOUT_MAX_RETRIES=0 means it never reaches the
+ * res.status check that normally opens the circuit via noteSupabaseOriginDown.
+ * Without this, every independent caller (tab refocus, other devices,
+ * invalidation) keeps landing on the same overloaded pool unthrottled
+ * (2026-09-22 cascade: same id-list batch queries repeating every ~13-17s).
+ */
+export function isClientTimeoutError(error: { name?: string } | null | undefined): boolean {
+  return error?.name === 'TimeoutError';
+}
+
+/**
+ * Origin-level signal for a client-side TimeoutError. Request-level policy
+ * (TIMEOUT_MAX_RETRIES = 0, no HTTP retry) stays separate — this only opens
+ * the 45s circuit so later callers fail fast instead of hitting PostgREST.
+ * Returns true when the circuit was opened by this error.
+ */
+export function noteSupabaseOriginDownIfClientTimeout(
+  error: { name?: string } | null | undefined,
+): boolean {
+  if (!isClientTimeoutError(error)) return false;
+  noteSupabaseOriginDown();
+  return true;
 }
 
 export function resetSupabaseCircuit(): void {
   circuitOpenUntilMs = 0;
+  halfOpenProbeInFlight = false;
 }
 
 export function supabaseCircuitOpenError(): Error {
@@ -187,6 +289,8 @@ export function supabaseCircuitOpenError(): Error {
 
 /** Cap parallel PostgREST/Storage GETs so a hub screen cannot open 20+ 12s holds at once. */
 export const MAX_CONCURRENT_DATA_FETCHES = 6;
+/** Extra waiters beyond in-flight. Overflow fails fast instead of stacking 12s holds. */
+export const MAX_QUEUED_DATA_FETCHES = 12;
 
 export function requestUrlString(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
@@ -194,19 +298,23 @@ export function requestUrlString(input: RequestInfo | URL): string {
   return input.url;
 }
 
-/** Auth + writes skip the gate so session refresh / indent create are not queued behind list reads. */
+/** Auth + table writes skip the gate so session refresh / indent create are not queued. */
 export function shouldQueueDataFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): boolean {
-  const method = String(init?.method ?? "GET").toUpperCase();
-  if (method !== "GET" && method !== "HEAD") return false;
   const url = requestUrlString(input);
   if (url.includes("/auth/v1/")) return false;
-  return true;
+  const method = String(init?.method ?? "GET").toUpperCase();
+  if (method === "GET" || method === "HEAD") return true;
+  // PostgREST RPCs are POST. Leaving them ungated let Get Load / Network
+  // open dozens of 12s pool holds (get_mutual_connections, get_integrated_partners)
+  // and exhausted PostgREST — PGRST003 / 15k 503s on 2026-09-22.
+  if (method === "POST" && /\/rest\/v1\/rpc\//i.test(url)) return true;
+  return false;
 }
 
-export function createConcurrencyGate(max: number) {
+export function createConcurrencyGate(max: number, maxQueue = MAX_QUEUED_DATA_FETCHES) {
   let active = 0;
   const waiters: Array<{
     resolve: () => void;
@@ -233,6 +341,13 @@ export function createConcurrencyGate(max: number) {
       if (active < max) {
         active += 1;
         return;
+      }
+      if (waiters.length >= maxQueue) {
+        metrics.queueRejects += 1;
+        const err = new Error("Service Unavailable 503");
+        err.name = "ServiceUnavailableError";
+        (err as { status?: number }).status = 503;
+        throw err;
       }
       await new Promise<void>((resolve, reject) => {
         const entry: (typeof waiters)[number] = { resolve, reject, signal };
@@ -261,4 +376,5 @@ export function createConcurrencyGate(max: number) {
 
 export const dataFetchConcurrencyGate = createConcurrencyGate(
   MAX_CONCURRENT_DATA_FETCHES,
+  MAX_QUEUED_DATA_FETCHES,
 );

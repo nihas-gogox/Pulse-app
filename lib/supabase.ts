@@ -28,11 +28,15 @@ import {
   authTokenRetryDelayMs,
   canRetryFetchAttempt,
   dataFetchConcurrencyGate,
+  admitSupabaseRequest,
+  finishSupabaseCircuitProbe,
   isOriginDownHttpStatus,
   isRetryableHttpResponse,
-  isSupabaseCircuitOpen,
   noteSupabaseHealthy,
   noteSupabaseOriginDown,
+  noteSupabaseOriginDownIfClientTimeout,
+  recordSupabaseHttp5xx,
+  recordSupabaseHttpTimeout,
   retryDelayMs,
   shouldQueueDataFetch,
   supabaseCircuitOpenError,
@@ -225,7 +229,8 @@ async function fetchWithTimeoutAndRetry(
         : abortSignalAny(...scoped);
 
   const queued = shouldQueueDataFetch(input, init);
-  if (!isAuthToken && isSupabaseCircuitOpen()) {
+  const admission = isAuthToken ? 'allow' : admitSupabaseRequest();
+  if (admission === 'reject') {
     throw supabaseCircuitOpenError();
   }
   if (queued) {
@@ -235,14 +240,17 @@ async function fetchWithTimeoutAndRetry(
     let lastError: Error | null = null;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        if (!isAuthToken && attempt > 0 && isSupabaseCircuitOpen()) {
-          throw supabaseCircuitOpenError();
-        }
+        // Same request already holds the half-open probe; do not re-admit.
         const res = await doFetch(requestSignal);
         if (res.ok) {
-          noteSupabaseHealthy();
+          if (admission === 'probe') finishSupabaseCircuitProbe(true);
+          else noteSupabaseHealthy();
         } else if (isOriginDownHttpStatus(res.status)) {
-          noteSupabaseOriginDown();
+          recordSupabaseHttp5xx(res.status);
+          if (admission === 'probe') finishSupabaseCircuitProbe(false);
+          else noteSupabaseOriginDown();
+        } else if (admission === 'probe') {
+          finishSupabaseCircuitProbe(true);
         }
         if (
           isRetryableHttpResponse(res) &&
@@ -268,6 +276,9 @@ async function fetchWithTimeoutAndRetry(
         lastError = e instanceof Error ? e : new Error(String(e));
         if (requestSignal?.aborted || lastError.name === 'AbortError') {
           throw lastError.name === 'AbortError' ? lastError : toCancelError();
+        }
+        if (!isAuthToken && noteSupabaseOriginDownIfClientTimeout(lastError)) {
+          recordSupabaseHttpTimeout();
         }
         if (
           !canRetryFetchAttempt({

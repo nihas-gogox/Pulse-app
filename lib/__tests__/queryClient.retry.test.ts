@@ -5,7 +5,18 @@ jest.mock("@/lib/logger", () => ({
   logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { shouldRetryQuery } from "@/lib/queryClient";
+jest.mock("@/lib/platform/scalability/queryCacheMetrics", () => ({
+  recordInvalidateQueries: jest.fn(),
+  recordInvalidationStorm: jest.fn(),
+  recordRefetchQueries: jest.fn(),
+  recordSetQueryData: jest.fn(),
+}));
+
+jest.mock("@/lib/hooks/appQueryGateState", () => ({
+  isWithinAppQueryBootQuietPeriod: () => false,
+}));
+
+import { makeQueryClient, shouldRetryQuery } from "@/lib/queryClient";
 import { noteSupabaseOriginDown, resetSupabaseCircuit } from "@/lib/supabaseHttp.util";
 
 describe("shouldRetryQuery", () => {
@@ -81,4 +92,16 @@ describe("shouldRetryQuery", () => {
     expect(shouldRetryQuery(0, {})).toBe(false);
   });
 
+  it("does not run invalidateQueries while the circuit is open (refocus / cache bust)", async () => {
+    const client = makeQueryClient();
+    const queryFn = jest.fn().mockResolvedValue({ ok: true });
+    await client.fetchQuery({ queryKey: ["q", "trips", "org-1"], queryFn });
+    expect(queryFn).toHaveBeenCalledTimes(1);
+
+    noteSupabaseOriginDown();
+    await client.invalidateQueries({ queryKey: ["q", "trips", "org-1"] });
+    await Promise.resolve();
+    expect(queryFn).toHaveBeenCalledTimes(1);
+    client.clear();
+  });
 });

@@ -111,6 +111,11 @@ export async function getMutualConnections(
     return { error: null, mutuals: [] };
   }
 
+  const { isSupabaseCircuitOpen } = await import("@/lib/supabaseHttp.util");
+  if (isSupabaseCircuitOpen()) {
+    return { error: null, mutuals: [] };
+  }
+
   const { data, error } = await runSingleflight(
     `get_mutual_connections:${viewerOrgId}:${targetOrgId}`,
     () =>
