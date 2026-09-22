@@ -77,10 +77,15 @@ async function fetchTripDocumentsForTrips(
     .in("trip_id", tripIds);
 
   if (withStatus.error && isMissingColumnOrRelation(withStatus.error)) {
-    withStatus = await supabase()
+    // Deliberate fallback for deployments without source_entity_document_id.
+    // The narrower row type it returns is structurally a subset, so it is
+    // re-cast to the wider one — the column simply comes back undefined, which
+    // ComplianceDocumentRow already models as optional.
+    const fallback = await supabase()
       .from("trip_documents")
       .select(SELECT_WITH_STATUS)
       .in("trip_id", tripIds);
+    withStatus = fallback as unknown as typeof withStatus;
   }
 
   if (withStatus.error && isMissingColumnOrRelation(withStatus.error)) {

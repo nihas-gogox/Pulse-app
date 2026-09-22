@@ -21,6 +21,12 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { configurePlatformDb } from '@/lib/platform';
 import { isRetryableHttpResponse } from '@/lib/supabaseHttp.util';
+import {
+  classifyRequest,
+  moderate,
+  recordOutcome,
+  recordShapeViolation,
+} from '@/lib/platform/moderator';
 
 // Lazy-load SecureStore so we can fall back to AsyncStorage if native module is missing (Expo Go, etc.)
 let SecureStore: typeof import('expo-secure-store') | null = null;
@@ -172,7 +178,7 @@ function toCancelError(): Error {
 }
 
 /** Fetch with timeout and retry to cope with flaky networks and backend outages. */
-async function fetchWithTimeoutAndRetry(
+async function fetchWithTimeoutAndRetryRaw(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
@@ -246,6 +252,49 @@ async function fetchWithTimeoutAndRetry(
     }
   }
   throw lastError ?? new Error('Network request failed');
+}
+
+/**
+ * Moderated entry point — the client's actual `global.fetch`.
+ *
+ * Wraps the retry/timeout fetch in the Requests Moderator so every PostgREST
+ * call passes one chokepoint where concurrency, priority and coalescing can be
+ * governed. No service file changes: the lane and coalesce key are derived from
+ * the request URL (see requestClassifier).
+ *
+ * The Moderator ships in observeOnly mode, where this only records counters and
+ * the behaviour below is byte-for-byte the previous behaviour. Auth, storage and
+ * realtime traffic bypass moderation entirely — queuing a token refresh behind
+ * data reads is how a recovering client gets stuck.
+ */
+async function fetchWithTimeoutAndRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  const { lane, coalesceKey, violations, isAuth } = classifyRequest(input, init);
+
+  if (isAuth) {
+    return fetchWithTimeoutAndRetryRaw(input, init);
+  }
+
+  if (__DEV__ && violations.length > 0) {
+    violations.forEach(recordShapeViolation);
+  }
+
+  return moderate(
+    lane,
+    async () => {
+      const res = await fetchWithTimeoutAndRetryRaw(input, init);
+      // Feed the circuit breaker: statement timeouts and origin-down responses
+      // are the signals that the DB itself is struggling, as opposed to a plain
+      // 4xx which is a client-side problem and must not open the breaker.
+      const degraded =
+        res.status >= 500 || (await isStatementTimeoutResponse(res));
+      recordOutcome(degraded);
+      return res;
+    },
+    coalesceKey,
+  );
 }
 
 /** Combine two AbortSignals so aborting either aborts the result. */

@@ -88,6 +88,13 @@ export interface IndentStopInput {
 export interface IndentRow {
   id: string;
   organization_id: string;
+  /**
+   * Commerce (multi-order e-commerce) execution plan this indent belongs to.
+   * Not a column on `indents` — it is resolved at read time from the linked
+   * commerce records and attached to the row, so it is optional. Consumers
+   * (LoadCenterView, indentStoryPosts) read it to flag commerce loads.
+   */
+  execution_plan_id?: string | null;
   /** Operational identity code, e.g. GGV234-IND-001 */
   indent_code?: string | null;
   /** Enterprise operational identity code, e.g. GGV234ABCIND000001 */

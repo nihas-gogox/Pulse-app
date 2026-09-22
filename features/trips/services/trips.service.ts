@@ -155,6 +155,13 @@ export interface TripRow {
   indent_number?: string | null;
   /** Originated from a Commerce (multi-order e-commerce) execution plan. Derived from the joined indent's execution_plan_id — no new column. */
   is_commerce?: boolean;
+  /**
+   * Resolved Commerce execution plan id. Like `is_commerce`, this is DERIVED at
+   * read time from the joined indent (`source_indent` / `active_indent` /
+   * `indents`) and normalized onto the row — `trips` itself has no such column.
+   * Optional because only normalizeTripRowWithIndent() populates it.
+   */
+  execution_plan_id?: string | null;
   /** Globally unique booking reference assigned when a trip is created from an indent award (BKG-XXXXXX). */
   booking_ref?: string | null;
   /** Per-supplier-org sequence for indent-awarded trips (Job #N in supplier UI). */
@@ -2741,7 +2748,14 @@ const TRIP_STATUS_VALUES = [
  * Uses status (completed/delivered/done) or completed_at for consistency with driver app.
  */
 export function isTripCompleted(
-  trip: Pick<TripRow, "status" | "completed_at"> | null | undefined,
+  // Widened from Pick<TripRow, ...>: callers pass rows from views and partial
+  // projections where `status` is `string | null`, which TripRow types as
+  // `string | undefined`. The body already normalizes null via `?? ""`, so this
+  // matches what the function actually accepts at runtime.
+  trip:
+    | { status?: string | null; completed_at?: string | null }
+    | null
+    | undefined,
 ): boolean {
   if (!trip) return false;
   const s = (trip.status ?? "").toLowerCase();
