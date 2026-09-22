@@ -268,6 +268,7 @@ export type MarkHardCopyPodsReceivedInput = {
   method: "courier" | "in_hand";
   courierName?: string | null;
   trackingId?: string | null;
+  comment?: string | null;
 };
 
 export async function markSelectedTripsHardCopyPodReceived(
@@ -279,29 +280,24 @@ export async function markSelectedTripsHardCopyPodReceived(
   if (ids.length === 0) {
     return { error: new Error("Select at least one pending trip."), updatedCount: 0 };
   }
-  // Still used below for the activity-log entry, which does record a
-  // client-supplied received_at for audit display.
   const receivedAt = str(input.receivedAt) || new Date().toISOString();
-  // markTripHardCopyPodReceived takes POD *metadata*, not a timestamp — the
-  // received-at time is server-side (`now()` inside record_trip_hard_copy_pod)
-  // and deliberately never client-supplied. Passing `receivedAt` here meant the
-  // courier and AWB the user typed were silently dropped on every bulk mark.
+  const courierName =
+    input.method === "courier" ? str(input.courierName).trim() : "In hand";
+  const trackingId =
+    input.method === "courier" ? str(input.trackingId).trim() || null : null;
+
   const results = await runWithConcurrencyLimit(
     ids,
     LOG_PODS_CONCURRENCY,
     (id) =>
       markTripHardCopyPodReceived(id, {
-        courier: input.method === "courier" ? input.courierName ?? null : null,
-        awbNumber: input.method === "courier" ? input.trackingId ?? null : null,
+        courier: courierName || null,
+        awbNumber: trackingId,
+        comment: str(input.comment).trim() || null,
       }),
   );
   const firstError = results.find((r) => r.error != null)?.error;
   if (firstError) return { error: firstError, updatedCount: 0 };
-
-  const courierName =
-    input.method === "courier" ? str(input.courierName).trim() : "In hand";
-  const trackingId =
-    input.method === "courier" ? str(input.trackingId).trim() || null : null;
   await runWithConcurrencyLimit(ids, LOG_PODS_CONCURRENCY, async (tripInternalId) => {
     const { error } = await supabase().rpc("log_activity", {
       p_action: "POD_LOGGED",
@@ -445,7 +441,8 @@ export async function syncLogPodsTripsWithCache(
   }
 }
 
-let courierPartnersTableUnavailable = false;
+/** Table is not in this project's schema. Do not probe REST (404). */
+let courierPartnersTableUnavailable = true;
 
 function isCourierPartnersTableMissing(
   err: { message?: string; code?: string; status?: number } | null | undefined,
@@ -517,6 +514,9 @@ export async function ensureCustomCourierPartner(
 ): Promise<{ error: Error | null; partner: CourierPartnerRow | null }> {
   if (courierValue !== "custom" || !customCourierName.trim())
     return { error: null, partner: null };
+  if (courierPartnersTableUnavailable) {
+    return { error: null, partner: null };
+  }
   const value = customCourierName.toLowerCase().replace(/\s+/g, "_");
   const { data: existing, error: existingErr } = await supabase()
     .from("courier_partners")
@@ -574,6 +574,7 @@ export async function executeLogIncomingPods(payload: LogPodsPayload): Promise<{
     trackingId,
     dbCourierPartners,
     mappedAttachments,
+    receivedAt: receivedAtRaw,
   } = payload;
 
   const finalCourierName = resolveCourierName(
@@ -588,21 +589,16 @@ export async function executeLogIncomingPods(payload: LogPodsPayload): Promise<{
   );
   if (customErr.error) return { error: customErr.error };
 
+  const receivedAt = str(receivedAtRaw) || new Date().toISOString();
   const tripIds = Object.entries(selectedLRs)
     .filter(([, lrs]) => lrs.length > 0)
     .map(([tripInternalId]) => tripInternalId);
 
-  // Metadata, not a timestamp — see the note in
-  // markSelectedTripsHardCopyPodReceived above. The resolved courier name and
-  // AWB are what this RPC actually records.
   const tripResults = await runWithConcurrencyLimit(
     tripIds,
     LOG_PODS_CONCURRENCY,
     (internalId) =>
-      markTripHardCopyPodReceived(internalId, {
-        courier: finalCourierName || null,
-        awbNumber: str(trackingId) || null,
-      }),
+      markTripHardCopyPodReceived(internalId, { courier: finalCourierName || null, awbNumber: trackingId || null }),
   );
   const tripUpdateError = tripResults.find((r) => r.error != null)?.error;
   if (tripUpdateError) {
@@ -626,6 +622,7 @@ export async function executeLogIncomingPods(payload: LogPodsPayload): Promise<{
           courier_name: finalCourierName,
           tracking_id: trackingId || null,
           attachment_count: attCount,
+          received_at: receivedAt,
         },
       });
       if (error) console.warn("[logPods] log_activity:", error.message);
