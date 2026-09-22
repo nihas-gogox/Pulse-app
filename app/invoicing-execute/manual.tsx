@@ -1,5 +1,5 @@
-import { ManualInvoiceScreen } from "@/features/invoicing/screens/ManualInvoiceScreen";
+import { InvoicingExecuteScreen } from "@/features/invoicing/InvoicingExecuteScreen";
 
 export default function InvoicingExecuteManualRoute() {
-  return <ManualInvoiceScreen />;
+  return <InvoicingExecuteScreen />;
 }

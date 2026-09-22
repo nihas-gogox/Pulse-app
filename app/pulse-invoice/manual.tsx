@@ -1,4 +1,4 @@
-import { ManualInvoiceScreen } from "@/features/invoicing/screens/ManualInvoiceScreen";
+import { InvoicingExecuteScreen } from "@/features/invoicing/InvoicingExecuteScreen";
 import { ROUTES } from "@/lib/routes";
 import { shouldMountAuthenticatedDataPlane } from "@/lib/bootGate";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,5 +9,5 @@ export default function PulseInvoiceManualRoute() {
   if (!shouldMountAuthenticatedDataPlane(sessionAttached)) {
     return <Redirect href={ROUTES.SIGN_IN_DIRECT} />;
   }
-  return <ManualInvoiceScreen />;
+  return <InvoicingExecuteScreen />;
 }

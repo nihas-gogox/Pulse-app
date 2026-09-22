@@ -28,6 +28,9 @@ import {
 import { invoiceHsnIssueBlock } from "@/features/invoicing/utils/invoiceLineHsn.util";
 import { discardInvoiceDraft } from "@/features/invoicing/services/invoiceDraft.service";
 import type { InvoiceIssuerWorkspace } from "@/features/invoicing/services/invoiceIssuerIdentity.service";
+import { isCommerceDataQueryEnabled } from "@/lib/suite/productLock";
+
+const COMMERCE_LOCKED_ERROR = new Error("Pulse Commerce is locked.");
 
 function toAppError(e: unknown): Error {
   return e instanceof Error ? e : new Error(String(e));
@@ -77,6 +80,9 @@ export async function fetchCommerceOrderInvoiceBundle(args: {
   salesOrderId: string;
 }): Promise<{ data: CommerceOrderInvoiceBundle | null; error: Error | null }> {
   try {
+    if (!isCommerceDataQueryEnabled()) {
+      return { data: null, error: COMMERCE_LOCKED_ERROR };
+    }
     if (!isUuid(args.orgId) || !isUuid(args.salesOrderId)) {
       throw new Error("Invalid organization or order id.");
     }
@@ -315,6 +321,7 @@ export async function saveCommerceOrderInvoiceDraft(args: {
   taxSnapshot?: InvoiceTaxSnapshot | null;
 }): Promise<{ error: Error | null; draftId?: string; draftNumber?: string }> {
   try {
+    if (!isCommerceDataQueryEnabled()) throw COMMERCE_LOCKED_ERROR;
     if (args.bundle.invoiceStatus.action === "view_invoice") {
       throw new Error("This order already has an issued invoice.");
     }
@@ -419,6 +426,7 @@ export async function issueCommerceOrderInvoice(args: {
   taxSnapshot?: InvoiceTaxSnapshot | null;
 }): Promise<{ error: Error | null; invoiceNumber?: string }> {
   try {
+    if (!isCommerceDataQueryEnabled()) throw COMMERCE_LOCKED_ERROR;
     const hsnBlock = invoiceHsnIssueBlock(args.lineItems ?? []);
     if (hsnBlock) throw new Error(hsnBlock);
     const invoiceDate = new Date().toISOString().slice(0, 10);

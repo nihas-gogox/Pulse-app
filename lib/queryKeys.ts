@@ -327,6 +327,8 @@ export const queryKeys = {
   /** A4 — Business Find Loads: open Marketplace/both discovery for an org. */
   findLoadsForOrg: {
     list: (orgId: string) => ["q", "find-loads", orgId] as const,
+    infinite: (orgId: string, pageSize: number) =>
+      ["q", "find-loads", orgId, "infinite", pageSize] as const,
     postIds: (orgId: string, indentIdsKey: string) =>
       ["q", "find-loads", orgId, "post-ids", indentIdsKey] as const,
     myBids: (orgId: string) => ["q", "find-loads", orgId, "my-bids"] as const,

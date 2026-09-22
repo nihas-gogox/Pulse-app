@@ -25,6 +25,10 @@ import {
   uniqueTripClientIds,
   type InvoiceDraftModel,
 } from "@/features/invoicing/services/invoicePreviewModel.service";
+import {
+  invoicePreviewCanSaveDraft,
+  resolveInvoicePreviewItemSource,
+} from "@/features/invoicing/utils/financeInvoicePreview.util";
 import { ProvisionAdjustmentModal } from "@/features/trips/components/trip-detail/adjustment/ProvisionAdjustmentModal";
 import {
   addTripAdjustment,
@@ -200,6 +204,16 @@ export function InvoicePreviewPanel({
   ]);
 
   const taxDisplay = draft ? invoiceDraftTaxDisplay(draft.tax) : null;
+  const canSaveDraft = invoicePreviewCanSaveDraft({
+    hasExternalDraft: Boolean(externalDraft),
+    selectedTripCount: selectedTrips.length,
+  });
+  const previewLines = draft?.lines ?? [];
+  const invoiceNumberLabel = draft?.invoice_number_label ?? "DRAFT";
+  const previewItemSource = resolveInvoicePreviewItemSource({
+    selectedTripCount: selectedTrips.length,
+    draftLineCount: previewLines.length,
+  });
 
   const handleAddCharge = useCallback((tripId?: string) => {
     setAdditionalCharges((prev) => {
@@ -416,11 +430,13 @@ export function InvoicePreviewPanel({
                 density === "compact" && styles.headerTitleCompact,
               ]}
             >
-              {readOnly ? "Invoice" : "Invoice Preview"}
+              {externalDraft && !readOnly
+                ? "Manual Invoice Preview"
+                : "Invoice Preview"}
             </Text>
             <View style={styles.draftBadge}>
               <Text style={styles.draftBadgeText}>
-                {readOnly ? "Issued" : "Draft"}
+                {readOnly ? invoiceNumberLabel : "Draft"}
               </Text>
             </View>
           </View>
@@ -521,7 +537,7 @@ export function InvoicePreviewPanel({
               <Text style={styles.fieldLabel}>Invoice Number</Text>
               <View style={[styles.fieldValueBox, styles.fieldValueMuted]}>
                 <Text style={styles.fieldValueMutedText} numberOfLines={1}>
-                  Assigned on issue
+                  {invoiceNumberLabel}
                 </Text>
               </View>
             </View>
@@ -899,7 +915,46 @@ export function InvoicePreviewPanel({
               </View>
             ))}
 
-            {selectedTrips.length === 0 ? (
+            {previewItemSource === "draft-lines" ? (
+              previewLines.map((line, index) => (
+                <View
+                  key={`${line.trip_ref ?? line.description}-${index}`}
+                  style={styles.tripItemWrapper}
+                  accessibilityLabel={`Preview line ${index + 1}`}
+                >
+                  <View style={styles.tripItem}>
+                    <Text style={[styles.itemsBodyCell, styles.colIndex]}>
+                      {index + 1}
+                    </Text>
+                    <View style={[styles.tripItemMeta, styles.colDesc]}>
+                      <Text style={styles.tripItemId} numberOfLines={2}>
+                        {line.description}
+                      </Text>
+                      <Text style={styles.tripItemDate} numberOfLines={1}>
+                        {[line.trip_ref, line.hsn_sac ? `HSN ${line.hsn_sac}` : null]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
+                      </Text>
+                    </View>
+                    <Text style={[styles.itemsBodyCell, styles.colRoute]} numberOfLines={1}>
+                      {line.qty} × {line.rate}
+                    </Text>
+                    <Text style={[styles.itemsBodyCell, styles.colStatus]}>
+                      {line.line_type}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.itemsBodyCell,
+                        styles.colAmount,
+                        styles.itemsHeadRight,
+                      ]}
+                    >
+                      {formatCurrency(line.taxable_value)}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            ) : previewItemSource === "empty" ? (
               <View style={styles.emptyTrips}>
                 <FontAwesome
                   name="file-text-o"
@@ -908,7 +963,7 @@ export function InvoicePreviewPanel({
                   style={{ marginBottom: 8 }}
                 />
                 <Text style={styles.emptyTripsText}>
-                  Select trips to build this invoice
+                  Select one or more eligible trips or enter manual lines.
                 </Text>
               </View>
             ) : (
@@ -1101,7 +1156,9 @@ export function InvoicePreviewPanel({
           <View style={styles.calcTotalRow}>
             <View>
               <Text style={styles.calcTotalLabel}>Total Amount</Text>
-              <Text style={styles.calcTotalSub}>Draft — not issued</Text>
+              <Text style={styles.calcTotalSub}>
+                {readOnly ? invoiceNumberLabel : "Draft — not issued"}
+              </Text>
             </View>
             <Text style={styles.calcTotalVal}>
               {formatCurrency(draft?.tax.total_amount ?? 0)}
@@ -1133,16 +1190,14 @@ export function InvoicePreviewPanel({
             styles.footerBtnSecondary,
             (isFinalizing ||
               isIssuing ||
-              selectedTrips.length === 0 ||
-              Boolean(invoiceBuildBlockedReason)) &&
+              !canSaveDraft) &&
               styles.btnDisabled,
           ]}
           onPress={onSaveDraft ?? handleInitiatePreview}
           disabled={
             isFinalizing ||
             isIssuing ||
-            selectedTrips.length === 0 ||
-            Boolean(invoiceBuildBlockedReason)
+            !canSaveDraft
           }
           accessibilityLabel={
             invoiceBuildBlockedReason ??

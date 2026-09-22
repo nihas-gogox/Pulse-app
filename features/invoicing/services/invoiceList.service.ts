@@ -4,6 +4,7 @@
  */
 import { supabase } from "@/lib/supabase";
 import { applySalesOrderNumbers } from "@/features/invoicing/utils/invoiceSource.util";
+import { isCommerceDataQueryEnabled } from "@/lib/suite/productLock";
 
 export type IssuedInvoiceListRow = {
   id: string;
@@ -23,6 +24,12 @@ export type IssuedInvoiceListRow = {
   updated_at?: string | null;
   notes?: string | null;
   payment_terms?: string | null;
+  line_items?: unknown;
+  subtotal?: number | null;
+  gst_rate?: number | null;
+  cgst_amount?: number | null;
+  sgst_amount?: number | null;
+  igst_amount?: number | null;
 };
 
 function str(value: unknown): string {
@@ -39,7 +46,7 @@ async function attachSalesOrderNumbers(
         .filter(Boolean),
     ),
   ];
-  if (ids.length === 0) return invoices;
+  if (ids.length === 0 || !isCommerceDataQueryEnabled()) return invoices;
   const { data, error } = await supabase()
     .from("sales_orders")
     .select("id, order_number")
@@ -61,7 +68,7 @@ export async function fetchIssuedInvoicesForOrg(
     const { data, error } = await supabase()
       .from("invoices")
       .select(
-        "id, invoice_number, invoice_date, due_date, client_id, client_name, total_amount, status, trip_ids, invoice_source, sales_order_id",
+        "id, invoice_number, invoice_date, due_date, client_id, client_name, total_amount, status, trip_ids, invoice_source, sales_order_id, line_items, subtotal, gst_rate, cgst_amount, sgst_amount, igst_amount, notes, payment_terms",
       )
       .eq("org_id", orgId)
       .in("status", ["sent", "paid"])
@@ -97,6 +104,14 @@ export async function fetchIssuedInvoicesForOrg(
         sales_order_id:
           str((row as { sales_order_id?: unknown }).sales_order_id) || null,
         sales_order_number: null,
+        line_items: (row as { line_items?: unknown }).line_items ?? null,
+        subtotal: Number((row as { subtotal?: unknown }).subtotal) || 0,
+        gst_rate: Number((row as { gst_rate?: unknown }).gst_rate) || 0,
+        cgst_amount: Number((row as { cgst_amount?: unknown }).cgst_amount) || 0,
+        sgst_amount: Number((row as { sgst_amount?: unknown }).sgst_amount) || 0,
+        igst_amount: Number((row as { igst_amount?: unknown }).igst_amount) || 0,
+        notes: str((row as { notes?: unknown }).notes) || null,
+        payment_terms: str((row as { payment_terms?: unknown }).payment_terms) || null,
       };
     });
 
@@ -116,7 +131,7 @@ export async function fetchDraftInvoicesForOrg(
     const { data, error } = await supabase()
       .from("invoices")
       .select(
-        "id, invoice_number, invoice_date, due_date, client_id, client_name, total_amount, status, trip_ids, created_at, updated_at, notes, payment_terms, invoice_source, sales_order_id",
+        "id, invoice_number, invoice_date, due_date, client_id, client_name, total_amount, status, trip_ids, created_at, updated_at, notes, payment_terms, invoice_source, sales_order_id, line_items, subtotal, gst_rate, cgst_amount, sgst_amount, igst_amount",
       )
       .eq("org_id", orgId)
       .eq("status", "draft")
@@ -156,6 +171,12 @@ export async function fetchDraftInvoicesForOrg(
         sales_order_id:
           str((row as { sales_order_id?: unknown }).sales_order_id) || null,
         sales_order_number: null,
+        line_items: (row as { line_items?: unknown }).line_items ?? null,
+        subtotal: Number((row as { subtotal?: unknown }).subtotal) || 0,
+        gst_rate: Number((row as { gst_rate?: unknown }).gst_rate) || 0,
+        cgst_amount: Number((row as { cgst_amount?: unknown }).cgst_amount) || 0,
+        sgst_amount: Number((row as { sgst_amount?: unknown }).sgst_amount) || 0,
+        igst_amount: Number((row as { igst_amount?: unknown }).igst_amount) || 0,
       };
     });
 

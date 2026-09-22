@@ -14,6 +14,10 @@ import type { DeltaResponse } from "@/lib/cache/deltaTypes";
 import { getDriverProfileDisplay, getDriverProfileDisplayBatch } from "@/features/drivers/services/drivers.service";
 import { interpretLedgerRowStructured } from "@/features/finance/ledger/ledgerEntryModel";
 import {
+  isMissingPaymentReferenceColumnError,
+  omitPaymentReferenceField,
+} from "@/features/finance/utils/ledgerWriteCompat.util";
+import {
   AVATAR_BUCKET,
   extractPathFromStorageUrl,
   getSignedAvatarUrl,
@@ -1457,7 +1461,7 @@ export async function createLedgerEntry(
   let createdBy: string | null = null;
   try {
     const { data } = await withTimeout(
-      supabase().auth.getSession(),
+      () => supabase().auth.getSession(),
       AUTH_TIMEOUT_MS,
       { jitter: false },
     );
@@ -1465,7 +1469,7 @@ export async function createLedgerEntry(
   } catch {
     createdBy = null;
   }
-  const insertPayload = {
+  let insertPayload: Record<string, unknown> = {
     ...payload,
     ...(createdBy ? { created_by: createdBy } : {}),
   };
@@ -1475,6 +1479,15 @@ export async function createLedgerEntry(
     .insert(insertPayload)
     .select(LEDGER_TX_SELECT_WITH_TRIPS)
     .single();
+
+  if (error && isMissingPaymentReferenceColumnError(error)) {
+    insertPayload = omitPaymentReferenceField(insertPayload);
+    ({ data, error } = await supabase()
+      .from("transactions")
+      .insert(insertPayload)
+      .select(LEDGER_TX_SELECT_WITH_TRIPS)
+      .single());
+  }
 
   if (error && isMissingTripsDisplayTripIdError(error)) {
     ({ data, error } = await supabase()
@@ -1640,18 +1653,31 @@ export async function updateLedgerEntry(
     payment_reference: enriched.payment_reference ?? null,
   };
 
+  let updatePayload: Record<string, unknown> = { ...payload };
+
   let { data, error } = await supabase()
     .from("transactions")
-    .update(payload)
+    .update(updatePayload)
     .eq("id", entryId)
     .eq("organization_id", orgId)
     .select(LEDGER_TX_SELECT_WITH_TRIPS)
     .single();
 
+  if (error && isMissingPaymentReferenceColumnError(error)) {
+    updatePayload = omitPaymentReferenceField(updatePayload);
+    ({ data, error } = await supabase()
+      .from("transactions")
+      .update(updatePayload)
+      .eq("id", entryId)
+      .eq("organization_id", orgId)
+      .select(LEDGER_TX_SELECT_WITH_TRIPS)
+      .single());
+  }
+
   if (error && isMissingTripsDisplayTripIdError(error)) {
     ({ data, error } = await supabase()
       .from("transactions")
-      .update(payload)
+      .update(updatePayload)
       .eq("id", entryId)
       .eq("organization_id", orgId)
       .select(LEDGER_TX_SELECT_WITH_TRIPS_LEGACY)
@@ -1667,7 +1693,7 @@ export async function updateLedgerEntry(
     payload.trip_id != null
   ) {
     const unanchoredPayload = {
-      ...payload,
+      ...updatePayload,
       trip_id: null,
       description: buildUnanchoredLedgerRetryDescription(
         payload.description,

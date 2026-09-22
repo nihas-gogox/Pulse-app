@@ -119,6 +119,7 @@ describe("markSelectedTripsHardCopyPodReceived — bounded concurrency", () => {
     expect(mockMarkTripHardCopyPodReceived).toHaveBeenCalledWith("trip-0", {
       courier: "DTDC",
       awbNumber: "AWB999",
+      comment: null,
     });
   });
 
@@ -131,6 +132,7 @@ describe("markSelectedTripsHardCopyPodReceived — bounded concurrency", () => {
     expect(mockMarkTripHardCopyPodReceived).toHaveBeenCalledWith("trip-0", {
       courier: "In hand",
       awbNumber: null,
+      comment: null,
     });
   });
 });

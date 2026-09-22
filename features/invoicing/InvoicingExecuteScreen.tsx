@@ -51,6 +51,14 @@ import {
   type ManualInvoiceLineDraft,
 } from "@/features/invoicing/utils/manualInvoice.util";
 import { invoiceHsnIssueBlock } from "@/features/invoicing/utils/invoiceLineHsn.util";
+import { financeCreateInvoiceLabel } from "@/features/invoicing/utils/financeInvoicePreview.util";
+import {
+  buildSavedInvoicePreviewModel,
+  manualLinesFromSavedItems,
+  parseSavedInvoiceLines,
+} from "@/features/invoicing/utils/savedInvoicePreview.util";
+import type { IssuedInvoiceListRow } from "@/features/invoicing/services/invoiceList.service";
+import { invoiceSourceLabel } from "@/features/invoicing/utils/invoiceSource.util";
 import type { InvoiceLineSnapshot } from "@/features/invoicing/services/invoiceDocumentSnapshot.service";
 import { ROUTES } from "@/lib/routes";
 import { TripCompletionFilterBar } from "@/features/trips/components/TripCompletionFilterBar";
@@ -360,10 +368,8 @@ export function InvoicingExecuteScreen({
 
   const [invoiceSurface, setInvoiceSurface] =
     useState<InvoiceBillingSurface>("pending");
-  const [inspectedIssuedInvoice, setInspectedIssuedInvoice] = useState<{
-    id: string;
-    trip_ids: string[];
-  } | null>(null);
+  const [inspectedIssuedInvoice, setInspectedIssuedInvoice] =
+    useState<IssuedInvoiceListRow | null>(null);
   const [logPodTripIds, setLogPodTripIds] = useState<string[] | null>(null);
   const [composeMode, setComposeMode] = useState<"trips" | "manual">("trips");
   const [manualLines, setManualLines] = useState<ManualInvoiceLineDraft[]>(() => [
@@ -583,8 +589,11 @@ export function InvoicingExecuteScreen({
   );
 
   const tripsById = useMemo(() => {
-    const map = new Map();
-    for (const t of scopedTrips) map.set(t.id, t);
+    const map = new Map<string, InvoicingTripView>();
+    for (const t of scopedTrips) {
+      map.set(t.id, t);
+      if (t.internal_id) map.set(t.internal_id, t);
+    }
     return map;
   }, [scopedTrips]);
 
@@ -689,7 +698,6 @@ export function InvoicingExecuteScreen({
     manualFetchedClients.find((row) => row.id === selectedClientId) ?? null;
   const manualDraftModel = useMemo(() => {
     if (composeMode !== "manual" || !issuer || !selectedClientId) return null;
-    if (manualBuiltLines.length === 0) return null;
     const gstRate = Number(manualLines[0]?.taxRate ?? 18);
     return buildInvoiceDraftModelFromManualLines({
       issuer,
@@ -723,10 +731,43 @@ export function InvoicingExecuteScreen({
     selectedClientId,
   ]);
 
+  const issuedPreviewDraft = useMemo(() => {
+    if (!inspectedIssuedInvoice || !issuer) return null;
+    const lines = parseSavedInvoiceLines(inspectedIssuedInvoice.line_items);
+    return buildSavedInvoicePreviewModel({
+      issuer,
+      invoiceNumber: inspectedIssuedInvoice.invoice_number,
+      invoiceDate: inspectedIssuedInvoice.invoice_date,
+      paymentTerms: inspectedIssuedInvoice.payment_terms ?? null,
+      notes: inspectedIssuedInvoice.notes ?? null,
+      client: {
+        client_id: inspectedIssuedInvoice.client_id,
+        legal_name: inspectedIssuedInvoice.client_name,
+        display_name: inspectedIssuedInvoice.client_name ?? "Client",
+        gstin: null,
+        pan: null,
+        billing_address: null,
+        state: null,
+        email: null,
+      },
+      lines,
+      subtotal: inspectedIssuedInvoice.subtotal ?? inspectedIssuedInvoice.total_amount,
+      gstRate: inspectedIssuedInvoice.gst_rate ?? 0,
+      cgstAmount: inspectedIssuedInvoice.cgst_amount ?? 0,
+      sgstAmount: inspectedIssuedInvoice.sgst_amount ?? 0,
+      igstAmount: inspectedIssuedInvoice.igst_amount ?? 0,
+      totalAmount: inspectedIssuedInvoice.total_amount,
+    });
+  }, [inspectedIssuedInvoice, issuer]);
+
   const persistManualInvoice = useCallback(
     async (mode: "draft" | "issue") => {
       if (!orgId || !selectedClientId || !manualDraftModel || !activeWorkspace) {
         Alert.alert("Manual Invoice", "Select a client and add valid lines.");
+        return;
+      }
+      if (manualBuiltLines.length === 0) {
+        Alert.alert("Manual Invoice", "Add at least one line with quantity and rate.");
         return;
       }
       if (mode === "issue") {
@@ -1434,6 +1475,30 @@ export function InvoicingExecuteScreen({
       setActiveDraftId(draft.id);
       setInspectedIssuedInvoice(null);
       if (draft.client_id) setActiveClient(draft.client_id);
+      const source = invoiceSourceLabel(draft.invoice_source);
+      if (source === "Manual") {
+        const parsed = parseSavedInvoiceLines(draft.line_items);
+        setComposeMode("manual");
+        setManualDraftId(draft.id);
+        if (parsed.length > 0) {
+          setManualLines(manualLinesFromSavedItems(parsed));
+          setManualBuiltLines(parsed);
+        }
+        setInvoiceSurface("pending");
+        if (stayOnWorkspace) {
+          router.setParams({
+            draft: draft.id,
+            client: draft.client_id ?? "",
+            compose: "manual",
+          });
+          return;
+        }
+        router.push(
+          `${ROUTES.INVOICING_MANUAL}?draft=${encodeURIComponent(draft.id)}` as never,
+        );
+        return;
+      }
+      setComposeMode("trips");
       const displayIds = (draft.trip_ids ?? [])
         .map((id) => {
           const hit = scopedTrips.find(
@@ -1951,6 +2016,7 @@ export function InvoicingExecuteScreen({
                 onChange={(next) => {
                   setInvoiceSurface(next);
                   if (next !== "pending") setComposeMode("trips");
+                  if (next !== "issued") setInspectedIssuedInvoice(null);
                 }}
               />
               {invoiceSurface === "drafts" ? (
@@ -1996,10 +2062,8 @@ export function InvoicingExecuteScreen({
                     partnerLabel={activeClientLabel}
                     selectedId={inspectedIssuedInvoice?.id ?? null}
                     onSelect={(invoice) => {
-                      setInspectedIssuedInvoice({
-                        id: invoice.id,
-                        trip_ids: invoice.trip_ids ?? [],
-                      });
+                      setInspectedIssuedInvoice(invoice);
+                      setComposeMode("trips");
                       if (invoice.client_id) setActiveClient(invoice.client_id);
                     }}
                   />
@@ -2103,7 +2167,7 @@ export function InvoicingExecuteScreen({
               style={financeInvoiceWorkspaceStyles.previewCol}
               accessibilityLabel="Invoice preview"
             >
-              {composeMode === "manual" && manualDraftModel ? (
+              {composeMode === "manual" && selectedClientId ? (
                 <InvoicePreviewPanel
                   onPreview={handlePreview}
                   isFinalizing={false}
@@ -2126,6 +2190,21 @@ export function InvoicingExecuteScreen({
                   onIssueExternal={() => {
                     void persistManualInvoice("issue");
                   }}
+                />
+              ) : issuedPreviewDraft ? (
+                <InvoicePreviewPanel
+                  onPreview={handlePreview}
+                  isFinalizing={false}
+                  isIssuing={false}
+                  activeClient={activeClientLabel}
+                  selectedTrips={previewTrips}
+                  isStandalone
+                  density="compact"
+                  issuer={issuer}
+                  workspaceOrgId={workspaceId}
+                  externalDraft={issuedPreviewDraft}
+                  readOnly
+                  invoiceIssueBlockedReason="This invoice is already issued."
                 />
               ) : previewTrips.length === 0 ? (
                 <View style={{ flex: 1 }}>
@@ -2486,21 +2565,23 @@ export function InvoicingExecuteScreen({
           <Pressable
             style={[
               styles.footerBtn,
-              (selectedTripIds.length === 0 || Boolean(buildBlockedReason)) &&
+              (selectionSummary.invoiceableCount === 0 ||
+                Boolean(buildBlockedReason)) &&
                 styles.footerBtnDisabled,
             ]}
             onPress={handleCreateInvoice}
-            disabled={Boolean(buildBlockedReason) && selectedTripIds.length === 0}
+            disabled={
+              selectionSummary.invoiceableCount === 0 ||
+              Boolean(buildBlockedReason)
+            }
             accessibilityLabel={
               buildBlockedReason
                 ? buildBlockedReason
-                : `Create Invoice (${selectedTripIds.length})`
+                : financeCreateInvoiceLabel(selectionSummary.invoiceableCount)
             }
           >
             <Text style={styles.footerBtnText}>
-              {selectedTripIds.length > 0
-                ? `Create Invoice (${selectedTripIds.length})`
-                : "Create Invoice"}
+              {financeCreateInvoiceLabel(selectionSummary.invoiceableCount)}
             </Text>
           </Pressable>
           <Pressable

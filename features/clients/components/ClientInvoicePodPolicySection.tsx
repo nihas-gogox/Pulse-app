@@ -101,6 +101,10 @@ export function ClientInvoicePodPolicySection({
   return (
     <View style={styles.wrap} accessibilityLabel="POD for Invoicing">
       <Text style={styles.kicker}>POD for Invoicing</Text>
+      <Text style={styles.effective}>
+        ON maps to hard-copy receipt. OFF maps to no POD gating. Soft copy stays
+        a separate digital capability.
+      </Text>
       {parsed.ok ? (
         configuredPolicy ? (
           <Text style={styles.status}>

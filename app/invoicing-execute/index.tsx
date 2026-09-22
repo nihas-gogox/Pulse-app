@@ -1,5 +1,5 @@
-import { FinanceInvoiceAdminScreen } from "@/features/invoicing/screens/FinanceInvoiceAdminScreen";
+import { InvoicingExecuteScreen } from "@/features/invoicing/InvoicingExecuteScreen";
 
 export default function InvoicingExecuteRoute() {
-  return <FinanceInvoiceAdminScreen />;
+  return <InvoicingExecuteScreen />;
 }

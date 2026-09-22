@@ -268,6 +268,7 @@ export type MarkHardCopyPodsReceivedInput = {
   method: "courier" | "in_hand";
   courierName?: string | null;
   trackingId?: string | null;
+  comment?: string | null;
 };
 
 export async function markSelectedTripsHardCopyPodReceived(
@@ -288,7 +289,12 @@ export async function markSelectedTripsHardCopyPodReceived(
   const results = await runWithConcurrencyLimit(
     ids,
     LOG_PODS_CONCURRENCY,
-    (id) => markTripHardCopyPodReceived(id, { courier: courierName || null, awbNumber: trackingId }),
+    (id) =>
+      markTripHardCopyPodReceived(id, {
+        courier: courierName || null,
+        awbNumber: trackingId,
+        comment: str(input.comment).trim() || null,
+      }),
   );
   const firstError = results.find((r) => r.error != null)?.error;
   if (firstError) return { error: firstError, updatedCount: 0 };

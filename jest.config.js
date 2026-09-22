@@ -50,6 +50,7 @@ module.exports = {
         '<rootDir>/oms/',
         '<rootDir>/tools/',
         '<rootDir>/_reference/',
+        '<rootDir>/.worktrees/',
       ],
       setupFiles: ['./__mocks__/expo.ts'],
       moduleNameMapper: {
