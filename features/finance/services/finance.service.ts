@@ -36,16 +36,25 @@ import { recordTripWorkflowEvent } from "@/features/trips/services/tripWorkflow.
 /**
  * Explicit column list for ledger reads — replaces `select("*")`.
  *
- * These are exactly the fields toLedgerRow() consumes. Transactions is a wide
+ * Every name here must be a REAL column on `transactions`. PostgREST rejects the
+ * whole request with HTTP 400 if any one of them does not exist — unlike
+ * `select("*")`, which silently tolerated the difference.
+ *
+ * toLedgerRow() also accepts trip_number / vehicle_number / driver_name, but
+ * those are NOT columns on this table: they arrive from joins or from the
+ * description meta blob, and toLedgerRow already types them optional. Listing
+ * them here is what broke the Finance ledger with a 400.
+ *
+ * These are the fields toLedgerRow() consumes. Transactions is a wide
  * table; `*` pulled columns no ledger screen renders, inflating egress and
  * PostgREST serialization on the hottest read in the app.
  * Keep in sync with the toLedgerRow() parameter type below.
  */
 const LEDGER_TX_COLUMNS =
-  "id, organization_id, trip_id, trip_number, party_name, description, " +
+  "id, organization_id, trip_id, party_name, description, " +
   "amount_in, amount_out, transaction_date, created_at, contact_id, " +
-  "contact_type, vehicle_number, driver_name, ledger_entity_type, " +
-  "ledger_flow_type, ledger_category, payment_reference, created_by";
+  "contact_type, ledger_entity_type, ledger_flow_type, ledger_category, " +
+  "payment_ref, created_by, booking_ref, is_opening_balance";
 
 const LEDGER_TX_TRIP_EMBED = "trips!trip_id";
 const LEDGER_TX_SELECT_WITH_TRIPS =
