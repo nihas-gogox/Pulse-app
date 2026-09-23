@@ -19,15 +19,15 @@ describe("Load Center marketplace + market remount gates", () => {
     expect(marketHook).not.toContain("refetchOnMount: true");
   });
 
-  it("Load Center marketplace list is gated with urgent useAppQueryGate", () => {
+  it("Load Center does not auto-fetch open Marketplace (search lives on Find Loads)", () => {
     const source = readFileSync(
       join(__dirname, "../LoadCenterView.tsx"),
       "utf8",
     );
-    expect(source).toContain("useInfiniteQuery(");
-    expect(source).toContain("listOpenMarketplaceLoadsPage");
-    expect(source).toContain("MARKETPLACE_LOAD_PAGE_SIZE");
+    expect(source).not.toContain("listOpenMarketplaceLoadsPage");
+    expect(source).not.toContain("useInfiniteQuery(");
     expect(source).toContain("getLoadPending = waitingForLoadGate || marketPending");
+    expect(source).toContain("Load more");
     expect(source).not.toContain("Boolean(orgId) && !isTripsPresentation");
   });
 });

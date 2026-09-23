@@ -5,63 +5,63 @@
  * not three separate workflows — see docs/MARKETPLACE_DOMAIN.md
  * "Distribution vs monetization".
  *
- * A4.4 Phase 1 — bidding is a direct organization Market bid (market_bids,
- * bidder_type='organization'), not the story-detail Bid Sheet / direct_quotes
- * path: that mechanism is documented for the integrated-supplier network
- * model, not open Marketplace (see docs/MARKETPLACE_DOMAIN.md). No vehicle
- * selection at bid time — owner_vehicle_id only ever references an
- * individual DCO's own vehicle; an organization's fleet/driver is chosen at
- * allocation time after award (A4.4 Phase 3), same as the existing Get Load
- * → Allocate flow.
+ * A4.4 Phase 1 — persist an organization Market bid (market_bids,
+ * bidder_type='organization'). The amount UI is the same Network / Get Load
+ * keypad (MarketLoadBidSheet) on desktop and mobile. No vehicle at bid time —
+ * fleet/driver is chosen at allocation after award (A4.4 Phase 3).
  */
 import { ChromeBelowTopNavLoadingScreen } from "@/components/chromeLoadingScreens";
-import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { PartyAvatar } from "@/components/PartyAvatar";
+import { MarketLoadBidSheet } from "@/features/driver/components/MarketLoadBidSheet";
 import Layout from "@/constants/Layout";
 import Theme from "@/constants/Theme";
-import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOptionalOrganization } from "@/contexts/OrganizationContext";
 import {
   MarketplaceRouteGrid,
   MarketplaceSpecChips,
   titleCaseWord,
 } from "@/features/network/components/MarketplaceLoadCardChrome";
+import { MarketplaceLaneFilters } from "@/features/network/components/MarketplaceLaneFilters";
+import { MarketplaceSearchSheet } from "@/features/network/components/MarketplaceSearchSheet";
 import { OrgMyBidsList } from "@/features/network/components/OrgMyBidsList";
-import type { MarketplaceFeePreview } from "@/features/network/components/bidding/BidConfirmModal";
 import {
   composeFindLoadsOpportunity,
   findLoadsDisplayId,
   findLoadsRouteLabel,
   formatFindLoadsRateOffer,
+  listMarketplaceSearchLanes,
   listMyOrgMarketBids,
-  listOpenMarketplaceLoadsForOrg,
+  listOpenMarketplaceLoadsPage,
   submitOrgMarketBid,
   type OrgOpenMarketplaceLoad,
 } from "@/features/network/services/findLoadsForOrg.service";
+import { MARKETPLACE_LOAD_PAGE_SIZE } from "@/features/network/utils/marketplaceLoadsPage.util";
+import {
+  isMarketplaceSearchReady,
+  marketplaceSearchKey,
+  type MarketplaceLoadSearch,
+} from "@/features/network/utils/marketplaceSearch.util";
 import { formatStoryDate } from "@/features/network/utils/storyDisplay";
-import { calculateMarketplacePlatformFee } from "@/features/network/services/marketBids.service";
+import { STALE } from "@/lib/queryClient";
 import { isVehicleTypeCompatibleWithFleet } from "@/features/marketplace/utils/fleetFit.util";
 import { formatMarketplaceTransactionError } from "@/features/marketplace/utils/marketplaceErrorFormat.util";
 import { getVehiclesByOrganization } from "@/features/vehicles/services/vehicles.service";
 import { showAppAlert } from "@/lib/appAlert";
-import { formatINR } from "@/lib/format";
 import { useLayoutInsets } from "@/lib/layoutInsets";
 import { queryKeys } from "@/lib/queryKeys";
 import { ROUTES } from "@/lib/routes";
 import { useMemberAccess } from "@/lib/useMemberAccess";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { Award, ChevronRight, X } from "lucide-react-native";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Award, ChevronRight, SlidersHorizontal, X } from "lucide-react-native";
+import React, { useMemo, useState } from "react";
 import {
   FlatList,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
@@ -74,16 +74,14 @@ const FILTERS: { id: SourceFilter; label: string }[] = [
   { id: "marketplace", label: "Marketplace" },
 ];
 
-const SEGMENTS: { id: Segment; label: string }[] = [
-  { id: "discover", label: "Discover" },
-  { id: "myBids", label: "My Bids" },
-];
 
 export default function FindLoadsScreen() {
   const layout = useLayoutInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { currentOrganization: organization, isLoading: orgLoading } = useOrganization();
+  const orgCtx = useOptionalOrganization();
+  const organization = orgCtx?.currentOrganization ?? null;
+  const orgLoading = orgCtx?.isLoading ?? orgCtx == null;
   const { can: canSurface, isLoading: accessLoading } = useMemberAccess();
   // Reuses Load Center's hub gate for this first version rather than a
   // dedicated "Find Loads" surface — see A4.3 report.
@@ -93,6 +91,12 @@ export default function FindLoadsScreen() {
   const [filter, setFilter] = useState<SourceFilter>("all");
   const [segment, setSegment] = useState<Segment>("discover");
   const [bidLoad, setBidLoad] = useState<OrgOpenMarketplaceLoad | null>(null);
+  const [bidError, setBidError] = useState<string | undefined>();
+  const [appliedSearch, setAppliedSearch] = useState<MarketplaceLoadSearch | null>(
+    null,
+  );
+  const [filterOpen, setFilterOpen] = useState(false);
+  const searchReady = isMarketplaceSearchReady(appliedSearch);
 
   const contentTopInset = layout.isDesktopWeb
     ? Layout.desktopTopNavOffset
@@ -106,20 +110,31 @@ export default function FindLoadsScreen() {
     router.replace(ROUTES.PULSE_LOADS as import("expo-router").Href);
   };
 
-  const loadsQ = useQuery({
-    queryKey: queryKeys.findLoadsForOrg.list(orgId ?? ""),
-    // A11.3 — listOpenMarketplaceLoadsForOrg never rejects; it resolves
-    // { error, loads } even on an RPC failure. Unwrap and throw here so
-    // react-query's own error/isError state actually populates, mirroring
-    // the existing useFleetOwnerOpenLoadsQuery pattern on the DCO side.
-    queryFn: async () => {
-      const { error, loads } = await listOpenMarketplaceLoadsForOrg(orgId as string);
+  const loadsQ = useInfiniteQuery({
+    queryKey: queryKeys.findLoadsForOrg.infinite(
+      orgId ?? "",
+      MARKETPLACE_LOAD_PAGE_SIZE,
+      searchReady ? marketplaceSearchKey(appliedSearch) : "",
+    ),
+    queryFn: async ({ pageParam }) => {
+      const { error, loads, nextOffset } = await listOpenMarketplaceLoadsPage(
+        orgId as string,
+        pageParam,
+        MARKETPLACE_LOAD_PAGE_SIZE,
+        appliedSearch,
+      );
       if (error) throw error;
-      return loads;
+      return { loads, nextOffset };
     },
-    enabled: !!orgId,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextOffset,
+    enabled: !!orgId && searchReady && segment === "discover",
+    staleTime: STALE.frequent,
   });
-  const loads = loadsQ.data ?? [];
+  const loads = useMemo(
+    () => loadsQ.data?.pages.flatMap((page) => page.loads) ?? [],
+    [loadsQ.data],
+  );
 
   const vehiclesQ = useQuery({
     queryKey: queryKeys.vehicles.all(orgId ?? ""),
@@ -136,6 +151,16 @@ export default function FindLoadsScreen() {
     queryFn: () => listMyOrgMarketBids(orgId as string),
     enabled: !!orgId,
   });
+  const lanesQ = useQuery({
+    queryKey: queryKeys.findLoadsForOrg.searchLanes(orgId ?? ""),
+    queryFn: async () => {
+      const { error, lanes } = await listMarketplaceSearchLanes(orgId as string);
+      if (error && lanes.length === 0) throw error;
+      return lanes;
+    },
+    enabled: !!orgId && segment === "discover",
+    staleTime: STALE.moderate,
+  });
   const myBids = myBidsQ.data?.bids ?? [];
   const awardedCount = useMemo(
     () => myBids.filter((b) => b.status === "accepted").length,
@@ -151,11 +176,32 @@ export default function FindLoadsScreen() {
     if (filter === "marketplace") return loads.filter((l) => !l.is_sponsored);
     return loads;
   }, [loads, filter]);
+  const discoverColumns = layout.isDesktopWeb ? 3 : 1;
+
+  const submitMarketplaceBid = async (amount: number): Promise<boolean> => {
+    if (!bidLoad) return false;
+    const { error } = await submitOrgMarketBid(orgId, bidLoad.id, amount, "");
+    if (error) {
+      setBidError(formatMarketplaceTransactionError(error.message));
+      return false;
+    }
+    return true;
+  };
 
   const handleBidSuccess = () => {
     setBidLoad(null);
+    setBidError(undefined);
     if (orgId) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.findLoadsForOrg.list(orgId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.findLoadsForOrg.list(orgId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.findLoadsForOrg.infinite(
+          orgId,
+          MARKETPLACE_LOAD_PAGE_SIZE,
+          searchReady ? marketplaceSearchKey(appliedSearch) : "",
+        ),
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.findLoadsForOrg.myBids(orgId) });
     }
     showAppAlert("Bid submitted", "The business will review your offer.");
@@ -188,133 +234,220 @@ export default function FindLoadsScreen() {
     return <ChromeBelowTopNavLoadingScreen variant={orgLoading ? "preparing" : "generic"} />;
   }
 
-  return (
-    <View style={[styles.root, { paddingTop: contentTopInset }]}>
-      <View style={styles.chrome}>
-      {awardedCount > 0 ? (
-        <Pressable
-          onPress={() => setSegment("myBids")}
-          style={({ pressed }) => [
-            styles.awardedBanner,
-            pressed && styles.awardedBannerPressed,
-          ]}
-        >
-          <View style={styles.awardedBannerIcon}>
-            <Award size={15} color={Theme.positive} strokeWidth={2.2} />
-          </View>
-          <Text style={styles.awardedBannerText}>
-            {awardedCount === 1
-              ? "You have 1 awarded bid — assign a vehicle to get started"
-              : `You have ${awardedCount} awarded bids — assign vehicles to get started`}
-          </Text>
-        </Pressable>
-      ) : null}
+  const shownCount = filteredLoads.length;
+  const headerSubtitle =
+    segment === "myBids"
+      ? `${myBids.length} bid${myBids.length === 1 ? "" : "s"} from your org`
+      : !searchReady
+        ? "Pick a lane to browse open loads"
+        : loadsQ.isLoading
+          ? "Finding loads on this route…"
+          : `${shownCount} matching load${shownCount === 1 ? "" : "s"}`;
 
+  const pageChrome = () => (
       <View
         style={[
-          styles.toolbar,
-          layout.isDesktopWeb && styles.toolbarDesktop,
+          styles.chrome,
+          layout.isDesktopWeb && styles.chromeDesktop,
         ]}
       >
-        {!layout.isDesktopWeb ? (
-          <View style={styles.mobileTitleRow}>
-            <View style={styles.headerTextCol}>
-              <Text style={styles.title}>Marketplace Loads</Text>
-              <Text style={styles.subtitle}>Open Marketplace opportunities</Text>
-            </View>
+        <View style={styles.chromeInner}>
+          {awardedCount > 0 ? (
             <Pressable
-              onPress={handleClose}
+              onPress={() => setSegment("myBids")}
               style={({ pressed }) => [
-                styles.closeBtn,
-                pressed && styles.closeBtnPressed,
+                styles.awardedBanner,
+                pressed && styles.awardedBannerPressed,
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Close Marketplace Loads"
-              hitSlop={Layout.touchTargetHitSlop}
+              accessibilityLabel="Open awarded bids"
             >
-              <X size={18} color={Theme.textPrimaryDark} strokeWidth={2.2} />
+              <View style={styles.awardedBannerIcon}>
+                <Award size={15} color={Theme.positive} strokeWidth={2.2} />
+              </View>
+              <Text style={styles.awardedBannerText} numberOfLines={2}>
+                {awardedCount === 1
+                  ? "You have 1 awarded bid — assign a vehicle to get started"
+                  : `You have ${awardedCount} awarded bids — assign vehicles to get started`}
+              </Text>
             </Pressable>
-          </View>
-        ) : null}
+          ) : null}
 
-        <View
-          style={[
-            styles.toolbarMain,
-            layout.isDesktopWeb && styles.toolbarMainDesktop,
-          ]}
-        >
-          <View style={styles.segmentRow}>
-            {SEGMENTS.map((s) => {
-              const active = segment === s.id;
-              return (
-                <Pressable
-                  key={s.id}
-                  onPress={() => setSegment(s.id)}
-                  style={[styles.segmentChip, active && styles.segmentChipActive]}
+          <View style={styles.headerInner}>
+            <View style={styles.headerLeft}>
+              <View style={styles.headerAccent} />
+              <View style={styles.headerTextCol}>
+                <Text style={styles.eyebrow} numberOfLines={1}>
+                  LIVE MARKETPLACE
+                </Text>
+                <Text
+                  style={[styles.title, layout.isDesktopWeb && styles.titleDesktop]}
+                  numberOfLines={1}
                 >
-                  <Text
-                    style={[
-                      styles.segmentChipText,
-                      active && styles.segmentChipTextActive,
-                    ]}
-                  >
-                    {s.label}
-                  </Text>
+                  Marketplace Loads
+                </Text>
+                <Text style={styles.subtitle} numberOfLines={1}>
+                  {headerSubtitle}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.headerRight}>
+              {segment === "myBids" ? (
+                <Pressable
+                  onPress={() => setSegment("discover")}
+                  style={({ pressed }) => [
+                    styles.segmentChip,
+                    pressed && styles.awardedBannerPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Discover"
+                >
+                  <Text style={styles.segmentChipText}>Discover</Text>
                 </Pressable>
-              );
-            })}
+              ) : null}
+              <Pressable
+                onPress={() => setSegment("myBids")}
+                style={({ pressed }) => [
+                  styles.segmentChip,
+                  segment === "myBids" && styles.segmentChipActive,
+                  pressed && styles.awardedBannerPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="My Bids"
+              >
+                <Text
+                  style={[
+                    styles.segmentChipText,
+                    segment === "myBids" && styles.segmentChipTextActive,
+                  ]}
+                >
+                  My Bids
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleClose}
+                style={({ pressed }) => [
+                  styles.closeBtn,
+                  pressed && styles.closeBtnPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Close Marketplace Loads"
+                hitSlop={Layout.touchTargetHitSlop}
+              >
+                <X size={18} color={Theme.textPrimaryDark} strokeWidth={2.2} />
+              </Pressable>
+            </View>
           </View>
 
           {segment === "discover" ? (
-            <View style={styles.filterRow}>
-              {FILTERS.map((f) => {
-                const active = filter === f.id;
-                return (
-                  <Pressable
-                    key={f.id}
-                    onPress={() => setFilter(f.id)}
-                    style={[styles.filterChip, active && styles.filterChipActive]}
-                  >
-                    <Text
-                      style={[
-                        styles.filterChipText,
-                        active && styles.filterChipTextActive,
-                      ]}
-                    >
-                      {f.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+            <View style={styles.lanePanel}>
+              <View style={styles.lanePanelHead}>
+                <Text style={styles.lanePanelHint}>
+                  Filter by pickup, drop, then vehicle
+                </Text>
+                <Pressable
+                  onPress={() => setFilterOpen(true)}
+                  style={({ pressed }) => [
+                    styles.filterIconBtn,
+                    pressed && styles.closeBtnPressed,
+                    searchReady && styles.filterIconBtnActive,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Filter marketplace loads"
+                >
+                  <SlidersHorizontal
+                    size={16}
+                    color={
+                      searchReady ? Theme.textOnPrimary : Theme.textPrimaryDark
+                    }
+                    strokeWidth={2.2}
+                  />
+                </Pressable>
+              </View>
+              <MarketplaceLaneFilters
+                lanes={lanesQ.data ?? []}
+                value={appliedSearch}
+                onChange={setAppliedSearch}
+                autoOpenFirst
+              />
+              {searchReady ? (
+                <View style={styles.filterRow}>
+                  {FILTERS.map((f) => {
+                    const active = filter === f.id;
+                    return (
+                      <Pressable
+                        key={f.id}
+                        onPress={() => setFilter(f.id)}
+                        style={[
+                          styles.filterChip,
+                          active && styles.filterChipActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            active && styles.filterChipTextActive,
+                          ]}
+                        >
+                          {f.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
             </View>
           ) : null}
         </View>
-
-        {layout.isDesktopWeb ? (
-          <View style={styles.toolbarRight}>
-            <View style={styles.toolbarBrand}>
-              <Text style={styles.toolbarBrandTitle}>Marketplace Loads</Text>
-              <Text style={styles.toolbarBrandSub}>Marketplace</Text>
-            </View>
-            <Pressable
-              onPress={handleClose}
-              style={({ pressed }) => [
-                styles.closeBtn,
-                pressed && styles.closeBtnPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Close Marketplace Loads"
-              hitSlop={Layout.touchTargetHitSlop}
-            >
-              <X size={18} color={Theme.textPrimaryDark} strokeWidth={2.2} />
-            </Pressable>
-          </View>
-        ) : null}
       </View>
-      </View>
+    );
 
+  const discoverBody = !searchReady ? (
+    <View style={styles.pageBody}>
+      <Text style={styles.message}>
+        Choose pickup, then drop, then vehicle from the lists above.
+      </Text>
+    </View>
+  ) : loadsQ.isError ? (
+    <View style={styles.pageBody}>
+      <Text style={styles.message}>Couldn't load Marketplace loads.</Text>
+      <Pressable
+        onPress={() => loadsQ.refetch()}
+        style={({ pressed }) => [styles.retryBtn, pressed && styles.retryBtnPressed]}
+        accessibilityRole="button"
+        accessibilityLabel="Retry"
+      >
+        <Text style={styles.retryBtnText}>Retry</Text>
+      </Pressable>
+    </View>
+  ) : loadsQ.isLoading ? (
+    <View style={styles.pageBody}>
+      <Text style={styles.message}>Finding loads on this route…</Text>
+    </View>
+  ) : filteredLoads.length === 0 ? (
+    <View style={styles.pageBody}>
+      <Text style={styles.message}>No Marketplace loads on this route.</Text>
+      <Pressable
+        onPress={() => setFilterOpen(true)}
+        style={({ pressed }) => [styles.retryBtn, pressed && styles.retryBtnPressed]}
+        accessibilityRole="button"
+        accessibilityLabel="Change marketplace filters"
+      >
+        <Text style={styles.retryBtnText}>Change filters</Text>
+      </Pressable>
+    </View>
+  ) : null;
+
+  const showDiscoverCards = segment === "discover" && discoverBody == null;
+
+  return (
+    <View style={[styles.root, { paddingTop: contentTopInset }]}>
       {segment === "myBids" ? (
-        <ScrollView contentContainerStyle={styles.myBidsScroll}>
+        <ScrollView
+          style={styles.pageScroll}
+          contentContainerStyle={styles.pageScrollContent}
+        >
+          {pageChrome()}
           <OrgMyBidsList
             bids={myBids}
             isLoading={myBidsQ.isLoading}
@@ -325,57 +458,97 @@ export default function FindLoadsScreen() {
             }}
           />
         </ScrollView>
-      ) : (
-        <>
-
-          {loadsQ.isError ? (
-            <View style={styles.centered}>
-              <Text style={styles.message}>Couldn't load Marketplace loads.</Text>
+      ) : showDiscoverCards ? (
+        <FlatList
+          data={filteredLoads}
+          key={`discover-${discoverColumns}`}
+          numColumns={discoverColumns}
+          keyExtractor={(item) => item.id}
+          style={styles.list}
+          contentContainerStyle={[
+            styles.listContent,
+            layout.isDesktopWeb && styles.listContentDesktop,
+          ]}
+          columnWrapperStyle={
+            discoverColumns > 1 ? styles.listRow : undefined
+          }
+          ListHeaderComponent={pageChrome}
+          onEndReachedThreshold={0.4}
+          onEndReached={() => {
+            if (loadsQ.hasNextPage && !loadsQ.isFetchingNextPage) {
+              void loadsQ.fetchNextPage();
+            }
+          }}
+          ListFooterComponent={
+            loadsQ.isFetchingNextPage ? (
+              <View style={styles.loadMoreWrap}>
+                <Text style={styles.loadMoreHint}>Loading more…</Text>
+              </View>
+            ) : loadsQ.hasNextPage ? (
               <Pressable
-                onPress={() => loadsQ.refetch()}
-                style={({ pressed }) => [styles.retryBtn, pressed && styles.retryBtnPressed]}
+                onPress={() => void loadsQ.fetchNextPage()}
+                style={({ pressed }) => [
+                  styles.loadMoreBtn,
+                  pressed && styles.retryBtnPressed,
+                ]}
                 accessibilityRole="button"
-                accessibilityLabel="Retry"
+                accessibilityLabel="Load more marketplace loads"
               >
-                <Text style={styles.retryBtnText}>Retry</Text>
+                <Text style={styles.retryBtnText}>Load more</Text>
               </Pressable>
-            </View>
-          ) : loadsQ.isLoading ? (
-            <View style={styles.centered}>
-              <Text style={styles.message}>Loading Marketplace opportunities…</Text>
-            </View>
-          ) : filteredLoads.length === 0 ? (
-            <View style={styles.centered}>
-              <Text style={styles.message}>No open Marketplace loads right now.</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={filteredLoads}
-              key={layout.isDesktopWeb ? "discover-desktop-4" : "discover-mobile-1"}
-              numColumns={layout.isDesktopWeb ? 4 : 1}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContent}
-              columnWrapperStyle={layout.isDesktopWeb ? styles.listRow : undefined}
-              renderItem={({ item }) => (
-                <FindLoadsCard
-                  load={item}
-                  fitsFleet={isVehicleTypeCompatibleWithFleet(item.vehicle_type, fleetVehicleTypes)}
-                  viewerCanBidCapability={viewerCanBidCapability}
-                  viewerOrgId={orgId}
-                  isDesktop={!!layout.isDesktopWeb}
-                  onPress={() => setBidLoad(item)}
-                />
-              )}
+            ) : null
+          }
+          renderItem={({ item }) => (
+            <FindLoadsCard
+              load={item}
+              fitsFleet={isVehicleTypeCompatibleWithFleet(item.vehicle_type, fleetVehicleTypes)}
+              viewerCanBidCapability={viewerCanBidCapability}
+              viewerOrgId={orgId}
+              isDesktop={!!layout.isDesktopWeb}
+              onPress={() => setBidLoad(item)}
             />
           )}
-        </>
+        />
+      ) : (
+        <ScrollView
+          style={styles.pageScroll}
+          contentContainerStyle={styles.pageScrollContent}
+        >
+          {pageChrome()}
+          {discoverBody}
+        </ScrollView>
       )}
 
-      <OrgMarketBidModal
-        load={bidLoad}
-        orgId={orgId}
-        onClose={() => setBidLoad(null)}
-        onSuccess={handleBidSuccess}
+      <MarketLoadBidSheet
+        visible={bidLoad != null}
+        onClose={() => {
+          setBidLoad(null);
+          setBidError(undefined);
+        }}
+        onSubmitAmount={submitMarketplaceBid}
+        onSuccessDone={handleBidSuccess}
+        shipperName={bidLoad?.creator_organization_name}
+        pickup={bidLoad?.pickup_area}
+        drop={bidLoad?.drop_location}
+        vehicleType={bidLoad?.vehicle_type}
+        loadType={bidLoad?.load_type}
+        targetRateInr={bidLoad?.rate_offer}
+        indentDisplayId={bidLoad ? findLoadsDisplayId(bidLoad) : null}
+        validationError={bidError}
+        onClearValidationError={() => setBidError(undefined)}
+      />
+      <MarketplaceSearchSheet
+        visible={filterOpen && segment === "discover"}
+        initial={appliedSearch}
+        lanes={lanesQ.data ?? []}
+        lanesLoading={lanesQ.isLoading}
+        eyebrow="Marketplace"
+        title="Search live loads"
+        onClose={() => setFilterOpen(false)}
+        onApply={(next) => {
+          setAppliedSearch(next);
+          setFilterOpen(false);
+        }}
       />
     </View>
   );
@@ -475,183 +648,22 @@ function FindLoadsCard({
   );
 }
 
-/**
- * Minimal, dedicated bid-entry modal for organization Market bids. Not the
- * keypad/celebration BidSheet used for story-detail direct_quotes bidding —
- * that component is tightly coupled to the post/direct_quote mechanism this
- * flow deliberately does not use. Amount + optional note only, no vehicle
- * field (see file header).
- */
-function OrgMarketBidModal({
-  load,
-  orgId,
-  onClose,
-  onSuccess,
-}: {
-  load: OrgOpenMarketplaceLoad | null;
-  orgId: string;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [feePreview, setFeePreview] = useState<MarketplaceFeePreview | undefined>(undefined);
-  const feeRequestRef = useRef(0);
-
-  React.useEffect(() => {
-    if (load) {
-      setAmount("");
-      setNote("");
-      setError(null);
-      setSubmitting(false);
-      setFeePreview(undefined);
-    }
-  }, [load]);
-
-  const parsedAmount = Number(amount.replace(/[^0-9.]/g, ""));
-  const amountValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
-
-  // A11.1 — live fee preview, debounced, skipped entirely for an
-  // invalid/empty amount so no request fires while the field is blank.
-  useEffect(() => {
-    if (!load || !amountValid) {
-      setFeePreview(undefined);
-      return;
-    }
-    const requestId = ++feeRequestRef.current;
-    setFeePreview({ status: "loading" });
-    const timer = setTimeout(() => {
-      void calculateMarketplacePlatformFee(parsedAmount).then(({ error: calcError, calc }) => {
-        if (feeRequestRef.current !== requestId) return;
-        if (calcError || !calc) {
-          setFeePreview({ status: "error" });
-          return;
-        }
-        if (!calc.is_active_config_found) {
-          setFeePreview({ status: "inactive" });
-          return;
-        }
-        setFeePreview({
-          status: "active",
-          amount: calc.resolved_fee,
-          capped: Boolean(calc.capped),
-        });
-      });
-    }, 400);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [load?.id, amountValid, parsedAmount]);
-
-  if (!load) return null;
-
-  const handleSubmit = async () => {
-    if (!amountValid || submitting) return;
-    setSubmitting(true);
-    setError(null);
-    const { error: submitErr } = await submitOrgMarketBid(
-      orgId,
-      load.id,
-      parsedAmount,
-      note,
-    );
-    setSubmitting(false);
-    if (submitErr) {
-      setError(formatMarketplaceTransactionError(submitErr.message));
-      return;
-    }
-    onSuccess();
-  };
-
-  return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.modalOverlay} />
-      </TouchableWithoutFeedback>
-      <View style={styles.modalCenterWrap} pointerEvents="box-none">
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Place a bid</Text>
-          <Text style={styles.modalRoute}>{findLoadsRouteLabel(load)}</Text>
-          <Text style={styles.modalShipper}>
-            {load.creator_organization_name ?? "Unknown shipper"}
-          </Text>
-
-          <Text style={styles.modalFieldLabel}>Bid amount (₹)</Text>
-          <TextInput
-            value={amount}
-            onChangeText={(t) => setAmount(t.replace(/[^0-9.]/g, ""))}
-            placeholder="e.g. 45000"
-            keyboardType="numeric"
-            style={[styles.modalInput, !amountValid && amount.length > 0 && styles.modalInputError]}
-            editable={!submitting}
-          />
-
-          {feePreview?.status === "active" ? (
-            <View style={styles.feePreviewBlock}>
-              <View style={styles.feePreviewRow}>
-                <Text style={styles.feePreviewLabel}>Your bid</Text>
-                <Text style={styles.feePreviewValue}>{formatINR(parsedAmount)}</Text>
-              </View>
-              <View style={styles.feePreviewRow}>
-                <Text style={styles.feePreviewLabel}>
-                  Marketplace fee{feePreview.capped ? " (capped)" : ""}
-                </Text>
-                <Text style={styles.feePreviewValue}>{formatINR(feePreview.amount)}</Text>
-              </View>
-              <Text style={styles.feePreviewNote}>
-                You pay Pulse {formatINR(feePreview.amount)} separately if you win this bid
-              </Text>
-            </View>
-          ) : feePreview?.status === "inactive" ? (
-            <View style={styles.feePreviewBlock}>
-              <Text style={styles.feePreviewNote}>No platform fee currently applies</Text>
-            </View>
-          ) : null}
-
-          <Text style={styles.modalFieldLabel}>Note (optional)</Text>
-          <TextInput
-            value={note}
-            onChangeText={setNote}
-            placeholder="Anything the shipper should know"
-            style={styles.modalInput}
-            editable={!submitting}
-            multiline
-          />
-
-          {error ? <Text style={styles.modalError}>{error}</Text> : null}
-
-          <View style={styles.modalActions}>
-            <Pressable
-              style={styles.modalCancelBtn}
-              onPress={onClose}
-              disabled={submitting}
-            >
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.modalSubmitBtn,
-                (!amountValid || submitting) && styles.modalSubmitBtnDisabled,
-              ]}
-              onPress={handleSubmit}
-              disabled={!amountValid || submitting}
-            >
-              {submitting ? (
-                <LoadingIndicator size="small" color={Theme.buttonPrimaryText} />
-              ) : (
-                <Text style={styles.modalSubmitText}>Submit Bid</Text>
-              )}
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Theme.surface },
+  root: { flex: 1, backgroundColor: Theme.analyticsCanvas },
+  pageScroll: {
+    flex: 1,
+    width: "100%",
+  },
+  pageScrollContent: {
+    flexGrow: 1,
+    width: "100%",
+    paddingBottom: 32,
+  },
+  pageBody: {
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
   centered: {
     flex: 1,
     justifyContent: "center",
@@ -668,67 +680,102 @@ const styles = StyleSheet.create({
   },
   retryBtnPressed: { opacity: 0.85 },
   retryBtnText: { fontSize: 14, fontWeight: "700", color: Theme.buttonPrimaryText },
+  loadMoreWrap: {
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  loadMoreHint: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Theme.textSecondary,
+  },
+  loadMoreBtn: {
+    alignSelf: "center",
+    marginTop: 8,
+    marginBottom: 20,
+    minHeight: 44,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: Theme.buttonPrimary,
+    justifyContent: "center",
+  },
   chrome: {
     backgroundColor: Theme.cardWhite,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Theme.borderLight,
     paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 10,
-    gap: 10,
+    paddingTop: 12,
+    paddingBottom: 16,
   },
-  toolbar: {
-    gap: 10,
+  chromeDesktop: {
+    paddingHorizontal: 32,
   },
-  toolbarDesktop: {
+  chromeInner: {
+    width: "100%",
+    gap: 12,
+  },
+  headerInner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 16,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
+    width: "100%",
   },
-  toolbarMain: {
-    gap: 12,
-    minWidth: 0,
-  },
-  toolbarMainDesktop: {
+  headerLeft: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "nowrap",
-    gap: 16,
-  },
-  toolbarRight: {
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+  },
+  headerAccent: {
+    width: 4,
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: Theme.primary,
     flexShrink: 0,
-  },
-  mobileTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  toolbarBrand: {
-    alignItems: "flex-end",
-    gap: 1,
-  },
-  toolbarBrandTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: Theme.textPrimaryDark,
-    letterSpacing: -0.2,
-  },
-  toolbarBrandSub: {
-    fontSize: 11,
-    fontWeight: "500",
-    color: Theme.textMuted,
   },
   headerTextCol: {
     flex: 1,
     minWidth: 0,
+    gap: 3,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
+  },
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+    color: Theme.textMuted,
+  },
+  lanePanel: {
+    width: "100%",
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: Theme.surface,
+    borderWidth: 1,
+    borderColor: Theme.surfaceBorder,
+    gap: 10,
+  },
+  lanePanelHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  lanePanelHint: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: Theme.textMuted,
   },
   closeBtn: {
     width: Layout.minTouchTargetSize,
@@ -751,9 +798,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginHorizontal: 0,
-    marginTop: 0,
-    marginBottom: 0,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
@@ -773,18 +817,26 @@ const styles = StyleSheet.create({
   },
   awardedBannerText: {
     flex: 1,
+    minWidth: 0,
     fontSize: 13,
     fontWeight: "600",
     color: Theme.primaryText,
     lineHeight: 18,
   },
-  title: { fontSize: 22, fontWeight: "700", color: Theme.primaryText },
-  subtitle: { fontSize: 13, color: Theme.textSecondary, marginTop: 2 },
-  segmentRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexShrink: 0,
+  title: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: Theme.textPrimaryDark,
+    letterSpacing: -0.4,
+  },
+  titleDesktop: {
+    fontSize: 26,
+    letterSpacing: -0.6,
+  },
+  subtitle: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: Theme.textSecondary,
   },
   segmentChip: {
     paddingHorizontal: 14,
@@ -802,6 +854,20 @@ const styles = StyleSheet.create({
   },
   segmentChipText: { fontSize: 13, fontWeight: "600", color: Theme.primaryText },
   segmentChipTextActive: { color: Theme.textOnPrimary },
+  filterIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterIconBtnActive: {
+    backgroundColor: Theme.primary,
+    borderColor: Theme.primary,
+  },
   myBidsScroll: { paddingTop: 12, paddingBottom: 32 },
   filterRow: {
     flexDirection: "row",
@@ -820,21 +886,35 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: Theme.primary },
   filterChipText: { fontSize: 12, fontWeight: "600", color: Theme.primary },
   filterChipTextActive: { color: Theme.textOnPrimary },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
-    gap: 12,
+  list: {
+    flex: 1,
+    width: "100%",
   },
-  listRow: { gap: 12, paddingHorizontal: 0 },
+  listContent: {
+    width: "100%",
+    alignSelf: "stretch",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 32,
+    gap: 16,
+  },
+  listContentDesktop: {
+    paddingHorizontal: 32,
+  },
+  listRow: {
+    gap: 16,
+    width: "100%",
+    paddingHorizontal: 0,
+  },
   card: {
     borderRadius: 16,
     borderWidth: 1,
     borderColor: Theme.surfaceBorder,
-    padding: 14,
+    padding: 16,
     backgroundColor: Theme.cardWhite,
     marginBottom: 12,
-    gap: 12,
+    gap: 14,
+    overflow: "hidden",
     ...Platform.select({
       web: {
         boxShadow: `0 8px 20px ${Theme.actionAccentShadow}`,
@@ -849,7 +929,8 @@ const styles = StyleSheet.create({
     }),
   },
   cardDesktop: {
-    width: "calc((100% - 36px) / 4)" as unknown as number,
+    width: "calc((100% - 32px) / 3)" as unknown as number,
+    maxWidth: "calc((100% - 32px) / 3)" as unknown as number,
     minWidth: 0,
     flexGrow: 0,
     flexShrink: 0,
@@ -912,13 +993,14 @@ const styles = StyleSheet.create({
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 10,
-    marginTop: 0,
+    alignItems: "flex-end",
+    gap: 12,
+    paddingTop: 12,
+    marginTop: 2,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Theme.surfaceBorder,
   },
-  rateBlock: { gap: 1 },
+  rateBlock: { gap: 2, minWidth: 0, flex: 1 },
   rateLabel: {
     fontSize: 9,
     fontWeight: "600",
@@ -940,91 +1022,4 @@ const styles = StyleSheet.create({
   },
   bidCtaText: { fontSize: 12, fontWeight: "700", color: Theme.buttonPrimaryText },
   notYetBiddable: { fontSize: 11, color: Theme.textMuted, fontStyle: "italic" },
-  modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: Theme.overlayBackdrop,
-  },
-  modalCenterWrap: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-  modalCard: {
-    width: "100%",
-    maxWidth: 420,
-    backgroundColor: Theme.cardWhite,
-    borderRadius: 16,
-    padding: 20,
-    gap: 4,
-  },
-  modalTitle: { fontSize: 17, fontWeight: "700", color: Theme.textPrimaryDark },
-  modalRoute: { fontSize: 14, fontWeight: "600", color: Theme.textPrimaryDark, marginTop: 6 },
-  modalShipper: { fontSize: 12, color: Theme.textSecondary, marginBottom: 8 },
-  modalFieldLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    color: Theme.textMuted,
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: Theme.borderMedium,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: Theme.textPrimaryDark,
-    backgroundColor: Theme.cardWhite,
-  },
-  modalInputError: { borderColor: Theme.negative },
-  modalError: { fontSize: 12, color: Theme.negative, marginTop: 8 },
-  feePreviewBlock: {
-    borderRadius: 10,
-    backgroundColor: Theme.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Theme.borderLight,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 8,
-    gap: 6,
-  },
-  feePreviewRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  feePreviewLabel: { fontSize: 12, fontWeight: "500", color: Theme.textSecondary },
-  feePreviewValue: { fontSize: 13, fontWeight: "700", color: Theme.textPrimaryDark },
-  feePreviewNote: { fontSize: 11, fontWeight: "400", color: Theme.textMuted, lineHeight: 15 },
-  modalActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 16,
-  },
-  modalCancelBtn: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Theme.borderMedium,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalCancelText: { fontSize: 13, fontWeight: "600", color: Theme.textSecondary },
-  modalSubmitBtn: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 10,
-    backgroundColor: Theme.buttonPrimary,
-    borderWidth: Theme.buttonPrimaryBorderWidth,
-    borderColor: Theme.buttonPrimaryBorder,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalSubmitBtnDisabled: { opacity: 0.5 },
-  modalSubmitText: { fontSize: 13, fontWeight: "700", color: Theme.buttonPrimaryText },
 });

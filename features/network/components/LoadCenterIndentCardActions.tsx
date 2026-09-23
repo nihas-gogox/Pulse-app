@@ -396,7 +396,8 @@ function compactCommerceCtaLabel(label: string): string {
     case "Respond to counter":
       return "Respond";
     case "Bid now":
-      return "View & bid";
+    case "View & bid":
+      return "Bid";
     default:
       return label;
   }
@@ -1254,11 +1255,15 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     gap: 6,
     flexShrink: 1,
+    minWidth: 0,
+    maxWidth: "100%",
     minHeight: 28,
+    overflow: "hidden",
   },
   commerceIconBtn: {
     width: 28,
     height: 28,
+    flexShrink: 0,
     borderRadius: 7,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: BORDER_SOFT,
@@ -1284,7 +1289,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 7,
     backgroundColor: "#EFF6FF",
-    maxWidth: 110,
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: 88,
+    overflow: "hidden",
   },
   commerceCtaDisabled: {
     opacity: 0.55,

@@ -192,6 +192,7 @@ describe('data-plane route without session', () => {
     expect(shouldRedirectDataPlaneRouteWithoutSession(false, '/workspace')).toBe(true);
     expect(shouldRedirectDataPlaneRouteWithoutSession(false, '/driver-trip/xyz')).toBe(true);
     expect(shouldRedirectDataPlaneRouteWithoutSession(false, '/compliance')).toBe(true);
+    expect(shouldRedirectDataPlaneRouteWithoutSession(false, '/find-loads')).toBe(true);
   });
 
   it('redirects when pathname lags on / but segments already match a private route', () => {

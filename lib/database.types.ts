@@ -17833,6 +17833,15 @@ export type Database = {
           vehicle_number: string
         }[]
       }
+      list_marketplace_search_lanes: {
+        Args: { p_org_id: string }
+        Returns: {
+          drop_location: string
+          load_count: number
+          pickup_area: string
+          vehicle_type: string
+        }[]
+      }
       list_my_org_market_bids: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: {
@@ -17877,7 +17886,14 @@ export type Database = {
         }[]
       }
       list_open_marketplace_loads_for_org: {
-        Args: { p_limit?: number; p_org_id: string }
+        Args: {
+          p_limit?: number
+          p_org_id: string
+          p_offset?: number
+          p_pickup?: string
+          p_drop?: string
+          p_vehicle_type?: string
+        }
         Returns: {
           circulation_target: string
           created_at: string

@@ -61,7 +61,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const RECOMMENDATION_LIMIT = 3;
+const RECOMMENDATION_LIMIT = 6;
 
 function discoverOrgToProfileNode(org: DiscoverOrg): NetworkProfileModalNode {
   const normalized = String(org.connection_status ?? "").toLowerCase();

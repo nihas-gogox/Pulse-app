@@ -4,7 +4,7 @@ import SignIn from '../sign-in';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSuiteAuthContext } from '@/features/auth/hooks/useSuiteAuthContext';
 import { useIsOnline } from '@/contexts/NetworkContext';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useRootNavigationState } from 'expo-router';
 import { Alert } from 'react-native';
 
 jest.mock('react-native', () => {
@@ -21,6 +21,7 @@ import { useIsDesktopWebInput } from '@/lib/useIsDesktopWebInput';
 jest.mock('expo-router', () => ({
   useRouter: jest.fn(),
   useLocalSearchParams: jest.fn(() => ({})),
+  useRootNavigationState: jest.fn(() => ({ key: 'test-root' })),
 }));
 
 jest.mock('@/contexts/AuthContext', () => ({
@@ -873,6 +874,21 @@ describe('SignIn Component', () => {
     await waitFor(() => {
       expect(navigateAfterSuiteAuth).toHaveBeenCalledWith('/dashboard', expect.any(Function));
     });
+  });
+
+  it('does not redirect until the root navigator has a key', async () => {
+    (useRootNavigationState as jest.Mock).mockReturnValueOnce(undefined);
+    (useAuth as jest.Mock).mockReturnValue({
+      user: { id: 'user-1' },
+      signIn: mockSignIn,
+      signInWithGoogle: mockSignInWithGoogle,
+      restoreError: null,
+      clearRestoreError: mockClearRestoreError,
+    });
+
+    await renderSignIn();
+
+    expect(navigateAfterSuiteAuth).not.toHaveBeenCalled();
   });
 
   it('does not redirect while there is no user', async () => {

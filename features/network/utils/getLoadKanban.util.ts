@@ -42,7 +42,7 @@ export function emptyGetLoadKanbanBuckets(): GetLoadKanbanBuckets {
 }
 
 export function getLoadKanbanColumnLabel(tabId: GetLoadKanbanColumnId): string {
-  if (tabId === "OPEN") return "Open Market";
+  if (tabId === "OPEN") return "Network Loads";
   if (tabId === "QUOTED") return "My Bids";
   if (tabId === "AWARDED") return "Bids Won";
   return "Claimed";

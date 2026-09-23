@@ -35,7 +35,7 @@ export function getLoadCenterStatusTabLabel(
 ): string {
   if (loadSubTab === "GIVE_LOAD" && tabId === "OPEN") return "My loads";
   if (loadSubTab === "GIVE_LOAD" && tabId === "QUOTED") return "Receiving Bids";
-  if (loadSubTab === "GET_LOAD" && tabId === "OPEN") return "Open Market";
+  if (loadSubTab === "GET_LOAD" && tabId === "OPEN") return "Network Loads";
   if (loadSubTab === "GET_LOAD" && tabId === "QUOTED") return "My Bids";
   if (loadSubTab === "GET_LOAD" && tabId === "AWARDED") return "Bids Won";
   return defaultLabel;
@@ -105,7 +105,7 @@ export const STATUS_TABS: {
 }[] = [
   {
     id: "OPEN",
-    label: "Open Market",
+    label: "Network Loads",
     statuses: [
       "open",
       "pending",
