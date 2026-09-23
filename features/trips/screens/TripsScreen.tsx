@@ -137,7 +137,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TripsPromoCard } from "@/features/trips/components/TripsPromoCard";
 import {
-    Alert,
     NativeScrollEvent,
     NativeSyntheticEvent,
     Platform,

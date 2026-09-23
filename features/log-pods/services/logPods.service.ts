@@ -280,6 +280,8 @@ export async function markSelectedTripsHardCopyPodReceived(
   if (ids.length === 0) {
     return { error: new Error("Select at least one pending trip."), updatedCount: 0 };
   }
+  // Still used below for the activity-log entry, which does record a
+  // client-supplied received_at for audit display.
   const receivedAt = str(input.receivedAt) || new Date().toISOString();
   const courierName =
     input.method === "courier" ? str(input.courierName).trim() : "In hand";
@@ -574,7 +576,6 @@ export async function executeLogIncomingPods(payload: LogPodsPayload): Promise<{
     trackingId,
     dbCourierPartners,
     mappedAttachments,
-    receivedAt: receivedAtRaw,
   } = payload;
 
   const finalCourierName = resolveCourierName(
@@ -589,11 +590,13 @@ export async function executeLogIncomingPods(payload: LogPodsPayload): Promise<{
   );
   if (customErr.error) return { error: customErr.error };
 
-  const receivedAt = str(receivedAtRaw) || new Date().toISOString();
   const tripIds = Object.entries(selectedLRs)
     .filter(([, lrs]) => lrs.length > 0)
     .map(([tripInternalId]) => tripInternalId);
 
+  // Metadata, not a timestamp — see the note in
+  // markSelectedTripsHardCopyPodReceived above. The resolved courier name and
+  // AWB are what this RPC actually records.
   const tripResults = await runWithConcurrencyLimit(
     tripIds,
     LOG_PODS_CONCURRENCY,
