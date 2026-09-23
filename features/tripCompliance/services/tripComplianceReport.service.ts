@@ -5,10 +5,8 @@ import {
     checklistGroupStatusLabel,
     ensureComplianceChecklist,
 } from "@/features/tripCompliance/utils/complianceChecklist.util";
-import { getTripDisplayNumber, getTripsByOrganization } from "@/features/trips/services/trips.service";
-
-const PAGE_SIZE = 200;
-const MAX_TRIPS = 2000; // bounded — a report is a batch job, not a live list; this caps worst-case query count at 10.
+import { selectCompliancePipelineTrips } from "@/features/tripCompliance/utils/compliancePipelineTrips.util";
+import { getTripDisplayNumber, getTripsForOrg } from "@/features/trips/services/trips.service";
 
 export type ComplianceReportFilters = {
   dateFrom?: string; // trip.pickup_date >= dateFrom
@@ -51,24 +49,13 @@ export type ComplianceReportRow = {
 };
 
 /**
- * Fetches every trip for the org in bounded batches (reusing the existing
- * paginated `getTripsByOrganization` — no second trips-query pattern), then
- * runs the same batched `buildComplianceTripSummaries` the list page uses.
- * Total query count is O(pages), not O(trips) — a 2,000-trip org is 10 trips
- * pages + 3 batched compliance reads per page, never one query per trip.
+ * Same trip source as `/trips` + Compliance list: `getTripsForOrg`, then
+ * Loading→Completed pipeline, then one batched summary build.
  */
 async function fetchAllComplianceSummaries(orgId: string): Promise<ComplianceTripSummary[]> {
-  const all: ComplianceTripSummary[] = [];
-  let offset = 0;
-  for (let page = 0; page * PAGE_SIZE < MAX_TRIPS; page++) {
-    const { error, trips, hasMore } = await getTripsByOrganization(orgId, { limit: PAGE_SIZE, offset });
-    if (error) throw error;
-    if (trips.length === 0) break;
-    all.push(...(await buildComplianceTripSummaries(trips)));
-    if (!hasMore) break;
-    offset += PAGE_SIZE;
-  }
-  return all;
+  const { error, trips } = await getTripsForOrg(orgId);
+  if (error) throw error;
+  return buildComplianceTripSummaries(selectCompliancePipelineTrips(trips));
 }
 
 function paymentStatusOf(summary: ComplianceTripSummary): ComplianceReportFilters["paymentStatus"] {

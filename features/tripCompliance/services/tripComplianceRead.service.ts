@@ -298,20 +298,45 @@ export function advanceFromTripReceipts(
  */
 export function deriveComplianceStage(input: {
   documentCount: number;
+  /** Required trip types still missing (LR / E-way / Invoice). Prefer over raw count. */
+  missingRequiredCount?: number;
   complianceVerifiedAt: string | null;
   advance: CompliancePaymentSummary | null;
   tripStatus: string;
   hardCopyReceived: boolean;
   balance: CompliancePaymentSummary | null;
 }): ComplianceStage {
+  const status = String(input.tripStatus ?? "")
+    .trim()
+    .toLowerCase();
+  const isDeliveredLike =
+    status === "delivered" || status === "completed" || status === "done";
+
   if (input.balance) return "payment_settled";
-  if (input.advance && input.tripStatus === "delivered") {
+  if (input.advance && isDeliveredLike) {
     return input.hardCopyReceived ? "balance_pending" : "hard_copy_pod_received";
   }
   if (input.advance) return "advance_payment_processed";
   if (input.complianceVerifiedAt) return "compliance_verified";
-  if (input.documentCount === 0) return "pending_for_docs";
+  const missingRequired =
+    input.missingRequiredCount ??
+    (input.documentCount === 0 ? REQUIRED_COMPLIANCE_DOCUMENT_TYPES.length : 0);
+  if (missingRequired > 0) return "pending_for_docs";
   return "compliance_pending";
+}
+
+/**
+ * Still missing required trip docs (LR / E-way / Invoice) and not yet verified.
+ * Stage chips use exclusive `summary.stage` counts — do not use this for filter
+ * totals (it overlaps payment-progress stages).
+ */
+export function tripNeedsPendingDocs(summary: {
+  complianceVerifiedAt: string | null;
+  documents: { document_type: string }[];
+}): boolean {
+  if (summary.complianceVerifiedAt) return false;
+  const present = new Set(summary.documents.map((d) => d.document_type));
+  return REQUIRED_COMPLIANCE_DOCUMENT_TYPES.some((type) => !present.has(type));
 }
 
 async function fetchEntityDocumentsForTrips(
@@ -565,9 +590,18 @@ export async function buildComplianceTripSummaries(
       rejected: documents.filter((d) => d.status === "rejected").length,
       pending: documents.filter((d) => d.status === "pending").length,
     };
+    const presentRequired = new Set(
+      documents
+        .map((d) => d.document_type)
+        .filter((type) => REQUIRED_COMPLIANCE_DOCUMENT_TYPES.includes(type)),
+    );
+    const missingRequiredCount = REQUIRED_COMPLIANCE_DOCUMENT_TYPES.filter(
+      (type) => !presentRequired.has(type),
+    ).length;
 
     const stage = deriveComplianceStage({
       documentCount: documentCounts.total,
+      missingRequiredCount,
       complianceVerifiedAt: flags?.compliance_verified_at ?? null,
       advance,
       tripStatus: trip.status,

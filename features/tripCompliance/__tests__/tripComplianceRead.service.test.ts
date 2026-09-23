@@ -95,6 +95,20 @@ describe("deriveComplianceStage", () => {
     ).toBe("advance_payment_processed");
   });
 
+  it("is HARD_COPY_POD_RECEIVED for completed trips with advance (Ops Delivered status)", () => {
+    expect(
+      deriveComplianceStage({
+        documentCount: 3,
+        missingRequiredCount: 0,
+        complianceVerifiedAt: null,
+        advance: PAYMENT,
+        tripStatus: "completed",
+        hardCopyReceived: false,
+        balance: null,
+      }),
+    ).toBe("hard_copy_pod_received");
+  });
+
   it("is HARD_COPY_POD_RECEIVED once delivered but hard-copy POD not yet marked received", () => {
     expect(
       deriveComplianceStage({

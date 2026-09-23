@@ -607,9 +607,12 @@ export const queryKeys = {
   },
 
   tripCompliance: {
+    /** Full Loading→Completed summaries for an org (totals independent of UI page). */
+    pipeline: (orgId: string, tripsRevision: number | string) =>
+      ["q", "tripCompliance", "pipeline", "v1", orgId, tripsRevision] as const,
     list: (orgId: string, page: number) =>
       ["q", "tripCompliance", "list", "vault-v2", orgId, page] as const,
     detail: (orgId: string, tripId: string) =>
-      ["q", "tripCompliance", "detail", "vault-v2", orgId, tripId] as const,
+      ["q", "tripCompliance", "detail", "v1", orgId, tripId] as const,
   },
 } as const;
