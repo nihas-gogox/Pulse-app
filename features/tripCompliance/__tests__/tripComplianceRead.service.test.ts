@@ -1,9 +1,9 @@
 import {
-  deriveComplianceStage,
-  canMarkComplianceVerified,
-  buildComplianceOutstandingSummary,
-  canApproveComplianceWithException,
-  advanceFromTripReceipts,
+    advanceFromTripReceipts,
+    buildComplianceOutstandingSummary,
+    canApproveComplianceWithException,
+    canMarkComplianceVerified,
+    deriveComplianceStage,
 } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import type { ComplianceDocumentRow } from "@/features/tripCompliance/tripCompliance.types";
 

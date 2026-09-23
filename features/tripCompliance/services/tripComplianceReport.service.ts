@@ -1,11 +1,11 @@
-import { getTripsByOrganization, getTripDisplayNumber } from "@/features/trips/services/trips.service";
 import { buildComplianceTripSummaries } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import { COMPLIANCE_STAGE_LABEL, type ComplianceStage, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import { complianceEventAt } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import {
-  checklistGroupStatusLabel,
-  ensureComplianceChecklist,
+    checklistGroupStatusLabel,
+    ensureComplianceChecklist,
 } from "@/features/tripCompliance/utils/complianceChecklist.util";
+import { getTripDisplayNumber, getTripsByOrganization } from "@/features/trips/services/trips.service";
 
 const PAGE_SIZE = 200;
 const MAX_TRIPS = 2000; // bounded — a report is a batch job, not a live list; this caps worst-case query count at 10.
