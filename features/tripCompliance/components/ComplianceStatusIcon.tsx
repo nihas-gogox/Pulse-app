@@ -1,9 +1,7 @@
 /**
- * Restrained, glyph-based status treatment shared by every Compliance
- * surface (card chips, table pills, review sheet) — one visual language
- * instead of each screen inventing its own colored-badge convention.
- * Colors follow the app's existing semantic tokens (Theme.success /
- * Theme.warning / Theme.teslaRed), not new ad-hoc hex values.
+ * Restrained status treatment shared by every Compliance surface
+ * (card chips, table pills, review sheet) — Documents-style pill with a
+ * status glyph, using Theme semantic tokens only.
  */
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -32,9 +30,15 @@ export function ComplianceStatusChip({
 }) {
   const meta = COMPLIANCE_STATUS_META[status];
   return (
-    <View style={[styles.chip, compact && styles.chipCompact, { backgroundColor: meta.bg }]}>
-      <Text style={[styles.glyph, { color: meta.color }]}>{meta.glyph}</Text>
-      <Text style={[styles.label, { color: meta.color }]} numberOfLines={1}>
+    <View style={[styles.chip, compact && styles.chipCompact, !compact && { backgroundColor: meta.bg }]}>
+      <Text style={[styles.glyph, compact && styles.glyphCompact, { color: meta.color }]}>{meta.glyph}</Text>
+      <Text
+        style={[
+          styles.label,
+          compact ? styles.labelCompact : { color: meta.color },
+        ]}
+        numberOfLines={1}
+      >
         {label}
       </Text>
     </View>
@@ -45,12 +49,19 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 999,
   },
-  chipCompact: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 5 },
-  glyph: { fontSize: 10, fontWeight: "700" },
-  label: { fontSize: 10, fontWeight: "600" },
+  chipCompact: {
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderRadius: 0,
+    gap: 6,
+  },
+  glyph: { fontSize: 10, fontWeight: "700", lineHeight: 14 },
+  glyphCompact: { fontSize: 12, lineHeight: 16, width: 12, textAlign: "center" },
+  label: { fontSize: 10, fontWeight: "600", lineHeight: 14 },
+  labelCompact: { fontSize: 12, fontWeight: "500", color: Theme.textPrimary, lineHeight: 16 },
 });

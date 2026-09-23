@@ -159,22 +159,24 @@ function TripRowContent({
           style={styles.colTripId}
           onPress={() => (onOpenDetails ?? onOpenTrip)(summary.trip.id)}
         >
-          <Text style={styles.cell} selectable>
+          <Text style={[styles.cell, styles.tripIdText]} selectable>
             {tripIdLabel}
           </Text>
-          <Text style={[styles.cell, styles.muted]} numberOfLines={1}>
+          <Text style={styles.muted} numberOfLines={1}>
             {summary.trip.client_name || "—"}
           </Text>
         </TouchableOpacity>
-        <Text style={[styles.cell, styles.colDate]} numberOfLines={1}>
+        <Text style={[styles.cell, styles.colDate]} numberOfLines={2}>
           {formatRequiredDate(summary)}
         </Text>
-        <Text style={[styles.cell, styles.colLoc]} numberOfLines={2}>
-          {tripFromLocation(summary)}
-        </Text>
-        <Text style={[styles.cell, styles.colLoc]} numberOfLines={2}>
-          {tripToLocation(summary)}
-        </Text>
+        <View style={styles.colRoute}>
+          <Text style={[styles.cell, styles.locPrimary]} numberOfLines={1}>
+            {tripFromLocation(summary)}
+          </Text>
+          <Text style={styles.muted} numberOfLines={1}>
+            {tripToLocation(summary)}
+          </Text>
+        </View>
         <View style={styles.colDocs}>
           <MandatoryDocChips
             rows={tripMandatoryRows}
@@ -195,12 +197,14 @@ function TripRowContent({
         </View>
         <View style={styles.colStage}>
           <View style={[styles.stagePill, { backgroundColor: verification.tone.bg }]}>
+            <View style={[styles.stageDot, { backgroundColor: verification.tone.fg }]} />
             <Text style={[styles.stagePillText, { color: verification.tone.fg }]} numberOfLines={1}>
               {verification.label}
             </Text>
           </View>
           {showPaymentPill ? (
-            <View style={[styles.stagePill, styles.stagePillSpaced, { backgroundColor: payment.tone.bg }]}>
+            <View style={[styles.stagePill, { backgroundColor: payment.tone.bg }]}>
+              <View style={[styles.stageDot, { backgroundColor: payment.tone.fg }]} />
               <Text style={[styles.stagePillText, { color: payment.tone.fg }]} numberOfLines={1}>
                 {payment.label}
               </Text>
@@ -215,21 +219,21 @@ function TripRowContent({
             {readiness.nextAction}
           </Text>
         </View>
-        <Text style={[styles.cell, styles.colMoney]}>
+        <Text style={[styles.cell, styles.colMoney, styles.moneyText]}>
           {summary.advance ? `₹${summary.advance.amount.toLocaleString("en-IN")}` : "—"}
         </Text>
-        <Text style={[styles.cell, styles.colMoney]}>
+        <Text style={[styles.cell, styles.colMoney, styles.moneyText]}>
           {summary.balance ? `₹${summary.balance.amount.toLocaleString("en-IN")}` : "—"}
         </Text>
         <View style={styles.colAction}>
-          <TouchableOpacity onPress={() => onReview(summary.trip.id, null)}>
+          <TouchableOpacity onPress={() => onReview(summary.trip.id, null)} hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}>
             <Text style={styles.actionLink}>Verify Docs</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => onOpenTrip(summary.trip.id)}>
+          <TouchableOpacity onPress={() => onOpenTrip(summary.trip.id)} hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}>
             <Text style={[styles.actionLink, styles.viewTripLink]}>View Trip</Text>
           </TouchableOpacity>
           {canManageFinance && readiness.paymentReady && onPay ? (
-            <TouchableOpacity onPress={() => onPay(summary.trip.id)}>
+            <TouchableOpacity onPress={() => onPay(summary.trip.id)} hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}>
               <Text style={styles.actionLink}>Pay</Text>
             </TouchableOpacity>
           ) : null}
@@ -309,15 +313,14 @@ export function ComplianceTripsTable({
             sort={requiredDateSort}
             onToggle={() => setRequiredDateSort((s) => (s === "asc" ? "desc" : "asc"))}
           />
-          <Text style={[styles.cell, styles.colLoc, styles.headerText]}>From</Text>
-          <Text style={[styles.cell, styles.colLoc, styles.headerText]}>To</Text>
+          <Text style={[styles.cell, styles.colRoute, styles.headerText]}>From / To</Text>
           <Text style={[styles.cell, styles.colDocs, styles.headerText]}>Trip</Text>
           <Text style={[styles.cell, styles.colDocs, styles.headerText]}>Vehicle</Text>
           <Text style={[styles.cell, styles.colDocs, styles.headerText]}>Driver</Text>
           <Text style={[styles.cell, styles.colStage, styles.headerText]}>Stage</Text>
           <Text style={[styles.cell, styles.colBlockers, styles.headerText]}>Payment</Text>
-          <Text style={[styles.cell, styles.colMoney, styles.headerText]}>Advance</Text>
-          <Text style={[styles.cell, styles.colMoney, styles.headerText]}>Balance</Text>
+          <Text style={[styles.cell, styles.colMoney, styles.headerText, styles.moneyText]}>Advance</Text>
+          <Text style={[styles.cell, styles.colMoney, styles.headerText, styles.moneyText]}>Balance</Text>
           <Text style={[styles.cell, styles.colAction, styles.headerText]}>Action</Text>
         </View>
 
@@ -344,61 +347,90 @@ const styles = StyleSheet.create({
     borderColor: Theme.complianceCardBorder,
     borderRadius: 12,
     overflow: "hidden",
-    minWidth: 1400,
+    minWidth: 1280,
     backgroundColor: Theme.cardWhite,
   },
   row: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    borderTopWidth: 1,
-    borderTopColor: Theme.border,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    gap: 8,
+    alignItems: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Theme.border,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    gap: 10,
   },
-  headerRow: { borderTopWidth: 0, backgroundColor: Theme.compliancePageBg, paddingVertical: 10 },
-  headerText: { fontSize: 10, fontWeight: "700", color: Theme.textMuted, textTransform: "uppercase", letterSpacing: 0.3 },
-  expandToggle: { width: 28, minHeight: 40, alignItems: "center", justifyContent: "flex-start", paddingTop: 4 },
-  cell: { fontSize: 13, color: Theme.textPrimary, fontWeight: "500" },
-  muted: { color: Theme.textMuted, fontSize: 11 },
-  colTripId: { flex: 1.8, minWidth: 220 },
-  colDate: { flex: 1.1, minWidth: 110 },
-  colLoc: { flex: 1.1, minWidth: 90 },
-  colDocs: { flex: 1.2, minWidth: 110, justifyContent: "flex-start", paddingTop: 2 },
+  headerRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.complianceCardBorder,
+    backgroundColor: Theme.compliancePageBg,
+    paddingVertical: 12,
+  },
+  headerText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Theme.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.45,
+  },
+  expandToggle: {
+    width: 28,
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cell: { fontSize: 13, color: Theme.textPrimary, fontWeight: "500", lineHeight: 18 },
+  tripIdText: { fontWeight: "700", color: Theme.textPrimaryDark },
+  muted: { color: Theme.textMuted, fontSize: 11, lineHeight: 15, marginTop: 2 },
+  locPrimary: { fontWeight: "600", color: Theme.textPrimaryDark },
+  colTripId: { flex: 1.6, minWidth: 180 },
+  colDate: { flex: 1.0, minWidth: 100 },
+  colRoute: { flex: 1.4, minWidth: 130, justifyContent: "center" },
+  colDocs: { flex: 1.15, minWidth: 110, justifyContent: "center" },
   docChips: { flexDirection: "column", alignItems: "flex-start", gap: 4 },
   colRequiredDate: {
-    flex: 1.1,
-    minWidth: 110,
+    flex: 1.0,
+    minWidth: 100,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  colStage: { flex: 1.1, minWidth: 120, justifyContent: "center", gap: 4 },
+  colStage: { flex: 1.2, minWidth: 130, justifyContent: "center", gap: 6 },
   stagePill: {
     alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
     maxWidth: "100%",
   },
-  stagePillSpaced: { marginTop: 0 },
-  stagePillText: { fontSize: 11, fontWeight: "700" },
-  colBlockers: { flex: 1.2, minWidth: 130 },
+  stageDot: { width: 6, height: 6, borderRadius: 3 },
+  stagePillText: { fontSize: 11, fontWeight: "700", flexShrink: 1 },
+  colBlockers: { flex: 1.25, minWidth: 130, justifyContent: "center" },
   readyText: { color: Theme.complianceStageSuccessFg, fontWeight: "700" },
   blockedText: { color: Theme.complianceStageDocsFg, fontWeight: "700" },
-  colMoney: { flex: 0.7, minWidth: 70 },
-  colAction: { flex: 1.1, minWidth: 120, flexDirection: "row", flexWrap: "wrap", gap: 10, alignItems: "center" },
+  colMoney: { flex: 0.75, minWidth: 72, justifyContent: "center" },
+  moneyText: { textAlign: "right", fontVariant: ["tabular-nums"] },
+  colAction: {
+    flex: 1.0,
+    minWidth: 110,
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    gap: 6,
+  },
   actionLink: { fontSize: 12, fontWeight: "700", color: Theme.complianceBulk },
-  viewTripLink: { color: Theme.textMuted },
+  viewTripLink: { color: Theme.textMuted, fontWeight: "600" },
   rejectLink: { color: Theme.teslaRed },
-  expandedWrap: { backgroundColor: Theme.compliancePageBg, paddingLeft: 38, paddingRight: 10 },
+  expandedWrap: { backgroundColor: Theme.compliancePageBg, paddingLeft: 40, paddingRight: 12 },
   expandedRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: Theme.border,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Theme.border,
   },
   expandedDocLabel: { width: 120, fontSize: 13, fontWeight: "600", color: Theme.textPrimary },
   expandedActions: { flexDirection: "row", flexWrap: "wrap", marginLeft: "auto" },

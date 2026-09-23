@@ -56,9 +56,67 @@ function StageChip({
         {label}
       </Text>
       {count > 0 ? (
-        <Text style={[styles.chipCount, { color: active ? Theme.buttonDarkText : countColor }]}>{count}</Text>
+        <View
+          style={[
+            styles.chipCountBadge,
+            !active && { backgroundColor: `${countColor}18` },
+          ]}
+        >
+          <Text style={[styles.chipCount, { color: active ? Theme.buttonDarkText : countColor }]}>
+            {count}
+          </Text>
+        </View>
       ) : null}
     </TouchableOpacity>
+  );
+}
+
+function SummaryMetricCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "success" | "warning" | "danger" | "neutral";
+}) {
+  const palette =
+    tone === "success"
+      ? {
+          bg: Theme.complianceStageSuccessBg,
+          border: Theme.complianceVerifiedPillBorder,
+          label: Theme.complianceStageSuccessFg,
+          value: Theme.complianceStageSuccessFg,
+        }
+      : tone === "warning"
+        ? {
+            bg: Theme.complianceStagePendingBg,
+            border: Theme.complianceGroupWarningDot,
+            label: Theme.complianceStagePendingFg,
+            value: Theme.complianceStagePendingFg,
+          }
+        : tone === "danger"
+          ? {
+              bg: Theme.complianceStageDocsBg,
+              border: Theme.complianceGroupDangerDot,
+              label: Theme.complianceStageDocsFg,
+              value: Theme.complianceStageDocsFg,
+            }
+          : {
+              bg: Theme.cardWhite,
+              border: Theme.complianceCardBorder,
+              label: Theme.textMuted,
+              value: Theme.textPrimaryDark,
+            };
+  return (
+    <View style={[styles.metricCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+      <Text style={[styles.metricLabel, { color: palette.label }]} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text style={[styles.metricValue, { color: palette.value }]} numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -173,17 +231,16 @@ export default function ComplianceScreen() {
             <Text style={styles.title} numberOfLines={1}>
               Compliance Verification
             </Text>
+            <Text style={styles.subtitle} numberOfLines={2}>
+              Showing the first {COMPLIANCE_QUEUE_PAGE_SIZE} trips
+              {data?.hasMore ? " — more exist in this organization." : "."} Stage counts apply to this
+              page only.
+            </Text>
             <View style={styles.headerMeta}>
               <View style={styles.activeBadge}>
                 <View style={styles.activeDot} />
-                <Text style={styles.activeBadgeText}>
-                  {counts.all} trips on this page
-                </Text>
+                <Text style={styles.activeBadgeText}>{counts.all} trips on this page</Text>
               </View>
-              <Text style={styles.subtitle} numberOfLines={2}>
-                Showing the first {COMPLIANCE_QUEUE_PAGE_SIZE} trips
-                {data?.hasMore ? " — more exist in this organization." : "."} Stage counts apply to this page only.
-              </Text>
             </View>
           </View>
           <View style={[styles.headerActions, compactToolbar && styles.headerActionsStart]}>
@@ -208,6 +265,24 @@ export default function ComplianceScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
+        </View>
+
+        <View style={[styles.metricRow, compactToolbar && styles.metricRowStack]}>
+          <SummaryMetricCard
+            label="Pending Docs"
+            value={`${counts.pending_for_docs} trip${counts.pending_for_docs === 1 ? "" : "s"}`}
+            tone="danger"
+          />
+          <SummaryMetricCard
+            label="Compliance Pending"
+            value={`${counts.compliance_pending} trip${counts.compliance_pending === 1 ? "" : "s"}`}
+            tone="warning"
+          />
+          <SummaryMetricCard
+            label="Verified"
+            value={`${counts.compliance_verified} trip${counts.compliance_verified === 1 ? "" : "s"}`}
+            tone="success"
+          />
         </View>
       </View>
 
@@ -388,39 +463,63 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Theme.compliancePageBg },
   content: { paddingTop: Layout.spacingMedium, gap: Layout.spacingMedium },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: Theme.compliancePageBg },
-  header: { gap: Layout.spacingSmall },
-  headerTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  header: { gap: 14 },
+  headerTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16 },
   headerTopStack: { flexDirection: "column", alignItems: "stretch" },
   titleBlock: { flex: 1, minWidth: 0, gap: 6 },
   title: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 24,
+    fontWeight: "700",
     color: Theme.textPrimaryDark,
-    lineHeight: 24,
+    lineHeight: 30,
+    letterSpacing: -0.3,
   },
-  headerMeta: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  headerMeta: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 2 },
   activeBadge: {
     flexShrink: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 6,
     backgroundColor: Theme.complianceActiveBadgeBg,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
   },
   activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Theme.complianceActiveBadgeFg },
-  activeBadgeText: { fontSize: 11, fontWeight: "700", color: Theme.complianceActiveBadgeFg },
-  subtitle: { flex: 1, minWidth: 160, fontSize: 13, color: Theme.textMuted, lineHeight: 18 },
+  activeBadgeText: { fontSize: 12, fontWeight: "600", color: Theme.complianceActiveBadgeFg },
+  subtitle: { fontSize: 13, color: Theme.textMuted, lineHeight: 18, fontWeight: "400" },
   headerActions: { flexShrink: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" },
   headerActionsStart: { justifyContent: "flex-start" },
+  metricRow: { flexDirection: "row", gap: 12, alignItems: "stretch" },
+  metricRowStack: { flexDirection: "column" },
+  metricCard: {
+    flex: 1,
+    minWidth: 0,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  metricLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  metricValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+    lineHeight: 22,
+  },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    minHeight: Layout.minTouchTargetSize,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    gap: 10,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 12,
     backgroundColor: Theme.cardWhite,
     borderWidth: 1,
     borderColor: Theme.complianceCardBorder,
@@ -428,7 +527,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     minWidth: 0,
-    minHeight: Layout.minTouchTargetSize,
+    minHeight: 44,
     paddingVertical: 0,
     fontSize: 14,
     fontWeight: "500",
@@ -437,7 +536,7 @@ const styles = StyleSheet.create({
   },
   bulkBtn: {
     minHeight: Layout.minTouchTargetSize,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     borderRadius: 10,
     backgroundColor: Theme.complianceBulk,
     flexDirection: "row",
@@ -447,7 +546,7 @@ const styles = StyleSheet.create({
   bulkBtnText: { fontSize: 13, fontWeight: "700", color: Theme.complianceBulkText },
   reportBtn: {
     minHeight: Layout.minTouchTargetSize,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     borderRadius: 10,
     backgroundColor: Theme.cardWhite,
     borderWidth: 1,
@@ -464,7 +563,7 @@ const styles = StyleSheet.create({
   chip: {
     flexShrink: 0,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: 999,
     backgroundColor: Theme.cardWhite,
     borderWidth: 1,
@@ -472,7 +571,7 @@ const styles = StyleSheet.create({
     minHeight: 40,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
   chipActive: {
     backgroundColor: Theme.buttonDark,
@@ -480,7 +579,15 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 12, fontWeight: "600", color: Theme.textMuted },
   chipTextActive: { color: Theme.buttonDarkText },
-  chipCount: { fontSize: 12, fontWeight: "800" },
+  chipCountBadge: {
+    minWidth: 22,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chipCount: { fontSize: 11, fontWeight: "800" },
   viewToggle: {
     flexShrink: 0,
     flexDirection: "row",
