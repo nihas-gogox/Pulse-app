@@ -1,40 +1,40 @@
 /**
  * Trips service — Supabase only (mobile). Same DB as pulse-unified-base.
  */
+import { getTripOperationalDisplayCode } from "@/features/operations/display";
+import {
+    selectTripIndentLineageLabel,
+    selectTripOperationalReference,
+} from "@/features/operations/numbering";
+import { isDcoOperatingTrip } from "@/features/trips/domain/tripDcoOperating";
+import {
+    applyIndentCommerceOrigin,
+    indentIdsForCommerceLookup,
+} from "@/features/trips/utils/applyIndentCommerceOrigin";
+import { shouldFallbackTripsTableScan } from "@/features/trips/utils/tripOrgFetch.util";
+import { shouldMarkAssignedOnFirstAssign } from "@/features/trips/utils/tripReassign.util";
+import { TRIP_REASSIGN_STALE_ERROR } from "@/features/trips/utils/tripReassignConflict.util";
+import { TimeoutError, withTimeout } from "@/lib/authEngine";
+import type { DeltaResponse } from "@/lib/cache/deltaTypes";
+import { syncDomainRows } from "@/lib/cache/domainSync";
+import { mergeDeltaRows } from "@/lib/cache/mergeDelta";
+import { runSingleflight } from "@/lib/cache/singleflight";
 import {
     DEFAULT_PAGE_SIZE,
     DRIVER_TRIPS_PAGE_SIZE,
     type PageOpts,
 } from "@/lib/pagination";
-import { syncDomainRows } from "@/lib/cache/domainSync";
-import { mergeDeltaRows } from "@/lib/cache/mergeDelta";
-import type { DeltaResponse } from "@/lib/cache/deltaTypes";
-import { supabase } from "@/lib/supabase";
-import { TimeoutError, withTimeout } from "@/lib/authEngine";
 import { getPlatformEventBus } from "@/lib/platform/events/InProcessEventBus";
+import { supabase } from "@/lib/supabase";
 import { uuidv7 } from "@/lib/uuidv7";
-import { TRIP_REASSIGN_STALE_ERROR } from "@/features/trips/utils/tripReassignConflict.util";
-import { shouldMarkAssignedOnFirstAssign } from "@/features/trips/utils/tripReassign.util";
-import {
-  applyIndentCommerceOrigin,
-  indentIdsForCommerceLookup,
-} from "@/features/trips/utils/applyIndentCommerceOrigin";
-import {
-  selectTripIndentLineageLabel,
-  selectTripOperationalReference,
-} from "@/features/operations/numbering";
-import { getTripOperationalDisplayCode } from "@/features/operations/display";
 import type { DriverTripRow, SupplierTripRow } from "@/types/trip-views";
 import {
-  driverRowToTripRow,
-  tripRowToDriverTripRow,
+    driverRowToTripRow,
+    tripRowToDriverTripRow,
 } from "@/types/trip-views";
-import { isDcoOperatingTrip } from "@/features/trips/domain/tripDcoOperating";
-import { runSingleflight } from "@/lib/cache/singleflight";
-import { shouldFallbackTripsTableScan } from "@/features/trips/utils/tripOrgFetch.util";
 
-export type { DriverTripRow, SupplierTripRow } from "@/types/trip-views";
 export { driverRowToTripRow, supplierRowToTripRow } from "@/types/trip-views";
+export type { DriverTripRow, SupplierTripRow } from "@/types/trip-views";
 
 export interface TripRow {
   id: string;

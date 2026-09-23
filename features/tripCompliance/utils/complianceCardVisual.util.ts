@@ -1,8 +1,8 @@
 import Theme from "@/constants/Theme";
 import type {
-  ComplianceChecklistTone,
-  ComplianceStage,
-  ComplianceTripSummary,
+    ComplianceChecklistTone,
+    ComplianceStage,
+    ComplianceTripSummary,
 } from "@/features/tripCompliance/tripCompliance.types";
 
 export type ComplianceTone = {

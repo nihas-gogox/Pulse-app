@@ -1,28 +1,28 @@
-import { supabase } from "@/lib/supabase";
 import type { DocumentRow } from "@/features/compliance/services/documents.service";
 import { getDocumentsForEntities } from "@/features/compliance/services/documents.service";
-import type { TripRow } from "@/features/trips/services/trips.service";
 import { interpretLedgerRowStructured } from "@/features/finance/ledger/ledgerEntryModel";
+import {
+    REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
+    type ComplianceDecision,
+    type ComplianceDocumentRow,
+    type ComplianceEntityDocument,
+    type ComplianceOutstandingSummary,
+    type CompliancePaymentSummary,
+    type ComplianceStage,
+    type ComplianceTripSummary,
+} from "@/features/tripCompliance/tripCompliance.types";
 import { buildComplianceChecklist } from "@/features/tripCompliance/utils/complianceChecklist.util";
 import {
-  mergeComplianceEntityDocs,
-  normalizeTripDocumentType,
-  normalizeVaultVehicleNumber,
-  vehicleVaultDocumentsToEntityDocs,
+    mergeComplianceEntityDocs,
+    normalizeTripDocumentType,
+    normalizeVaultVehicleNumber,
+    vehicleVaultDocumentsToEntityDocs,
 } from "@/features/tripCompliance/utils/complianceVaultDocuments.util";
 import { runWithConcurrencyLimit, tripPodIsReceived } from "@/features/trips/services/tripDocumentLrPod.service";
+import type { TripRow } from "@/features/trips/services/trips.service";
 import { getVehicleForTripViewer } from "@/features/vehicles/services/vehicles.service";
 import type { VehicleDocuments } from "@/features/vehicles/utils/vehicleDocuments.util";
-import {
-  REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
-  type ComplianceDecision,
-  type ComplianceDocumentRow,
-  type ComplianceEntityDocument,
-  type ComplianceOutstandingSummary,
-  type ComplianceStage,
-  type CompliancePaymentSummary,
-  type ComplianceTripSummary,
-} from "@/features/tripCompliance/tripCompliance.types";
+import { supabase } from "@/lib/supabase";
 
 /**
  * `trip_documents.status`/`verified_by`/`verified_at`/`rejection_reason` and
@@ -547,7 +547,7 @@ export async function buildComplianceTripSummaries(
       (trip.owner_vehicle_id ? vaultVehicleDocs.get(trip.owner_vehicle_id) : undefined) ??
       vaultVehicleDocs.get(normalizeVaultVehicleNumber(trip.vehicle_display_number)) ??
       [];
-    const vehicleDocuments = mergeComplianceEntityDocs(vaultVehicle, entityVehicleDocs);
+    const vehicleDocuments = mergeComplianceEntityDocs(entityVehicleDocs, vaultVehicle);
     const entityDriverDocs = trip.driver_id
       ? (entityDocsById.get(trip.driver_id) ?? []).filter((d) => d.entity_type === "driver").map(toEntityDocument)
       : [];
