@@ -18,6 +18,11 @@
  *        SHARED_CORE   → CORE only             (a CORE→DOMAIN edge promotes the file to DOMAIN)
  *        SHARED_DOMAIN → CORE | DOMAIN
  *        SHARED_UI     → CORE | UI  (+ DOMAIN type-only)
+ *        SHARED_FEATURES → CORE | DOMAIN | UI | FEATURES   (plan D1)
+ *      Approved decisions (OVERRIDES.json) are checked too: a decision that
+ *      breaks a rule becomes REVIEW bucket DV. It is never adjusted silently.
+ *   Approved path-only rewrites (D2 rewrites, D9 driver barrel imports) are
+ *   modeled: those edges point at the files the barrel really re-exports.
  *      Any other runtime edge turns the file into REVIEW, with the reason.
  *   4. Anything no rule matches is REVIEW. Nothing ambiguous is guessed.
  *
@@ -38,9 +43,42 @@ const OUT_JSON = path.join(ROOT, 'docs/DRIVER_EXTRACTION_CLASSIFICATION.json');
 const inv = JSON.parse(await readFile(IN, 'utf8'));
 let overrides = {};
 try { overrides = JSON.parse(await readFile(OVERRIDES, 'utf8')); } catch {}
+const DEC = overrides.decisions ?? {};
+const PATTERNS = (overrides.patterns ?? []).map((p) => ({ ...p, re: new RegExp(p.match) }));
+const REWRITES = new Set((overrides.rewrites ?? []).map((r) => `${r.from}\0${r.to}`));
 
 const G = inv.graph;
-const files = Object.keys(G).filter((f) => !G[f].test && (G[f].inDriver || G[f].seed));
+const isDriverCode = (f) => G[f]?.seed || (G[f]?.inDriver && !G[f]?.inMain);
+
+/** Runtime edges after approved path-only rewrites. */
+function effectiveImports(f) {
+  const out = [];
+  for (const e of G[f]?.imports ?? []) {
+    const rewrite = e.barrelTargets && !(e.kinds.length === 1 && e.kinds[0] === 'type') && (
+      REWRITES.has(`${f}\0${e.to}`) || (DEC.D9_barrelRewritesForDriverCode && isDriverCode(f)));
+    if (rewrite) {
+      for (const t of e.barrelTargets) if (t !== f) out.push({ to: t, kinds: ['static'], via: e.to });
+      if (e.kinds.includes('type')) out.push({ to: e.to, kinds: ['type'] });
+    } else out.push(e);
+  }
+  return out;
+}
+
+// Driver runtime closure, recomputed with the rewrites.
+const seedsList = Object.keys(G).filter((f) => G[f].seed && !G[f].test);
+const driverRuntime = new Set();
+{
+  const st = [...seedsList];
+  while (st.length) {
+    const n = st.pop();
+    if (driverRuntime.has(n) || !G[n]) continue;
+    driverRuntime.add(n);
+    for (const e of effectiveImports(n)) if (!(e.kinds.length === 1 && e.kinds[0] === 'type')) st.push(e.to);
+  }
+}
+// Pulled-in files are added to this later (a shared file needs a driver-only helper).
+const files = Object.keys(G).filter((f) => !G[f].test && (G[f].inDriver || G[f].seed || driverRuntime.has(f)));
+const droppedByRewrites = Object.keys(G).filter((f) => !G[f].test && G[f].inDriverRuntime && !driverRuntime.has(f) && !G[f].seed);
 const liveMainImporters = (f) => G[f].importedBy
   .filter((e) => !G[e.from]?.seed && G[e.from]?.inMain && !G[e.from]?.test)
   .map((e) => e.from);
@@ -55,6 +93,7 @@ const BUCKETS = {
   D5: 'Generic component that depends on business code at runtime (would break the ui → domain rule)',
   D6: 'Depends at runtime on an unresolved (REVIEW) or incompatible file',
   D7: 'No rule matched',
+  DV: 'An approved decision breaks a package rule. Needs a new decision',
 };
 
 const BUSINESS_RE = /(ledger|finance|party|chat|trip|driver|fleet|connection|member|capabilit|onboarding|globalSync|indent|vehicle|payment|places|phoneLookup|entityIdentity|mapLocationLabel|idempotency|firstLaunch|signup|workspace|subcontract)/i;
@@ -62,7 +101,8 @@ const ASSET_RE = /(Assets|LottieAssets|lottieSource|Lottie)\.tsx?$/;
 
 function propose(f, { pulled = false } = {}) {
   const t = G[f];
-  if (overrides[f]) return { cls: overrides[f].cls, rule: 'MANUAL', why: overrides[f].why ?? 'manual decision' };
+  const pat = PATTERNS.find((p) => p.re.test(f) && (!p.jsxOnly || t.jsx));
+  if (pat) return { cls: pat.cls, rule: `MANUAL:${pat.decision}`, why: pat.why, fallback: pat.fallback, manual: true };
 
   // ── Driver seeds ────────────────────────────────────────────────────────
   if (t.seed) {
@@ -73,7 +113,7 @@ function propose(f, { pulled = false } = {}) {
     return { cls: 'REVIEW', bucket: 'D4', rule: 'S3', why: `imported by live main code: ${importers.join(', ')}` };
   }
   // The driver only imports types from it: nothing moves; its types go to @pulse/domain in Phase 2.
-  if (!t.inDriverRuntime && t.inMain && !pulled) return { cls: 'MAIN_ONLY', rule: 'Y1', why: 'driver imports only its types (extract types in Phase 2; the file stays)' };
+  if (!driverRuntime.has(f) && t.inMain && !pulled) return { cls: 'MAIN_ONLY', rule: 'Y1', why: 'driver imports only its types (extract types in Phase 2; the file stays)' };
   if (!t.inMain && !pulled) return { cls: 'DRIVER_ONLY', rule: 'N1', why: 'only reachable from driver code' };
 
   // ── Reached by both apps ─────────────────────────────────────────────────
@@ -105,7 +145,10 @@ function propose(f, { pulled = false } = {}) {
 
   const feat = f.match(/^features\/([^/]+)\/(.+)$/);
   if (feat) {
-    if (t.jsx || /\/(components|screens)\//.test(f)) {
+    // Only files that render UI are "business UI"; types/constants that happen to
+    // live in a components/ folder follow the normal (domain) rule.
+    if (DEC.D1_sharedFeatures ? t.jsx : (t.jsx || /\/(components|screens)\//.test(f))) {
+      if (DEC.D1_sharedFeatures) return { cls: 'SHARED_FEATURES', rule: 'F1', why: 'shared business UI (D1: @pulse/features)' };
       return { cls: 'REVIEW', bucket: 'D1', rule: 'F1', why: 'shared business UI' };
     }
     return { cls: 'SHARED_DOMAIN', rule: 'F2', why: 'feature service/util/hook/domain code' };
@@ -122,77 +165,104 @@ const ALLOWED = {
   SHARED_CORE: new Set(['SHARED_CORE']),
   SHARED_DOMAIN: new Set(['SHARED_CORE', 'SHARED_DOMAIN']),
   SHARED_UI: new Set(['SHARED_CORE', 'SHARED_UI']),
+  SHARED_FEATURES: new Set(['SHARED_CORE', 'SHARED_DOMAIN', 'SHARED_UI', 'SHARED_FEATURES']),
 };
+const isRuntime = (kinds) => !(kinds.length === 1 && kinds[0] === 'type');
+
+// Phase A: upward-only changes until stable. Helpers get pulled into shared,
+// fallbacks are applied, and non-approved core files that need domain are
+// promoted to domain. Nothing is marked REVIEW here, so a temporary state
+// can't leave files stuck.
 let changed = true;
 let passes = 0;
 while (changed && passes < 50) {
   changed = false; passes++;
-  for (const f of files) {
+  for (const f of [...files]) {
     const r = result.get(f);
-    if (!ALLOWED[r.cls] || r.rule === 'MANUAL') continue;
-    for (const { to, kinds } of G[f].imports) {
-      const typeOnly = kinds.length === 1 && kinds[0] === 'type';
+    if (!ALLOWED[r.cls]) continue;
+    for (const { to, kinds } of effectiveImports(f)) {
+      if (!isRuntime(kinds)) continue;
       const tr = result.get(to);
-      if (!tr) continue; // test/unreachable
-      if (typeOnly) continue; // type edges are erased at runtime; reported separately
-      if (ALLOWED[r.cls].has(tr.cls)) continue;
-      if (tr.rule === 'N1') {
+      if (!tr || ALLOWED[r.cls].has(tr.cls)) continue;
+      if (tr.rule === 'N1' || tr.rule === 'Y1') {
         // A shared file needs this driver-only helper, so the helper must be shared too.
         const p = propose(to, { pulled: true });
+        if (!files.includes(to)) files.push(to);
         result.set(to, { ...p, rule: `${p.rule}←pulled`, why: `${p.why}; pulled into shared by ${f}` });
         changed = true;
-        break;
+      } else if (r.fallback && ALLOWED[r.fallback].has(tr.cls)) {
+        result.set(f, { ...r, cls: r.fallback, fallback: undefined, rule: `${r.rule}→fallback`, why: `${r.why}; fell back to ${r.fallback}: needs ${tr.cls} ${to}` });
+        changed = true;
+      } else if (!r.manual && r.cls === 'SHARED_CORE' && tr.cls === 'SHARED_DOMAIN') {
+        result.set(f, { ...r, cls: 'SHARED_DOMAIN', rule: `${r.rule}→V1`, why: `${r.why}; promoted: depends on domain ${to}` });
+        changed = true;
       }
-      if (r.cls === 'SHARED_CORE' && tr.cls === 'SHARED_DOMAIN') {
-        result.set(f, { cls: 'SHARED_DOMAIN', rule: `${r.rule}→V1`, why: `${r.why}; promoted: depends on domain ${to}` });
-      } else if (r.cls === 'SHARED_UI' && tr.cls === 'SHARED_DOMAIN') {
-        result.set(f, { cls: 'REVIEW', bucket: 'D5', rule: `${r.rule}→V2`, why: `ui depends at runtime on domain ${to}`, blockedBy: to });
-      } else {
-        result.set(f, { cls: 'REVIEW', bucket: 'D6', rule: `${r.rule}→V3`, why: `${r.cls} depends at runtime on ${tr.cls} ${to}`, blockedBy: to });
-      }
-      changed = true;
-      break;
+      if (changed) break;
     }
   }
 }
 
-// Recompute every D5/D6 reason against the FINAL classes (reasons recorded
-// mid-loop can go stale when a target is reclassified afterwards).
+// Phase B: real rule breaks against the settled classes.
+const direct = [];
 for (const f of files) {
   const r = result.get(f);
-  if (r.bucket !== 'D5' && r.bucket !== 'D6') continue;
-  const prior = r.rule.split('→')[0];
-  const intended = prior.startsWith('U') || prior.startsWith('L1') || prior.startsWith('L2') || prior.startsWith('K2') || prior.startsWith('S2')
-    ? 'SHARED_UI' : prior.startsWith('L4') || prior.startsWith('K1') || prior.startsWith('C2') ? 'SHARED_CORE' : 'SHARED_DOMAIN';
-  const allowed = new Set([...ALLOWED[intended], ...(intended === 'SHARED_CORE' ? ['SHARED_DOMAIN'] : [])]);
-  const bad = G[f].imports.find(({ to, kinds }) => {
+  if (!ALLOWED[r.cls]) continue;
+  const bad = effectiveImports(f).find(({ to, kinds }) => {
     const tr = result.get(to);
-    return tr && !(kinds.length === 1 && kinds[0] === 'type') && !allowed.has(tr.cls);
+    return isRuntime(kinds) && tr && !ALLOWED[r.cls].has(tr.cls);
   });
-  if (bad) {
-    const tr = result.get(bad.to);
-    r.blockedBy = bad.to;
-    r.why = `${intended} depends at runtime on ${tr.cls} ${bad.to}`;
-    r.bucket = intended === 'SHARED_UI' && tr.cls === 'SHARED_DOMAIN' ? 'D5' : 'D6';
+  if (!bad) continue;
+  const tcls = result.get(bad.to).cls;
+  const bucket = r.manual ? 'DV' : (r.cls === 'SHARED_UI' && tcls === 'SHARED_DOMAIN') ? 'D5' : 'D6';
+  direct.push([f, { cls: 'REVIEW', bucket, rule: `${r.rule}→${bucket}`, why: `${r.manual ? 'approved ' : ''}${r.cls} depends at runtime on ${tcls} ${bad.to}`, blockedBy: bad.to, intended: r.cls, directBreak: true }]);
+}
+for (const [f, v] of direct) result.set(f, v);
+
+// Phase C: spread "blocked" from real breaks (shared file → REVIEW file).
+changed = true;
+while (changed) {
+  changed = false;
+  for (const f of files) {
+    const r = result.get(f);
+    if (!ALLOWED[r.cls]) continue;
+    const bad = effectiveImports(f).find(({ to, kinds }) => isRuntime(kinds) && result.get(to)?.cls === 'REVIEW');
+    if (!bad) continue;
+    result.set(f, { cls: 'REVIEW', bucket: r.manual ? 'DV' : 'D6', rule: `${r.rule}→blocked`, why: `${r.manual ? 'approved ' : ''}${r.cls} depends at runtime on REVIEW ${bad.to}`, blockedBy: bad.to, intended: r.cls });
+    changed = true;
   }
 }
+
 // Follow D6 chains to the first file that is not itself D6: that is what unblocks it.
 function rootBlocker(f, seen = new Set()) {
   const r = result.get(f);
-  if (r.bucket !== 'D6' || !r.blockedBy || seen.has(f)) return f;
+  if (r.directBreak || !r.blockedBy || seen.has(f)) return f;
   seen.add(f);
   return rootBlocker(r.blockedBy, seen);
 }
 for (const f of files) {
   const r = result.get(f);
-  if (r.bucket !== 'D6') continue;
+  if (r.cls !== 'REVIEW' || r.directBreak) continue;
   r.root = rootBlocker(f);
   const rr = result.get(r.root);
   r.rootBucket = r.root === f ? 'cycle' : rr.bucket ?? `incompatible:${rr.cls}`;
 }
 
+// ── Independent final check: every shared file vs the package rules ────────
+const ruleViolations = [];
+for (const f of files) {
+  const r = result.get(f);
+  if (!ALLOWED[r.cls]) continue;
+  for (const { to, kinds, via } of effectiveImports(f)) {
+    if (kinds.length === 1 && kinds[0] === 'type') continue;
+    const tr = result.get(to);
+    const tcls = tr ? tr.cls : (G[to]?.test ? 'TEST' : 'MAIN_ONLY');
+    if (tcls === 'TEST') continue;
+    if (!ALLOWED[r.cls].has(tcls) && tcls !== 'REVIEW') ruleViolations.push({ from: f, fromCls: r.cls, to, toCls: tcls, via });
+  }
+}
+
 // ── Report ───────────────────────────────────────────────────────────────────
-const CLASSES = ['DRIVER_ONLY', 'SHARED_CORE', 'SHARED_DOMAIN', 'SHARED_UI', 'MAIN_ONLY', 'REVIEW'];
+const CLASSES = ['DRIVER_ONLY', 'SHARED_CORE', 'SHARED_DOMAIN', 'SHARED_UI', 'SHARED_FEATURES', 'MAIN_ONLY', 'REVIEW'];
 const by = (c) => files.filter((f) => result.get(f).cls === c).sort();
 const reviewBy = (b) => files.filter((f) => result.get(f).bucket === b).sort();
 const topDirs = (list, n = 8) => {
@@ -211,6 +281,24 @@ L.push('Generated by `node scripts/driver-extraction-classify.mjs`. **Do not edi
 L.push('');
 L.push('**Gate:** no code moves until the REVIEW count is 0 and Nihas approves this file.');
 L.push('');
+L.push('## Gate');
+L.push('');
+const reviewCount = files.filter((f) => result.get(f).cls === 'REVIEW').length;
+L.push(`| Check | Result |`);
+L.push(`|---|---|`);
+L.push(`| REVIEW = 0 | ${reviewCount === 0 ? '✅' : `❌ ${reviewCount}`} |`);
+L.push(`| Package-rule violations = 0 | ${ruleViolations.length === 0 ? '✅' : `❌ ${ruleViolations.length}`} |`);
+L.push(`| Approved decisions applied | ${[...new Set(PATTERNS.map((p) => p.decision))].sort().join(', ')}${DEC.D1_sharedFeatures ? ', D1' : ''}${DEC.D9_barrelRewritesForDriverCode ? ', D9' : ''}${DEC.D10_typeOnlyStaysMainOnly ? ', D10' : ''} |`);
+L.push(`| Files no longer needed at runtime once D9/D2 rewrites are done | ${droppedByRewrites.length} |`);
+L.push('');
+if (ruleViolations.length) {
+  L.push('### Package-rule violations');
+  L.push('');
+  L.push('| From | Class | To | Class | Via barrel |');
+  L.push('|---|---|---|---|---|');
+  for (const v of ruleViolations) L.push(`| \`${v.from}\` | ${v.fromCls} | \`${v.to}\` | ${v.toCls} | ${v.via ? `\`${v.via}\`` : ''} |`);
+  L.push('');
+}
 L.push('## Summary');
 L.push('');
 L.push('| Class | Files |');
@@ -265,7 +353,7 @@ for (const [b, q] of Object.entries(BUCKETS)) {
   for (const f of list) { const r = result.get(f); L.push(`| \`${f}\` | ${r.why}${r.root ? ` · **root:** \`${r.root}\` (${r.rootBucket})` : ''} |`); }
   L.push('');
 }
-for (const c of ['DRIVER_ONLY', 'SHARED_CORE', 'SHARED_DOMAIN', 'SHARED_UI', 'MAIN_ONLY']) {
+for (const c of ['DRIVER_ONLY', 'SHARED_CORE', 'SHARED_DOMAIN', 'SHARED_UI', 'SHARED_FEATURES', 'MAIN_ONLY']) {
   const list = by(c);
   L.push(`## ${c} (${list.length})`);
   L.push('');
@@ -278,6 +366,7 @@ for (const c of ['DRIVER_ONLY', 'SHARED_CORE', 'SHARED_DOMAIN', 'SHARED_UI', 'MA
 await writeFile(OUT_MD, L.join('\n'));
 await writeFile(OUT_JSON, JSON.stringify(Object.fromEntries(files.sort().map((f) => [f, result.get(f)])), null, 2));
 console.log(`Wrote ${path.relative(ROOT, OUT_MD)} (passes=${passes})`);
+console.log(`  GATE: REVIEW=${reviewCount} ruleViolations=${ruleViolations.length} droppedByRewrites=${droppedByRewrites.length}`);
 for (const c of CLASSES) console.log(`  ${c.padEnd(14)} ${by(c).length}`);
 for (const b of Object.keys(BUCKETS)) { const n = reviewBy(b).length; if (n) console.log(`    ${b} ${n}`); }
 for (const [b, roots] of Object.entries(rootAgg)) console.log(`    D6 root ${b}: ${roots.length}`);

@@ -122,14 +122,39 @@ async function resolveAll(fromFile, spec) {
   return hits;
 }
 
-const STATIC_RE = /^\s*(import|export)\s+(type\s+)?(?:[^'"`;]*?\sfrom\s+)?['"]([^'"`]+)['"]/gm;
+const STATIC_RE = /^\s*(import|export)\s+(type\s+)?([^'"`;]*?\sfrom\s+)?['"]([^'"`]+)['"]/gm;
 const DYNAMIC_RE = /\b(?:import|require)\s*\(\s*['"]([^'"`]+)['"]\s*\)/g;
+
+/**
+ * Runtime names an import/export clause pulls from its module.
+ * '*' = everything; [] = side-effect only.
+ */
+function clauseNames(keyword, clause) {
+  const c = clause.replace(/\sfrom\s+$/, '').trim();
+  if (!c) return [];
+  if (/\*/.test(c) && !/\{/.test(c)) return ['*'];
+  const names = [];
+  const braces = c.match(/\{([\s\S]*)\}/);
+  if (braces) {
+    for (const part of braces[1].split(',')) {
+      const p = part.trim();
+      if (!p || /^type\s/.test(p)) continue;
+      names.push(p.split(/\s+as\s+/)[0].trim());
+    }
+  }
+  const head = c.replace(/\{[\s\S]*\}/, '').replace(/,/g, ' ').trim();
+  if (keyword === 'import' && /^[A-Za-z_$][\w$]*$/.test(head)) names.push('default');
+  if (/\*\s+as\s+/.test(c)) names.push('*');
+  return names;
+}
 
 function parseImports(src) {
   const out = [];
   let m;
   STATIC_RE.lastIndex = 0;
-  while ((m = STATIC_RE.exec(src))) out.push({ spec: m[3], kind: m[2] ? 'type' : 'static' });
+  while ((m = STATIC_RE.exec(src))) {
+    out.push({ spec: m[4], kind: m[2] ? 'type' : 'static', names: m[2] ? [] : clauseNames(m[1], m[3] ?? '') });
+  }
   DYNAMIC_RE.lastIndex = 0;
   while ((m = DYNAMIC_RE.exec(src))) out.push({ spec: m[1], kind: 'dynamic' });
   return out;
@@ -141,6 +166,8 @@ const fileSet = new Set(files);
 /** edges: from -> Map<to, Set<kind>> */
 const edges = new Map(files.map((f) => [f, new Map()]));
 const unresolved = [];
+/** from -> Map<to, Set<name>> : runtime names imported (for barrel rewrites, plan D9). */
+const edgeNames = new Map();
 /** Per-file traits used by scripts/driver-extraction-classify.mjs. */
 const traits = new Map();
 
@@ -154,7 +181,7 @@ for (const f of files) {
     supabase: /\bsupabase\(\)|from ['"]@\/lib\/supabase['"]/.test(src),
     reactQuery: /@tanstack\/react-query/.test(src),
   });
-  for (const { spec, kind } of parseImports(src)) {
+  for (const { spec, kind, names } of parseImports(src)) {
     const targets = await resolveAll(path.join(ROOT, f), spec);
     if (!targets.length) {
       if (spec.startsWith('@/') && !/\.(png|jpe?g|svg|json|gif|webp|ttf|otf|mp3|mp4|lottie)$/.test(spec)) {
@@ -167,7 +194,87 @@ for (const f of files) {
       const m = edges.get(f);
       if (!m.has(t)) m.set(t, new Set());
       m.get(t).add(kind);
+      if (kind !== 'type') {
+        if (!edgeNames.has(f)) edgeNames.set(f, new Map());
+        const en = edgeNames.get(f);
+        if (!en.has(t)) en.set(t, new Set());
+        // dynamic import() / require() take the whole module
+        for (const n of kind === 'dynamic' ? ['*'] : names) en.get(t).add(n);
+      }
     }
+  }
+}
+
+// ── Barrel resolution (plan D9): which files a barrel import really needs ────
+const isBarrelFile = (r) => /(^|\/)index\.(tsx?|jsx?)$/.test(r) && !r.startsWith('app/');
+const barrelCache = new Map();
+async function barrelExports(b) {
+  if (barrelCache.has(b)) return barrelCache.get(b);
+  const src = await readFile(path.join(ROOT, b), 'utf8');
+  const named = new Map(); // exported name -> [file]
+  const stars = [];
+  let hasLocal = false;
+  const localImports = new Map(); // local name -> [file]
+  const res = async (spec) => (await resolveAll(path.join(ROOT, b), spec)).map(rel).filter((x) => fileSet.has(x));
+  for (const m of src.matchAll(/^\s*import\s+(?!type\b)([^;'"`]*?)\s+from\s+['"]([^'"`]+)['"]/gm)) {
+    const targets = await res(m[2]);
+    for (const n of clauseNames('import', `${m[1]} from `)) {
+      if (n !== 'default' && n !== '*') localImports.set(n, targets);
+    }
+    const alias = m[1].match(/^\s*([A-Za-z_$][\w$]*)/);
+    if (alias && !m[1].trim().startsWith('{')) localImports.set(alias[1], targets);
+  }
+  for (const m of src.matchAll(/^\s*export\s+(type\s+)?(\*(?:\s+as\s+([\w$]+))?|\{[\s\S]*?\})\s*(?:from\s+['"]([^'"`]+)['"])?/gm)) {
+    if (m[1]) continue; // export type
+    const targets = m[4] ? await res(m[4]) : null;
+    if (m[2].startsWith('*')) {
+      if (m[3]) named.set(m[3], targets ?? []);
+      else stars.push(...(targets ?? []));
+      continue;
+    }
+    for (const part of m[2].slice(1, -1).split(',')) {
+      const p = part.trim();
+      if (!p || /^type\s/.test(p)) continue;
+      const [orig, as] = p.split(/\s+as\s+/).map((x) => x.trim());
+      const exported = as ?? orig;
+      if (targets) named.set(exported, targets);
+      else if (localImports.has(orig)) named.set(exported, localImports.get(orig));
+      else hasLocal = true;
+    }
+  }
+  if (/^\s*export\s+(default|const|let|var|function|async\s+function|class|enum)\b/m.test(src)) hasLocal = true;
+  const info = { named, stars, hasLocal };
+  barrelCache.set(b, info);
+  return info;
+}
+/** Files a runtime import of `names` from barrel `b` needs (conservative superset). */
+async function barrelTargets(b, names, depth = 0) {
+  const out = new Set();
+  if (depth > 6) { out.add(b); return out; }
+  const { named, stars, hasLocal } = await barrelExports(b);
+  const addTarget = async (t, n) => {
+    if (isBarrelFile(t) && t !== b) for (const x of await barrelTargets(t, n, depth + 1)) out.add(x);
+    else out.add(t);
+  };
+  const all = names.includes('*') || names.length === 0;
+  if (all) {
+    if (hasLocal || names.length === 0) out.add(b);
+    for (const [n, ts] of named) for (const t of ts) await addTarget(t, ['*']);
+    for (const t of stars) await addTarget(t, ['*']);
+    return out;
+  }
+  for (const n of names) {
+    if (named.has(n)) { for (const t of named.get(n)) await addTarget(t, n === 'default' ? ['default'] : [n]); continue; }
+    if (hasLocal) out.add(b);
+    for (const t of stars) await addTarget(t, [n]);
+  }
+  return out;
+}
+const barrelEdgeTargets = new Map(); // `${from}\0${to}` -> [files]
+for (const [from, en] of edgeNames) {
+  for (const [to, names] of en) {
+    if (!isBarrelFile(to)) continue;
+    barrelEdgeTargets.set(`${from}\0${to}`, [...await barrelTargets(to, [...names])].sort());
   }
 }
 
@@ -451,7 +558,10 @@ if (process.argv.includes('--json')) {
     graph: Object.fromEntries([...new Set([...driverClosure, ...seeds, ...reachesDriver])].sort().map((f) => [f, {
       inDriver: driverClosure.has(f), inDriverRuntime: driverRuntimeClosure.has(f), inMain: mainClosure.has(f), seed: seedSet.has(f), test: isTest(f),
       ...traits.get(f),
-      imports: [...(edges.get(f)?.entries() ?? [])].map(([to, k]) => ({ to, kinds: [...k] })),
+      imports: [...(edges.get(f)?.entries() ?? [])].map(([to, k]) => {
+        const bt = barrelEdgeTargets.get(`${f}\0${to}`);
+        return bt ? { to, kinds: [...k], barrelTargets: bt } : { to, kinds: [...k] };
+      }),
       importedBy: [...(reverse.get(f)?.entries() ?? [])].map(([from, k]) => ({ from, kinds: [...k] })),
     }])),
     rows, violations, reachesDriver: [...reachesDriver].sort(), cycles, driverRoutes,

@@ -57,6 +57,9 @@
           "to": "features/driver/communication/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/driver/communication/DriverCommunicationProvider.tsx"
           ]
         },
         {
@@ -1520,6 +1523,16 @@
           "to": "features/marketplace/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/marketplace/domain/commercialActions.ts",
+            "features/marketplace/domain/commercialLifecycle.ts",
+            "features/marketplace/domain/commercialOpportunity.ts",
+            "features/marketplace/domain/commercialPermissions.ts",
+            "features/marketplace/domain/commercialPricing.ts",
+            "features/marketplace/domain/commercialRelationship.ts",
+            "features/marketplace/domain/commercialVisibility.ts",
+            "features/marketplace/domain/resolveCommercialOpportunity.ts"
           ]
         },
         {
@@ -1644,6 +1657,9 @@
           "to": "components/demo/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/demo/DemoTabBar.tsx"
           ]
         },
         {
@@ -2489,6 +2505,9 @@
           "kinds": [
             "static",
             "type"
+          ],
+          "barrelTargets": [
+            "features/trips/components/add-trip/AddTripModal.tsx"
           ]
         },
         {
@@ -3206,6 +3225,13 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardClientPicker.tsx",
+            "components/full-page-wizard/WizardFormBody.tsx",
+            "components/full-page-wizard/WizardNumericKeypadFlow.tsx",
+            "components/full-page-wizard/WizardPartyContextRow.tsx",
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -3387,6 +3413,9 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/SmartInput.tsx"
           ]
         },
         {
@@ -3943,6 +3972,9 @@
           "to": "features/driver/communication/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/driver/communication/DriverCommunicationProvider.tsx"
           ]
         }
       ],
@@ -5571,6 +5603,9 @@
           "to": "lib/platform/scalability/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/platform/scalability/platformHealth.ts"
           ]
         },
         {
@@ -6763,6 +6798,10 @@
           "to": "features/trips/verification/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/verification/OdometerEntryScreen.tsx",
+            "features/trips/verification/OdometerStartEndScreen.tsx"
           ]
         },
         {
@@ -13687,6 +13726,9 @@
           "to": "components/navigation/PulseBottomTabBar/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/navigation/PulseBottomTabBar/PulseBottomTabBar.tsx"
           ]
         }
       ],
@@ -13764,6 +13806,9 @@
           "to": "components/navigation/PulseBottomTabBar/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/navigation/PulseBottomTabBar/PulseBottomTabBar.tsx"
           ]
         }
       ],
@@ -16438,6 +16483,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -16849,12 +16897,19 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/SmartInput.tsx"
           ]
         },
         {
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalBottomActionBar.tsx",
+            "components/operational/OperationalButton.tsx"
           ]
         },
         {
@@ -19882,6 +19937,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -20164,6 +20222,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -32494,6 +32555,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/FullPageWizardFooter.tsx"
           ]
         },
         {
@@ -32740,12 +32804,22 @@
           "to": "features/analytics/operations/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/analytics/operations/derivedMetrics.ts"
           ]
         },
         {
           "to": "features/analytics/vehicle-economics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/analytics/vehicle-economics/VehicleEconomicsDashboard.tsx",
+            "features/analytics/vehicle-economics/useVehicleEconomics.ts",
+            "features/analytics/vehicle-economics/vehicleEconomicsEngine.ts",
+            "features/analytics/vehicle-economics/vehicleEfficiencyRanking.ts",
+            "features/analytics/vehicle-economics/vehicleProfitability.ts"
           ]
         }
       ],
@@ -34850,6 +34924,9 @@
           "to": "features/auth/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/auth/services/auth.service.ts"
           ]
         },
         {
@@ -34904,6 +34981,9 @@
           "to": "lib/platform-identity/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/platform-identity/platformIdentity.service.ts"
           ]
         },
         {
@@ -35171,6 +35251,9 @@
           "to": "lib/platform-identity/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/platform-identity/platformIdentity.service.ts"
           ]
         },
         {
@@ -37068,6 +37151,13 @@
           "to": "features/business-pulse/selectors/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/business-pulse/selectors/pulseAgingSelectors.ts",
+            "features/business-pulse/selectors/pulseAssetSelectors.ts",
+            "features/business-pulse/selectors/pulseBranchSelectors.ts",
+            "features/business-pulse/selectors/pulseContributionSelectors.ts",
+            "features/business-pulse/selectors/pulseSelectors.ts"
           ]
         },
         {
@@ -37892,6 +37982,13 @@
           "to": "features/business-pulse/selectors/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/business-pulse/selectors/pulseAgingSelectors.ts",
+            "features/business-pulse/selectors/pulseAssetSelectors.ts",
+            "features/business-pulse/selectors/pulseBranchSelectors.ts",
+            "features/business-pulse/selectors/pulseContributionSelectors.ts",
+            "features/business-pulse/selectors/pulseSelectors.ts"
           ]
         },
         {
@@ -38464,6 +38561,10 @@
           "to": "features/fleet/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/fleet/selectors/profitabilitySelectors.ts",
+            "features/fleet/selectors/vehicleAccountingSelectors.ts"
           ]
         }
       ],
@@ -38581,6 +38682,10 @@
           "to": "features/fleet/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/fleet/selectors/profitabilitySelectors.ts",
+            "features/fleet/selectors/vehicleAccountingSelectors.ts"
           ]
         },
         {
@@ -40069,6 +40174,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -41307,6 +41415,9 @@
           "to": "features/driver/communication/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/driver/communication/hooks/useDriverChatSystem.ts"
           ]
         },
         {
@@ -42868,6 +42979,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         }
       ],
@@ -43630,6 +43744,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -46706,6 +46823,9 @@
           "to": "features/drivers/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/drivers/services/drivers.service.ts"
           ]
         },
         {
@@ -46760,6 +46880,9 @@
           "to": "features/ratings/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ratings/services/ratings.service.ts"
           ]
         },
         {
@@ -47147,6 +47270,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -47228,6 +47354,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -47714,6 +47843,9 @@
           "to": "features/finance/aggregation/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateCustomersFromRpc.ts"
           ]
         },
         {
@@ -47774,6 +47906,10 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useClientsQuery.ts",
+            "lib/queries/useTripsQuery.ts"
           ]
         },
         {
@@ -48014,6 +48150,9 @@
           "to": "components/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/analytics/AnalyticsCharts.tsx"
           ]
         },
         {
@@ -48074,6 +48213,10 @@
           "to": "features/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/analytics/scores/customerHealthScore.util.ts",
+            "features/analytics/types/analytics.types.ts"
           ]
         },
         {
@@ -48134,6 +48277,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -48298,6 +48444,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -48931,6 +49080,9 @@
           "to": "features/finance/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/services/finance.service.ts"
           ]
         },
         {
@@ -49321,6 +49473,9 @@
           "kinds": [
             "static",
             "type"
+          ],
+          "barrelTargets": [
+            "lib/platform/services/WarehouseService.ts"
           ]
         }
       ],
@@ -49409,6 +49564,9 @@
           "to": "lib/platform/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/platform/services/CustomerService.ts"
           ]
         },
         {
@@ -52689,6 +52847,10 @@
           "to": "features/driver/communication/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/driver/communication/DriverCommunicationProvider.tsx",
+            "features/driver/communication/hooks/useDriverLocationStream.ts"
           ]
         },
         {
@@ -52943,6 +53105,9 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/SmartInput.tsx"
           ]
         },
         {
@@ -53280,6 +53445,18 @@
           "to": "features/trips/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/domain/tripAlertActions.ts",
+            "features/trips/domain/tripExecutionModel.ts",
+            "features/trips/domain/tripJourneyMetrics.ts",
+            "features/trips/domain/tripOperationalAlerts.ts",
+            "features/trips/domain/tripStage.ts",
+            "features/trips/domain/tripStageEta.ts",
+            "features/trips/domain/tripStageGuidance.ts",
+            "features/trips/domain/tripStageMetadata.ts",
+            "features/trips/domain/tripStageMetrics.ts",
+            "features/trips/domain/tripTimeline.ts"
           ]
         },
         {
@@ -53601,6 +53778,9 @@
           "to": "features/trips/verification/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/verification/hooks/useTripVerificationSync.ts"
           ]
         },
         {
@@ -53847,6 +54027,10 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/FullscreenNumericEntry.tsx",
+            "components/mobile-input/keypad.ts"
           ]
         },
         {
@@ -58473,6 +58657,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         }
       ],
@@ -58584,6 +58771,18 @@
           "to": "features/trips/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/domain/tripAlertActions.ts",
+            "features/trips/domain/tripExecutionModel.ts",
+            "features/trips/domain/tripJourneyMetrics.ts",
+            "features/trips/domain/tripOperationalAlerts.ts",
+            "features/trips/domain/tripStage.ts",
+            "features/trips/domain/tripStageEta.ts",
+            "features/trips/domain/tripStageGuidance.ts",
+            "features/trips/domain/tripStageMetadata.ts",
+            "features/trips/domain/tripStageMetrics.ts",
+            "features/trips/domain/tripTimeline.ts"
           ]
         }
       ],
@@ -59081,6 +59280,10 @@
           "to": "features/finance/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateDrivers.ts",
+            "features/finance/components/LedgerReportModal.tsx"
           ]
         },
         {
@@ -59105,6 +59308,9 @@
           "to": "features/ratings/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ratings/services/ratings.service.ts"
           ]
         },
         {
@@ -59689,6 +59895,9 @@
           "to": "features/ratings/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ratings/services/ratings.service.ts"
           ]
         },
         {
@@ -59713,6 +59922,9 @@
           "to": "features/finance/aggregation/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateDriversFromRpc.ts"
           ]
         },
         {
@@ -59966,6 +60178,11 @@
           "to": "components/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/analytics/AnalyticsCharts.tsx",
+            "components/analytics/pulse/PulseLayout.tsx",
+            "components/analytics/pulse/pulseStyles.ts"
           ]
         },
         {
@@ -60041,6 +60258,9 @@
           "to": "components/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/analytics/AnalyticsCharts.tsx"
           ]
         },
         {
@@ -60059,6 +60279,10 @@
           "to": "features/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/analytics/scores/driverPerformanceScore.util.ts",
+            "features/analytics/types/analytics.types.ts"
           ]
         },
         {
@@ -60126,6 +60350,9 @@
           "kinds": [
             "static",
             "type"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateDrivers.ts"
           ]
         },
         {
@@ -60168,6 +60395,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -60243,6 +60473,11 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useDriversQuery.ts",
+            "lib/queries/useFinanceEntityQueries.ts",
+            "lib/queries/useTripsQuery.ts"
           ]
         },
         {
@@ -60255,18 +60490,29 @@
           "to": "components/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/analytics/AnalyticsCards.tsx",
+            "components/analytics/PerformanceLeaderboard.tsx"
           ]
         },
         {
           "to": "features/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/analytics/scores/driverPerformanceScore.util.ts",
+            "features/analytics/types/analytics.types.ts"
           ]
         },
         {
           "to": "features/finance/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateDrivers.ts"
           ]
         },
         {
@@ -60364,6 +60610,9 @@
           "kinds": [
             "type",
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateDrivers.ts"
           ]
         },
         {
@@ -60383,6 +60632,9 @@
           "kinds": [
             "type",
             "static"
+          ],
+          "barrelTargets": [
+            "features/ratings/services/ratings.service.ts"
           ]
         }
       ],
@@ -60423,6 +60675,9 @@
           "kinds": [
             "type",
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateDrivers.ts"
           ]
         },
         {
@@ -60475,6 +60730,9 @@
           "kinds": [
             "type",
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateDrivers.ts"
           ]
         },
         {
@@ -60500,6 +60758,9 @@
           "kinds": [
             "type",
             "static"
+          ],
+          "barrelTargets": [
+            "features/ratings/services/ratings.service.ts"
           ]
         },
         {
@@ -61160,6 +61421,9 @@
           "to": "features/drivers/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/drivers/services/drivers.service.ts"
           ]
         },
         {
@@ -61523,12 +61787,18 @@
           "to": "features/trips/verification/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/verification/hooks/useTripVerificationSync.ts"
           ]
         },
         {
           "to": "features/trips/operations/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/operations/hooks/useTripOperationsSync.ts"
           ]
         }
       ],
@@ -61776,6 +62046,10 @@
           "to": "features/driver/communication/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/driver/communication/DriverCommunicationProvider.tsx",
+            "features/driver/communication/hooks/useDriverLocationStream.ts"
           ]
         },
         {
@@ -61968,6 +62242,18 @@
           "to": "features/trips/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/domain/tripAlertActions.ts",
+            "features/trips/domain/tripExecutionModel.ts",
+            "features/trips/domain/tripJourneyMetrics.ts",
+            "features/trips/domain/tripOperationalAlerts.ts",
+            "features/trips/domain/tripStage.ts",
+            "features/trips/domain/tripStageEta.ts",
+            "features/trips/domain/tripStageGuidance.ts",
+            "features/trips/domain/tripStageMetadata.ts",
+            "features/trips/domain/tripStageMetrics.ts",
+            "features/trips/domain/tripTimeline.ts"
           ]
         },
         {
@@ -62958,6 +63244,9 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/SmartInput.tsx"
           ]
         }
       ],
@@ -65511,6 +65800,9 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useTransactionsQuery.ts"
           ]
         },
         {
@@ -65891,6 +66183,9 @@
           "to": "components/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/analytics/AnalyticsCharts.tsx"
           ]
         }
       ],
@@ -65936,6 +66231,9 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useTripsQuery.ts"
           ]
         },
         {
@@ -66121,6 +66419,9 @@
           "to": "components/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/analytics/AnalyticsCharts.tsx"
           ]
         },
         {
@@ -66765,6 +67066,9 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useTransactionsQuery.ts"
           ]
         },
         {
@@ -66822,6 +67126,10 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useClientsQuery.ts",
+            "lib/queries/useTripsQuery.ts"
           ]
         },
         {
@@ -67742,6 +68050,9 @@
           "to": "features/finance/aggregation/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateDcoPayeesFromRpc.ts"
           ]
         },
         {
@@ -67829,6 +68140,9 @@
           "to": "features/ai/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ai/components/ClientRiskBadge.tsx"
           ]
         },
         {
@@ -67877,6 +68191,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -67932,6 +68249,10 @@
           "kinds": [
             "type",
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateDrivers.ts",
+            "features/finance/aggregation/driverMonthlyStatement.ts"
           ]
         },
         {
@@ -68098,6 +68419,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -68275,6 +68599,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -68816,6 +69143,14 @@
           "to": "features/finance/aggregation/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateCustomers.ts",
+            "features/finance/aggregation/aggregateCustomersFromRpc.ts",
+            "features/finance/aggregation/aggregateDrivers.ts",
+            "features/finance/aggregation/aggregateDriversFromRpc.ts",
+            "features/finance/aggregation/aggregateSuppliers.ts",
+            "features/finance/aggregation/aggregateSuppliersFromRpc.ts"
           ]
         },
         {
@@ -68865,6 +69200,9 @@
           "to": "features/vehicles/pnl/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/vehicles/pnl/garragePnL.ts"
           ]
         },
         {
@@ -69978,6 +70316,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -70097,6 +70438,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -70115,6 +70459,9 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useDriverProfileImagesQuery.ts"
           ]
         },
         {
@@ -70274,6 +70621,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -71013,6 +71363,9 @@
           "to": "features/vehicles/pnl/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/vehicles/pnl/garragePnL.ts"
           ]
         },
         {
@@ -71076,6 +71429,9 @@
           "to": "features/vehicles/pnl/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/vehicles/pnl/garragePnL.ts"
           ]
         },
         {
@@ -71837,6 +72193,9 @@
           "to": "features/vehicles/pnl/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/vehicles/pnl/garragePnL.ts"
           ]
         },
         {
@@ -71867,6 +72226,14 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useClientsQuery.ts",
+            "lib/queries/useDriversQuery.ts",
+            "lib/queries/useFinanceEntityQueries.ts",
+            "lib/queries/useSuppliersQuery.ts",
+            "lib/queries/useTripsQuery.ts",
+            "lib/queries/useVehiclesQuery.ts"
           ]
         }
       ],
@@ -72189,6 +72556,11 @@
           "to": "features/finance/aggregation/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateCustomers.ts",
+            "features/finance/aggregation/aggregateDrivers.ts",
+            "features/finance/aggregation/aggregateSuppliers.ts"
           ]
         },
         {
@@ -72255,6 +72627,13 @@
           "to": "features/finance/projections/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/projections/deriveOperationalCashflow.ts",
+            "features/finance/projections/deriveOperationalLedgerProjection.ts",
+            "features/finance/projections/deriveOperationalPayables.ts",
+            "features/finance/projections/derivePendingReimbursements.ts",
+            "features/finance/projections/syncOperationalFinanceProjection.ts"
           ]
         },
         {
@@ -72267,6 +72646,9 @@
           "to": "features/finance/mappers/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/mappers/tripCostEventMappers.ts"
           ]
         },
         {
@@ -72279,6 +72661,10 @@
           "to": "features/finance/selectors/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/selectors/integritySelectors.ts",
+            "features/finance/selectors/tripAccountingSelectors.ts"
           ]
         },
         {
@@ -72915,6 +73301,9 @@
           "to": "features/vehicles/pnl/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/vehicles/pnl/garragePnL.ts"
           ]
         },
         {
@@ -72978,6 +73367,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -73174,6 +73566,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -74122,6 +74517,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -75827,12 +76225,19 @@
           "to": "features/fleet/selectors/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/fleet/selectors/profitabilitySelectors.ts",
+            "features/fleet/selectors/vehicleAccountingSelectors.ts"
           ]
         },
         {
           "to": "features/fleet/mappers/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/fleet/mappers/vehicleExpenseEventMappers.ts"
           ]
         }
       ],
@@ -76750,6 +77155,11 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardPartyContextRow.tsx",
+            "components/full-page-wizard/WizardPriorSelections.tsx",
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -76786,6 +77196,12 @@
           "to": "features/allocation/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/components/indentAllocationWizardSteps.ts",
+            "features/trips/components/SupplyAllocationModeBar.tsx",
+            "features/trips/components/assignment/AssignmentFlowShell.tsx",
+            "features/trips/components/assignment/assignmentFlowFooter.tsx"
           ]
         },
         {
@@ -76828,6 +77244,13 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useClientsQuery.ts",
+            "lib/queries/useDriversQuery.ts",
+            "lib/queries/useIndentsQuery.ts",
+            "lib/queries/useSuppliersQuery.ts",
+            "lib/queries/useVehiclesQuery.ts"
           ]
         },
         {
@@ -76873,6 +77296,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -77103,6 +77529,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -77121,6 +77550,13 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useClientsQuery.ts",
+            "lib/queries/useDriversQuery.ts",
+            "lib/queries/useSuppliersQuery.ts",
+            "lib/queries/useTripsQuery.ts",
+            "lib/queries/useVehiclesQuery.ts"
           ]
         },
         {
@@ -77472,6 +77908,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -77784,6 +78223,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -77808,6 +78250,9 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useTransactionsQuery.ts"
           ]
         }
       ],
@@ -77938,6 +78383,10 @@
           "kinds": [
             "static",
             "type"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/FullscreenNumericEntry.tsx",
+            "components/mobile-input/keypad.ts"
           ]
         },
         {
@@ -77985,6 +78434,10 @@
           "kinds": [
             "static",
             "type"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/FullscreenNumericEntry.tsx",
+            "components/mobile-input/keypad.ts"
           ]
         },
         {
@@ -78307,6 +78760,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardActionBarContext.tsx"
           ]
         },
         {
@@ -78346,6 +78802,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -79023,6 +79482,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -81036,6 +81498,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -81707,6 +82172,9 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/Surface.tsx"
           ]
         },
         {
@@ -81752,6 +82220,12 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalBottomActionBar.tsx",
+            "components/operational/OperationalButton.tsx",
+            "components/operational/OperationalSkeleton.tsx",
+            "components/operational/Surface.tsx"
           ]
         },
         {
@@ -81823,6 +82297,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -81853,6 +82330,9 @@
           "to": "features/finance/projections/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/projections/syncOperationalFinanceProjection.ts"
           ]
         },
         {
@@ -81910,6 +82390,9 @@
           "to": "features/ledger/vehicle/runtime/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ledger/vehicle/runtime/postingRuntime.service.ts"
           ]
         },
         {
@@ -81922,6 +82405,10 @@
           "to": "features/ledger/vehicle/reconciliation/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ledger/vehicle/reconciliation/reconciliation.service.ts",
+            "features/ledger/vehicle/reconciliation/usePostingReconciliation.ts"
           ]
         },
         {
@@ -81985,6 +82472,9 @@
           "to": "features/trips/capabilities/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/capabilities/capabilityEngine.ts"
           ]
         },
         {
@@ -82166,6 +82656,9 @@
           "to": "features/trips/capabilities/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/capabilities/capabilityEngine.ts"
           ]
         },
         {
@@ -82178,6 +82671,9 @@
           "to": "features/ledger/vehicle/runtime/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ledger/vehicle/runtime/postingRuntime.service.ts"
           ]
         }
       ],
@@ -82235,6 +82731,9 @@
           "to": "features/finance/projections/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/projections/syncOperationalFinanceProjection.ts"
           ]
         },
         {
@@ -82307,6 +82806,9 @@
           "to": "features/trips/capabilities/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/capabilities/capabilityEngine.ts"
           ]
         },
         {
@@ -82507,6 +83009,9 @@
           "to": "features/ledger/vehicle/runtime/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ledger/vehicle/runtime/postingRuntime.service.ts"
           ]
         }
       ],
@@ -82552,6 +83057,9 @@
           "to": "features/trips/capabilities/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/capabilities/capabilityEngine.ts"
           ]
         }
       ],
@@ -82892,6 +83400,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -83190,6 +83701,9 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/index.ts"
           ]
         },
         {
@@ -83220,6 +83734,16 @@
           "to": "features/marketplace/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/marketplace/domain/commercialActions.ts",
+            "features/marketplace/domain/commercialLifecycle.ts",
+            "features/marketplace/domain/commercialOpportunity.ts",
+            "features/marketplace/domain/commercialPermissions.ts",
+            "features/marketplace/domain/commercialPricing.ts",
+            "features/marketplace/domain/commercialRelationship.ts",
+            "features/marketplace/domain/commercialVisibility.ts",
+            "features/marketplace/domain/resolveCommercialOpportunity.ts"
           ]
         },
         {
@@ -83262,6 +83786,9 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useIndentsQuery.ts"
           ]
         },
         {
@@ -83343,6 +83870,10 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/components/bidding/BidReceivedHammer.tsx",
+            "features/indents/index.ts"
           ]
         },
         {
@@ -83979,6 +84510,9 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useNetworkQueries.ts"
           ]
         },
         {
@@ -84029,6 +84563,9 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/index.ts"
           ]
         },
         {
@@ -84083,6 +84620,10 @@
           "to": "components/hub/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/hub/HubMobileListCanvas.tsx",
+            "components/hub/hubMobileTicketTokens.ts"
           ]
         }
       ],
@@ -84135,6 +84676,9 @@
           "kinds": [
             "type",
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/components/bidding/BidReceivedHammer.tsx"
           ]
         }
       ],
@@ -84270,6 +84814,9 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/index.ts"
           ]
         },
         {
@@ -84393,6 +84940,9 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useIndentsQuery.ts"
           ]
         },
         {
@@ -84591,6 +85141,9 @@
           "to": "components/hub/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/hub/hubMobileChrome.ts"
           ]
         },
         {
@@ -84687,6 +85240,9 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/index.ts"
           ]
         },
         {
@@ -84963,6 +85519,17 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useClientsQuery.ts",
+            "lib/queries/useDriversQuery.ts",
+            "lib/queries/useFinanceEntityQueries.ts",
+            "lib/queries/useIndentsQuery.ts",
+            "lib/queries/usePostsQuery.ts",
+            "lib/queries/useSuppliersQuery.ts",
+            "lib/queries/useTripDetailBundleQuery.ts",
+            "lib/queries/useTripsQuery.ts",
+            "lib/queries/useVehiclesQuery.ts"
           ]
         }
       ],
@@ -86385,6 +86952,16 @@
           "to": "features/marketplace/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/marketplace/domain/commercialActions.ts",
+            "features/marketplace/domain/commercialLifecycle.ts",
+            "features/marketplace/domain/commercialOpportunity.ts",
+            "features/marketplace/domain/commercialPermissions.ts",
+            "features/marketplace/domain/commercialPricing.ts",
+            "features/marketplace/domain/commercialRelationship.ts",
+            "features/marketplace/domain/commercialVisibility.ts",
+            "features/marketplace/domain/resolveCommercialOpportunity.ts"
           ]
         },
         {
@@ -86536,6 +87113,9 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/index.ts"
           ]
         },
         {
@@ -87123,12 +87703,18 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/index.ts"
           ]
         },
         {
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useIndentsQuery.ts"
           ]
         },
         {
@@ -87216,6 +87802,9 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/keypad.ts"
           ]
         },
         {
@@ -87270,6 +87859,16 @@
           "to": "features/marketplace/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/marketplace/domain/commercialActions.ts",
+            "features/marketplace/domain/commercialLifecycle.ts",
+            "features/marketplace/domain/commercialOpportunity.ts",
+            "features/marketplace/domain/commercialPermissions.ts",
+            "features/marketplace/domain/commercialPricing.ts",
+            "features/marketplace/domain/commercialRelationship.ts",
+            "features/marketplace/domain/commercialVisibility.ts",
+            "features/marketplace/domain/resolveCommercialOpportunity.ts"
           ]
         },
         {
@@ -90990,6 +91589,9 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/index.ts"
           ]
         },
         {
@@ -91002,6 +91604,9 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useIndentsQuery.ts"
           ]
         },
         {
@@ -91182,6 +91787,9 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/index.ts"
           ]
         },
         {
@@ -91212,6 +91820,10 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useIndentsQuery.ts",
+            "lib/queries/useSuppliersQuery.ts"
           ]
         }
       ],
@@ -91239,12 +91851,18 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/index.ts"
           ]
         },
         {
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -91401,6 +92019,9 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/index.ts"
           ]
         },
         {
@@ -91456,6 +92077,10 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useIndentsQuery.ts",
+            "lib/queries/useTripsQuery.ts"
           ]
         },
         {
@@ -91537,6 +92162,9 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/index.ts"
           ]
         },
         {
@@ -91549,6 +92177,10 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useIndentsQuery.ts",
+            "lib/queries/useTripsQuery.ts"
           ]
         },
         {
@@ -92345,6 +92977,16 @@
           "to": "features/marketplace/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/marketplace/domain/commercialActions.ts",
+            "features/marketplace/domain/commercialLifecycle.ts",
+            "features/marketplace/domain/commercialOpportunity.ts",
+            "features/marketplace/domain/commercialPermissions.ts",
+            "features/marketplace/domain/commercialPricing.ts",
+            "features/marketplace/domain/commercialRelationship.ts",
+            "features/marketplace/domain/commercialVisibility.ts",
+            "features/marketplace/domain/resolveCommercialOpportunity.ts"
           ]
         },
         {
@@ -92465,6 +93107,9 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useIndentsQuery.ts"
           ]
         },
         {
@@ -93541,6 +94186,9 @@
           "to": "features/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/analytics/scores/vehiclePerformanceScore.util.ts"
           ]
         },
         {
@@ -93868,6 +94516,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -93962,6 +94613,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -96259,6 +96913,10 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalListRow.tsx",
+            "components/operational/Surface.tsx"
           ]
         },
         {
@@ -96304,6 +96962,10 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/MetricDisplay.tsx",
+            "components/operational/Surface.tsx"
           ]
         }
       ],
@@ -96343,6 +97005,11 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalBottomActionBar.tsx",
+            "components/operational/OperationalButton.tsx",
+            "components/operational/OperationalSkeleton.tsx"
           ]
         },
         {
@@ -96418,6 +97085,10 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalListRow.tsx",
+            "components/operational/Surface.tsx"
           ]
         },
         {
@@ -96463,6 +97134,10 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalListRow.tsx",
+            "components/operational/Surface.tsx"
           ]
         },
         {
@@ -96522,6 +97197,9 @@
           "to": "features/ledger/vehicle/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ledger/vehicle/vehicleLedgerEngine.ts"
           ]
         },
         {
@@ -96558,6 +97236,9 @@
           "to": "features/finance/projections/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/projections/syncOperationalFinanceProjection.ts"
           ]
         },
         {
@@ -96684,6 +97365,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -97187,24 +97871,51 @@
           "to": "features/operations/numbering/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/numbering/allocateOperationalSequence.ts",
+            "features/operations/numbering/generateOperationalCode.ts",
+            "features/operations/numbering/operationalNumbering.service.ts",
+            "features/operations/numbering/sequenceSelectors.ts"
           ]
         },
         {
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
           "to": "features/operations/observability/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/observability/operationalHealthEngine.ts",
+            "features/operations/observability/operationsObservability.service.ts",
+            "features/operations/observability/postingHealth.ts",
+            "features/operations/observability/queueHealth.ts",
+            "features/operations/observability/syncHealth.ts",
+            "features/operations/observability/useOperationalHealthSnapshot.ts",
+            "features/operations/observability/useOperationalObservability.ts"
           ]
         },
         {
           "to": "features/operations/control-center/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/control-center/ApprovalQueue.tsx",
+            "features/operations/control-center/OperationalAlertsPanel.tsx",
+            "features/operations/control-center/OperationsControlCenter.tsx",
+            "features/operations/control-center/ReconciliationQueue.tsx",
+            "features/operations/control-center/ReimbursementQueue.tsx",
+            "features/operations/control-center/hooks/useOperationsBatchActions.ts",
+            "features/operations/control-center/queries/useOperationsControlCenter.ts"
           ]
         }
       ],
@@ -98208,6 +98919,9 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalButton.tsx"
           ]
         },
         {
@@ -99270,6 +99984,10 @@
           "to": "features/organization/components/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/organization/components/InviteMemberModal.tsx",
+            "features/organization/components/TeamMembersView.tsx"
           ]
         },
         {
@@ -100298,6 +101016,12 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useClientsQuery.ts",
+            "lib/queries/useDriversQuery.ts",
+            "lib/queries/useSuppliersQuery.ts",
+            "lib/queries/useVehiclesQuery.ts"
           ]
         },
         {
@@ -100670,6 +101394,10 @@
           "to": "features/ocr/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ocr/services/ocrJob.service.ts",
+            "features/ocr/services/ocrJobProcessor.service.ts"
           ]
         },
         {
@@ -100822,6 +101550,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -101616,6 +102347,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -101967,6 +102701,10 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/FullscreenNumericEntry.tsx",
+            "components/mobile-input/keypad.ts"
           ]
         },
         {
@@ -103654,12 +104392,19 @@
           "to": "features/drivers/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/drivers/services/drivers.service.ts"
           ]
         },
         {
           "to": "features/finance/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/components/LedgerReportModal.tsx",
+            "features/finance/services/finance.service.ts"
           ]
         },
         {
@@ -103972,6 +104717,9 @@
           "to": "features/finance/aggregation/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/aggregation/aggregateSuppliersFromRpc.ts"
           ]
         },
         {
@@ -104211,6 +104959,9 @@
           "to": "components/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/analytics/AnalyticsCharts.tsx"
           ]
         },
         {
@@ -104229,6 +104980,10 @@
           "to": "features/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/analytics/scores/supplierReliabilityScore.util.ts",
+            "features/analytics/types/analytics.types.ts"
           ]
         },
         {
@@ -104331,6 +105086,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -104706,6 +105464,9 @@
           "to": "features/finance/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/services/finance.service.ts"
           ]
         },
         {
@@ -109885,6 +110646,10 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardEntityPicker.tsx",
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -110077,6 +110842,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -110275,6 +111043,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -110626,6 +111397,9 @@
           "to": "features/indents/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/indents/index.ts"
           ]
         },
         {
@@ -110743,6 +111517,10 @@
           "to": "components/hub/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/hub/HubMobileListCanvas.tsx",
+            "components/hub/hubMobileTicketTokens.ts"
           ]
         }
       ],
@@ -111071,6 +111849,14 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardClientPicker.tsx",
+            "components/full-page-wizard/WizardEntityPicker.tsx",
+            "components/full-page-wizard/WizardFormBody.tsx",
+            "components/full-page-wizard/WizardPartyContextRow.tsx",
+            "components/full-page-wizard/WizardPriorSelections.tsx",
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -111107,6 +111893,9 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/SmartInput.tsx"
           ]
         },
         {
@@ -111521,6 +112310,10 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/FullPageWizardFooter.tsx",
+            "components/full-page-wizard/FullPageWizardShell.tsx"
           ]
         },
         {
@@ -111605,6 +112398,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/FullPageWizardProgress.tsx"
           ]
         }
       ],
@@ -111743,6 +112539,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         }
       ],
@@ -111802,6 +112601,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardActionBarContext.tsx"
           ]
         },
         {
@@ -111996,6 +112798,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardEntityPicker.tsx"
           ]
         },
         {
@@ -112083,6 +112888,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardEntityPicker.tsx"
           ]
         },
         {
@@ -112440,6 +113248,9 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/SmartInput.tsx"
           ]
         },
         {
@@ -112452,6 +113263,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardEntityPicker.tsx"
           ]
         },
         {
@@ -112872,6 +113686,10 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardPriorSelections.tsx",
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -113419,6 +114237,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardActionBarContext.tsx"
           ]
         },
         {
@@ -113526,6 +114347,10 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardClientPicker.tsx",
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -113577,6 +114402,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -113664,6 +114492,10 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/WizardEntityPicker.tsx",
+            "components/full-page-wizard/WizardSelectionGrid.tsx"
           ]
         },
         {
@@ -114890,6 +115722,10 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/FullPageWizardFooter.tsx",
+            "components/full-page-wizard/FullPageWizardShell.tsx"
           ]
         }
       ],
@@ -115043,6 +115879,9 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/FullPageWizardFooter.tsx"
           ]
         }
       ],
@@ -116657,12 +117496,19 @@
           "to": "features/trips/verification/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/verification/hooks/useTripVerificationSync.ts"
           ]
         },
         {
           "to": "features/trips/operations/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/operations/hooks/useTripOperationsSync.ts",
+            "features/trips/operations/queries/useTripOperations.ts"
           ]
         },
         {
@@ -116741,6 +117587,9 @@
           "to": "features/finance/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/selectors/assetTripProvisionSelectors.ts"
           ]
         },
         {
@@ -117143,6 +117992,18 @@
           "to": "features/trips/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/domain/tripAlertActions.ts",
+            "features/trips/domain/tripExecutionModel.ts",
+            "features/trips/domain/tripJourneyMetrics.ts",
+            "features/trips/domain/tripOperationalAlerts.ts",
+            "features/trips/domain/tripStage.ts",
+            "features/trips/domain/tripStageEta.ts",
+            "features/trips/domain/tripStageGuidance.ts",
+            "features/trips/domain/tripStageMetadata.ts",
+            "features/trips/domain/tripStageMetrics.ts",
+            "features/trips/domain/tripTimeline.ts"
           ]
         },
         {
@@ -117464,12 +118325,19 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/SmartInput.tsx"
           ]
         },
         {
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalBottomActionBar.tsx",
+            "components/operational/OperationalButton.tsx"
           ]
         },
         {
@@ -117835,6 +118703,9 @@
           "to": "features/compliance/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/compliance/services/documents.service.ts"
           ]
         },
         {
@@ -118013,6 +118884,11 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useFinanceEntityQueries.ts",
+            "lib/queries/useTransactionsQuery.ts",
+            "lib/queries/useTripsQuery.ts"
           ]
         },
         {
@@ -118117,6 +118993,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -118503,6 +119382,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -118568,6 +119450,18 @@
           "to": "features/trips/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/domain/tripAlertActions.ts",
+            "features/trips/domain/tripExecutionModel.ts",
+            "features/trips/domain/tripJourneyMetrics.ts",
+            "features/trips/domain/tripOperationalAlerts.ts",
+            "features/trips/domain/tripStage.ts",
+            "features/trips/domain/tripStageEta.ts",
+            "features/trips/domain/tripStageGuidance.ts",
+            "features/trips/domain/tripStageMetadata.ts",
+            "features/trips/domain/tripStageMetrics.ts",
+            "features/trips/domain/tripTimeline.ts"
           ]
         },
         {
@@ -118762,6 +119656,9 @@
           "to": "features/compliance/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/compliance/utils/complianceScore.util.ts"
           ]
         },
         {
@@ -119976,6 +120873,9 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useTripsQuery.ts"
           ]
         }
       ],
@@ -120337,6 +121237,9 @@
           "kinds": [
             "static",
             "type"
+          ],
+          "barrelTargets": [
+            "features/trips/components/add-trip/AddTripModal.tsx"
           ]
         },
         {
@@ -120468,6 +121371,9 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/SmartInput.tsx"
           ]
         },
         {
@@ -120486,6 +121392,12 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalBottomActionBar.tsx",
+            "components/operational/OperationalButton.tsx",
+            "components/operational/OperationalHeader.tsx",
+            "components/operational/Surface.tsx"
           ]
         },
         {
@@ -120969,18 +121881,28 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
           "to": "features/identity/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/identity/queries/useIdentityQuery.ts"
           ]
         },
         {
           "to": "features/operations/observability/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/observability/useOperationalHealthSnapshot.ts",
+            "features/operations/observability/useOperationalObservability.ts"
           ]
         },
         {
@@ -120993,6 +121915,10 @@
           "to": "features/trips/capabilities/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/capabilities/capabilityEngine.ts",
+            "features/trips/capabilities/selectors.ts"
           ]
         },
         {
@@ -121011,6 +121937,9 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalBottomActionBar.tsx"
           ]
         },
         {
@@ -121041,12 +121970,18 @@
           "to": "features/trips/operations/reimbursement/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/operations/reimbursement/reimbursementSelectors.ts"
           ]
         },
         {
           "to": "features/ledger/vehicle/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ledger/vehicle/reconciliation/usePostingReconciliation.ts"
           ]
         }
       ],
@@ -121190,6 +122125,9 @@
           "to": "features/finance/projections/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/projections/syncOperationalFinanceProjection.ts"
           ]
         },
         {
@@ -121343,12 +122281,26 @@
           "to": "features/trips/operations/maintenance/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/operations/maintenance/maintenance.service.ts",
+            "features/trips/operations/maintenance/useTripMaintenance.ts"
           ]
         },
         {
           "to": "features/trips/operations/reimbursement/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/operations/reimbursement/driverExpenseRequest.service.ts",
+            "features/trips/operations/reimbursement/reimbursement.service.ts",
+            "features/trips/operations/reimbursement/reimbursementEngine.ts",
+            "features/trips/operations/reimbursement/reimbursementMetrics.ts",
+            "features/trips/operations/reimbursement/reimbursementSelectors.ts",
+            "features/trips/operations/reimbursement/reimbursementState.ts",
+            "features/trips/operations/reimbursement/reimbursementTimeline.ts",
+            "features/trips/operations/reimbursement/useReimbursementQueue.ts"
           ]
         },
         {
@@ -121740,6 +122692,10 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/SmartInput.tsx",
+            "components/mobile-input/feedback.ts"
           ]
         },
         {
@@ -121752,6 +122708,13 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalBottomActionBar.tsx",
+            "components/operational/OperationalButton.tsx",
+            "components/operational/OperationalChipSelect.tsx",
+            "components/operational/OperationalHeader.tsx",
+            "components/operational/Surface.tsx"
           ]
         },
         {
@@ -122052,6 +123015,9 @@
           "to": "features/trips/capabilities/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/capabilities/capabilityEngine.ts"
           ]
         },
         {
@@ -122118,6 +123084,9 @@
           "to": "features/ledger/vehicle/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ledger/vehicle/vehicleLedgerEngine.ts"
           ]
         },
         {
@@ -122595,6 +123564,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -124109,6 +125081,9 @@
           "kinds": [
             "static",
             "type"
+          ],
+          "barrelTargets": [
+            "features/ocr/services/ocrJobProcessor.service.ts"
           ]
         },
         {
@@ -124456,6 +125431,9 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/SmartInput.tsx"
           ]
         },
         {
@@ -124468,6 +125446,12 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalBottomActionBar.tsx",
+            "components/operational/OperationalButton.tsx",
+            "components/operational/OperationalHeader.tsx",
+            "components/operational/Surface.tsx"
           ]
         },
         {
@@ -125296,6 +126280,15 @@
           "to": "components/full-page-wizard/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/full-page-wizard/FullPageWizardFooter.tsx",
+            "components/full-page-wizard/FullPageWizardShell.tsx",
+            "components/full-page-wizard/WizardClientPicker.tsx",
+            "components/full-page-wizard/WizardContextSummary.tsx",
+            "components/full-page-wizard/WizardNumericKeypadFlow.tsx",
+            "components/full-page-wizard/WizardPartyContextRow.tsx",
+            "components/full-page-wizard/fullPageWizardStyles.ts"
           ]
         },
         {
@@ -125413,6 +126406,18 @@
           "to": "features/trips/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/domain/tripAlertActions.ts",
+            "features/trips/domain/tripExecutionModel.ts",
+            "features/trips/domain/tripJourneyMetrics.ts",
+            "features/trips/domain/tripOperationalAlerts.ts",
+            "features/trips/domain/tripStage.ts",
+            "features/trips/domain/tripStageEta.ts",
+            "features/trips/domain/tripStageGuidance.ts",
+            "features/trips/domain/tripStageMetadata.ts",
+            "features/trips/domain/tripStageMetrics.ts",
+            "features/trips/domain/tripTimeline.ts"
           ]
         }
       ],
@@ -125482,6 +126487,18 @@
           "to": "features/trips/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/domain/tripAlertActions.ts",
+            "features/trips/domain/tripExecutionModel.ts",
+            "features/trips/domain/tripJourneyMetrics.ts",
+            "features/trips/domain/tripOperationalAlerts.ts",
+            "features/trips/domain/tripStage.ts",
+            "features/trips/domain/tripStageEta.ts",
+            "features/trips/domain/tripStageGuidance.ts",
+            "features/trips/domain/tripStageMetadata.ts",
+            "features/trips/domain/tripStageMetrics.ts",
+            "features/trips/domain/tripTimeline.ts"
           ]
         }
       ],
@@ -125533,6 +126550,11 @@
           "to": "components/hub/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/hub/HubMobileScreenHeader.tsx",
+            "components/hub/HubMobileUnderlineTab.tsx",
+            "components/hub/hubMobileChrome.ts"
           ]
         },
         {
@@ -127296,12 +128318,18 @@
           "to": "features/operations/numbering/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/numbering/sequenceSelectors.ts"
           ]
         },
         {
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -130708,6 +131736,9 @@
           "to": "components/operational/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/operational/OperationalButton.tsx"
           ]
         },
         {
@@ -130909,6 +131940,10 @@
           "to": "features/identity/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/identity/avatars/IdentityAvatar.tsx",
+            "features/identity/queries/useIdentityQuery.ts"
           ]
         },
         {
@@ -131387,6 +132422,9 @@
           "to": "features/ocr/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ocr/services/ocrJobProcessor.service.ts"
           ]
         },
         {
@@ -131433,6 +132471,11 @@
           "kinds": [
             "static",
             "type"
+          ],
+          "barrelTargets": [
+            "features/ocr/constants/ocr.constants.ts",
+            "features/ocr/services/ocrJobProcessor.service.ts",
+            "features/ocr/utils/ocrRescan.util.ts"
           ]
         },
         {
@@ -132639,6 +133682,9 @@
           "to": "components/mobile-input/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/mobile-input/SmartInput.tsx"
           ]
         }
       ],
@@ -132827,6 +133873,10 @@
           "to": "features/fleet/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/fleet/selectors/profitabilitySelectors.ts",
+            "features/fleet/selectors/vehicleAccountingSelectors.ts"
           ]
         },
         {
@@ -132852,6 +133902,9 @@
           "to": "features/vehicles/pnl/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/vehicles/pnl/garragePnL.ts"
           ]
         },
         {
@@ -133131,6 +134184,9 @@
           "to": "features/finance/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/services/finance.service.ts"
           ]
         },
         {
@@ -133179,6 +134235,9 @@
           "to": "features/drivers/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/drivers/services/drivers.service.ts"
           ]
         },
         {
@@ -133191,6 +134250,9 @@
           "to": "features/vehicles/pnl/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/vehicles/pnl/garragePnL.ts"
           ]
         },
         {
@@ -133221,6 +134283,9 @@
           "to": "features/ledger/vehicle/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ledger/vehicle/syncOperationalExpenseToCashLedger.service.ts"
           ]
         },
         {
@@ -133284,24 +134349,38 @@
           "to": "features/ai/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/ai/components/VehicleHealthBadge.tsx"
           ]
         },
         {
           "to": "features/fleet/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/fleet/mappers/vehicleExpenseEventMappers.ts"
           ]
         },
         {
           "to": "features/finance/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/selectors/integritySelectors.ts",
+            "features/finance/selectors/tripAccountingSelectors.ts"
           ]
         },
         {
           "to": "features/trips/operations/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/operations/vehicle/useVehicleOperationLedgerPipeline.ts",
+            "features/trips/operations/vehicle/useVehicleOperationsLedger.ts"
           ]
         }
       ],
@@ -133653,6 +134732,9 @@
           "to": "components/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/analytics/AnalyticsCharts.tsx"
           ]
         },
         {
@@ -133671,6 +134753,10 @@
           "to": "features/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/analytics/scores/vehiclePerformanceScore.util.ts",
+            "features/analytics/types/analytics.types.ts"
           ]
         },
         {
@@ -133737,6 +134823,9 @@
           "to": "features/operations/display/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/operations/display/operationalDisplay.ts"
           ]
         },
         {
@@ -133836,18 +134925,29 @@
           "to": "lib/queries/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/queries/useTripsQuery.ts",
+            "lib/queries/useVehiclesQuery.ts"
           ]
         },
         {
           "to": "components/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/analytics/AnalyticsCards.tsx",
+            "components/analytics/PerformanceLeaderboard.tsx"
           ]
         },
         {
           "to": "features/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/analytics/scores/vehiclePerformanceScore.util.ts"
           ]
         },
         {
@@ -133893,6 +134993,9 @@
           "to": "components/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "components/analytics/pulse/PulseLayout.tsx"
           ]
         },
         {
@@ -133905,6 +135008,10 @@
           "to": "features/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/analytics/scores/vehiclePerformanceScore.util.ts",
+            "features/analytics/types/analytics.types.ts"
           ]
         },
         {
@@ -134298,6 +135405,9 @@
           "to": "features/finance/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/finance/services/finance.service.ts"
           ]
         },
         {
@@ -134322,6 +135432,9 @@
           "to": "features/vehicles/pnl/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/vehicles/pnl/garragePnL.ts"
           ]
         },
         {
@@ -134391,6 +135504,9 @@
           "to": "features/vehicles/pnl/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/vehicles/pnl/garragePnL.ts"
           ]
         },
         {
@@ -143751,6 +144867,10 @@
           "kinds": [
             "static",
             "type"
+          ],
+          "barrelTargets": [
+            "lib/navigationPolicy/registry/index.ts",
+            "lib/navigationPolicy/registry/routeInventory.ts"
           ]
         },
         {
@@ -146729,6 +147849,10 @@
           "to": "lib/platform/moderator/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/platform/moderator/invalidationScheduler.ts",
+            "lib/platform/moderator/requestModerator.ts"
           ]
         }
       ],
@@ -148103,6 +149227,9 @@
           "to": "lib/platform/moderator/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/platform/moderator/invalidationScheduler.ts"
           ]
         },
         {
@@ -148773,6 +149900,9 @@
           "to": "features/analytics/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/analytics/services/analytics.service.ts"
           ]
         },
         {
@@ -149809,6 +150939,18 @@
           "to": "features/trips/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/domain/tripAlertActions.ts",
+            "features/trips/domain/tripExecutionModel.ts",
+            "features/trips/domain/tripJourneyMetrics.ts",
+            "features/trips/domain/tripOperationalAlerts.ts",
+            "features/trips/domain/tripStage.ts",
+            "features/trips/domain/tripStageEta.ts",
+            "features/trips/domain/tripStageGuidance.ts",
+            "features/trips/domain/tripStageMetadata.ts",
+            "features/trips/domain/tripStageMetrics.ts",
+            "features/trips/domain/tripTimeline.ts"
           ]
         },
         {
@@ -150963,6 +152105,9 @@
           "kinds": [
             "static",
             "type"
+          ],
+          "barrelTargets": [
+            "features/ocr/services/ocrJob.service.ts"
           ]
         },
         {
@@ -151568,6 +152713,9 @@
           "to": "lib/platform/moderator/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/platform/moderator/invalidationScheduler.ts"
           ]
         },
         {
@@ -152218,6 +153366,18 @@
           "to": "features/trips/domain/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "features/trips/domain/tripAlertActions.ts",
+            "features/trips/domain/tripExecutionModel.ts",
+            "features/trips/domain/tripJourneyMetrics.ts",
+            "features/trips/domain/tripOperationalAlerts.ts",
+            "features/trips/domain/tripStage.ts",
+            "features/trips/domain/tripStageEta.ts",
+            "features/trips/domain/tripStageGuidance.ts",
+            "features/trips/domain/tripStageMetadata.ts",
+            "features/trips/domain/tripStageMetrics.ts",
+            "features/trips/domain/tripTimeline.ts"
           ]
         },
         {
@@ -154216,6 +155376,11 @@
           "to": "lib/platform/scalability/index.ts",
           "kinds": [
             "dynamic"
+          ],
+          "barrelTargets": [
+            "lib/platform/scalability/performanceBudgets.ts",
+            "lib/platform/scalability/platformHealth.ts",
+            "lib/platform/scalability/queryCacheMetrics.ts"
           ]
         }
       ],
@@ -156687,6 +157852,9 @@
           "to": "lib/platform/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/platform/db/platformDb.ts"
           ]
         },
         {
@@ -156705,6 +157873,10 @@
           "to": "lib/platform/moderator/index.ts",
           "kinds": [
             "static"
+          ],
+          "barrelTargets": [
+            "lib/platform/moderator/requestClassifier.ts",
+            "lib/platform/moderator/requestModerator.ts"
           ]
         }
       ],

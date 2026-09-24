@@ -75,3 +75,48 @@ node scripts/driver-extraction-inventory.mjs --json && node scripts/driver-extra
 ## 3. After you decide
 - I write each approved decision into `docs/DRIVER_EXTRACTION_OVERRIDES.json`, re-run both scripts, and confirm REVIEW = 0 with no contract violations.
 - Only then does the first Phase 1 move start: the reverse-import fixes, the barrel rewrites if D9 is approved, and the ESLint boundary rules.
+
+---
+
+## Round 2 — after recording D1–D10 (2026-09-24)
+
+**Recorded:** `docs/DRIVER_EXTRACTION_OVERRIDES.json`, where D1, D2, D3, D4, D5, D8, D9 and D10 are applied. The classifier now models the approved path-only rewrites: D2's `lib/supabase.ts` → `platformDb`, and D9's driver barrel imports → the files they really use.
+
+| Gate | Result |
+|---|---|
+| REVIEW = 0 | ❌ **60** |
+| Package-rule violations among classified files | ✅ 0 |
+| Files the driver no longer loads once D2/D9 rewrites are done | 125 |
+
+**Two rule fixes I made, both within the approved intent. Please confirm:**
+1. D1 "shared business UI" now means files that **render UI** (JSX). Types and constants that happen to sit in a `components/` folder, e.g. `tripDocTypes.ts`, follow the normal domain rule.
+2. The D1 signup pattern now applies only to signup files that render UI. `signUpConstants.ts` is plain constants, so it follows the normal rules.
+
+**Checker fix:** the old checker could leave files stuck blocking each other in a loop even when all of them were allowed. It now settles every class upgrade first, then marks real rule breaks.
+
+**All 60 remaining files trace back to 8 real rule breaks. They need these 5 new decisions:**
+
+### D11 — `AuthContext` is domain today (it breaks approved D3)
+- **The facts:** `contexts/AuthContext.tsx` imports at runtime `features/auth/services/auth.service`, the keep-signed-in hooks, `lib/driverPerfMetrics` and `lib/firstLaunch`. Those are domain code, so it can't be core yet.
+- Approved D3 put `OrganizationContext` and `ActiveWorkspaceContext` in core, and both depend on `AuthContext`, so D3 breaks the package rules.
+- **Recommendation:**
+  - Classify `AuthContext` as **SHARED_DOMAIN** for Phase 1.
+  - **Amend D3:** both contexts become SHARED_DOMAIN. The DRIVER_ADAPTER provider stays.
+  - The plan's Phase 2 auth split (core session vs app gate) is what later moves the session part into core. No logic changes now.
+
+### D12 — `lib/chatPerf.ts` is infrastructure
+- **The facts:** these are client-side performance counters (timing only, no business logic). The approved-core `lib/platform/scalability/platformHealth.ts` imports them. The file was placed in domain only because its name contains "chat".
+- **Recommendation:** SHARED_CORE.
+
+### D13 — Avatar components need business data
+- **The facts:** `components/Avatar.tsx` and `components/PartyAvatar.tsx` (ui) use `lib/avatarContext.ts` and `lib/partyAvatarDisplay.ts`. Those depend on `lib/avatarUpload.ts` → `AuthContext`, which is domain.
+- The mobile-input components (`SmartInput`, `FullscreenNumericEntry`, `NumericEntryRecipientHero`) and chat avatar pieces render these avatars.
+- **Recommendation:** `Avatar`, `PartyAvatar` and the components that render them → **SHARED_FEATURES**. They show party/business avatars. No logic change.
+
+### D14 — `RoutePlanMapPin` goes with the map family (extends D8)
+- **The facts:** the shared `LeafletMap.maplibre` and `LeafletMap.rnmaps` render `features/driver/job-card/parts/RoutePlanMapPin.tsx`, which is currently driver-only.
+- **Recommendation:** SHARED_UI, together with the map family.
+
+### D15 — Re-export shim goes with its target
+- **The facts:** `features/trips/verification/components/VerificationStatusChip.tsx` is a one-line re-export of `../VerificationStatusChip` (features).
+- **Recommendation:** SHARED_FEATURES.
