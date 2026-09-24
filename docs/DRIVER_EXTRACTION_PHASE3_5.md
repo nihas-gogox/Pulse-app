@@ -1,7 +1,70 @@
 # Driver Extraction — Phase 3.5 Validation
 
-Date: 2026-09-24 · Branch: `nihas/driver-app-extraction` · Code under test: `6fba0010`, plus the F1 fix commit.
+Date: 2026-09-24 · Branch: `nihas/driver-app-extraction` · Code under test: `6fba0010`, plus the F1 fix `ec059575`.
 **Validation only**, except the approved F1 fix (below), which was applied as its own commit.
+
+## Final status: Phase 3.5 CLOSED (approved 2026-09-24)
+
+Accepted code: `ec059575`. The local validation gate **passed**. The items below that need real accounts or a native build are **BLOCKED**, not failed.
+
+### Final gate matrix
+| Area | Result |
+|---|---|
+| Driver web routes: 46 URLs, direct load and hard refresh, under `/driver` | ✅ PASS |
+| Base path and in-app navigation (D22) | ✅ PASS |
+| Route matching (`trip/[tripId]`, `trip/[id]/…`, `(modals)`) | ✅ PASS |
+| `/terminal-website` hand-off | ✅ PASS |
+| Driver/non-driver gate: decision logic (unit tests) | ✅ PASS |
+| Session: no session → sign-in | ✅ PASS |
+| Onboarding entry (`/onboarding` → sign-up) | ✅ PASS |
+| Main-app rollback, signed out (14 URLs vs the Phase 2 build) | ✅ PASS |
+| No main-app code in the driver bundle (web, Android, iOS) | ✅ PASS (after F1) |
+| Import boundaries (`check:driver-boundaries`) | ✅ PASS |
+| Driver typecheck / tests / web build | ✅ PASS (3 baseline type errors / 203 tests / builds) |
+| Driver Android and iOS JS bundles; native config | ✅ PASS |
+| Main typecheck, tests, lint, nav-policy, cycles, web build | ✅ PASS (all baseline-equivalent) |
+| `oms` typecheck and build | ✅ PASS |
+| Backend (`supabase/` since V1) | ✅ PASS: 0 files changed |
+| Driver/non-driver gate with real accounts | ⛔ BLOCKED |
+| Signed-in session restore | ⛔ BLOCKED |
+| Completed signed-in driver flows | ⛔ BLOCKED |
+| Native deep links and on-device checks | ⛔ BLOCKED |
+| Push | out of scope |
+
+### Blocked validations (carried to preprod; nothing assumed or simulated)
+| Blocked item | What it covers | Needs |
+|---|---|---|
+| **Driver / non-driver real-account validation** | A driver lands on the dashboard; a non-driver sees the rejection screen ("Go to Pulse", "Sign out") | one driver and one non-driver test account |
+| **Signed-in session restore** | Main-app login then `/driver`; opening `/driver` with an existing session; token refresh | test accounts and a preprod `/driver` URL |
+| **Completed signed-in driver flows** | Dashboard, trip control and detail, chat; fuel/toll/other entry, verification, expense capture; wallet, passbook, salary request, pending earnings; available loads and bids, my fleet, commerce mission, documents; OTP sign-up completion; signed-in rollback in the main app | test accounts (and a real phone for OTP) |
+| **Native deep links / on-device** | `pulsedriver://…`, the `pulse://driver-invite` hand-off (fresh install / installed / running), auth, camera, background location on iOS and Android, EAS preview build | an EAS project and account owner for `com.gogopulse.driver` |
+| Push (out of scope) | Push registration and delivery | the backend token-keying decision (Phase 0) |
+
+### Intentional deviations from V1 (approved; details below)
+1. **48 temporary main → `apps/driver` rollback shims.** These are the 44 old route files plus 4 dead-code importers. They keep the old in-app driver flow as the rollback path. They are the only main → `apps/driver` edges the checker allows, and they are removed in 4C/6.
+2. **One-hunk `expo-router` patch (D22).** In `patches/expo-router+6.0.23.patch`, `stripBaseUrl` now strips the base only as a whole segment. It's a no-op without a base URL. Regression test: `apps/driver/lib/__tests__/expoRouterBaseUrl.test.ts`.
+3. **Expense-exit destination.** `/trip/:id?tab=expenses` opens the driver's own trip detail in `apps/driver`, and the main trip detail in the old in-app flow.
+
+### New CI check: driver bundle sources
+- **Command:** `npm run check:driver-bundle`. It builds the Pulse Driver web bundle with source maps, then `scripts/driver-extraction-bundle-sources.mjs` fails if any source file is main-app code.
+- **Allowed:** `apps/driver`, `packages/{core,domain,ui,features}`, `node_modules`, `polyfills/`, Metro virtual modules, and the resources `assets/` and `locales/`.
+- **CI:** job `driver-bundle-sources` in `.github/workflows/architecture-check.yml` (`npm ci`, then the check).
+- It catches edges the import-graph checker can't see (finding F1).
+- **Status:** passes locally (0 main-app code); **not yet run on GitHub Actions.**
+
+### No Phase 4 changes (verified at `ec059575`)
+| Check | Result |
+|---|---|
+| `EXPO_PUBLIC_DRIVER_APP_EXTRACTION_ENABLED` referenced in code | 0 |
+| `netlify.toml`, `scripts/build-ci.js`, `public/_redirects`, `netlify/` changed since V1 | 0 files |
+| `app/index.tsx`, `app/_layout.tsx` changed since V1 | 0 files |
+| `app/fleet-driver/` exists | no |
+| Old `app/driver/[id]` route | still present |
+| `DRIVER_ROOT` in the routes table | still present |
+| Old driver routes and shims | all 48 present, unchanged |
+| `supabase/` changed since V1 | 0 files |
+
+---
 
 Result key:
 - **PASS:** verified here, with evidence.
