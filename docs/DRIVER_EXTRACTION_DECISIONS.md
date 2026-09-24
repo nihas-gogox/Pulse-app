@@ -184,3 +184,70 @@ These files are imported by nothing, so neither app loads them. They would fail 
 ✅ **Approved and done (2026-09-24):** the 3 files are deleted. `components/OptimalRouteMap.web.tsx` (the unused web twin) is kept: it imports no driver-only code and wasn't part of D16. Driver-self screens move once, in Phase 3 (approved).
 
 **Still in Phase 1 scope, deliberately deferred:** the driver-self screens in `features/drivers/screens` are DRIVER_ONLY, but moving them to `features/driver/screens` now and again into `apps/driver` in Phase 3 would move them twice. **Recommendation:** move them once, in Phase 3.
+
+---
+
+## Phase 2 — result (2026-09-24)
+
+**All 470 approved shared files have moved**, each with `git mv` to `packages/<pkg>/<same path>`:
+
+| Package | Files | Commit |
+|---|---:|---|
+| `@pulse/core` | 86 | `f7224594` |
+| `@pulse/domain` | 275 | `59699a41` |
+| `@pulse/ui` | 45 | `2a849868` |
+| `@pulse/features` | 64 | `2a849868` |
+
+**How the move works:**
+- Every old path keeps a one-line re-export **shim** (a relative path, so Metro, Vite/oms, TypeScript and Jest need no config). All 470 shims are removed in Phase 6.
+- Mover: `scripts/driver-extraction-move.mjs`. It keeps the manifest `packages/extraction-moves.json`.
+
+**Wiring:**
+- `tsconfig.json`: paths for `@pulse/*`.
+- `jest.config.js`: old `@/…` paths map straight to the moved files, so the 185 existing `jest.mock('@/…')` calls still mock the same module instance.
+- npm workspace links for the 4 packages. The lockfile only gains workspace links (plus the existing `packages/pulse-v2`, which the old lockfile was missing).
+- The ESLint map-loader `require()` exception now also covers `packages/*/lib/maps`.
+- `check:driver-boundaries` now scans the packages. It also fails on package → app runtime imports and on files sitting in the wrong package.
+
+**Tests adjusted (path-only):**
+- 5 tests had relative `jest.mock` paths; these are now `@/…`.
+- 3 contract tests read source files as text; they now point at the moved files. One of them (`execution-plan-graph-claim`) had been passing while reading the shim. A probe now confirms **no test reads a shim**.
+
+**Checks against the V1 baseline, run after every package:**
+
+| Check | Result |
+|---|---|
+| typecheck | same 26 errors (paths normalized) |
+| unit tests | same 5 failures in the same 2 suites |
+| navigation-policy | 64/64 |
+| lint | same findings. Pre-existing file-naming findings now show on both the shim and the moved file (same name, same finding) |
+| `oms` typecheck | 0 errors (baseline 0) |
+| `oms` Vite build | ✅ |
+| Metro web export | ✅ 145 assets (identical set), 66 chunks, +92 KB (the shims) |
+| clean checkout + `npm ci` | ✅ links resolve. typecheck output is **identical to a clean checkout of V1** (52 errors in both; see below) |
+
+### Found, not fixed
+- **`expo-asset` is used but not declared.** `constants/presetAvatar.ts` imports it, but it isn't in `package.json`; only a copy nested under `expo` is in the lockfile.
+  - On Nihas's machine it existed as an extra, undeclared install. `npm install` pruned it, and I restored it locally with `--no-save`.
+  - In a clean install (and so in CI's `npm ci`) typecheck has **52** errors, not 26; the other 26 are web-style typings from locally installed extras. That is identical on V1, so it's pre-existing.
+- **New dead-code warning:** `lib/tracking/useTrackingAppState.ts` (imported by nothing) → driver-only `lib/safeForegroundPositionWatch.ts`. It surfaced once the checker scanned the full graph. Proposal: D17 below.
+- **Git history:** each old path now holds a shim, so git sees "file modified + new file" rather than a rename. Full history is still one command away: `git log --follow -C -- packages/<pkg>/<path>` or `git log -- <old path>`.
+
+### Decisions needed to close Phase 2
+
+**D17 — delete `lib/tracking/useTrackingAppState.ts`** (dead code, same case as D16).
+- **Recommendation:** delete it.
+
+**D18 — Auth split: accept the current split, no `AuthContext` refactor.**
+- **The facts:**
+  - The session engine (`lib/authEngine.ts`: session state, `AuthError`, `AuthStatus`, `UserProfile`) already sits in **`@pulse/core`**.
+  - `AuthProvider` (`contexts/AuthContext.tsx`, 898 lines, 173 importers) is in `@pulse/domain`, per D11, because it uses auth services.
+  - The "who may enter this app" gates live in app routing (`app/index.tsx`, `app/_layout.tsx`), not in `AuthContext`.
+- **Recommendation:** the plan's "core = who is logged in / app = who may enter" split is already achieved without touching the fragile `AuthContext`. The driver app gets its own gate in Phase 3. No auth code change in Phase 2.
+
+**D19 — Type-only references from packages to app files (D10 follow-up).**
+- **The facts:** there are 117 type-only imports, into **35** app files (13 in `lib/`, and the rest across `features/finance`, chat, ratings, clients, trips, …). They're erased at runtime and allowed by the checker.
+- **Recommendation:**
+  - Files that hold only types (e.g. `lib/platform/types/*`, `features/finance/aggregation/types.ts`) move whole into `@pulse/domain`, with a shim.
+  - For mixed files, the type declarations move into a `*.types.ts` file in `@pulse/domain`, and the original file re-exports them.
+  - Do this as its own small step, still inside Phase 2, before Phase 3. This needs your approval.
