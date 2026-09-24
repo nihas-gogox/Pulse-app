@@ -1,0 +1,6 @@
+{
+  "name": "@pulse/ui",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Presentation primitives only. Depends on @pulse/core (and type-only on @pulse/domain). No business logic."
+}

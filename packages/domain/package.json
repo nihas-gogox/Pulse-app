@@ -1,0 +1,6 @@
+{
+  "name": "@pulse/domain",
+  "version": "0.0.1",
+  "private": true,
+  "description": "UI-independent business logic and data access (services, query keys, TanStack Query hooks). Depends on @pulse/core only. No presentation components."
+}

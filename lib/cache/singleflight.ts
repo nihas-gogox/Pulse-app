@@ -1,20 +1,2 @@
-const inflight = new Map<string, Promise<unknown>>();
-
-export async function runSingleflight<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  const current = inflight.get(key) as Promise<T> | undefined;
-  if (current) return current;
-  const next = fn().finally(() => {
-    inflight.delete(key);
-  });
-  inflight.set(key, next);
-  return next;
-}
-
-/** Test-only: drop in-flight keys so concurrent suites do not leak. */
-export function resetSingleflightForTests(): void {
-  inflight.clear();
-}
-
-export function singleflightInflightCountForTests(): number {
-  return inflight.size;
-}
+// Moved to packages/core/lib/cache/singleflight.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../packages/core/lib/cache/singleflight';

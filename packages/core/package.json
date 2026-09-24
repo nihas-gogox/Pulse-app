@@ -1,0 +1,6 @@
+{
+  "name": "@pulse/core",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Infrastructure only: Supabase client, session/auth infra, query client, storage, maps infra, design constants. Depends on no other @pulse package."
+}

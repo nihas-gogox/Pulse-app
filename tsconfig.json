@@ -6,7 +6,11 @@
       "@/*": ["./*"],
       "@/ui/*": ["./components/*"],
       "@/lib/*": ["./lib/*"],
-      "@/features/*": ["./features/*"]
+      "@/features/*": ["./features/*"],
+      "@pulse/core/*": ["./packages/core/*"],
+      "@pulse/domain/*": ["./packages/domain/*"],
+      "@pulse/ui/*": ["./packages/ui/*"],
+      "@pulse/features/*": ["./packages/features/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "**/*.d.ts", ".expo/types/**/*.ts", "expo-env.d.ts"],

@@ -40,7 +40,10 @@ const EXCLUDED_DIRS = new Set([
   'public', 'assets', 'locales', 'patches', 'native',
 ]);
 const CODE_EXT_RE = /\.(tsx?|jsx?)$/;
+// Extraction packages (Phase 2) are scanned like app code; other packages/* are not.
+const EXTRACTION_PACKAGES = ['core', 'domain', 'ui', 'features'];
 const ALIAS_PREFIXES = [
+  ...EXTRACTION_PACKAGES.map((p) => [`@pulse/${p}/`, `packages/${p}/`]),
   ['@/features/', 'features/'],
   ['@/lib/', 'lib/'],
   ['@/ui/', 'components/'],
@@ -104,12 +107,14 @@ async function exists(p) {
 
 /** Resolve to ALL platform variants that exist (Metro picks one per platform). */
 async function resolveAll(fromFile, spec) {
-  if (!spec.startsWith('.') && !spec.startsWith('@/')) return [];
+  if (!spec.startsWith('.') && !spec.startsWith('@/') && !spec.startsWith('@pulse/')) return [];
   let base;
   if (spec.startsWith('.')) {
     base = path.resolve(path.dirname(fromFile), spec);
   } else {
-    const [prefix, repl] = ALIAS_PREFIXES.find(([p]) => spec.startsWith(p));
+    const hit = ALIAS_PREFIXES.find(([p]) => spec.startsWith(p));
+    if (!hit) return [];
+    const [prefix, repl] = hit;
     base = path.resolve(ROOT, repl + spec.slice(prefix.length));
   }
   if (CODE_EXT_RE.test(base) && (await exists(base))) return [base];
@@ -165,7 +170,10 @@ function parseImports(src) {
 }
 
 // ── Build graph ──────────────────────────────────────────────────────────────
-const files = (await listFiles(ROOT)).map(rel).sort();
+const files = [
+  ...(await listFiles(ROOT)),
+  ...(await Promise.all(EXTRACTION_PACKAGES.map((p) => listFiles(path.join(ROOT, 'packages', p))))).flat(),
+].map(rel).sort();
 const fileSet = new Set(files);
 /** edges: from -> Map<to, Set<kind>> */
 const edges = new Map(files.map((f) => [f, new Map()]));
@@ -560,7 +568,9 @@ await mkdir(OUT_DIR, { recursive: true });
 await writeFile(OUT_MD, L.join('\n'));
 if (process.argv.includes('--json')) {
   await writeFile(OUT_JSON, JSON.stringify({
-    graph: Object.fromEntries([...new Set([...driverClosure, ...seeds, ...reachesDriver])].sort().map((f) => [f, {
+    // --full-graph: every scanned file (used by check-driver-boundaries). Default:
+    // only files connected to driver code, to keep the committed JSON small.
+    graph: Object.fromEntries([...new Set(process.argv.includes('--full-graph') ? files : [...driverClosure, ...seeds, ...reachesDriver])].sort().map((f) => [f, {
       inDriver: driverClosure.has(f), inDriverRuntime: driverRuntimeClosure.has(f), inMain: mainClosure.has(f), seed: seedSet.has(f), test: isTest(f),
       ...traits.get(f),
       imports: [...(edges.get(f)?.entries() ?? [])].map(([to, k]) => {

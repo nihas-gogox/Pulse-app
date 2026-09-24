@@ -1,9 +1,2 @@
-/**
- * General Expo Go environment check.
- *
- * The map-stack selection that used to live here now goes through
- * `lib/maps/mapEnvironment.ts` (single source of truth) and the registry in
- * `lib/maps/mapImplementationRegistry.ts`. This module remains for non-map
- * consumers such as the splash-screen guard.
- */
-export { isExpoGoMapEnvironment as isExpoGo } from "@/lib/maps/mapEnvironment";
+// Moved to packages/core/lib/expoGoMaps.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../packages/core/lib/expoGoMaps';
