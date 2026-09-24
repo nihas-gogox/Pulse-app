@@ -22,6 +22,7 @@
     "analytics/**",
     "tools/**",
     "_reference/**",
-    "packages/**"
+    "packages/**",
+    "apps/**"
   ]
 }

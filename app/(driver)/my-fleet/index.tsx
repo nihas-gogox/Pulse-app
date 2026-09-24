@@ -1,14 +1,2 @@
-import { LazySuspenseInlineFallback } from '@/components/LazySuspenseFallback';
-import { lazy, Suspense } from 'react';
-
-const MyFleetScreen = lazy(
-  () => import('@/features/driver/components/MyFleetScreen'),
-);
-
-export default function MyFleetIndexRoute() {
-  return (
-    <Suspense fallback={<LazySuspenseInlineFallback />}>
-      <MyFleetScreen />
-    </Suspense>
-  );
-}
+// Moved to apps/driver/app/(driver)/my-fleet/index.tsx (driver extraction, Phase 3). Temporary shim — removed in Phase 4C/6.
+export { default } from '../../../apps/driver/app/(driver)/my-fleet/index';

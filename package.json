@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "workspaces": [
     "packages/*",
-    "packages/platform/*"
+    "packages/platform/*",
+    "apps/*"
   ],
   "scripts": {
     "postinstall": "patch-package",

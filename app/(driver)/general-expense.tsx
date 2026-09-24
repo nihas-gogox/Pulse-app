@@ -1,5 +1,2 @@
-import { DriverGeneralExpenseScreen } from "@/features/driver/components/DriverGeneralExpenseScreen";
-
-export default function DriverGeneralExpenseRoute() {
-  return <DriverGeneralExpenseScreen />;
-}
+// Moved to apps/driver/app/(driver)/general-expense.tsx (driver extraction, Phase 3). Temporary shim — removed in Phase 4C/6.
+export { default } from '../../apps/driver/app/(driver)/general-expense';

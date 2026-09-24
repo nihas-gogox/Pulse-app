@@ -54,6 +54,7 @@ const BASE_EXTS = ['.tsx', '.ts', '.jsx', '.js'];
 
 // Driver seeds (plan §3 Phase 0).
 const DRIVER_SEED_RES = [
+  /^apps\/driver\//, // Phase 3: the driver app itself
   /^app\/\(driver\)\//,
   /^app\/driver-sign-in\.tsx$/,
   /^app\/driver-signup\.tsx$/,
@@ -93,6 +94,7 @@ async function listFiles(dir, out = []) {
     if (e.isDirectory()) {
       if (dir === ROOT && EXCLUDED_DIRS.has(e.name)) continue;
       if (e.name === 'node_modules') continue;
+      if (e.name === 'dist' && rel(dir) === 'apps/driver') continue; // build output
       await listFiles(abs, out);
     } else if (CODE_EXT_RE.test(e.name) && !e.name.endsWith('.d.ts')) {
       out.push(abs);
@@ -173,6 +175,7 @@ function parseImports(src) {
 const files = [
   ...(await listFiles(ROOT)),
   ...(await Promise.all(EXTRACTION_PACKAGES.map((p) => listFiles(path.join(ROOT, 'packages', p))))).flat(),
+  ...(await listFiles(path.join(ROOT, 'apps', 'driver'))),
 ].map(rel).sort();
 const fileSet = new Set(files);
 /** edges: from -> Map<to, Set<kind>> */

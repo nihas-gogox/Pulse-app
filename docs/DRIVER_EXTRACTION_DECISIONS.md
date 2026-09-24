@@ -297,3 +297,100 @@ Not fixed, per instruction: the 52 clean-install baseline errors (undeclared `ex
   - `features/drivers/components/DriverMapView.tsx`
   - `features/tracking/index.ts` (3 re-exports of driver-only tracking files)
 - **Phase 3 not started.**
+
+---
+
+## Phase 3 — `apps/driver` created, gate partly blocked (2026-09-24)
+
+**Done (path-only for moved code, no behavior change):**
+- **Move:** all 249 DRIVER_ONLY files, plus 1 `.d.ts` and the 30 tests next to them, moved once into `apps/driver/<same path>` (`scripts/driver-extraction-app-move.mjs`; manifest `apps/driver/extraction-moves.json`).
+  - The root-level driver routes took their contract URLs: `/sign-in`, `/sign-up`, `/onboarding`, `/trip/[tripId]`.
+  - The `(driver)` group keeps its name, because the screens hard-code `/(driver)/…` hrefs in 60+ places.
+- **Old flow kept as the rollback path:** the 44 old route files in `app/` are now one-line shims to `apps/driver`. The 4 known dead-code importers also keep shims. That's 48 shims, all marked "(driver extraction, Phase 3)".
+- **Legacy names:** the unchanged screens still push the old names. `apps/driver` has 4 redirect routes that forward them to the contract URLs (`lib/routes.ts` `LEGACY_ROUTE_ALIASES`).
+- **App shell:** `app.config.js` (Pulse Driver, `pulse-driver`, `pulsedriver`, `com.gogopulse.driver`, root permissions/plugins, web `single` + `baseUrl: '/driver'`), `eas.json`, `metro.config.js` (watchFolders = repo root, root `node_modules`, the root's bundle-correctness resolver/polyfills), `babel.config.js`, `tsconfig.json`, `package.json`. Dependencies are 63 root packages at identical version specs.
+- **Gate:** `lib/driverAppGate.ts` + `components/DriverAppGate.tsx`.
+  - No session: sign-in.
+  - Signed-in non-driver: `NotDriverScreen`, with a link to gogopulse.com and sign-out.
+  - Driver: the app.
+  - The rule is the existing `profile.role === 'driver'`; no new authorization.
+- **Navigation-policy registry:** `lib/navigationPolicy/registry.ts`. A test enforces that every route has a policy.
+- **Separate persisted-cache key** (`pulse-driver-cache-v1`), because both apps share the gogopulse.com origin.
+- **Wiring:**
+  - root workspaces += `apps/*`
+  - root tsconfig excludes `apps/**`, so the driver's typed routes don't leak into it
+  - `jest.config.js` maps old `@/…` driver paths to the moved files
+  - the ESLint map-loader exception now also covers `apps/driver/lib/maps`
+  - the lockfile gains only the workspace link and `dev` flag metadata; no version changed
+- **Boundary checker, new rules:**
+  - `apps/driver` → any main-app path is a break, including type-only imports and legacy shims.
+  - main → `apps/driver` is a break unless it goes through a Phase 3 shim.
+  - Both directions were verified with probes.
+
+**Deviation to approve:** the rule "main app has 0 imports from `apps/driver`" holds except for the 48 shims above. They exist only because the old in-app flow must keep working until 4C. They are removed in 4C and 6.
+
+### Blockers — decisions needed before the Phase 3 gate can close
+**D20 — Main-app routes the driver navigates to by URL (not by import).**
+- The driver pushes to:
+  - `/trip/:id/verification`
+  - `/trip/:id/operations/{fuel,toll,other,expenses,launcher}`
+  - `/(modals)/language-settings`
+- Their closure is **103 files** (81 never classified, 22 MAIN_ONLY). The Phase 0/1 inventory missed them because it only followed imports.
+- Today in `apps/driver` these pushes hit not-found (→ dashboard).
+- **Recommendation:**
+  - Add the string-navigation targets as inventory roots, re-run the classifier, and approve the result (as in Phase 1).
+  - Then add those route files to `apps/driver` under `trip/[tripId]/…`.
+
+**D21 — Root app shell.**
+- The main `app/_layout.tsx` mounts providers and hosts the driver relies on at runtime:
+  - `AppAlertHost` / `ConfirmDialogHost`
+  - error boundary
+  - web RN compat patches (`installWebRnCompatPatches`, `htmlShell`)
+  - background GPS task registration (`lib/tracking/backgroundTasks`)
+  - `LazyChatProviders` (driver chat)
+  - `GlobalSyncProvider`, `KeyboardAccessoryProvider`, `WalletProvider`, `PendingOnboardingProvider`
+  - stale-deploy recovery, splash handling
+  - cache buster
+- None of these is classified. The driver-relevant subset pulls in **114 files** (88 unclassified, 26 MAIN_ONLY); chat providers alone are 73.
+- `apps/driver/app/_layout.tsx` currently mounts **only already-shared providers**, so the app builds and routes but **is not at parity** (e.g. no alert host, no background location task).
+- **Recommendation:** classify the subset listed in the `_layout.tsx` header (same process as D20), then mount it. The dispatcher-only pieces stay main-only: demo tab bar, overlay tab bar, preloads, KYC reminder, invite/referral gates, and push registration (push is blocked per Phase 0).
+
+**D22 — expo-router base-URL bug (web, `/driver`).**
+- `expo-router@6.0.24` `stripBaseUrl` (`build/fork/getStateFromPath-forks.js:183`) strips the base with a plain prefix regex, so in-app `/driver-signup` becomes `/-signup`.
+- Every in-app push to `/driver-sign-in`, `/driver-signup` and `/driver-trip/:id` breaks on the web build. That's about 11 call sites plus `ROUTES.DRIVER_SIGN_IN`.
+- Affected flows: sign-in ↔ sign-up links, onboarding, and opening trip detail from lists.
+- Direct loads and hard refreshes work. The main app is unaffected (it has no base URL).
+- **Options:**
+  - (a) `patch-package` fix: a segment-boundary regex. A no-op without a base URL. The repo already uses patch-package.
+  - (b) Point those call sites at non-`/driver`-prefixed names. That touches screens shared with the old flow, so it needs new main-app aliases too.
+  - (c) Accept it until 4C, when the call sites switch to `DRIVER_ROUTES`.
+- **Recommendation:** (a). Not applied: it modifies a dependency.
+
+### Phase 3 checks vs V1 baseline
+| Check | Result |
+|---|---|
+| `check:driver-boundaries` | ✅ 0 breaks. 264 files in `apps/driver`, 48 shims. Same 4 dead-code warnings |
+| main typecheck | ✅ same 26 errors |
+| `apps/driver` typecheck | ✅ 3 errors, all pre-existing baseline errors in shared package files; 0 in driver code |
+| unit tests | ✅ same 5 failures in the same 2 suites. 2693 pass (+49 new). The 30 moved tests (32 suites) pass from `apps/driver` |
+| navigation-policy | ✅ 64/64 |
+| lint | ✅ same findings (normalized). The one new finding (map-loader `require`) is fixed by the ESLint exception |
+| `oms` typecheck | ✅ 0 errors |
+| main web export | ✅ 145 assets (identical set), 66 chunks, +4 KB |
+| `apps/driver` web export (`/driver`) | ✅ HTML, JS and assets all under `/driver/`. No main-only screens in the bundle |
+| `/driver`, `/driver/sign-in`, `/driver/sign-up` direct load | ✅ (served like Netlify: `/driver/*` → `/driver/index.html`) |
+| hard refresh `/driver/wallet`, `/driver/trip/:id`, `/driver/passbook/history` with no session | ✅ redirect to `/driver/sign-in` |
+| legacy direct loads (`/driver/driver-sign-in?ref=x` etc.) | ✅ forward, params kept |
+| in-app navigation to legacy names | ❌ D22 |
+| `npm ls -w @pulse/driver` | ✅ 63 deps, all resolved to the root copies, none invalid or missing |
+| `supabase/` | ✅ untouched |
+
+**Not done (outside Phase 3, or blocked):**
+- Native build and EAS project: needs account owner (ambiguity #5).
+- Push: Phase 0 blocker.
+- Session restore with a real driver login: Phase 3.5.
+- Store assets: the icon and splash still point at the root `assets/`.
+
+**Found, not fixed:**
+- `@react-navigation/bottom-tabs`, `@react-navigation/native-stack` and `expo-localization` are imported but undeclared (same case as `expo-asset`).
+- NetInfo's web reachability probe issues `HEAD /`. That's fine at gogopulse.com, but needs checking in domain mode.

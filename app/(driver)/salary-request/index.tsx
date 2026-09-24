@@ -1,12 +1,2 @@
-import { LazySuspenseInlineFallback } from '@/components/LazySuspenseFallback';
-import { lazy, Suspense } from 'react';
-
-const SalaryRequestScreen = lazy(() => import('@/features/drivers/screens/DriverSalaryRequestScreen'));
-
-export default function SalaryRequestRoute() {
-  return (
-    <Suspense fallback={<LazySuspenseInlineFallback />}>
-      <SalaryRequestScreen />
-    </Suspense>
-  );
-}
+// Moved to apps/driver/app/(driver)/salary-request/index.tsx (driver extraction, Phase 3). Temporary shim — removed in Phase 4C/6.
+export { default } from '../../../apps/driver/app/(driver)/salary-request/index';

@@ -17,6 +17,10 @@
  *   5. a moved file sits in the wrong package for its approved class
  *   6. a file enters the driver runtime graph without a classification
  *      (re-run scripts/driver-extraction-classify.mjs and get it approved)
+ *   7. Phase 3: apps/driver → any main-app path, INCLUDING type-only imports and the
+ *      legacy shims (apps/driver may use packages/* and itself only)
+ *   8. Phase 3: main app → apps/driver, except through a Phase 3 shim at an old
+ *      driver path (the old in-app flow stays until Phase 4C)
  *
  * Dead code (files reached by neither app) that imports driver-only files is
  * a WARNING, not a failure. It doesn't affect either app at runtime, but it
@@ -52,7 +56,16 @@ const ALLOWED = {
 const PKG_CLASS = { core: 'SHARED_CORE', domain: 'SHARED_DOMAIN', ui: 'SHARED_UI', features: 'SHARED_FEATURES' };
 const pkgOf = (f) => f.match(/^packages\/(core|domain|ui|features)\//)?.[1];
 const origOf = (f) => (pkgOf(f) ? f.slice(`packages/${pkgOf(f)}/`.length) : f);
-const clsOf = (f) => (pkgOf(f) ? PKG_CLASS[pkgOf(f)] : approved[f]?.cls ?? 'MAIN');
+// Phase 3: apps/driver is the driver app. Everything in it is driver code; files moved
+// there are listed in apps/driver/extraction-moves.json. Old driver paths the main app
+// still needs hold a shim marked "(driver extraction, Phase 3)".
+const inDriverApp = (f) => f.startsWith('apps/driver/');
+const isPhase3Shim = (f) => {
+  if (inDriverApp(f) || pkgOf(f)) return false;
+  const abs = path.join(ROOT, f);
+  return existsSync(abs) && readFileSync(abs, 'utf8').startsWith('// Moved to apps/driver/');
+};
+const clsOf = (f) => (pkgOf(f) ? PKG_CLASS[pkgOf(f)] : inDriverApp(f) ? 'DRIVER_ONLY' : approved[f]?.cls ?? 'MAIN');
 // D19: types moved into @pulse/domain. Extracted `*.types.ts` files are listed in
 // packages/extraction-types.json. Whole types-only files leave a shim marked "D19 types".
 const d19Extracted = existsSync(path.join(ROOT, 'packages/extraction-types.json'))
@@ -78,7 +91,17 @@ for (const [f, node] of Object.entries(G)) {
   if (node.test) continue;
   const from = clsOf(f);
   for (const { to, kinds } of node.imports) {
-    if (!isRuntime(kinds) || G[to]?.test) continue;
+    if (G[to]?.test) continue;
+    if (inDriverApp(f) && !inDriverApp(to) && !pkgOf(to)) {
+      breaks.push([`apps/driver → main app${isRuntime(kinds) ? '' : ' (type-only)'}`, f, to]);
+      continue;
+    }
+    if (!inDriverApp(f) && inDriverApp(to) && !isPhase3Shim(f)) {
+      if (pkgOf(f) || node.inMain) breaks.push(['main/package → apps/driver', f, to]);
+      else deadWarnings.push([f, to]);
+      continue;
+    }
+    if (!isRuntime(kinds)) continue;
     const toCls = clsOf(to);
     if (pkgOf(f) && !pkgOf(to)) {
       breaks.push(['package → app path (runtime)', f, to]);
@@ -96,13 +119,15 @@ for (const [f, node] of Object.entries(G)) {
 }
 // 4. Files the driver now loads at runtime that were never classified.
 const unclassified = Object.entries(G)
-  .filter(([f, n]) => !n.test && n.inDriverRuntime && !approved[origOf(f)] && !isD19(f))
+  .filter(([f, n]) => !n.test && n.inDriverRuntime && !inDriverApp(f) && !approved[origOf(f)] && !isD19(f))
   .map(([f]) => f);
 
 for (const [f, to] of deadWarnings) console.warn(`⚠️  dead code (reached by neither app) → driver-only: ${f} → ${to}`);
+const shims = Object.keys(G).filter(isPhase3Shim);
 if (!breaks.length && !unclassified.length) {
   const moved = Object.keys(G).filter((f) => pkgOf(f) && !G[f].test).length;
-  console.log(`✅ driver boundaries OK (${Object.keys(approved).length} classified files, ${moved} in packages, 0 breaks)`);
+  const inApp = Object.keys(G).filter((f) => inDriverApp(f) && !G[f].test).length;
+  console.log(`✅ driver boundaries OK (${Object.keys(approved).length} classified files, ${moved} in packages, ${inApp} in apps/driver, ${shims.length} Phase 3 shims, 0 breaks)`);
   process.exit(0);
 }
 for (const [kind, f, to] of breaks) console.error(`❌ ${kind}: ${f} → ${to}`);

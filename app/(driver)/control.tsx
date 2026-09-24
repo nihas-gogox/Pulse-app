@@ -1,12 +1,2 @@
-import { LazySuspenseInlineFallback } from '@/components/LazySuspenseFallback';
-import { lazy, Suspense } from 'react';
-
-const DriverControlScreen = lazy(() => import('@/features/drivers/screens/DriverControlScreen'));
-
-export default function ControlRoute() {
-  return (
-    <Suspense fallback={<LazySuspenseInlineFallback />}>
-      <DriverControlScreen />
-    </Suspense>
-  );
-}
+// Moved to apps/driver/app/(driver)/control.tsx (driver extraction, Phase 3). Temporary shim — removed in Phase 4C/6.
+export { default } from '../../apps/driver/app/(driver)/control';

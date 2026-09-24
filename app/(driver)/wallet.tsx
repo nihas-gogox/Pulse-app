@@ -1,12 +1,2 @@
-import { LazySuspenseInlineFallback } from '@/components/LazySuspenseFallback';
-import { lazy, Suspense } from 'react';
-
-const DriverWalletScreen = lazy(() => import('@/features/drivers/screens/DriverWalletScreen'));
-
-export default function WalletRoute() {
-  return (
-    <Suspense fallback={<LazySuspenseInlineFallback />}>
-      <DriverWalletScreen />
-    </Suspense>
-  );
-}
+// Moved to apps/driver/app/(driver)/wallet.tsx (driver extraction, Phase 3). Temporary shim — removed in Phase 4C/6.
+export { default } from '../../apps/driver/app/(driver)/wallet';

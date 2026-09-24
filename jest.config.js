@@ -2,13 +2,18 @@
 // packages/{core,domain,ui,features} leave a re-export shim at their old path.
 // Map each old `@/…` path straight to the moved file, so `jest.mock('@/lib/x')`
 // mocks the same module instance that package code imports as `@pulse/core/lib/x`.
-const extractionMoves = (() => {
+const readMoves = (file) => {
   try {
-    return require('./packages/extraction-moves.json');
+    return require(file);
   } catch {
     return {};
   }
-})();
+};
+// Phase 3: DRIVER_ONLY files moved into apps/driver (only old route files keep a shim).
+const extractionMoves = {
+  ...readMoves('./packages/extraction-moves.json'),
+  ...readMoves('./apps/driver/extraction-moves.json'),
+};
 const stripModuleExt = (p) => p.replace(/(\.(web|native|ios|android))?\.(tsx?|jsx?)$/, '');
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const extractionMapper = {};
