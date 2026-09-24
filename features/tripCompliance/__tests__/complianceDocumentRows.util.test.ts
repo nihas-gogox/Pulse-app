@@ -43,6 +43,23 @@ describe("deriveComplianceDocumentRows", () => {
     expect(lrRow?.doc?.status).toBe("verified");
   });
 
+  it("ignores an e-way number row that has no uploaded file", () => {
+    const rows = deriveComplianceDocumentRows([
+      doc({
+        id: "eway-meta",
+        document_type: "eway_bill",
+        file_name: "eway-fields.json",
+        storage_path: "trip-1/eway_bill/fields.json",
+        status: "pending",
+      }),
+      doc({ id: "lr-file", document_type: "lr", status: "pending", file_name: "lr.pdf" }),
+      doc({ id: "inv-file", document_type: "invoice", status: "pending", file_name: "invoice.pdf" }),
+    ]);
+    expect(rows.find((r) => r.type === "eway_bill")?.status).toBe("missing");
+    expect(rows.find((r) => r.type === "lr")?.status).toBe("pending");
+    expect(rows.find((r) => r.type === "invoice")?.status).toBe("pending");
+  });
+
   it("keeps POD as an other option, not a required trip doc", () => {
     const rows = deriveComplianceDocumentRows([doc({ id: "pod-1", document_type: "pod", status: "pending" })]);
     const podRow = rows.find((r) => r.type === "pod");

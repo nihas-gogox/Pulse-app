@@ -17,6 +17,7 @@ import {
   useComplianceListPagination,
   useComplianceStageFilter,
   useComplianceTripsQuery,
+  useComplianceTripQuery,
   useInvalidateComplianceTrips,
 } from "@/features/tripCompliance/hooks/useComplianceTripsQuery";
 import { postCompliancePayment, type ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
@@ -156,10 +157,12 @@ export default function ComplianceScreen() {
     [router],
   );
 
-  const reviewingSummary = useMemo(
-    () => (review ? summaries.find((s) => s.trip.id === review.tripId) : null),
+  const reviewingSummaryFromList = useMemo(
+    () => (review ? summaries.find((s) => s.trip.id === review.tripId) ?? null : null),
     [review, summaries],
   );
+  const freshReview = useComplianceTripQuery(review?.tripId);
+  const reviewingSummary = freshReview.data ?? reviewingSummaryFromList;
 
   if (orgCtx === undefined || accessLoading || productsLoading) {
     return <ChromeBelowTopNavLoadingScreen variant="preparing" />;

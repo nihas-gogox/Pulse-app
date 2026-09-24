@@ -18,6 +18,7 @@ import {
   isEntityDocumentExpired,
   isEntityDocumentSlotVerified,
 } from "@/features/tripCompliance/utils/complianceChecklist.util";
+import { isEwayBillMetaPath } from "@/features/trips/services/ewayBillFields.util";
 
 export const DOC_TYPE_LABEL: Record<string, string> = {
   lr: "LR",
@@ -51,9 +52,14 @@ export type ComplianceDocRow = {
   entityDoc: ComplianceEntityDocument | null;
 };
 
+function isMetaOnlyTripDoc(doc: ComplianceDocumentRow): boolean {
+  return isEwayBillMetaPath(doc.storage_path, doc.file_name);
+}
+
 function latestDocByType(documents: ComplianceDocumentRow[]): Map<string | null, ComplianceDocumentRow> {
   const byType = new Map<string | null, ComplianceDocumentRow>();
   for (const doc of documents) {
+    if (isMetaOnlyTripDoc(doc)) continue;
     const current = byType.get(doc.document_type);
     if (!current || (doc.uploaded_at ?? "") > (current.uploaded_at ?? "")) {
       byType.set(doc.document_type, doc);

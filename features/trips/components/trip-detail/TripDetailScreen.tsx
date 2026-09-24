@@ -95,7 +95,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import { Activity, MessageSquare, Zap } from "lucide-react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import LottieView from "lottie-react-native";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import {
@@ -510,6 +510,7 @@ export default function TripDetailScreen({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const { t } = useLanguage();
   const { width: screenWidth } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? "trip");
@@ -606,6 +607,16 @@ export default function TripDetailScreen({
     onBack,
     financeSurfaceActive: activeTab === "finance",
   });
+  const refreshComplianceForTrip = useCallback(() => {
+    const orgId = currentOrganization?.id ?? detail.trip?.organization_id ?? null;
+    if (!orgId) return;
+    void queryClient.invalidateQueries({
+      queryKey: ["q", "tripCompliance", "pipeline", "v1", orgId],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["q", "tripCompliance", "detail", "v1", orgId],
+    });
+  }, [currentOrganization?.id, detail.trip?.organization_id, queryClient]);
   useTripVerificationSync({
     enabled: shouldFlushTripOutboxOnDetail(detail.trip),
   });
@@ -1658,6 +1669,7 @@ export default function TripDetailScreen({
       setPendingVaultUpload(null);
       resetPendingLrFields();
       detail.handleRefresh();
+      refreshComplianceForTrip();
       showAppAlert(
         "Uploaded",
         uploadedCount > 1
@@ -1711,6 +1723,7 @@ export default function TripDetailScreen({
     detail.setDriverIdentityDocs,
     detail.handleRefresh,
     detail.upsertTripDocument,
+    refreshComplianceForTrip,
     currentOrganization?.id,
     uploadingDocId,
     readFileAsArrayBuffer,
@@ -1814,6 +1827,7 @@ export default function TripDetailScreen({
       }
       detail.setSelectedDoc(null);
       detail.handleRefresh();
+      refreshComplianceForTrip();
       showAppAlert("Deleted", `${target.label} was removed.`);
     } catch (e) {
       showAppAlert(
@@ -1835,6 +1849,7 @@ export default function TripDetailScreen({
     detail.setDriverIdentityDocs,
     detail.setSelectedDoc,
     detail.handleRefresh,
+    refreshComplianceForTrip,
     currentOrganization?.id,
     uploadingDocId,
   ]);

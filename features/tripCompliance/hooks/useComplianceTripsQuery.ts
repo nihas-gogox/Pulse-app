@@ -206,7 +206,9 @@ export function useComplianceTripQuery(tripId: string | undefined) {
       return summaries[0] ?? null;
     },
     enabled: !!orgId && !!tripId,
-    staleTime: 15_000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     refetchOnWindowFocus: true,
     select: (summary) => (summary ? withChecklist(summary) : null),
   });

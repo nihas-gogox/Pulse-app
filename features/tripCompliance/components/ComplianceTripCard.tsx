@@ -206,20 +206,9 @@ export function ComplianceTripCard({
   const checklist = ensureComplianceChecklist(summary);
   const readiness = useMemo(() => deriveComplianceQueueReadiness(summary), [summary]);
   const required = readiness.requiredDocs;
-  const verifiedTripTypes = new Set(
-    summary.documents.filter((doc) => doc.status === "verified").map((doc) => doc.document_type),
-  );
-  const displayGroups = checklist.groups.map((group) => {
-    if (group.key !== "trip") return group;
-    const slots = group.slots.map((slot) => ({ ...slot, verified: verifiedTripTypes.has(slot.type) }));
-    return {
-      ...group,
-      slots,
-      verified: required.verified,
-      total: required.total,
-      tone: checklistTone(required.verified, required.total),
-    };
-  });
+  const tripGroup = checklist.groups.find((group) => group.key === "trip");
+  const tripOnFile = tripGroup?.verified ?? 0;
+  const tripTotal = tripGroup?.total ?? required.total;
   const verification = verificationStatusVisual(summary);
   const payment = paymentStatusVisual(summary);
   const showPaymentPill = shouldShowPaymentStatusPill(summary);
@@ -230,7 +219,7 @@ export function ComplianceTripCard({
   const showPayAction = Boolean(canManageFinance && readiness.paymentReady && onPay);
   const showCardFooter =
     showVerificationPill || showPaymentPill || showVerifyDocsAction || showPayAction;
-  const requiredTone = groupToneVisual(checklistTone(required.verified, required.total));
+  const requiredTone = groupToneVisual(checklistTone(tripOnFile, tripTotal));
   const tripId = complianceTripDisplayId(trip);
   const when = formatComplianceTimestamp(complianceEventAt(trip));
   const fullyVerified = Boolean(summary.complianceVerifiedAt);
@@ -338,19 +327,15 @@ export function ComplianceTripCard({
           <View style={styles.checklistHeader}>
             <Text style={styles.checklistTitle}>REQUIRED DOCUMENTS</Text>
             <Text style={[styles.checklistProgress, { color: requiredTone.fg }]}>
-              {required.verified}/{required.total} verified
+              {tripOnFile}/{tripTotal} on file
             </Text>
           </View>
           <View style={styles.groupRow}>
-            {displayGroups.map((group) => (
+            {checklist.groups.map((group) => (
               <ChecklistGroupTile
                 key={group.key}
                 group={group}
-                countLabel={
-                  group.key === "trip"
-                    ? `${required.verified}/${required.total} Verified`
-                    : `${group.verified}/${group.total} On file`
-                }
+                countLabel={`${group.verified}/${group.total} On file`}
                 onPress={() => onReviewDocuments(group.key)}
               />
             ))}

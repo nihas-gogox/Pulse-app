@@ -10,6 +10,7 @@ import {
   type ComplianceChecklistTone,
   type ComplianceDocumentRow,
 } from "@/features/tripCompliance/tripCompliance.types";
+import { isEwayBillMetaPath } from "@/features/trips/services/ewayBillFields.util";
 
 export function checklistTone(verified: number, total: number): ComplianceChecklistTone {
   if (total > 0 && verified >= total) return "success";
@@ -114,6 +115,7 @@ export function isEntityDocumentSlotVerified(
 
 export function isTripVaultDocumentOnFile(doc: ComplianceDocumentRow): boolean {
   if (!doc.document_type || doc.status === "rejected") return false;
+  if (isEwayBillMetaPath(doc.storage_path, doc.file_name)) return false;
   return Boolean(doc.storage_path) || doc.status === "verified";
 }
 
