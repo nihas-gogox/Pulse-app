@@ -25,7 +25,7 @@ import {
     getSupplierById,
     getSupplierDetails,
 } from "@/features/suppliers/services/suppliers.service";
-import { getVehicleDocumentViewUrl, getVehicleDocumentViewUrls } from "@/features/vehicles/services/vehicleDocuments.service";
+import { getVehicleDocumentViewUrl, getVehicleDocumentViewUrls, mergeEntityDocumentsIntoVehicleVault } from "@/features/vehicles/services/vehicleDocuments.service";
 import { resolveTripDocumentPreviewUrl } from "@/features/tripCompliance/services/vehicleDocumentReuse.service";
 import { getVehicleById } from "@/features/vehicles/services/vehicles.service";
 import type { VehicleDocuments } from "@/features/vehicles/utils/vehicleDocuments.util";
@@ -1548,13 +1548,27 @@ export function useTripDetail({
       setVehicleLabel(formatIndianVehicleNumber(aggregateVehicleDisplay));
       setVehicleDocs(null);
     } else if (trip.vehicle_id) {
-      const applyVehicleRow = (v: NonNullable<Awaited<ReturnType<typeof getVehicleById>>["vehicle"]>) => {
+      const vehicleId = trip.vehicle_id;
+      const viewerOrgId = currentOrganization?.id ?? orgId;
+      const applyVehicleRow = (
+        v: NonNullable<Awaited<ReturnType<typeof getVehicleById>>["vehicle"]>,
+      ) => {
         const parts = [v.vehicle_number];
         if (v.vehicle_type) parts.push(v.vehicle_type);
         setVehicleLabel(parts.join(" · "));
-        setVehicleDocs(v.documents ?? null);
+        const base = (v.documents ?? null) as VehicleDocuments | null;
+        setVehicleDocs(base);
+        // Trip vault may have saved RC/etc into entity_documents when the
+        // truck is cross-org — merge so refresh does not wipe those slots.
+        if (viewerOrgId) {
+          void mergeEntityDocumentsIntoVehicleVault(vehicleId, viewerOrgId, base).then(
+            (merged) => {
+              if (!cancelled && merged) setVehicleDocs(merged);
+            },
+          );
+        }
       };
-      getVehicleById(orgId, trip.vehicle_id).then((res) => {
+      getVehicleById(orgId, vehicleId).then((res) => {
         if (cancelled) return;
         if (res.vehicle) {
           applyVehicleRow(res.vehicle);
@@ -1565,7 +1579,7 @@ export function useTripDetail({
           if (cancelled) return;
           const linkedOrgId = r.supplier?.linked_organization_id;
           if (!linkedOrgId) return;
-          getVehicleById(linkedOrgId, trip.vehicle_id!).then((res2) => {
+          getVehicleById(linkedOrgId, vehicleId).then((res2) => {
             if (cancelled || !res2.vehicle) return;
             applyVehicleRow(res2.vehicle);
           });
@@ -2306,7 +2320,15 @@ export function useTripDetail({
     if (bundle.vehicle) {
       const v = bundle.vehicle;
       setVehicleLabel([v.vehicle_number, v.vehicle_type].filter(Boolean).join(' · '));
-      setVehicleDocs((v.documents ?? null) as unknown as VehicleDocuments | null);
+      const base = (v.documents ?? null) as unknown as VehicleDocuments | null;
+      setVehicleDocs(base);
+      const vehicleId = (bundle.trip as unknown as TripRow).vehicle_id;
+      const viewerOrgId = currentOrganization?.id ?? (bundle.trip as unknown as TripRow).organization_id;
+      if (vehicleId && viewerOrgId) {
+        void mergeEntityDocumentsIntoVehicleVault(vehicleId, viewerOrgId, base).then((merged) => {
+          if (merged) setVehicleDocs(merged);
+        });
+      }
     }
 
     const tripRow = bundle.trip as unknown as TripRow;

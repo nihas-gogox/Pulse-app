@@ -65,9 +65,10 @@ import {
   deleteVehicleDocument,
   deleteVehicleExtraDocument,
   getVehicleDocumentViewUrl,
-  uploadAndSaveVehicleDocument,
+  uploadAndSaveVehicleDocumentForTrip,
   uploadAndSaveVehicleExtraDocuments,
 } from "@/features/vehicles/services/vehicleDocuments.service";
+import { showAppAlert } from "@/lib/appAlert";
 import {
   DOCUMENT_LABELS,
   VEHICLE_COMPLIANCE_TYPE_HINT,
@@ -455,8 +456,25 @@ function alertIfVaultPickerRejected(
 ): boolean {
   const message = vaultPickerRejectionMessage(assets);
   if (!message) return false;
-  Alert.alert("File not accepted", message);
+  showAppAlert("File not accepted", message);
   return true;
+}
+
+/** Infer MIME when the picker leaves it blank (common for WebP on web). */
+function vaultMimeFromFileName(
+  fileName: string | null | undefined,
+  mimeType: string | null | undefined,
+): string {
+  const mime = (mimeType ?? "").trim().toLowerCase();
+  if (mime) return mime;
+  const ext = (fileName ?? "").split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "png") return "image/png";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "webp") return "image/webp";
+  if (ext === "heic") return "image/heic";
+  if (ext === "heif") return "image/heif";
+  return "application/pdf";
 }
 
 function DeferredTripMap(props: ComponentProps<typeof TripMap>) {
@@ -1363,7 +1381,15 @@ export default function TripDetailScreen({
     const pending = pendingVaultUpload;
     const tripIdForUpload = detail.trip?.id;
     const uploaderId = detail.currentUserId;
-    if (!pending || !tripIdForUpload || !uploaderId || uploadingDocId) return;
+    if (!pending || uploadingDocId) return;
+    if (!tripIdForUpload) {
+      showAppAlert("Upload failed", "Trip is still loading. Try again in a moment.");
+      return;
+    }
+    if (!uploaderId) {
+      showAppAlert("Upload failed", "Sign in again, then save the document.");
+      return;
+    }
 
     setUploadingDocId(pending.slotId);
     try {
@@ -1371,9 +1397,12 @@ export default function TripDetailScreen({
         {
           uri: pending.uri,
           fileName: pending.fileName,
-          mimeType: pending.mimeType,
+          mimeType: vaultMimeFromFileName(pending.fileName, pending.mimeType),
         },
-        ...(pending.extraFiles ?? []),
+        ...(pending.extraFiles ?? []).map((file) => ({
+          ...file,
+          mimeType: vaultMimeFromFileName(file.fileName, file.mimeType),
+        })),
       ];
       let uploadedCount = 0;
       let lrOcrTarget: {
@@ -1387,7 +1416,7 @@ export default function TripDetailScreen({
           detail.trip?.organization_id ?? currentOrganization?.id ?? null;
         const vehicleId = detail.trip?.vehicle_id ?? null;
         if (!orgId || !vehicleId) {
-          Alert.alert(
+          showAppAlert(
             "Assign a vehicle",
             "Assign a vehicle to this trip before adding vehicle documents.",
           );
@@ -1401,7 +1430,7 @@ export default function TripDetailScreen({
         for (const file of files) {
           const arrayBuffer = await readFileAsArrayBuffer(file.uri);
           if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-            Alert.alert(
+            showAppAlert(
               "Upload failed",
               `Could not read ${file.fileName || "the selected file"}.`,
             );
@@ -1412,7 +1441,7 @@ export default function TripDetailScreen({
             arrayBuffer.byteLength,
           );
           if (tooLarge) {
-            Alert.alert("File not accepted", tooLarge);
+            showAppAlert("File not accepted", tooLarge);
             return;
           }
           buffers.push({
@@ -1428,19 +1457,24 @@ export default function TripDetailScreen({
         if (complianceKind) {
           const first = buffers[0];
           if (!first) {
-            Alert.alert("Upload failed", "No file selected.");
+            showAppAlert("Upload failed", "No file selected.");
             return;
           }
-          const { documents, error } = await uploadAndSaveVehicleDocument(
+          // Trip vault must use the trip-aware path (cross-org truck / RLS
+          // fallback via RPC + entity_documents). Plain org vault write fails
+          // silently on web because Alert.alert is a no-op there.
+          const { documents, error } = await uploadAndSaveVehicleDocumentForTrip(
             orgId,
+            tripIdForUpload,
             vehicleId,
             complianceKind,
             first,
             detail.vehicleDocs?.[complianceKind]?.expiryDate ?? "",
             detail.vehicleDocs,
+            [detail.trip?.organization_id, currentOrganization?.id],
           );
           if (error) {
-            Alert.alert("Upload failed", error.message);
+            showAppAlert("Upload failed", error.message);
             return;
           }
           uploadedCount = 1;
@@ -1453,7 +1487,7 @@ export default function TripDetailScreen({
             detail.vehicleDocs,
           );
           if (error) {
-            Alert.alert("Upload failed", error.message);
+            showAppAlert("Upload failed", error.message);
             return;
           }
           uploadedCount = buffers.length;
@@ -1463,7 +1497,7 @@ export default function TripDetailScreen({
         for (const [index, file] of files.entries()) {
           const arrayBuffer = await readFileAsArrayBuffer(file.uri);
           if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-            Alert.alert(
+            showAppAlert(
               "Upload failed",
               `Could not read ${file.fileName || "the selected file"}.`,
             );
@@ -1474,7 +1508,7 @@ export default function TripDetailScreen({
             arrayBuffer.byteLength,
           );
           if (tooLarge) {
-            Alert.alert("File not accepted", tooLarge);
+            showAppAlert("File not accepted", tooLarge);
             return;
           }
           const lrPayload =
@@ -1497,7 +1531,7 @@ export default function TripDetailScreen({
             pending.docType === "lr" ? lrPayload || undefined : undefined,
           );
           if (error) {
-            Alert.alert(
+            showAppAlert(
               uploadedCount > 0 ? "Partial upload" : "Upload failed",
               uploadedCount > 0
                 ? `${uploadedCount} file${uploadedCount === 1 ? "" : "s"} saved, then ${error.message}`
@@ -1538,7 +1572,7 @@ export default function TripDetailScreen({
       setPendingVaultUpload(null);
       resetPendingLrFields();
       detail.handleRefresh();
-      Alert.alert(
+      showAppAlert(
         "Uploaded",
         uploadedCount > 1
           ? `${uploadedCount} documents are saved in the vault.`
@@ -1567,7 +1601,7 @@ export default function TripDetailScreen({
           });
       }
     } catch (e) {
-      Alert.alert(
+      showAppAlert(
         "Upload failed",
         e instanceof Error ? e.message : "Something went wrong.",
       );
@@ -1606,7 +1640,7 @@ export default function TripDetailScreen({
           detail.trip?.organization_id ?? currentOrganization?.id ?? null;
         const vehicleId = detail.trip?.vehicle_id ?? null;
         if (!orgId || !vehicleId) {
-          Alert.alert(
+          showAppAlert(
             "Delete failed",
             "Assign a vehicle to this trip before removing vehicle documents.",
           );
@@ -1627,7 +1661,7 @@ export default function TripDetailScreen({
                 detail.vehicleDocs,
               );
         if (error) {
-          Alert.alert("Delete failed", error.message);
+          showAppAlert("Delete failed", error.message);
           return;
         }
         if (documents) detail.setVehicleDocs(documents);
@@ -1665,15 +1699,15 @@ export default function TripDetailScreen({
 
         const { error } = await tripDocumentsService.deleteTripDocument(payload);
         if (error) {
-          Alert.alert("Delete failed", error.message);
+          showAppAlert("Delete failed", error.message);
           return;
         }
       }
       detail.setSelectedDoc(null);
       detail.handleRefresh();
-      Alert.alert("Deleted", `${target.label} was removed.`);
+      showAppAlert("Deleted", `${target.label} was removed.`);
     } catch (e) {
-      Alert.alert(
+      showAppAlert(
         "Delete failed",
         e instanceof Error ? e.message : "Something went wrong.",
       );
@@ -1786,11 +1820,11 @@ export default function TripDetailScreen({
         const [asset, ...rest] = res.assets;
         uri = asset.uri;
         fileName = asset.name || fileName;
-        mimeType = asset.mimeType || "application/pdf";
+        mimeType = vaultMimeFromFileName(asset.name, asset.mimeType);
         extraFiles = rest.map((item, index) => ({
           uri: item.uri,
           fileName: item.name || `${doc.id}-${Date.now()}-${index + 2}.pdf`,
-          mimeType: item.mimeType || "application/pdf",
+          mimeType: vaultMimeFromFileName(item.name, item.mimeType),
         }));
 
         if (!uri) return;
@@ -1827,7 +1861,7 @@ export default function TripDetailScreen({
           extraFiles: extraFiles.length > 0 ? extraFiles : undefined,
         });
       } catch (e) {
-        Alert.alert(
+        showAppAlert(
           "Upload failed",
           e instanceof Error ? e.message : "Something went wrong.",
         );
@@ -1859,7 +1893,7 @@ export default function TripDetailScreen({
       if (alertIfVaultPickerRejected(res.assets)) return;
       const [asset, ...rest] = res.assets;
       const fileName = asset.name || `lr-${Date.now()}.pdf`;
-      const mimeType = asset.mimeType || "application/pdf";
+      const mimeType = vaultMimeFromFileName(asset.name, asset.mimeType);
 
       fillPendingLrFields(
         lrVaultSlot?.documentNumber,
@@ -1878,12 +1912,12 @@ export default function TripDetailScreen({
             ? rest.map((item, index) => ({
                 uri: item.uri,
                 fileName: item.name || `lr-${Date.now()}-${index + 2}.pdf`,
-                mimeType: item.mimeType || "application/pdf",
+                mimeType: vaultMimeFromFileName(item.name, item.mimeType),
               }))
             : undefined,
       });
     } catch (e) {
-      Alert.alert(
+      showAppAlert(
         "Upload failed",
         e instanceof Error ? e.message : "Something went wrong.",
       );
@@ -1907,7 +1941,7 @@ export default function TripDetailScreen({
       if (!tripIdForUpload || !uploaderId || uploadingDocId || pendingVaultUpload)
         return;
       if (!vehicleId) {
-        Alert.alert(
+        showAppAlert(
           "Assign a vehicle",
           "Assign a vehicle to this trip before adding vehicle documents.",
         );
@@ -1932,19 +1966,22 @@ export default function TripDetailScreen({
           vehicleKind: kind,
           uri: asset.uri,
           fileName: asset.name || `vehicle-${kind}-${Date.now()}.pdf`,
-          mimeType: asset.mimeType || "application/pdf",
+          mimeType: vaultMimeFromFileName(
+            asset.name,
+            asset.mimeType,
+          ),
           extraFiles:
             kind === "extra" && rest.length > 0
               ? rest.map((item, index) => ({
                   uri: item.uri,
                   fileName:
                     item.name || `vehicle-extra-${Date.now()}-${index + 2}.pdf`,
-                  mimeType: item.mimeType || "application/pdf",
+                  mimeType: vaultMimeFromFileName(item.name, item.mimeType),
                 }))
               : undefined,
         });
       } catch (e) {
-        Alert.alert(
+        showAppAlert(
           "Upload failed",
           e instanceof Error ? e.message : "Something went wrong.",
         );
@@ -1962,7 +1999,7 @@ export default function TripDetailScreen({
   const openVehicleDocChooser = useCallback(() => {
     if (uploadingDocId || pendingVaultUpload) return;
     if (!detail.trip?.vehicle_id) {
-      Alert.alert(
+      showAppAlert(
         "Assign a vehicle",
         "Assign a vehicle to this trip before adding vehicle documents.",
       );
