@@ -9,7 +9,8 @@ Plan: `docs/DRIVER_EXTRACTION_PLAN.md`. Classifications are *suggestions*; every
 |---|---:|
 | Source files scanned | 3148 |
 | Driver seed files (non-test) | 184 |
-| Driver transitive closure | 1200 |
+| Driver transitive closure (incl. type-only imports) | 1200 |
+| Driver runtime closure (what the bundle loads) | 832 |
 | Main-app transitive closure | 2231 |
 | Main-app files that (transitively) depend on driver seeds | 1267 |
 | Direct boundary violations (main → driver seed) | 129 |

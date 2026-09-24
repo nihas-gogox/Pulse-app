@@ -141,9 +141,19 @@ const fileSet = new Set(files);
 /** edges: from -> Map<to, Set<kind>> */
 const edges = new Map(files.map((f) => [f, new Map()]));
 const unresolved = [];
+/** Per-file traits used by scripts/driver-extraction-classify.mjs. */
+const traits = new Map();
 
 for (const f of files) {
   const src = await readFile(path.join(ROOT, f), 'utf8');
+  traits.set(f, {
+    // Renders UI: closing/self-closing JSX tags (generic `<T>` does not match).
+    // Comments stripped first so `<Image />` in a doc comment doesn't count.
+    jsx: /<\/[A-Za-z][\w.]*>|<[A-Z][\w.]*[^<>]*\/>/.test(src.replace(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, '')),
+    reactNative: /from ['"]react-native['"]/.test(src),
+    supabase: /\bsupabase\(\)|from ['"]@\/lib\/supabase['"]/.test(src),
+    reactQuery: /@tanstack\/react-query/.test(src),
+  });
   for (const { spec, kind } of parseImports(src)) {
     const targets = await resolveAll(path.join(ROOT, f), spec);
     if (!targets.length) {
@@ -185,6 +195,8 @@ const nonTestSeeds = seeds.filter((f) => !isTest(f));
 
 // Everything the driver app needs (forward, transitive).
 const driverClosure = closure(nonTestSeeds, edges);
+// Same, but only through runtime edges: what the driver bundle actually loads.
+const driverRuntimeClosure = closure(nonTestSeeds, edges, { runtimeOnly: true });
 // Everything the main app needs: all non-driver routes, forward, transitive,
 // NOT walking through driver seeds (those edges are reported as violations).
 const mainRoots = files.filter((f) => isRoute(f) && !seedSet.has(f) && !isTest(f));
@@ -342,7 +354,8 @@ L.push(`| Metric | Count |`);
 L.push(`|---|---:|`);
 L.push(`| Source files scanned | ${files.length} |`);
 L.push(`| Driver seed files (non-test) | ${nonTestSeeds.length} |`);
-L.push(`| Driver transitive closure | ${driverClosure.size} |`);
+L.push(`| Driver transitive closure (incl. type-only imports) | ${driverClosure.size} |`);
+L.push(`| Driver runtime closure (what the bundle loads) | ${driverRuntimeClosure.size} |`);
 L.push(`| Main-app transitive closure | ${mainClosure.size} |`);
 L.push(`| Main-app files that (transitively) depend on driver seeds | ${reachesDriver.size} |`);
 L.push(`| Direct boundary violations (main → driver seed) | ${violations.length} |`);
@@ -435,6 +448,12 @@ L.push('');
 await writeFile(OUT_MD, L.join('\n'));
 if (process.argv.includes('--json')) {
   await writeFile(OUT_JSON, JSON.stringify({
+    graph: Object.fromEntries([...new Set([...driverClosure, ...seeds, ...reachesDriver])].sort().map((f) => [f, {
+      inDriver: driverClosure.has(f), inDriverRuntime: driverRuntimeClosure.has(f), inMain: mainClosure.has(f), seed: seedSet.has(f), test: isTest(f),
+      ...traits.get(f),
+      imports: [...(edges.get(f)?.entries() ?? [])].map(([to, k]) => ({ to, kinds: [...k] })),
+      importedBy: [...(reverse.get(f)?.entries() ?? [])].map(([from, k]) => ({ from, kinds: [...k] })),
+    }])),
     rows, violations, reachesDriver: [...reachesDriver].sort(), cycles, driverRoutes,
     urlCollisions, newPathCollisions, driversSplit, tests, unresolved,
   }, null, 2));
