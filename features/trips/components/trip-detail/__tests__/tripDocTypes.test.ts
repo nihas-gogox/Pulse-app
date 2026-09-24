@@ -109,6 +109,17 @@ describe("canAddMoreTripDocs", () => {
       canAddMoreTripDocs({ docSource: "vehicle", category: "vehicle" }),
     ).toBe(true);
   });
+
+  it("allows invoice and driver identity vault slots", () => {
+    expect(canAddMoreTripDocs({ category: "invoice", id: "invoice" })).toBe(
+      true,
+    );
+    expect(canAddMoreTripDocs({ category: "driver_identity" })).toBe(true);
+    expect(canAddMoreTripDocs({ id: "driver-documents" })).toBe(true);
+    expect(
+      canAddMoreTripDocs({ docSource: "compliance", id: "driver-documents" }),
+    ).toBe(true);
+  });
 });
 
 describe("vaultDocHasPreviewableFile", () => {

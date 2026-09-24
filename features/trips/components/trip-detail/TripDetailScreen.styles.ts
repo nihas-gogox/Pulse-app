@@ -3008,6 +3008,13 @@ export const neoStyles = StyleSheet.create({
     borderColor: Theme.borderLight,
     opacity: 0.55,
   },
+  /** Preview present but no file yet — visible, not highlighted. */
+  vaultBtnPreviewIdle: {
+    backgroundColor: Theme.surface,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    opacity: 1,
+  },
   vaultBtnText: {
     color: Theme.buttonDarkText,
     fontSize: 8,

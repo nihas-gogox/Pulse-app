@@ -5,7 +5,14 @@
  */
 import { parseLrFieldValues } from "@/features/trips/services/lrDocumentOcr.util";
 
-export type DocCategory = "vehicle" | "trip" | "driver" | "lr" | "eway";
+export type DocCategory =
+  | "vehicle"
+  | "trip"
+  | "driver"
+  | "driver_identity"
+  | "lr"
+  | "eway"
+  | "invoice";
 
 export interface TripDocFile {
   id: string;
@@ -25,7 +32,7 @@ export interface TripDocItem {
   /** Optional backend document id for future use (e.g. multiple PODs). */
   documentId?: string;
   /** Which storage bucket to resolve signed URLs from. Default: 'trip' (trip-documents bucket). */
-  docSource?: "trip" | "vehicle";
+  docSource?: "trip" | "vehicle" | "compliance";
   /** Optional grouping metadata for downstream preview behavior. */
   category?: DocCategory;
   /** Extra files nested in this slot (one card, many uploads). */
@@ -160,11 +167,27 @@ export function canAddMoreTripDocs(
   ) {
     return true;
   }
+  if (
+    doc.category === "driver_identity" ||
+    doc.docSource === "compliance" ||
+    doc.id === "driver-documents"
+  ) {
+    return true;
+  }
   return (
     doc.category === "lr" ||
     doc.category === "trip" ||
-    doc.category === "driver"
+    doc.category === "driver" ||
+    doc.category === "invoice" ||
+    doc.id === "invoice"
   );
+}
+
+export function isDriverIdentityVaultDoc(
+  doc: Pick<TripDocItem, "id" | "category"> | null | undefined,
+): boolean {
+  if (!doc) return false;
+  return doc.id === "driver-documents" || doc.category === "driver_identity";
 }
 
 /** True when Preview can open a file (storage path, file list, or uploaded status). */
