@@ -290,7 +290,8 @@ module.exports = [
   // to these loader files instead of inline disables at call sites.
   // See lib/maps/mapEnvironment.ts for the full rationale.
   {
-    files: ['lib/maps/*Implementation.ts'],
+    // packages/*/lib/maps: same loaders after the driver-extraction move (Phase 2).
+    files: ['lib/maps/*Implementation.ts', 'packages/*/lib/maps/*Implementation.ts'],
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
     },
