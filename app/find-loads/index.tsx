@@ -273,30 +273,98 @@ export default function FindLoadsScreen() {
             </Pressable>
           ) : null}
 
-          <View style={styles.headerInner}>
-            <View style={styles.headerLeft}>
-              <View style={styles.headerAccent} />
-              <View style={styles.headerTextCol}>
-                <Text style={styles.eyebrow} numberOfLines={1}>
-                  LIVE MARKETPLACE
-                </Text>
-                <Text
-                  style={[styles.title, layout.isDesktopWeb && styles.titleDesktop]}
-                  numberOfLines={1}
-                >
-                  Marketplace Loads
-                </Text>
-                <Text style={styles.subtitle} numberOfLines={1}>
-                  {headerSubtitle}
-                </Text>
+          <View style={[styles.headerInner, !layout.isDesktopWeb && styles.headerInnerMobile]}>
+            {layout.isDesktopWeb ? (
+              <View style={styles.headerLeft}>
+                <View style={styles.headerAccent} />
+                <View style={styles.headerTextCol}>
+                  <Text style={styles.eyebrow} numberOfLines={1}>
+                    LIVE MARKETPLACE
+                  </Text>
+                  <Text style={[styles.title, styles.titleDesktop]} numberOfLines={1}>
+                    Marketplace Loads
+                  </Text>
+                  <Text style={styles.subtitle} numberOfLines={1}>
+                    {headerSubtitle}
+                  </Text>
+                </View>
               </View>
-            </View>
+            ) : (
+              <View style={styles.mobileHeader}>
+                <View style={styles.mobileTitleRow}>
+                  <View style={styles.headerTextCol}>
+                    <Text style={styles.eyebrow} numberOfLines={1}>
+                      LIVE MARKETPLACE
+                    </Text>
+                    <Text style={styles.title} numberOfLines={2}>
+                      Marketplace Loads
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={handleClose}
+                    style={({ pressed }) => [
+                      styles.closeBtn,
+                      styles.closeBtnMobile,
+                      pressed && styles.closeBtnPressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close Marketplace Loads"
+                    hitSlop={Layout.touchTargetHitSlop}
+                  >
+                    <X size={18} color={Theme.textPrimaryDark} strokeWidth={2.2} />
+                  </Pressable>
+                </View>
+                <View style={styles.mobileMetaRow}>
+                  <Text style={[styles.subtitle, styles.subtitleFlex]} numberOfLines={2}>
+                    {headerSubtitle}
+                  </Text>
+                  <View style={styles.headerRight}>
+                    {segment === "myBids" ? (
+                      <Pressable
+                        onPress={() => setSegment("discover")}
+                        style={({ pressed }) => [
+                          styles.segmentChip,
+                          styles.segmentChipMobile,
+                          pressed && styles.awardedBannerPressed,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel="Discover"
+                      >
+                        <Text style={styles.segmentChipText}>Discover</Text>
+                      </Pressable>
+                    ) : null}
+                    <Pressable
+                      onPress={() => setSegment("myBids")}
+                      style={({ pressed }) => [
+                        styles.segmentChip,
+                        styles.segmentChipMobile,
+                        segment === "myBids" && styles.segmentChipActive,
+                        pressed && styles.awardedBannerPressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="My Bids"
+                    >
+                      <Text
+                        style={[
+                          styles.segmentChipText,
+                          segment === "myBids" && styles.segmentChipTextActive,
+                        ]}
+                      >
+                        My Bids
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            )}
+            {layout.isDesktopWeb ? (
             <View style={styles.headerRight}>
               {segment === "myBids" ? (
                 <Pressable
                   onPress={() => setSegment("discover")}
                   style={({ pressed }) => [
                     styles.segmentChip,
+                    !layout.isDesktopWeb && styles.segmentChipMobile,
                     pressed && styles.awardedBannerPressed,
                   ]}
                   accessibilityRole="button"
@@ -309,6 +377,7 @@ export default function FindLoadsScreen() {
                 onPress={() => setSegment("myBids")}
                 style={({ pressed }) => [
                   styles.segmentChip,
+                  !layout.isDesktopWeb && styles.segmentChipMobile,
                   segment === "myBids" && styles.segmentChipActive,
                   pressed && styles.awardedBannerPressed,
                 ]}
@@ -328,6 +397,7 @@ export default function FindLoadsScreen() {
                 onPress={handleClose}
                 style={({ pressed }) => [
                   styles.closeBtn,
+                  !layout.isDesktopWeb && styles.closeBtnMobile,
                   pressed && styles.closeBtnPressed,
                 ]}
                 accessibilityRole="button"
@@ -337,6 +407,7 @@ export default function FindLoadsScreen() {
                 <X size={18} color={Theme.textPrimaryDark} strokeWidth={2.2} />
               </Pressable>
             </View>
+            ) : null}
           </View>
 
           {segment === "discover" ? (
@@ -369,9 +440,10 @@ export default function FindLoadsScreen() {
                 value={appliedSearch}
                 onChange={setAppliedSearch}
                 autoOpenFirst
+                stacked={!layout.isDesktopWeb}
               />
               {searchReady ? (
-                <View style={styles.filterRow}>
+                <View style={[styles.filterRow, !layout.isDesktopWeb && styles.filterRowMobile]}>
                   {FILTERS.map((f) => {
                     const active = filter === f.id;
                     return (
@@ -380,6 +452,7 @@ export default function FindLoadsScreen() {
                         onPress={() => setFilter(f.id)}
                         style={[
                           styles.filterChip,
+                          !layout.isDesktopWeb && styles.filterChipMobile,
                           active && styles.filterChipActive,
                         ]}
                       >
@@ -704,9 +777,9 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.cardWhite,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Theme.borderLight,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
   },
   chromeDesktop: {
     paddingHorizontal: 32,
@@ -721,6 +794,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 16,
     width: "100%",
+  },
+  headerInnerMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 12,
   },
   headerLeft: {
     flex: 1,
@@ -741,6 +819,28 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 3,
   },
+  mobileHeader: {
+    width: "100%",
+    gap: 10,
+  },
+  mobileTitleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    width: "100%",
+  },
+  mobileMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    width: "100%",
+  },
+  subtitleFlex: {
+    flex: 1,
+    minWidth: 0,
+  },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
@@ -760,7 +860,7 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.surface,
     borderWidth: 1,
     borderColor: Theme.surfaceBorder,
-    gap: 10,
+    gap: 12,
   },
   lanePanelHead: {
     flexDirection: "row",
@@ -787,6 +887,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+  },
+  closeBtnMobile: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   closeBtnPressed: { opacity: 0.85 },
   noAccessCloseBtn: {
@@ -824,10 +929,11 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "800",
     color: Theme.textPrimaryDark,
-    letterSpacing: -0.4,
+    letterSpacing: -0.5,
+    lineHeight: 30,
   },
   titleDesktop: {
     fontSize: 26,
@@ -841,12 +947,16 @@ const styles = StyleSheet.create({
   segmentChip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    minHeight: 36,
+    minHeight: 40,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: Theme.borderInput,
     backgroundColor: Theme.cardWhite,
     justifyContent: "center",
+  },
+  segmentChipMobile: {
+    minHeight: 40,
+    paddingHorizontal: 16,
   },
   segmentChipActive: {
     backgroundColor: Theme.primaryText,
@@ -875,6 +985,15 @@ const styles = StyleSheet.create({
     gap: 8,
     flexShrink: 0,
   },
+  filterRowMobile: {
+    alignSelf: "stretch",
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+  },
   filterChip: {
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -882,6 +1001,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: Theme.brandBlueSoft,
     justifyContent: "center",
+  },
+  filterChipMobile: {
+    flex: 1,
+    alignItems: "center",
+    minHeight: 36,
+    borderRadius: 10,
+    backgroundColor: "transparent",
   },
   filterChipActive: { backgroundColor: Theme.primary },
   filterChipText: { fontSize: 12, fontWeight: "600", color: Theme.primary },
@@ -893,8 +1019,8 @@ const styles = StyleSheet.create({
   listContent: {
     width: "100%",
     alignSelf: "stretch",
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 32,
     gap: 16,
   },

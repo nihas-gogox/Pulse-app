@@ -68,6 +68,8 @@ type Props = {
   value: MarketplaceLoadSearch | null;
   onChange: (next: MarketplaceLoadSearch) => void;
   autoOpenFirst?: boolean;
+  /** Full-width rows so selected cities stay readable on a phone. */
+  stacked?: boolean;
 };
 
 export function MarketplaceLaneFilters({
@@ -75,6 +77,7 @@ export function MarketplaceLaneFilters({
   value,
   onChange,
   autoOpenFirst = false,
+  stacked = false,
 }: Props) {
   const insets = useSafeAreaInsets();
   const draft = normalizeMarketplaceSearch(value);
@@ -139,12 +142,13 @@ export function MarketplaceLaneFilters({
   const copy = openField ? FIELD_META[openField] : null;
 
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, stacked && styles.barStacked]}>
       <FilterChip
         field="pickup"
         value={draft.pickup}
         locked={pickupLocked}
         open={openField === "pickup"}
+        stacked={stacked}
         onOpen={() => open("pickup", pickupLocked)}
         onClear={() => clearField("pickup")}
       />
@@ -153,6 +157,7 @@ export function MarketplaceLaneFilters({
         value={draft.drop}
         locked={dropLocked}
         open={openField === "drop"}
+        stacked={stacked}
         onOpen={() => open("drop", dropLocked)}
         onClear={() => clearField("drop")}
       />
@@ -161,6 +166,7 @@ export function MarketplaceLaneFilters({
         value={draft.vehicleType}
         locked={vehicleLocked}
         open={openField === "vehicle"}
+        stacked={stacked}
         onOpen={() => open("vehicle", vehicleLocked)}
         onClear={() => clearField("vehicle")}
       />
@@ -281,6 +287,7 @@ function FilterChip({
   value,
   locked,
   open,
+  stacked,
   onOpen,
   onClear,
 }: {
@@ -288,12 +295,20 @@ function FilterChip({
   value: string;
   locked: boolean;
   open: boolean;
+  stacked: boolean;
   onOpen: () => void;
   onClear: () => void;
 }) {
   const meta = FIELD_META[field];
   return (
-    <View style={[styles.chip, open && styles.chipOpen, locked && styles.chipLocked]}>
+    <View
+      style={[
+        styles.chip,
+        stacked && styles.chipStacked,
+        open && styles.chipOpen,
+        locked && styles.chipLocked,
+      ]}
+    >
       <Pressable
         onPress={onOpen}
         disabled={locked}
@@ -309,7 +324,7 @@ function FilterChip({
           <Text style={styles.chipLabel}>{meta.label}</Text>
           <Text
             style={[styles.chipValue, !value && styles.chipPlaceholder]}
-            numberOfLines={1}
+            numberOfLines={stacked ? 2 : 1}
           >
             {locked
               ? field === "drop"
@@ -343,6 +358,11 @@ const styles = StyleSheet.create({
     gap: 10,
     width: "100%",
   },
+  barStacked: {
+    flexDirection: "column",
+    flexWrap: "nowrap",
+    gap: 8,
+  },
   chip: {
     flexGrow: 1,
     flexShrink: 1,
@@ -356,6 +376,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingRight: 6,
+  },
+  chipStacked: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "auto",
+    width: "100%",
+    minWidth: 0,
+    minHeight: 60,
   },
   chipOpen: {
     borderColor: Theme.primary,
