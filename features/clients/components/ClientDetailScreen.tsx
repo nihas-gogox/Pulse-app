@@ -9,6 +9,7 @@ import { EntityIntelWidgetRow } from "@/components/entityIntel/EntityIntelWidget
 import { pickEntityReport } from "@/components/entityIntel/pickEntityReport";
 import { entityCompanionCardStyles as ecc } from "@/components/entityCompanionCard.styles";
 import { EntityTripTableEmptyRow } from "@/components/EntityTripTableEmptyRow";
+import { HubListPaginationBar } from "@/components/hub/HubListPaginationBar";
 import {
   entityDetailDownloadIconColor,
   entityDetailPageChromeStyles as edc,
@@ -22,11 +23,8 @@ import Theme from "@/constants/Theme";
 import { getUser2DAvatarUriForSeed } from "@/constants/UserAvatars";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { getDriversByOrganization, type DriverRow } from "@/features/drivers";
-import {
-  getTransactionsByOrganization,
-  type LedgerRow,
-} from "@/features/finance/services/finance.service";
+import type { DriverRow } from "@/features/drivers";
+import type { LedgerRow } from "@/features/finance/services/finance.service";
 import {
   resolveLedgerPartyName,
   type LedgerTripDetailsMap,
@@ -34,6 +32,11 @@ import {
 } from "@/features/finance/components/ledger/buildFinancialRowDataForLedgerRow";
 import { TreasuryDetailLayout } from "@/features/finance/components/TreasuryDetailLayout";
 import { ledgerDayMatchesPeriod } from "@/features/finance/lib/filterLedgerByPeriod";
+import {
+  PARTY_TRIP_PAGE_SIZES,
+  partyTripPageSlice,
+  type PartyTripPageSize,
+} from "@/features/finance/utils/partyTripPage.util";
 import {
   buildClientPnLReport,
   buildClientReceivableReport,
@@ -47,20 +50,14 @@ import { getProfileImageBatch } from "@/features/finance/services/finance.servic
 import type { FinancePeriodFilter } from "@/features/finance/types";
 import { allocateAmountsToLargestDueTrips } from "@/features/finance/utils/allocateToLargestDue";
 import { averageScore } from "@/features/ratings";
-import {
-    getSuppliersByOrganization,
-    type SupplierRow,
-} from "@/features/suppliers/services/suppliers.service";
+import type { SupplierRow } from "@/features/suppliers/services/suppliers.service";
 import { adjustedRevenue } from "@/features/trips/services/tripAdjustments";
 import {
     getTripDisplayNumber,
-    getTripsForOrg,
     type TripRow,
 } from "@/features/trips/services/trips.service";
-import {
-    buildUniqueLinkedOrgIdMap,
-    isLoadBasedTrip,
-} from "@/features/trips/visibility/tripVisibility";
+import { isLoadBasedTrip } from "@/features/trips/visibility/tripVisibility";
+import { fetchClientPageBootstrap } from "@/features/clients/services/clientPageBootstrap.service";
 import { computeClientPaidSeed } from "@/features/clients/utils/clientPaidSeed.util";
 import {
   clearInitialClientForDetail,
@@ -124,8 +121,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientContract } from "../services/clientContracts.service";
 import {
-    getClientDetailBundle,
-    getClientsByOrganization,
     getLinkedOrgProfile,
     getLinkedOrgProfilesBatch,
     type ClientRow,
@@ -298,6 +293,8 @@ export default function ClientDetailScreen({
   const [tripCustomFrom, setTripCustomFrom] = useState<string | null>(null);
   const [tripCustomTo, setTripCustomTo] = useState<string | null>(null);
   const [tripDateModalVisible, setTripDateModalVisible] = useState(false);
+  const [tripPageSize, setTripPageSize] = useState<PartyTripPageSize>(25);
+  const [tripPage, setTripPage] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successTitle, setSuccessTitle] = useState("NODE_SYNCED");
   const [isLinked, setIsLinked] = useState(false);
@@ -441,182 +438,82 @@ export default function ClientDetailScreen({
     const orgId = currentOrganization.id;
     const requestClientId = clientId;
 
-    // FinanceScreen already warms these under the same query keys for the whole
-    // Finance tab (useFinanceEntities / useFinanceLedger) — reuse them instead of
-    // re-fetching org-wide data this screen doesn't own. Only `get_client_detail_bundle`
-    // (this client's own detail — warehouses/contracts/ratings) always fetches fresh.
-    //
-    // `ensureQueryData` (not a plain getQueryData-then-fallback-fetch) so a cold
-    // cache is a single, request-deduplicated fetch shared with any other
-    // concurrent consumer of the same queryKey — a plain fallback fetch here
-    // would race a concurrently-mounting list/warmup hook and double the RPC
-    // (this exact shape was identified as a contributor to the 2026-09-16 DB
-    // incident: detail screens bypassing the query client's own dedup).
-    const tripsPromise = queryClient
-      .ensureQueryData({
-        queryKey: queryKeys.trips.finite(orgId),
-        queryFn: async () => {
-          const res = await getTripsForOrg(orgId);
-          if (res.error) throw res.error;
-          return res.trips ?? [];
-        },
-      })
-      .then((trips) => ({ error: null, trips }))
-      .catch((error: unknown) => ({ error: error instanceof Error ? error : new Error(String(error)), trips: [] as TripRow[] }));
+    const applyClientPage = (bundle: {
+      client: ClientRow | null;
+      ratings: { score?: number }[];
+      warehouses: ClientWarehouse[];
+      contracts: ProfileContract[];
+      trips: TripRow[];
+      transactions: LedgerRow[];
+      suppliers: SupplierRow[];
+      drivers: DriverRow[];
+      clients: ClientRow[];
+    }) => {
+      if (activeClientIdRef.current !== requestClientId) return;
+      setClient(bundle.client);
+      setProfileWarehouses(bundle.warehouses ?? []);
+      setProfileContracts(bundle.contracts ?? []);
+      setOrgTrips(bundle.trips);
+      setOrganizationClients(bundle.clients);
+      setAllOrgTransactions(bundle.transactions);
+      setTrips(bundle.trips);
+      setSuppliers(bundle.suppliers);
+      setDrivers(bundle.drivers);
+      setClientRatingAvg(averageScore(bundle.ratings ?? []));
+      setTransactions(bundle.transactions);
+    };
 
-    const clientsPromise = queryClient
-      .ensureQueryData({
-        queryKey: queryKeys.clients.finite(orgId),
-        queryFn: async () => {
-          const res = await getClientsByOrganization(orgId);
-          if (res.error) throw res.error;
-          return res.clients ?? [];
-        },
-      })
-      .then((clients) => ({ error: null, clients }))
-      .catch((error: unknown) => ({ error: error instanceof Error ? error : new Error(String(error)), clients: [] as ClientRow[] }));
+    const finishLoad = () => {
+      if (loadInFlightRef.current === requestClientId) loadInFlightRef.current = null;
+      if (activeClientIdRef.current !== requestClientId) return;
+      setLoading(false);
+      initialLoadDoneRef.current = true;
+      hasSeedDataRef.current = false;
+      isRefreshingRef.current = false;
+      setRefreshing(false);
+      clearInitialClientForDetail(requestClientId);
+    };
 
-    const transactionsPromise = queryClient
-      .ensureQueryData({
-        queryKey: queryKeys.transactions.finite(orgId),
-        queryFn: async () => {
-          const res = await getTransactionsByOrganization(orgId);
-          if (res.error) throw res.error;
-          return res.transactions ?? [];
-        },
-      })
-      .then((transactions) => ({ error: null, transactions }))
-      .catch((error: unknown) => ({ error: error instanceof Error ? error : new Error(String(error)), transactions: [] as LedgerRow[] }));
+    const cached = queryClient.getQueryData<{
+      client: ClientRow | null;
+      ratings: { score?: number }[];
+      warehouses: ClientWarehouse[];
+      contracts: ProfileContract[];
+      trips: TripRow[];
+      transactions: LedgerRow[];
+      suppliers: SupplierRow[];
+      drivers: DriverRow[];
+      clients: ClientRow[];
+    }>(queryKeys.clients.pageBootstrap(orgId, requestClientId));
+    if (cached?.client) {
+      applyClientPage(cached);
+      setLoading(false);
+    }
 
-    const suppliersPromise = queryClient
-      .ensureQueryData({
-        queryKey: queryKeys.suppliers.finite(orgId),
+    queryClient
+      .fetchQuery({
+        queryKey: queryKeys.clients.pageBootstrap(orgId, requestClientId),
         queryFn: async () => {
-          const res = await getSuppliersByOrganization(orgId);
-          if (res.error) throw res.error;
-          return res.suppliers ?? [];
+          const r = await fetchClientPageBootstrap(orgId, requestClientId);
+          if (r.error) throw r.error;
+          return r.bundle;
         },
+        staleTime: 60_000,
       })
-      .then((suppliers) => ({ error: null, suppliers }))
-      .catch((error: unknown) => ({ error: error instanceof Error ? error : new Error(String(error)), suppliers: [] as SupplierRow[] }));
-
-    const driversPromise = queryClient
-      .ensureQueryData({
-        queryKey: queryKeys.drivers.finite(orgId),
-        queryFn: async () => {
-          const res = await getDriversByOrganization(orgId);
-          if (res.error) throw res.error;
-          return res.drivers ?? [];
-        },
+      .then((bundle) => {
+        if (activeClientIdRef.current !== requestClientId) return;
+        if (bundle?.client) {
+          applyClientPage(bundle);
+          finishLoad();
+          return;
+        }
+        setError("Client not found");
+        finishLoad();
       })
-      .then((drivers) => ({ error: null, drivers }))
-      .catch((error: unknown) => ({ error: error instanceof Error ? error : new Error(String(error)), drivers: [] as DriverRow[] }));
-
-    Promise.all([
-      getClientDetailBundle(orgId, clientId),
-      tripsPromise,
-      clientsPromise,
-      transactionsPromise,
-      suppliersPromise,
-      driversPromise,
-    ])
-      .then(
-        ([
-          bundleRes,
-          tripsRes,
-          clientsRes,
-          txRes,
-          suppliersRes,
-          driversRes,
-        ]) => {
-          // The user navigated to a different client while this was in flight —
-          // a newer `load()` for the new clientId owns state now, discard this one.
-          if (activeClientIdRef.current !== requestClientId) return;
-          const allTrips = tripsRes.error ? [] : (tripsRes.trips ?? []);
-          const allClients = clientsRes.error ? [] : (clientsRes.clients ?? []);
-          const allTx = txRes.error ? [] : (txRes.transactions ?? []);
-          const allSuppliers = suppliersRes.error
-            ? []
-            : (suppliersRes.suppliers ?? []);
-          const allDrivers = driversRes.error ? [] : (driversRes.drivers ?? []);
-          if (bundleRes.error) {
-            setError(bundleRes.error.message);
-            setClient(null);
-            setClientRatingAvg(null);
-          } else {
-            setClient(bundleRes.client ?? null);
-          }
-          setProfileWarehouses(bundleRes.warehouses ?? []);
-          setProfileContracts(bundleRes.contracts ?? []);
-          setOrgTrips(allTrips);
-          const clientDisplayName = (
-            bundleRes.client?.name ||
-            bundleRes.client?.contact_person ||
-            ""
-          )
-            .toLowerCase()
-            .trim();
-          const normId = (id: string | null | undefined) =>
-            id == null ? "" : String(id).trim().toLowerCase();
-          const linkedOrgId = bundleRes.client?.linked_organization_id ?? null;
-          const linkedClientIdByOrgId = buildUniqueLinkedOrgIdMap(allClients);
-          setOrganizationClients(allClients);
-          setAllOrgTransactions(allTx);
-          // Include trips by client_id/name OR by any client transaction (so DUE shows even if trip.client_id is wrong)
-          const tripIdsFromClientTx = new Set(
-            allTx
-              .filter(
-                (tx) =>
-                  tx.contact_type === "client" &&
-                  tx.contact_id === clientId &&
-                  tx.trip_id != null,
-              )
-              .map((tx) => normId(tx.trip_id)),
-          );
-          const forClient = allTrips.filter((t: TripRow) => {
-            const matchesDirect =
-              t.client_id === clientId ||
-              (clientDisplayName !== "" &&
-                (t.client_name || "").toLowerCase().trim() ===
-                  clientDisplayName);
-            const matchesTx = tripIdsFromClientTx.has(normId(t.id));
-            const matchesLinkedOrg =
-              linkedOrgId &&
-              isLoadBasedTrip(t) &&
-              t.organization_id &&
-              t.organization_id === linkedOrgId &&
-              linkedClientIdByOrgId.get(linkedOrgId) === clientId;
-            return matchesDirect || matchesTx || matchesLinkedOrg;
-          });
-          setTrips(forClient);
-          setSuppliers(allSuppliers);
-          setDrivers(allDrivers);
-          setClientRatingAvg(
-            bundleRes.error ? null : averageScore(bundleRes.ratings ?? []),
-          );
-          const forClientTx = allTx.filter((tx) => {
-            return (
-              tx.contact_type === "client" &&
-              tx.contact_id != null &&
-              tx.contact_id === clientId
-            );
-          });
-          setTransactions(forClientTx);
-        },
-      )
       .catch((err: unknown) => {
         if (activeClientIdRef.current !== requestClientId) return;
         setError(err instanceof Error ? err.message : "Failed to load client data");
-      })
-      .finally(() => {
-        if (loadInFlightRef.current === requestClientId) loadInFlightRef.current = null;
-        if (activeClientIdRef.current !== requestClientId) return;
-        setLoading(false);
-        initialLoadDoneRef.current = true;
-        hasSeedDataRef.current = false;
-        isRefreshingRef.current = false;
-        setRefreshing(false);
-        clearInitialClientForDetail(requestClientId);
+        finishLoad();
       });
   }, [clientId, currentOrganization?.id, orgLoading, queryClient]);
 
@@ -1409,6 +1306,20 @@ export default function ClientDetailScreen({
     client?.is_integrated,
     tripFinanceAdjRecord,
   ]);
+
+  const tripSelectionDue = useMemo(
+    () => missionRows.reduce((sum, row) => sum + row.due, 0),
+    [missionRows],
+  );
+  const tripPageView = useMemo(
+    () => partyTripPageSlice(missionRows, tripPage, tripPageSize),
+    [missionRows, tripPage, tripPageSize],
+  );
+
+  useEffect(() => {
+    setTripPage(0);
+  }, [clientId, tripDatePeriod, tripCustomFrom, tripCustomTo, tripPageSize]);
+
   const tripTransactionMetaById = useMemo(() => {
     const byTrip: Record<
       string,
@@ -1635,7 +1546,7 @@ export default function ClientDetailScreen({
     detailSubTab,
   ]);
 
-  if (loading) {
+  if (loading && !client) {
     return (
       <CenteredLoadingView
         message={t("loadingClient")}
@@ -2099,8 +2010,8 @@ export default function ClientDetailScreen({
               {
                 id: "receivable",
                 label: "Receivable due",
-                value: formatINR(due),
-                tone: due > 0 ? "warn" : "good",
+                value: formatINR(tripSelectionDue),
+                tone: tripSelectionDue > 0 ? "warn" : "good",
                 hint: "View receivable report",
                 onPress: () => openClientReport("receivable"),
               },
@@ -2303,8 +2214,8 @@ export default function ClientDetailScreen({
                 </View>
               ) : null}
             </View>
-            {missionRows.length > 0 ? (
-              missionRows.map((row) => (
+            {tripPageView.rows.length > 0 ? (
+              tripPageView.rows.map((row) => (
                 <TouchableOpacity
                   key={row.trip.id}
                   style={[
@@ -2626,6 +2537,29 @@ export default function ClientDetailScreen({
             )}
               </View>
             </ScrollView>
+            {missionRows.length > 0 ? (
+              <HubListPaginationBar
+                page={tripPageView.page}
+                totalPages={tripPageView.totalPages}
+                totalItems={missionRows.length}
+                pageSize={tripPageSize}
+                pageSizeOptions={PARTY_TRIP_PAGE_SIZES}
+                onPageSizeChange={(size) => {
+                  if (
+                    (PARTY_TRIP_PAGE_SIZES as readonly number[]).includes(size)
+                  ) {
+                    setTripPageSize(size as PartyTripPageSize);
+                  }
+                }}
+                onPrev={() => setTripPage((current) => Math.max(0, current - 1))}
+                onNext={() =>
+                  setTripPage((current) =>
+                    Math.min(tripPageView.totalPages - 1, current + 1),
+                  )
+                }
+                itemLabel="trips"
+              />
+            ) : null}
           </View>
         )}
 

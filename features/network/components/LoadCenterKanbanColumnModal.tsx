@@ -1,8 +1,8 @@
 /**
  * Full-page modal listing indent cards for a Load Center kanban column.
- * Network loads and marketplace search stay separate — this page lists the
- * stage's own indents. Cards lazy-load; the badge is the full stage count.
- * Nested Award / Bid + indent detail stay on-page.
+ * Network Loads (OPEN) is search-first: pickup / drop / vehicle first, then
+ * only matching cards — same pattern as Marketplace Loads. Other stages keep
+ * search + chips. Nested Award / Bid + indent detail stay on-page.
  */
 import Theme from "@/constants/Theme";
 import Layout from "@/constants/Layout";
@@ -12,9 +12,12 @@ import { getIndentDisplayNumber, type IndentRow } from "@/features/indents";
 import type {
   LoadCenterKanbanColumn,
 } from "@/features/network/components/LoadCenterKanbanBoard";
+import { MarketplaceLaneFilters } from "@/features/network/components/MarketplaceLaneFilters";
 import {
   filterMarketplaceOptions,
+  isMarketplaceSearchReady,
   lanesFromMarketplaceLoads,
+  type MarketplaceLoadSearch,
 } from "@/features/network/utils/marketplaceSearch.util";
 import {
   growVisibleLoadCount,
@@ -247,7 +250,12 @@ export function LoadCenterKanbanColumnModal({
   const [vehicleFilter, setVehicleFilter] = useState("");
   const [openMenu, setOpenMenu] = useState<FilterKey | null>(null);
   const [menuQuery, setMenuQuery] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState<MarketplaceLoadSearch | null>(
+    null,
+  );
   const [visibleCount, setVisibleCount] = useState(MARKETPLACE_LOAD_PAGE_SIZE);
+  const searchFirst = column?.id === "OPEN";
+  const searchReady = isMarketplaceSearchReady(appliedSearch);
 
   const tabs = column?.tabs ?? [];
   const hasTabs = tabs.length > 0;
@@ -264,12 +272,20 @@ export function LoadCenterKanbanColumnModal({
     setVehicleFilter("");
     setOpenMenu(null);
     setMenuQuery("");
+    setAppliedSearch(null);
     setVisibleCount(MARKETPLACE_LOAD_PAGE_SIZE);
   }, [column]);
 
   useEffect(() => {
     setVisibleCount(MARKETPLACE_LOAD_PAGE_SIZE);
-  }, [searchQuery, pickupFilter, dropFilter, vehicleFilter, activeTabId]);
+  }, [
+    searchQuery,
+    pickupFilter,
+    dropFilter,
+    vehicleFilter,
+    appliedSearch,
+    activeTabId,
+  ]);
 
   const allColumnLoads = column?.loads ?? [];
 
@@ -299,14 +315,23 @@ export function LoadCenterKanbanColumnModal({
   );
 
   const filteredLoads = useMemo(() => {
+    if (searchFirst && !searchReady) return [];
+    const pickup = searchFirst ? (appliedSearch?.pickup ?? "") : pickupFilter;
+    const drop = searchFirst ? (appliedSearch?.drop ?? "") : dropFilter;
+    const vehicle = searchFirst
+      ? (appliedSearch?.vehicleType ?? "")
+      : vehicleFilter;
     return stageLoads.filter(
       (load) =>
-        loadMatchesSearch(load, searchQuery) &&
-        fieldEquals(load.pickup_area, pickupFilter) &&
-        fieldEquals(load.drop_location, dropFilter) &&
-        fieldEquals(load.vehicle_type, vehicleFilter),
+        loadMatchesSearch(load, searchFirst ? "" : searchQuery) &&
+        fieldEquals(load.pickup_area, pickup) &&
+        fieldEquals(load.drop_location, drop) &&
+        fieldEquals(load.vehicle_type, vehicle),
     );
   }, [
+    searchFirst,
+    searchReady,
+    appliedSearch,
     stageLoads,
     searchQuery,
     pickupFilter,
@@ -356,11 +381,12 @@ export function LoadCenterKanbanColumnModal({
     };
   }, [columns, boardMaxWidth]);
 
-  const hasActiveFilters =
-    searchQuery.trim().length > 0 ||
-    pickupFilter.length > 0 ||
-    dropFilter.length > 0 ||
-    vehicleFilter.length > 0;
+  const hasActiveFilters = searchFirst
+    ? searchReady
+    : searchQuery.trim().length > 0 ||
+      pickupFilter.length > 0 ||
+      dropFilter.length > 0 ||
+      vehicleFilter.length > 0;
 
   const clearFilters = useCallback(() => {
     setSearchQuery("");
@@ -369,6 +395,7 @@ export function LoadCenterKanbanColumnModal({
     setVehicleFilter("");
     setOpenMenu(null);
     setMenuQuery("");
+    setAppliedSearch(null);
     setVisibleCount(MARKETPLACE_LOAD_PAGE_SIZE);
   }, []);
 
@@ -482,51 +509,72 @@ export function LoadCenterKanbanColumnModal({
         ]}
       >
         <View style={[styles.headerBand, { paddingHorizontal: sidePad }]}>
-          <View style={styles.headerInner}>
-            <View style={styles.headerLeft}>
-              <View
-                style={[styles.accent, { backgroundColor: column.accent }]}
-              />
-              <View style={styles.headerText}>
-                <Text style={styles.eyebrow} numberOfLines={1}>
-                  LOAD STAGE
-                </Text>
-                <Text
-                  style={[styles.title, isDesktop && styles.titleDesktop]}
-                  numberOfLines={1}
-                >
-                  {column.label}
-                </Text>
-                <Text style={styles.subtitle} numberOfLines={1}>
-                  {hasActiveFilters
-                    ? `${shownCount} matching load${shownCount === 1 ? "" : "s"}`
-                    : `${badgeCount} load${badgeCount === 1 ? "" : "s"} in this stage`}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.headerRight}>
-              <View style={styles.countBadge}>
-                <Text style={styles.countText}>
-                  {hasActiveFilters ? shownCount : badgeCount}
-                </Text>
-              </View>
-              <Pressable
-                onPress={onClose}
-                style={({ pressed }) => [
-                  styles.headerAction,
-                  pressed && styles.closeBtnPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                hitSlop={8}
-              >
-                <FontAwesome
-                  name="times"
-                  size={16}
-                  color={Theme.textPrimaryDark}
+          <View
+            style={[styles.headerInner, !isDesktop && styles.headerInnerMobile]}
+          >
+            <View style={styles.headerTopRow}>
+              <View style={styles.headerLeft}>
+                <View
+                  style={[styles.accent, { backgroundColor: column.accent }]}
                 />
-              </Pressable>
+                <View style={styles.headerText}>
+                  <Text style={styles.eyebrow} numberOfLines={1}>
+                    {searchFirst ? "GET LOAD" : "LOAD STAGE"}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.title,
+                      isDesktop && styles.titleDesktop,
+                      !isDesktop && styles.titleMobile,
+                    ]}
+                    numberOfLines={isDesktop ? 1 : 2}
+                  >
+                    {column.label}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.headerRight}>
+                {searchFirst && !searchReady ? null : (
+                  <View
+                    style={[
+                      styles.countBadge,
+                      !isDesktop && styles.countBadgeMobile,
+                    ]}
+                  >
+                    <Text style={styles.countText}>
+                      {hasActiveFilters ? shownCount : badgeCount}
+                    </Text>
+                  </View>
+                )}
+                <Pressable
+                  onPress={onClose}
+                  style={({ pressed }) => [
+                    styles.headerAction,
+                    !isDesktop && styles.headerActionMobile,
+                    pressed && styles.closeBtnPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                  hitSlop={8}
+                >
+                  <FontAwesome
+                    name="times"
+                    size={16}
+                    color={Theme.textPrimaryDark}
+                  />
+                </Pressable>
+              </View>
             </View>
+            <Text
+              style={[styles.subtitle, !isDesktop && styles.subtitleMobile]}
+              numberOfLines={isDesktop ? 1 : 2}
+            >
+              {searchFirst && !searchReady
+                ? "Choose pickup, drop, and vehicle to see matching loads"
+                : hasActiveFilters
+                  ? `${shownCount} matching load${shownCount === 1 ? "" : "s"}`
+                  : `${badgeCount} load${badgeCount === 1 ? "" : "s"} in this stage`}
+            </Text>
           </View>
         </View>
 
@@ -568,6 +616,29 @@ export function LoadCenterKanbanColumnModal({
           </View>
         ) : null}
 
+        {searchFirst ? (
+          <View style={[styles.toolbarBand, { paddingHorizontal: sidePad }]}>
+            <View style={[styles.lanePanel, !isDesktop && styles.lanePanelMobile]}>
+              <View style={styles.lanePanelHead}>
+                <Text style={styles.lanePanelHint}>
+                  Pickup · Drop · Vehicle
+                </Text>
+                <Text style={styles.lanePanelMeta} numberOfLines={1}>
+                  {searchReady
+                    ? `${shownCount} match${shownCount === 1 ? "" : "es"}`
+                    : "Choose a lane"}
+                </Text>
+              </View>
+              <MarketplaceLaneFilters
+                lanes={columnLanes}
+                value={appliedSearch}
+                onChange={setAppliedSearch}
+                autoOpenFirst
+                stacked={!isDesktop}
+              />
+            </View>
+          </View>
+        ) : (
         <View style={[styles.toolbarBand, { paddingHorizontal: sidePad }]}>
           <View style={[styles.toolbar, !isDesktop && styles.toolbarMobile]}>
             <View style={[styles.searchWrap, !isDesktop && styles.searchWrapMobile]}>
@@ -633,6 +704,7 @@ export function LoadCenterKanbanColumnModal({
             </View>
           </View>
         </View>
+        )}
 
         <ScrollView
           style={styles.scroll}
@@ -641,10 +713,14 @@ export function LoadCenterKanbanColumnModal({
             {
               paddingLeft:
                 sidePad +
-                (!showDetail && previousStage ? STAGE_BOOKMARK_RAIL : 0),
+                (isDesktop && !showDetail && previousStage
+                  ? STAGE_BOOKMARK_RAIL
+                  : 0),
               paddingRight:
                 sidePad +
-                (!showDetail && nextStage ? STAGE_BOOKMARK_RAIL : 0),
+                (isDesktop && !showDetail && nextStage
+                  ? STAGE_BOOKMARK_RAIL
+                  : 0),
               paddingTop: isDesktop ? 16 : 14,
               paddingBottom: isDesktop ? 32 : 28,
             },
@@ -656,24 +732,36 @@ export function LoadCenterKanbanColumnModal({
             <View style={styles.empty}>
               <View style={styles.emptyIcon}>
                 <FontAwesome
-                  name={hasActiveFilters ? "filter" : "inbox"}
+                  name={
+                    searchFirst && !searchReady
+                      ? "search"
+                      : hasActiveFilters
+                        ? "filter"
+                        : "inbox"
+                  }
                   size={18}
                   color={Theme.primary}
                 />
               </View>
               <Text style={styles.emptyTitle}>
-                {hasActiveFilters
-                  ? "No loads on this lane"
-                  : "Nothing in this stage"}
+                {searchFirst && !searchReady
+                  ? "Search a live lane"
+                  : hasActiveFilters
+                    ? "No loads on this lane"
+                    : "Nothing in this stage"}
               </Text>
               <Text style={styles.emptyText}>
-                {hasActiveFilters
-                  ? "Try another city pair or vehicle type."
-                  : "Loads will appear here when they enter this stage."}
+                {searchFirst && !searchReady
+                  ? "Pick pickup, then drop, then vehicle. Only matching Network loads will appear."
+                  : hasActiveFilters
+                    ? "Try another city pair or vehicle type."
+                    : "Loads will appear here when they enter this stage."}
               </Text>
               {hasActiveFilters ? (
                 <Pressable onPress={clearFilters} style={styles.emptyClearBtn}>
-                  <Text style={styles.emptyClearText}>Clear filters</Text>
+                  <Text style={styles.emptyClearText}>
+                    {searchFirst ? "Change search" : "Clear filters"}
+                  </Text>
                 </Pressable>
               ) : null}
             </View>
@@ -721,14 +809,14 @@ export function LoadCenterKanbanColumnModal({
         </ScrollView>
 
         {/* Bookmark-style stage jumpers — hide on first/last and while detail is open */}
-        {!showDetail && previousStage && onNavigateStage ? (
+        {isDesktop && !showDetail && previousStage && onNavigateStage ? (
           <StageBookmarkArrow
             side="left"
             stage={previousStage}
             onPress={() => onNavigateStage(previousStage.id)}
           />
         ) : null}
-        {!showDetail && nextStage && onNavigateStage ? (
+        {isDesktop && !showDetail && nextStage && onNavigateStage ? (
           <StageBookmarkArrow
             side="right"
             stage={nextStage}
@@ -911,10 +999,17 @@ const styles = StyleSheet.create({
     }),
   },
   headerInner: {
+    width: "100%",
+    gap: 8,
+  },
+  headerInnerMobile: {
+    gap: 10,
+  },
+  headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 16,
+    gap: 12,
     width: "100%",
   },
   headerLeft: {
@@ -951,10 +1046,19 @@ const styles = StyleSheet.create({
     fontSize: 26,
     letterSpacing: -0.6,
   },
+  titleMobile: {
+    fontSize: 20,
+    lineHeight: 24,
+    letterSpacing: -0.4,
+  },
   subtitle: {
     fontSize: 13,
     fontWeight: "500",
     color: Theme.textSecondary,
+  },
+  subtitleMobile: {
+    paddingLeft: 16,
+    lineHeight: 18,
   },
   headerRight: {
     flexDirection: "row",
@@ -972,6 +1076,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  headerActionMobile: {
+    width: 44,
+    height: 44,
+  },
   countBadge: {
     minWidth: 40,
     height: 40,
@@ -982,6 +1090,10 @@ const styles = StyleSheet.create({
     borderColor: Theme.borderLight,
     alignItems: "center",
     justifyContent: "center",
+  },
+  countBadgeMobile: {
+    minWidth: 44,
+    height: 44,
   },
   countText: {
     fontSize: 13,
@@ -1158,6 +1270,43 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 4,
     width: "100%",
+  },
+  lanePanel: {
+    width: "100%",
+    maxWidth: BOARD_MAX_THREE,
+    alignSelf: "center",
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: Theme.cardWhite,
+    borderWidth: 1,
+    borderColor: Theme.surfaceBorder,
+    gap: 10,
+  },
+  lanePanelMobile: {
+    maxWidth: "100%",
+    padding: 12,
+    borderRadius: 14,
+  },
+  lanePanelHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  lanePanelHint: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: Theme.textMuted,
+  },
+  lanePanelMeta: {
+    flexShrink: 0,
+    fontSize: 11,
+    fontWeight: "700",
+    color: Theme.textSecondary,
   },
   toolbar: {
     flexDirection: "row",

@@ -15,6 +15,9 @@ export type IndentHubLifecycleStatus =
   | "RECEIVING BIDS"
   | "AWARDED";
 
+/** Toolbar tags on the Trips indent stage. */
+export type IndentHubStatusTag = "pending" | "bids" | "awarded";
+
 /**
  * Shipper circulation_target → compact source tags on the Trips ticket.
  *
@@ -52,6 +55,17 @@ export function indentHubLifecycleStatus(
   if (derived === GIVE_LOAD_RECEIVING_BIDS_STATUS) return "RECEIVING BIDS";
   if (derived === "awarded") return "AWARDED";
   return "WAITING FOR BID";
+}
+
+/** Compact indent-stage tag: pending (waiting for bid), bids received, awarded. */
+export function indentHubStatusTag(
+  indentStatus: string | null | undefined,
+  bidCount: number,
+): IndentHubStatusTag {
+  const life = indentHubLifecycleStatus(indentStatus, bidCount);
+  if (life === "AWARDED") return "awarded";
+  if (life === "RECEIVING BIDS") return "bids";
+  return "pending";
 }
 
 /** Same trip-total as Give Load TARGET RATE (`resolveGiveLoadTicketCommerce`). */

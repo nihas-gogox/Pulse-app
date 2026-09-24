@@ -16021,6 +16021,10 @@ export type Database = {
         Args: { p_client_id: string; p_org_id: string }
         Returns: Json
       }
+      get_client_page_bootstrap: {
+        Args: { p_client_id: string; p_org_id: string }
+        Returns: Json
+      }
       get_client_details: { Args: { p_client_id: string }; Returns: Json }
       get_client_management_bundle: {
         Args: { p_client_id: string; p_org_id: string }
@@ -17042,6 +17046,10 @@ export type Database = {
         Returns: Json
       }
       get_supplier_management_bundle: {
+        Args: { p_org_id: string; p_supplier_id: string }
+        Returns: Json
+      }
+      get_supplier_page_bootstrap: {
         Args: { p_org_id: string; p_supplier_id: string }
         Returns: Json
       }

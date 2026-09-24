@@ -6,6 +6,7 @@
 import Theme from "@/constants/Theme";
 import type { IndentRow } from "@/features/indents";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { Maximize2 } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import {
@@ -101,20 +102,7 @@ function KanbanColumn({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <Pressable
-        onPress={() => onColumnPress?.(column)}
-        disabled={!onColumnPress}
-        style={({ pressed }) => [
-          styles.columnHeader,
-          pressed && onColumnPress && styles.columnHeaderPressed,
-        ]}
-        accessibilityRole={onColumnPress ? "button" : undefined}
-        accessibilityLabel={
-          onColumnPress
-            ? `Open ${column.label}, ${badgeCount} load${badgeCount === 1 ? "" : "s"}`
-            : undefined
-        }
-      >
+      <View style={styles.columnHeader}>
         <View style={styles.columnTitleRow}>
           <View
             style={[styles.columnAccent, { backgroundColor: column.accent }]}
@@ -123,10 +111,30 @@ function KanbanColumn({
             {column.label}
           </Text>
         </View>
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>{badgeCount}</Text>
+        <View style={styles.columnHeaderActions}>
+          <View style={styles.countBadge}>
+            <Text style={styles.countText}>{badgeCount}</Text>
+          </View>
+          {onColumnPress ? (
+            <Pressable
+              onPress={() => onColumnPress(column)}
+              style={({ pressed }) => [
+                styles.expandBtn,
+                pressed && styles.expandBtnPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Full page view: ${column.label}`}
+              hitSlop={6}
+            >
+              <Maximize2
+                size={13}
+                color={Theme.primary}
+                strokeWidth={2.4}
+              />
+            </Pressable>
+          ) : null}
         </View>
-      </Pressable>
+      </View>
 
       {hasTabs ? (
         <View style={styles.subTabRow}>
@@ -357,13 +365,30 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Theme.borderLight,
     flexShrink: 0,
+  },
+  columnHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  expandBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: Theme.brandBlueSoft,
+    borderWidth: 1,
+    borderColor: Theme.brandBlue,
+    alignItems: "center",
+    justifyContent: "center",
     ...Platform.select({
       web: { cursor: "pointer" } as object,
       default: {},
     }),
   },
-  columnHeaderPressed: {
-    backgroundColor: Theme.surfaceGray,
+  expandBtnPressed: {
+    backgroundColor: Theme.brandBlue,
+    transform: [{ scale: 0.96 }],
   },
   subTabRow: {
     flexDirection: "row",

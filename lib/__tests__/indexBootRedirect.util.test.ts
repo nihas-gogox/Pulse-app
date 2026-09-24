@@ -1,5 +1,11 @@
 import {
+  consumeFreshSignInLanding,
   isPastIndexBootPath,
+  isPostAuthShellLanding,
+  isWorkspaceSidebarRoute,
+  markFreshSignInLanding,
+  peekFreshSignInLanding,
+  resetIndexBootRedirect,
   resolveWebRefreshHref,
 } from '@/lib/indexBootRedirect.util';
 
@@ -35,5 +41,40 @@ describe('resolveWebRefreshHref', () => {
 
   it('does not fight when Expo is already on another deep route', () => {
     expect(resolveWebRefreshHref('/trips', '/trip/abc', '')).toBeNull();
+  });
+});
+
+describe('post-auth shell landing', () => {
+  it('treats the hub and workspace sidebar as shell landings', () => {
+    expect(isPostAuthShellLanding('/')).toBe(true);
+    expect(isPostAuthShellLanding('/network')).toBe(true);
+    expect(isPostAuthShellLanding('/network/hub')).toBe(true);
+    expect(isPostAuthShellLanding('/network/hub?tab=profile')).toBe(true);
+    expect(isPostAuthShellLanding('/workspace')).toBe(true);
+  });
+
+  it('keeps an explicit work page or workspace detail', () => {
+    expect(isPostAuthShellLanding('/trips')).toBe(false);
+    expect(isPostAuthShellLanding('/finance')).toBe(false);
+    expect(isPostAuthShellLanding('/pulse-loads')).toBe(false);
+    expect(isPostAuthShellLanding('/compliance')).toBe(false);
+    expect(isPostAuthShellLanding('/workspace?panel=account')).toBe(false);
+    expect(isPostAuthShellLanding('/network/hub?tab=sales')).toBe(false);
+    expect(isPostAuthShellLanding('/oms/dashboard')).toBe(false);
+  });
+
+  it('recognizes the workspace sidebar without a panel', () => {
+    expect(isWorkspaceSidebarRoute('/workspace')).toBe(true);
+    expect(isWorkspaceSidebarRoute('/workspace?panel=settings')).toBe(false);
+    expect(isWorkspaceSidebarRoute('/network')).toBe(false);
+  });
+
+  it('remembers a fresh sign-in until index consumes it', () => {
+    resetIndexBootRedirect();
+    expect(peekFreshSignInLanding()).toBe(false);
+    markFreshSignInLanding();
+    expect(peekFreshSignInLanding()).toBe(true);
+    expect(consumeFreshSignInLanding()).toBe(true);
+    expect(peekFreshSignInLanding()).toBe(false);
   });
 });

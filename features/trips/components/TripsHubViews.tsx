@@ -1031,6 +1031,14 @@ export type TripsHubTableViewProps = {
   hideBody?: boolean;
   /** Override the toolbar "Showing n of m" label (e.g. INDENT loads). */
   toolbarCountLabel?: string;
+  /** Tiny status tags rendered in the hub toolbar row (indent stage). */
+  toolbarTags?: ReadonlyArray<{
+    id: string;
+    label: string;
+    selected: boolean;
+    onPress: () => void;
+    accessibilityLabel?: string;
+  }>;
   /** Controlled hub search. When omitted, the table keeps internal search state. */
   searchQuery?: string;
   onSearchQueryChange?: (next: string) => void;
@@ -1093,6 +1101,53 @@ const HUB_COLUMN_ORDER: TripsHubTableColumnId[] = [
   "ledgerMeta",
 ];
 
+/** Indent stage pills — Theme semantic colors (waiting / bidding / won). */
+function indentStatusTagTone(id: string): {
+  bg: string;
+  border: string;
+  text: string;
+  dot: string;
+  selectedBg: string;
+  selectedBorder: string;
+  selectedText: string;
+  selectedDot: string;
+} {
+  if (id === "bids") {
+    return {
+      bg: Theme.screenBackground,
+      border: Theme.brandBlueInk,
+      text: Theme.brandBlueInk,
+      dot: Theme.brandBlueInk,
+      selectedBg: Theme.brandBlue,
+      selectedBorder: Theme.brandBlueInk,
+      selectedText: Theme.brandBlueInk,
+      selectedDot: Theme.brandBlueInk,
+    };
+  }
+  if (id === "awarded") {
+    return {
+      bg: Theme.screenBackground,
+      border: Theme.positive,
+      text: Theme.positive,
+      dot: Theme.positive,
+      selectedBg: Theme.positive,
+      selectedBorder: Theme.positive,
+      selectedText: Theme.buttonDarkText,
+      selectedDot: Theme.buttonDarkText,
+    };
+  }
+  return {
+    bg: Theme.screenBackground,
+    border: Theme.warning,
+    text: Theme.warning,
+    dot: Theme.warning,
+    selectedBg: Theme.warning,
+    selectedBorder: Theme.warning,
+    selectedText: Theme.buttonDarkText,
+    selectedDot: Theme.buttonDarkText,
+  };
+}
+
 /** Mobile hub toolbar — count pill + search share one row height. */
 const MOBILE_HUB_SEARCH_ROW_H = 36;
 
@@ -1129,6 +1184,7 @@ export function TripsHubTableView({
   renderAboveBody,
   hideBody = false,
   toolbarCountLabel,
+  toolbarTags,
   searchQuery: searchQueryProp,
   onSearchQueryChange,
   dateRangeFilter = "all",
@@ -1294,6 +1350,54 @@ export function TripsHubTableView({
     toolbarCountLabel ??
     `Showing ${rowsForTableBody.length} of ${displayedTrips.length} trips`;
 
+  const toolbarStatusTags =
+    toolbarTags && toolbarTags.length > 0 ? (
+      <View style={styles.indentStatusTagRow}>
+        {toolbarTags.map((tag) => {
+          const tone = indentStatusTagTone(tag.id);
+          return (
+            <TouchableOpacity
+              key={tag.id}
+              style={[
+                styles.indentStatusTag,
+                {
+                  backgroundColor: tag.selected ? tone.selectedBg : tone.bg,
+                  borderColor: tag.selected ? tone.selectedBorder : tone.border,
+                },
+              ]}
+              onPress={tag.onPress}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityState={{ selected: tag.selected }}
+              accessibilityLabel={tag.accessibilityLabel ?? tag.label}
+            >
+              <View
+                style={[
+                  styles.indentStatusTagDot,
+                  {
+                    backgroundColor: tag.selected
+                      ? tone.selectedDot
+                      : tone.dot,
+                  },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.indentStatusTagText,
+                  {
+                    color: tag.selected ? tone.selectedText : tone.text,
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {tag.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    ) : null;
+
   const desktopDatePresets = (
     [
       { id: "all" as const, label: "ALL" },
@@ -1425,6 +1529,7 @@ export function TripsHubTableView({
                 {tripsCountLabel}
               </Text>
             </View>
+            {toolbarStatusTags}
             {onDateRangeFilterChange ? (
               <View
                 style={[
@@ -1493,6 +1598,7 @@ export function TripsHubTableView({
                   styles.auditDatePresetScrollMobile,
                 ]}
               >
+                {toolbarStatusTags}
                 {(
                   [
                     { id: "all" as const, label: "All" },
@@ -1563,6 +1669,7 @@ export function TripsHubTableView({
             ) : (
               <View style={styles.auditDatePresetTray}>
                 <View style={styles.auditDatePresetRowInner}>
+                  {toolbarStatusTags}
                   {(
                     [
                       { id: "all" as const, label: "ALL" },
@@ -3770,6 +3877,36 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   /** Matches Chat `tabPill` / `tabPillActive` / labels. */
+  indentStatusTagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 0,
+  },
+  indentStatusTag: {
+    minHeight: 26,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    backgroundColor: Theme.screenBackground,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  indentStatusTagDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  indentStatusTagText: {
+    fontSize: 8,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    color: Theme.textSecondary,
+  },
   auditDateChip: {
     minHeight: 26,
     paddingHorizontal: 7,

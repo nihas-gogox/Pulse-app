@@ -88,6 +88,10 @@ import {
   hubAssignmentAuditTripIds,
 } from "@/features/trips/utils/hubAssignmentAuditTripIds.util";
 import {
+  indentHubStatusTag,
+  type IndentHubStatusTag,
+} from "@/features/trips/utils/indentHubCardPresentation";
+import {
   indentMatchesHubDateFilter,
   indentMatchesHubSearch,
   tripsHubAllToolbarCountLabel,
@@ -291,6 +295,8 @@ export default function TripsScreen() {
     useState<AttributionFilter>("all");
   const [loadTypeFilter, setLoadTypeFilter] = useState<string>("all");
   const [dateRangeFilter, setDateRangeFilter] = useState<DateFilter>("all");
+  const [indentStatusTag, setIndentStatusTag] =
+    useState<IndentHubStatusTag | null>(null);
   const [customDateFrom, setCustomDateFrom] = useState<string | null>(null);
   const [customDateTo, setCustomDateTo] = useState<string | null>(null);
   const [tripLedgerExportOpen, setTripLedgerExportOpen] = useState(false);
@@ -418,10 +424,45 @@ export default function TripsScreen() {
     () => visibleUnallocatedIndents.slice(0, HUB_ASSIGNMENT_AUDIT_TRIP_LIMIT).map((i) => i.id),
     [visibleUnallocatedIndents],
   );
+  const indentOfferCountIds = useMemo(() => {
+    if (activeMetricTab === "indent") {
+      return dateFilteredUnallocatedIndents.map((indent) => indent.id);
+    }
+    if (activeMetricTab === "all") return hubSatelliteIndentIds;
+    return [];
+  }, [activeMetricTab, dateFilteredUnallocatedIndents, hubSatelliteIndentIds]);
   const { data: indentOfferCounts = {} } = useIndentOfferCountsQuery(
     activeMetricTab === "all" || activeMetricTab === "indent" ? orgId : null,
-    hubSatelliteIndentIds,
+    indentOfferCountIds,
   );
+  const indentStageIndents = useMemo(() => {
+    if (activeMetricTab !== "indent" || indentStatusTag == null) {
+      return visibleUnallocatedIndents;
+    }
+    return visibleUnallocatedIndents.filter(
+      (indent) =>
+        indentHubStatusTag(indent.status, indentOfferCounts[indent.id] ?? 0) ===
+        indentStatusTag,
+    );
+  }, [
+    activeMetricTab,
+    indentStatusTag,
+    visibleUnallocatedIndents,
+    indentOfferCounts,
+  ]);
+  const indentStatusTagCounts = useMemo(() => {
+    const counts: Record<IndentHubStatusTag, number> = {
+      pending: 0,
+      bids: 0,
+      awarded: 0,
+    };
+    if (activeMetricTab !== "indent") return counts;
+    for (const indent of visibleUnallocatedIndents) {
+      counts[indentHubStatusTag(indent.status, indentOfferCounts[indent.id] ?? 0)] +=
+        1;
+    }
+    return counts;
+  }, [activeMetricTab, visibleUnallocatedIndents, indentOfferCounts]);
   const indentHubActionOrgId =
     activeMetricTab === "all" || activeMetricTab === "indent" ? orgId : null;
   const handleOpenUnallocatedIndent = useCallback(
@@ -432,7 +473,12 @@ export default function TripsScreen() {
   );
   const indentHubActions = useGiveLoadIndentActions({
     orgId: indentHubActionOrgId,
-    indentIds: hubSatelliteIndentIds,
+    indentIds:
+      activeMetricTab === "indent"
+        ? indentStageIndents
+            .slice(0, HUB_ASSIGNMENT_AUDIT_TRIP_LIMIT)
+            .map((indent) => indent.id)
+        : hubSatelliteIndentIds,
     onOpenIndent: handleOpenUnallocatedIndent,
     insets,
   });
@@ -975,6 +1021,7 @@ export default function TripsScreen() {
         dateRangeFilter,
         customDateFrom ?? "",
         customDateTo ?? "",
+        indentStatusTag ?? "",
       ].join("|"),
     [
       effectiveListLayout,
@@ -990,6 +1037,7 @@ export default function TripsScreen() {
       dateRangeFilter,
       customDateFrom,
       customDateTo,
+      indentStatusTag,
     ],
   );
 
@@ -1010,7 +1058,7 @@ export default function TripsScreen() {
       : (hubToolbarMatchCount ?? filtered.length);
   const hubIndentMatchCount =
     activeMetricTab === "all" || activeMetricTab === "indent"
-      ? visibleUnallocatedIndents.length
+      ? indentStageIndents.length
       : 0;
   const tripsHubPaginationTotal = hubIndentMatchCount + hubTripMatchCount;
 
@@ -1030,11 +1078,11 @@ export default function TripsScreen() {
   });
   const paginatedHubIndents =
     Platform.OS === "web" && !isMobileViewport
-      ? visibleUnallocatedIndents.slice(
+      ? indentStageIndents.slice(
           hubListPageSlice.indentOffset,
           hubListPageSlice.indentOffset + hubListPageSlice.indentLimit,
         )
-      : visibleUnallocatedIndents;
+      : indentStageIndents;
 
   useEffect(() => {
     setHubToolbarMatchCount(null);
@@ -1714,7 +1762,7 @@ export default function TripsScreen() {
   const renderIndentStageBody = (
     indents: IndentRow[] = paginatedHubIndents,
   ) => {
-    if (visibleUnallocatedIndents.length === 0) {
+    if (indents.length === 0 && visibleUnallocatedIndents.length === 0) {
       return (
         <View style={emptyBannerStageStyle}>
           <TripsPromoCard
@@ -1972,7 +2020,8 @@ export default function TripsScreen() {
                     totalPages: tripsTableTotalPages,
                     totalItems: tripsHubPaginationTotal,
                     pageSize: tripsTablePageSize,
-                    onPageSizeChange: setTripsTablePageSize,
+                    onPageSizeChange: (size) =>
+                      setTripsTablePageSize(size as HubGridPageSize),
                     itemLabel: "trips",
                     onPrev: handleTripsPagePrev,
                     onNext: handleTripsPageNext,
@@ -2384,7 +2433,39 @@ export default function TripsScreen() {
               hideBody
               renderAboveBody={renderIndentStageBody(paginatedHubIndents)}
               renderBody={() => null}
-              toolbarCountLabel={`Showing ${visibleUnallocatedIndents.length} of ${dateFilteredUnallocatedIndents.length}`}
+              toolbarCountLabel={`Showing ${indentStageIndents.length} of ${dateFilteredUnallocatedIndents.length}`}
+              toolbarTags={[
+                {
+                  id: "pending",
+                  label: `Pending ${indentStatusTagCounts.pending}`,
+                  selected: indentStatusTag === "pending",
+                  accessibilityLabel: "Pending, waiting for bid",
+                  onPress: () =>
+                    setIndentStatusTag((current) =>
+                      current === "pending" ? null : "pending",
+                    ),
+                },
+                {
+                  id: "bids",
+                  label: `Bids received ${indentStatusTagCounts.bids}`,
+                  selected: indentStatusTag === "bids",
+                  accessibilityLabel: "Bids received, receiving bids",
+                  onPress: () =>
+                    setIndentStatusTag((current) =>
+                      current === "bids" ? null : "bids",
+                    ),
+                },
+                {
+                  id: "awarded",
+                  label: `Awarded ${indentStatusTagCounts.awarded}`,
+                  selected: indentStatusTag === "awarded",
+                  accessibilityLabel: "Awarded",
+                  onPress: () =>
+                    setIndentStatusTag((current) =>
+                      current === "awarded" ? null : "awarded",
+                    ),
+                },
+              ]}
               searchQuery={searchQuery}
               onSearchQueryChange={setSearchQuery}
               pagination={tripsListPagination}

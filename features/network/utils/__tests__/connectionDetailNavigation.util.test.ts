@@ -71,7 +71,7 @@ describe("seedFinanceDetailFromNetworkConnection", () => {
 });
 
 describe("connectedOrgLedgerDetailRoute", () => {
-  it("routes clients to cash detail", () => {
+  it("routes clients to the trips tab", () => {
     expect(
       connectedOrgLedgerDetailRoute({
         id: "c1",
@@ -79,6 +79,6 @@ describe("connectedOrgLedgerDetailRoute", () => {
         role: "CLIENT",
         is_integrated: false,
       }),
-    ).toContain("/client/c1");
+    ).toBe("/client/c1?tab=trips");
   });
 });

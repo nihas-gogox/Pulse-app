@@ -6,6 +6,7 @@ import { EntityIntelWidgetRow } from "@/components/entityIntel/EntityIntelWidget
 import { pickEntityReport } from "@/components/entityIntel/pickEntityReport";
 import { entityCompanionCardStyles as ecc } from "@/components/entityCompanionCard.styles";
 import { EntityTripTableEmptyRow } from "@/components/EntityTripTableEmptyRow";
+import { HubListPaginationBar } from "@/components/hub/HubListPaginationBar";
 import {
   entityDetailDownloadIconColor,
   entityDetailPageChromeStyles as edc,
@@ -19,17 +20,18 @@ import Theme from "@/constants/Theme";
 import { getUser2DAvatarUriForSeed } from "@/constants/UserAvatars";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import type { ClientRow } from "@/features/clients/services/clients.service";
+import type { DriverRow } from "@/features/drivers";
 import {
-    getClientsByOrganization,
-    type ClientRow,
-} from "@/features/clients/services/clients.service";
-import { getDriversByOrganization, type DriverRow } from "@/features/drivers";
-import {
-    getTransactionsByOrganization,
     LedgerReportModal,
     type LedgerRow,
 } from "@/features/finance";
 import { LedgerTransactionListView } from "@/features/finance/components/LedgerTransactionListView";
+import {
+  PARTY_TRIP_PAGE_SIZES,
+  partyTripPageSlice,
+  type PartyTripPageSize,
+} from "@/features/finance/utils/partyTripPage.util";
 import {
   buildSupplierPayableReport,
   formatReportInr,
@@ -41,7 +43,6 @@ import {
   type LedgerTripPartyMap,
 } from "@/features/finance/components/ledger/buildFinancialRowDataForLedgerRow";
 import { ledgerDayMatchesPeriod } from "@/features/finance/lib/filterLedgerByPeriod";
-import { getTripSubcontracts } from "@/features/finance/services/tripSubcontracts.service";
 import { getProfileImageBatch } from "@/features/finance/services/finance.service";
 import type { FinancePeriodFilter } from "@/features/finance/types";
 import { allocateAmountsToLargestDueTrips } from "@/features/finance/utils/allocateToLargestDue";
@@ -49,19 +50,11 @@ import { EditSupplierModal } from "@/features/suppliers/components/EditSupplierM
 import { getSupplierKycDocuments } from "@/features/suppliers/services/supplierKycDocuments.service";
 import { mapSupplierVerificationVaultDocs } from "@/features/suppliers/utils/supplierVerificationVault.util";
 import {
-    getShipperDisplayNamesForSupplierTrips,
     getTripDisplayNumber,
-    getTripsByOrganization,
-    getTripsWhereOrgIsClient,
-    getTripsWhereOrgIsSupplier,
-    supplierRowToTripRow,
     type TripRow,
 } from "@/features/trips/services/trips.service";
 import { adjustedCost } from "@/features/trips/services/tripAdjustments";
-import {
-    buildUniqueLinkedOrgIdMap,
-    isLoadBasedTrip,
-} from "@/features/trips/visibility/tripVisibility";
+import { isLoadBasedTrip } from "@/features/trips/visibility/tripVisibility";
 import { getSignedAvatarUrl } from "@/lib/avatarUpload";
 import {
     canAccessFinance } from "@/lib/capabilities";
@@ -102,10 +95,10 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { fetchSupplierPageBootstrap } from "../services/supplierPageBootstrap.service";
 import {
     getLinkedOrgProfileForSupplier,
     getSupplierDetails,
-    getSuppliersByOrganization,
     updateSupplier,
     type SupplierRow,
     type UpdateSupplierData,
@@ -223,6 +216,8 @@ export default function SupplierDetailScreen({
   const [tripCustomFrom, setTripCustomFrom] = useState<string | null>(null);
   const [tripCustomTo, setTripCustomTo] = useState<string | null>(null);
   const [tripDateModalVisible, setTripDateModalVisible] = useState(false);
+  const [tripPageSize, setTripPageSize] = useState<PartyTripPageSize>(25);
+  const [tripPage, setTripPage] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successTitle, setSuccessTitle] = useState("NODE_SYNCED");
   const [isLinked, setIsLinked] = useState(false);
@@ -447,232 +442,73 @@ export default function SupplierDetailScreen({
       setLoading(true);
     setError(null);
     const orgId = currentOrganization.id;
-    const supplierPromise = getSupplierDetails(supplierId);
-    // FinanceScreen already warms these under the same query keys for the
-    // whole Finance tab (useFinanceEntities / useFinanceLedger) — reuse them
-    // instead of re-fetching org-wide data this screen doesn't own.
-    //
-    // `ensureQueryData` (not a plain getQueryData-then-fallback-fetch) so a
-    // cold cache is a single, request-deduplicated fetch shared with any
-    // other concurrent consumer of the same queryKey — a plain fallback
-    // fetch here would race a concurrently-mounting list/warmup hook and
-    // double the RPC (identified as a contributor to the 2026-09-16 DB incident).
-    const tripsPromise = queryClient
-      .ensureQueryData({
-        queryKey: queryKeys.trips.finite(orgId),
-        queryFn: async () => {
-          const res = await getTripsByOrganization(orgId);
-          if (res.error) throw res.error;
-          return res.trips ?? [];
-        },
-      })
-      .then((trips) => ({ error: null, trips }))
-      .catch((error: unknown) => ({ error: error instanceof Error ? error : new Error(String(error)), trips: [] as TripRow[] }));
-    const txPromise = queryClient
-      .ensureQueryData({
-        queryKey: queryKeys.transactions.finite(orgId),
-        queryFn: async () => {
-          const res = await getTransactionsByOrganization(orgId);
-          if (res.error) throw res.error;
-          return res.transactions ?? [];
-        },
-      })
-      .then((transactions) => ({ error: null, transactions }))
-      .catch((error: unknown) => ({ error: error instanceof Error ? error : new Error(String(error)), transactions: [] as LedgerRow[] }));
-    const suppliersPromise = queryClient
-      .ensureQueryData({
-        queryKey: queryKeys.suppliers.finite(orgId),
-        queryFn: async () => {
-          const res = await getSuppliersByOrganization(orgId);
-          if (res.error) throw res.error;
-          return res.suppliers ?? [];
-        },
-      })
-      .then((suppliers) => ({ error: null, suppliers }))
-      .catch((error: unknown) => ({ error: error instanceof Error ? error : new Error(String(error)), suppliers: [] as SupplierRow[] }));
-    const shipperNamesPromise = getShipperDisplayNamesForSupplierTrips(orgId);
-    const asClientPromise = supplierPromise.then((res) => {
-      const sup = res.supplier;
-      const linkedOrgId = sup?.linked_organization_id ?? null;
-      if (!linkedOrgId) return Promise.resolve([] as TripRow[]);
-      return getTripsWhereOrgIsClient(orgId).then((r) =>
-        r.error ? [] : (r.trips ?? []),
-      );
-    });
-    const subcontractsPromise = getTripsWhereOrgIsSupplier(orgId).then(
-      (res) => {
-        if (res.error) return { sharedTrips: [], subcontracts: [] };
-        const sharedTrips = (res.trips ?? []).map(supplierRowToTripRow);
-        const tripIds = sharedTrips.map((t) => t.id);
-        if (tripIds.length === 0) return { sharedTrips, subcontracts: [] };
-        return getTripSubcontracts({ viewerOrgId: orgId, tripIds }).then(
-          (subRes) => {
-            return {
-              sharedTrips,
-              subcontracts: subRes.error ? [] : subRes.rows,
-            };
-          },
-        );
-      },
-    );
-    const driversPromise = queryClient
-      .ensureQueryData({
-        queryKey: queryKeys.drivers.finite(orgId),
-        queryFn: async () => {
-          const res = await getDriversByOrganization(orgId);
-          if (res.error) throw res.error;
-          return res.drivers ?? [];
-        },
-      })
-      .then((drivers) => ({ error: null, drivers }))
-      .catch((error: unknown) => ({ error: error instanceof Error ? error : new Error(String(error)), drivers: [] as DriverRow[] }));
-    const clientsPromise = queryClient
-      .ensureQueryData({
-        queryKey: queryKeys.clients.finite(orgId),
-        queryFn: async () => {
-          const res = await getClientsByOrganization(orgId);
-          if (res.error) throw res.error;
-          return res.clients ?? [];
-        },
-      })
-      .then((clients) => ({ error: null, clients }))
-      .catch((error: unknown) => ({ error: error instanceof Error ? error : new Error(String(error)), clients: [] as ClientRow[] }));
-    Promise.all([
-      supplierPromise,
-      tripsPromise,
-      txPromise,
-      asClientPromise,
-      suppliersPromise,
-      subcontractsPromise,
-      driversPromise,
-      clientsPromise,
-      shipperNamesPromise,
-    ])
-      .then(
-        ([
-          res,
-          tripsRes,
-          txRes,
-          asClientTrips,
-          suppliersRes,
-          subRes,
-          driversRes,
-          clientsRes,
-          shipperNamesRes,
-        ]) => {
-          // The user navigated to a different supplier while this was in
-          // flight — a newer load() for the new supplierId owns state now.
-          if (activeSupplierIdRef.current !== requestSupplierId) return;
-          if (res.error) {
-            setError(res.error.message);
-            setSupplier(null);
-          } else {
-            setSupplier(res.supplier ?? null);
-          }
-          const allTrips = tripsRes.error ? [] : (tripsRes.trips ?? []);
-          const sup = res.supplier;
-          const supplierDisplayName = sup
-            ? (sup.name || sup.company_name || sup.contact_person || "")
-                .trim()
-                .toLowerCase()
-            : "";
-          const linkedOrgId = sup?.linked_organization_id ?? null;
-          const linkedSupplierIdByOrgId = buildUniqueLinkedOrgIdMap(
-            suppliersRes.error ? [] : (suppliersRes.suppliers ?? []),
-          );
-          const fromOwned = allTrips.filter(
-            (t) =>
-              t.supplier_id === supplierId ||
-              (!t.supplier_id &&
-                supplierDisplayName &&
-                (t.supplier_name ?? "").trim().toLowerCase() ===
-                  supplierDisplayName),
-          );
-          const seen = new Set(fromOwned.map((t) => t.id));
-          const merged: TripRow[] = [...fromOwned];
-          const nextAggregateTripSalesById: Record<string, number> = {};
+    const finishLoad = () => {
+      if (loadInFlightRef.current === requestSupplierId) loadInFlightRef.current = null;
+      if (activeSupplierIdRef.current !== requestSupplierId) return;
+      setLoading(false);
+      initialLoadDoneRef.current = true;
+      hasSeedDataRef.current = false;
+      isRefreshingRef.current = false;
+      setRefreshing(false);
+      clearInitialSupplierForDetail(requestSupplierId);
+    };
 
-          // Add shared trips where we are the supplier and we subcontracted to THIS supplier
-          const { sharedTrips, subcontracts } = subRes;
-          const tripIdToSubcontract = new Map(
-            subcontracts.map((s) => [s.trip_id, s]),
-          );
-          for (const t of sharedTrips) {
-            const sub = tripIdToSubcontract.get(t.id);
-            if (sub && sub.supplier_id === supplierId) {
-              if (!seen.has(t.id)) {
-                seen.add(t.id);
-                nextAggregateTripSalesById[t.id] =
-                  Number(t.supplier_rate ?? 0) || Number(t.client_price ?? 0);
-                // Overwrite supplier_rate so the UI displays the subcontract rate
-                merged.push({ ...t, supplier_rate: sub.rate });
-              }
-            } else if (
-              t.supplier_id === supplierId ||
-              (!t.supplier_id &&
-                supplierDisplayName &&
-                (t.supplier_name ?? "").trim().toLowerCase() ===
-                  supplierDisplayName)
-            ) {
-              if (!seen.has(t.id)) {
-                seen.add(t.id);
-                merged.push(t);
-              }
-            }
-          }
+    const cached = queryClient.getQueryData<{
+      supplier: SupplierRow;
+      trips: TripRow[];
+      transactions: LedgerRow[];
+      suppliers: SupplierRow[];
+      drivers: DriverRow[];
+      clients: ClientRow[];
+      aggregateTripSalesById: Record<string, number>;
+    }>(queryKeys.suppliers.pageBootstrap(orgId, requestSupplierId));
+    if (cached?.supplier) {
+      setSupplier(cached.supplier);
+      setTrips(cached.trips);
+      setAggregateTripSalesById(cached.aggregateTripSalesById ?? {});
+      setAllOrgTransactions(cached.transactions);
+      setOrgSuppliers(cached.suppliers);
+      setTransactions(cached.transactions);
+      setOrgDrivers(cached.drivers);
+      setClients(cached.clients);
+      setLoading(false);
+    }
 
-          if (linkedOrgId && Array.isArray(asClientTrips)) {
-            for (const t of asClientTrips) {
-              if (
-                isLoadBasedTrip(t) &&
-                t.organization_id === linkedOrgId &&
-                linkedSupplierIdByOrgId.get(linkedOrgId) === supplierId &&
-                !seen.has(t.id)
-              ) {
-                seen.add(t.id);
-                nextAggregateTripSalesById[t.id] =
-                  Number(t.supplier_rate ?? 0) || Number(t.client_price ?? 0);
-                merged.push(t);
-              }
-            }
-          }
-          setTrips(merged);
-          setAggregateTripSalesById(nextAggregateTripSalesById);
-          const allTx =
-            (txRes.error ? [] : ((txRes.transactions ?? []) as LedgerRow[])) ??
-            [];
-          setAllOrgTransactions(allTx);
-          setOrgSuppliers(
-            suppliersRes.error ? [] : (suppliersRes.suppliers ?? []),
-          );
-          const normId = (id: string | null | undefined) =>
-            id == null ? "" : String(id).trim().toLowerCase();
-          const forSupplierTx = allTx.filter((tx) => {
-            return (
-              tx.contact_type === "supplier" &&
-              tx.contact_id != null &&
-              normId(tx.contact_id) === normId(supplierId)
-            );
-          });
-          setTransactions(forSupplierTx);
-          setOrgDrivers(driversRes?.error ? [] : (driversRes.drivers ?? []));
-          setClients(clientsRes.error ? [] : (clientsRes.clients ?? []));
-          setShipperNameByTripId(
-            shipperNamesRes.error
-              ? {}
-              : (shipperNamesRes.shipperNameByTripId ?? {}),
-          );
+
+    queryClient
+      .fetchQuery({
+        queryKey: queryKeys.suppliers.pageBootstrap(orgId, requestSupplierId),
+        queryFn: async () => {
+          const r = await fetchSupplierPageBootstrap(orgId, requestSupplierId);
+          if (r.error) throw r.error;
+          return r.bundle;
         },
-      )
-      .finally(() => {
-        if (loadInFlightRef.current === requestSupplierId) loadInFlightRef.current = null;
+        staleTime: 60_000,
+      })
+      .then((bundle) => {
         if (activeSupplierIdRef.current !== requestSupplierId) return;
-        setLoading(false);
-        initialLoadDoneRef.current = true;
-        hasSeedDataRef.current = false;
-        isRefreshingRef.current = false;
-        setRefreshing(false);
-        clearInitialSupplierForDetail(requestSupplierId);
+        if (bundle?.supplier) {
+          setSupplier(bundle.supplier);
+          setTrips(bundle.trips);
+          setAggregateTripSalesById(bundle.aggregateTripSalesById);
+          setAllOrgTransactions(bundle.transactions);
+          setOrgSuppliers(bundle.suppliers);
+          setTransactions(bundle.transactions);
+          setOrgDrivers(bundle.drivers);
+          setClients(bundle.clients);
+          setShipperNameByTripId({});
+          finishLoad();
+          return;
+        }
+        if (!cached?.supplier) setError("Supplier not found");
+        finishLoad();
+      })
+      .catch((err: unknown) => {
+        if (activeSupplierIdRef.current !== requestSupplierId) return;
+        if (!cached?.supplier) {
+          setError(err instanceof Error ? err.message : "Failed to load supplier data");
+        }
+        finishLoad();
       });
   }, [supplierId, currentOrganization?.id, queryClient]);
 
@@ -934,6 +770,29 @@ export default function SupplierDetailScreen({
       };
     });
   }, [tripsForMissionTable, paidByTripId, tripIdToDue, tripFinanceAdjRecord]);
+
+  const tripSelectionMetrics = useMemo(() => {
+    let billed = 0;
+    let paidSum = 0;
+    let dueSum = 0;
+    for (const row of missionRows) {
+      billed += row.sales;
+      paidSum += row.paid;
+      dueSum += row.due;
+    }
+    const health =
+      billed > 0 ? Math.min(100, Math.round((paidSum / billed) * 100)) : 0;
+    return { dueSum, health, count: missionRows.length };
+  }, [missionRows]);
+
+  const tripPageView = useMemo(
+    () => partyTripPageSlice(missionRows, tripPage, tripPageSize),
+    [missionRows, tripPage, tripPageSize],
+  );
+
+  useEffect(() => {
+    setTripPage(0);
+  }, [supplierId, tripDatePeriod, tripCustomFrom, tripCustomTo, tripPageSize]);
   const _getTripSalesForSupplierView = useCallback(
     (trip: TripRow): number => {
       const mappedAggregateSales = aggregateTripSalesById[trip.id];
@@ -1252,14 +1111,7 @@ export default function SupplierDetailScreen({
     openSupplierReport("ledger");
   }, [detailSubTab, openSupplierReport]);
 
-  const supplierPaymentHealthPct = useMemo(() => {
-    const paidSum = totalBilledConsolidated - totalPendingConsolidated;
-    return totalBilledConsolidated > 0
-      ? Math.min(100, Math.round((paidSum / totalBilledConsolidated) * 100))
-      : 0;
-  }, [totalBilledConsolidated, totalPendingConsolidated]);
-
-  if (loading) {
+  if (loading && !supplier) {
     return (
       <CenteredLoadingView
         message={t("loadingSupplier")}
@@ -1735,25 +1587,25 @@ export default function SupplierDetailScreen({
               {
                 id: "payable",
                 label: "Payable due",
-                value: formatINR(due),
-                tone: due > 0 ? "warn" : "good",
+                value: formatINR(tripSelectionMetrics.dueSum),
+                tone: tripSelectionMetrics.dueSum > 0 ? "warn" : "good",
                 hint: "Export payable report",
                 onPress: () => openSupplierReport("payable"),
               },
               {
                 id: "performance",
                 label: "Trips handled",
-                value: String(tripsHandled),
+                value: String(tripSelectionMetrics.count),
                 hint: "Supplier performance",
               },
               {
                 id: "health",
                 label: "Payment health",
-                value: `${supplierPaymentHealthPct}%`,
+                value: `${tripSelectionMetrics.health}%`,
                 tone:
-                  supplierPaymentHealthPct >= 80
+                  tripSelectionMetrics.health >= 80
                     ? "good"
-                    : supplierPaymentHealthPct >= 50
+                    : tripSelectionMetrics.health >= 50
                       ? "warn"
                       : "bad",
                 hint: "Paid vs contract",
@@ -1921,8 +1773,8 @@ export default function SupplierDetailScreen({
                 </View>
               ) : null}
             </View>
-            {missionRows.length > 0 ? (
-              missionRows.map((row) => (
+            {tripPageView.rows.length > 0 ? (
+              tripPageView.rows.map((row) => (
                 <TouchableOpacity
                   key={row.trip.id}
                   style={[
@@ -2131,6 +1983,29 @@ export default function SupplierDetailScreen({
             )}
               </View>
             </ScrollView>
+            {missionRows.length > 0 ? (
+              <HubListPaginationBar
+                page={tripPageView.page}
+                totalPages={tripPageView.totalPages}
+                totalItems={missionRows.length}
+                pageSize={tripPageSize}
+                pageSizeOptions={PARTY_TRIP_PAGE_SIZES}
+                onPageSizeChange={(size) => {
+                  if (
+                    (PARTY_TRIP_PAGE_SIZES as readonly number[]).includes(size)
+                  ) {
+                    setTripPageSize(size as PartyTripPageSize);
+                  }
+                }}
+                onPrev={() => setTripPage((current) => Math.max(0, current - 1))}
+                onNext={() =>
+                  setTripPage((current) =>
+                    Math.min(tripPageView.totalPages - 1, current + 1),
+                  )
+                }
+                itemLabel="trips"
+              />
+            ) : null}
           </View>
         )}
 

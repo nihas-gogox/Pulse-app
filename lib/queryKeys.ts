@@ -101,6 +101,8 @@ export const queryKeys = {
       ["q", "clients", orgId, clientId, "invoice-pod-policy"] as const,
     managementBundle: (orgId: string, clientId: string) =>
       ["q", "clients", orgId, clientId, "management-bundle"] as const,
+    pageBootstrap: (orgId: string, clientId: string) =>
+      ["q", "clients", orgId, clientId, "page-bootstrap"] as const,
     warehouses: (orgId: string, clientId: string) =>
       ["q", "clients", orgId, clientId, "warehouses"] as const,
     laneRates: (orgId: string, clientId: string, search = "") =>
@@ -120,6 +122,8 @@ export const queryKeys = {
       ["q", "suppliers", orgId, supplierId] as const,
     managementBundle: (orgId: string, supplierId: string) =>
       ["q", "suppliers", orgId, supplierId, "management-bundle"] as const,
+    pageBootstrap: (orgId: string, supplierId: string) =>
+      ["q", "suppliers", orgId, supplierId, "page-bootstrap"] as const,
     /** Live organization_relations + suppliers.linked_organization_id — not the CRM cache. */
     connectedOrgIds: (orgId: string) =>
       ["q", "suppliers", orgId, "connected-org-ids"] as const,

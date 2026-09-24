@@ -75,7 +75,9 @@ import { useRealtimeTransactionsInvalidation } from "@/lib/queries/useRealtimeIn
 import { useInvalidateTransactions } from "@/lib/queries/useTransactionsQuery";
 import { queryKeys } from "@/lib/queryKeys";
 import { ROUTES } from "@/lib/routes";
+import { prefetchClientPageBootstrap } from "@/features/clients/hooks/useClientPageBootstrapQuery";
 import { setInitialClientForDetail } from "@/features/clients/initialClientForDetail";
+import { prefetchSupplierPageBootstrap } from "@/features/suppliers/hooks/useSupplierPageBootstrapQuery";
 import { setInitialSupplierForDetail } from "@/features/suppliers/initialSupplierForDetail";
 import { setInitialDriverForDetail } from "@/features/drivers/initialDriverForDetail";
 import { setInitialVehicleForDetail } from "@/features/vehicles/initialVehicleForDetail";
@@ -1101,8 +1103,9 @@ export function FinanceScreen() {
         // seed only, ClientDetailScreen still fetches the authoritative bundle.
         const seed = clientRows.find((c) => c.id === data.id);
         if (seed) setInitialClientForDetail(seed);
+        void prefetchClientPageBootstrap(queryClient, currentOrganization?.id, data.id);
         router.push(
-          ROUTES.clientDetail(data.id, "cash") as Parameters<
+          ROUTES.clientDetail(data.id, "trips") as Parameters<
             typeof router.push
           >[0],
         );
@@ -1112,8 +1115,9 @@ export function FinanceScreen() {
       if (entityType === "SUPPLIER" && subTab === "suppliers" && !isDcoCounterparty) {
         const seed = supplierRows.find((s) => s.id === data.id);
         if (seed) setInitialSupplierForDetail(seed);
+        void prefetchSupplierPageBootstrap(queryClient, currentOrganization?.id, data.id);
         router.push(
-          ROUTES.supplierDetail(data.id, "cash") as Parameters<
+          ROUTES.supplierDetail(data.id, "trips") as Parameters<
             typeof router.push
           >[0],
         );
@@ -1131,7 +1135,7 @@ export function FinanceScreen() {
         const seed = driverRows.find((d) => d.id === data.id);
         if (seed) setInitialDriverForDetail(seed);
         router.push(
-          ROUTES.driverDetail(data.id, "ledger") as Parameters<
+          ROUTES.driverDetail(data.id, "trips") as Parameters<
             typeof router.push
           >[0],
         );
@@ -1139,7 +1143,7 @@ export function FinanceScreen() {
       }
       setSelectedEntity({ data, entityType, subTab });
     },
-    [router, clientRows, supplierRows, driverRows, vehicleRows],
+    [router, clientRows, supplierRows, driverRows, vehicleRows, queryClient, currentOrganization?.id],
   );
 
   const supplierPartyOptions = useMemo(

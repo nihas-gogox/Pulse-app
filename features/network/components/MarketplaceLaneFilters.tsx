@@ -185,7 +185,11 @@ export function MarketplaceLaneFilters({
           <View
             style={[
               styles.sheet,
-              { paddingBottom: Math.max(insets.bottom, 14) },
+              stacked && styles.sheetMobile,
+              {
+                paddingBottom: Math.max(insets.bottom, 14),
+                marginTop: stacked ? Math.max(insets.top, 12) : undefined,
+              },
             ]}
           >
             <View style={styles.sheetHead}>
@@ -393,7 +397,7 @@ const styles = StyleSheet.create({
   chipMain: {
     flex: 1,
     minWidth: 0,
-    minHeight: 64,
+    minHeight: 56,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
@@ -463,6 +467,10 @@ const styles = StyleSheet.create({
         elevation: 12,
       },
     }),
+  },
+  sheetMobile: {
+    maxWidth: "100%",
+    maxHeight: "88%",
   },
   sheetHead: {
     flexDirection: "row",

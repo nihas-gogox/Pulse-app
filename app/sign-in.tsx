@@ -20,7 +20,8 @@ import { signUpMobileContentInner } from '@/features/auth/signup/signUpMobile.st
 import { PULSE_SIGNUP, PULSE_SIGNUP_RADIUS } from '@/features/auth/signup/signUpPulseTheme';
 import { createPulseSignUpTextStyles, PULSE_SIGNUP_TYPO } from '@/features/auth/signup/signUpTypography';
 import { SIGN_IN_BRAND } from '@/lib/auth/signInContent';
-import { navigateAfterSuiteAuth } from '@/lib/suite/suiteAuth';
+import { markFreshSignInLanding, isPostAuthShellLanding } from '@/lib/indexBootRedirect.util';
+import { navigateAfterSuiteAuth, normalizeSuiteReturnTo } from '@/lib/suite/suiteAuth';
 import { suiteSignInCopy } from '@/lib/suite/suiteAuthContent';
 import { validateEmailRequired } from '@/lib/emailValidation';
 import { getKeepSignedIn } from '@/lib/keepSignedInPreference';
@@ -119,7 +120,10 @@ export default function SignIn() {
 
   useEffect(() => {
     if (!user || !rootNavReady) return;
-    navigateAfterSuiteAuth(returnTo, (href) => {
+    const target = normalizeSuiteReturnTo(returnTo);
+    const shellLanding = isPostAuthShellLanding(target);
+    if (shellLanding) markFreshSignInLanding();
+    navigateAfterSuiteAuth(shellLanding ? '/' : returnTo, (href) => {
       try {
         router.replace(href as Href);
       } catch {
