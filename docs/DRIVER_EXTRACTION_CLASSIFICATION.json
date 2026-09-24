@@ -235,13 +235,10 @@
     "why": "shared component"
   },
   "components/Avatar.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D5",
-    "rule": "U1→D5",
-    "why": "SHARED_UI depends at runtime on SHARED_DOMAIN lib/avatarContext.ts",
-    "blockedBy": "lib/avatarContext.ts",
-    "intended": "SHARED_UI",
-    "directBreak": true
+    "cls": "SHARED_FEATURES",
+    "rule": "MANUAL:D13",
+    "why": "renders party/business avatars (needs avatar data from domain)",
+    "manual": true
   },
   "components/CapacityDialPicker.tsx": {
     "cls": "MAIN_ONLY",
@@ -334,13 +331,10 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "components/PartyAvatar.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D5",
-    "rule": "U1→D5",
-    "why": "SHARED_UI depends at runtime on SHARED_DOMAIN lib/partyAvatarDisplay.ts",
-    "blockedBy": "lib/partyAvatarDisplay.ts",
-    "intended": "SHARED_UI",
-    "directBreak": true
+    "cls": "SHARED_FEATURES",
+    "rule": "MANUAL:D13",
+    "why": "renders party/business avatars (needs avatar data from domain)",
+    "manual": true
   },
   "components/PartySpeedDialFab.tsx": {
     "cls": "MAIN_ONLY",
@@ -489,32 +483,19 @@
     "why": "LeafletMap family is used by the dispatcher map (plan §1)"
   },
   "components/driver/LeafletMap.maplibre.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "S2→D6",
-    "why": "SHARED_UI depends at runtime on DRIVER_ONLY features/driver/job-card/parts/RoutePlanMapPin.tsx",
-    "blockedBy": "features/driver/job-card/parts/RoutePlanMapPin.tsx",
-    "intended": "SHARED_UI",
-    "directBreak": true
+    "cls": "SHARED_UI",
+    "rule": "S2",
+    "why": "LeafletMap family is used by the dispatcher map (plan §1)"
   },
   "components/driver/LeafletMap.rnmaps.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "S2→D6",
-    "why": "SHARED_UI depends at runtime on DRIVER_ONLY features/driver/job-card/parts/RoutePlanMapPin.tsx",
-    "blockedBy": "features/driver/job-card/parts/RoutePlanMapPin.tsx",
-    "intended": "SHARED_UI",
-    "directBreak": true
+    "cls": "SHARED_UI",
+    "rule": "S2",
+    "why": "LeafletMap family is used by the dispatcher map (plan §1)"
   },
   "components/driver/LeafletMap.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "S2→blocked",
-    "why": "SHARED_UI depends at runtime on REVIEW lib/maps/leafletNativeImplementation.ts",
-    "blockedBy": "lib/maps/leafletNativeImplementation.ts",
-    "intended": "SHARED_UI",
-    "root": "components/driver/LeafletMap.rnmaps.tsx",
-    "rootBucket": "D6"
+    "cls": "SHARED_UI",
+    "rule": "S2",
+    "why": "LeafletMap family is used by the dispatcher map (plan §1)"
   },
   "components/driver/LeafletMap.types.ts": {
     "cls": "SHARED_UI",
@@ -767,14 +748,9 @@
     "why": "shared component"
   },
   "components/mobile-input/FullscreenNumericEntry.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "U1→blocked",
-    "why": "SHARED_UI depends at runtime on REVIEW components/mobile-input/NumericEntryRecipientHero.tsx",
-    "blockedBy": "components/mobile-input/NumericEntryRecipientHero.tsx",
-    "intended": "SHARED_UI",
-    "root": "components/PartyAvatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "U1→D13",
+    "why": "shared component; D13: renders components/mobile-input/NumericEntryRecipientHero.tsx"
   },
   "components/mobile-input/FullscreenTextEntry.tsx": {
     "cls": "MAIN_ONLY",
@@ -792,24 +768,14 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "components/mobile-input/NumericEntryRecipientHero.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "U1→blocked",
-    "why": "SHARED_UI depends at runtime on REVIEW components/PartyAvatar.tsx",
-    "blockedBy": "components/PartyAvatar.tsx",
-    "intended": "SHARED_UI",
-    "root": "components/PartyAvatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "U1→D13",
+    "why": "shared component; D13: renders components/PartyAvatar.tsx"
   },
   "components/mobile-input/SmartInput.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "U1→blocked",
-    "why": "SHARED_UI depends at runtime on REVIEW components/mobile-input/FullscreenNumericEntry.tsx",
-    "blockedBy": "components/mobile-input/FullscreenNumericEntry.tsx",
-    "intended": "SHARED_UI",
-    "root": "components/PartyAvatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "U1→D13",
+    "why": "shared component; D13: renders components/mobile-input/FullscreenNumericEntry.tsx"
   },
   "components/mobile-input/SmartInputTrigger.tsx": {
     "cls": "SHARED_UI",
@@ -1052,23 +1018,16 @@
     "why": "design/presentation constants"
   },
   "contexts/ActiveWorkspaceContext.tsx": {
-    "cls": "REVIEW",
-    "bucket": "DV",
-    "rule": "MANUAL:D3→DV",
-    "why": "approved SHARED_CORE depends at runtime on SHARED_DOMAIN contexts/AuthContext.tsx",
-    "blockedBy": "contexts/AuthContext.tsx",
-    "intended": "SHARED_CORE",
-    "directBreak": true
+    "cls": "SHARED_DOMAIN",
+    "rule": "MANUAL:D3",
+    "why": "shared context (D3 amended by D11: depends on AuthContext, which is domain for now); driver app supplies its own DRIVER_ADAPTER provider; context logic unchanged",
+    "manual": true
   },
   "contexts/AuthContext.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "C2→V1→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/realtimeRegistry.ts",
-    "blockedBy": "lib/realtimeRegistry.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "MANUAL:D11",
+    "why": "shared business code for now; session part moves to @pulse/core in the Phase 2 auth split; no behavior change",
+    "manual": true
   },
   "contexts/DemoTabBarScrollContext.tsx": {
     "cls": "MAIN_ONLY",
@@ -1108,13 +1067,10 @@
     "why": "session/network/language infrastructure (auth split per plan Phase 2)"
   },
   "contexts/OrganizationContext.tsx": {
-    "cls": "REVIEW",
-    "bucket": "DV",
-    "rule": "MANUAL:D3→DV",
-    "why": "approved SHARED_CORE depends at runtime on SHARED_DOMAIN contexts/AuthContext.tsx",
-    "blockedBy": "contexts/AuthContext.tsx",
-    "intended": "SHARED_CORE",
-    "directBreak": true
+    "cls": "SHARED_DOMAIN",
+    "rule": "MANUAL:D3",
+    "why": "shared context (D3 amended by D11: depends on AuthContext, which is domain for now); driver app supplies its own DRIVER_ADAPTER provider; context logic unchanged",
+    "manual": true
   },
   "features/ai/components/AIBadge.tsx": {
     "cls": "MAIN_ONLY",
@@ -1354,14 +1310,9 @@
     "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/ChatEventCard.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F1→blocked",
-    "why": "SHARED_FEATURES depends at runtime on REVIEW features/chat/components/ChatPartyAvatar.tsx",
-    "blockedBy": "features/chat/components/ChatPartyAvatar.tsx",
-    "intended": "SHARED_FEATURES",
-    "root": "components/Avatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/ChatFeedbackCard.tsx": {
     "cls": "DRIVER_ONLY",
@@ -1374,34 +1325,19 @@
     "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/ChatLocationSystemCard.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F1→blocked",
-    "why": "SHARED_FEATURES depends at runtime on REVIEW features/chat/components/ChatEventCard.tsx",
-    "blockedBy": "features/chat/components/ChatEventCard.tsx",
-    "intended": "SHARED_FEATURES",
-    "root": "components/Avatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/ChatMobileComposer.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F1→blocked",
-    "why": "SHARED_FEATURES depends at runtime on REVIEW contexts/OrganizationContext.tsx",
-    "blockedBy": "contexts/OrganizationContext.tsx",
-    "intended": "SHARED_FEATURES",
-    "root": "contexts/OrganizationContext.tsx",
-    "rootBucket": "DV"
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/ChatPartyAvatar.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F1→blocked",
-    "why": "SHARED_FEATURES depends at runtime on REVIEW components/Avatar.tsx",
-    "blockedBy": "components/Avatar.tsx",
-    "intended": "SHARED_FEATURES",
-    "root": "components/Avatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/ChatPaymentEventIcon.tsx": {
     "cls": "SHARED_FEATURES",
@@ -1444,24 +1380,14 @@
     "why": "only reachable from driver code"
   },
   "features/chat/components/mobile/ChatSlackMessageRow.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F1→blocked",
-    "why": "SHARED_FEATURES depends at runtime on REVIEW features/chat/components/ChatPartyAvatar.tsx",
-    "blockedBy": "features/chat/components/ChatPartyAvatar.tsx",
-    "intended": "SHARED_FEATURES",
-    "root": "components/Avatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/mobile/ChatSlackMobileChrome.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F1→blocked",
-    "why": "SHARED_FEATURES depends at runtime on REVIEW features/chat/components/ChatPartyAvatar.tsx",
-    "blockedBy": "features/chat/components/ChatPartyAvatar.tsx",
-    "intended": "SHARED_FEATURES",
-    "root": "components/Avatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/mobile/chatSlackMobile.styles.ts": {
     "cls": "SHARED_DOMAIN",
@@ -1484,34 +1410,19 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/chat/components/shared/ChatDriverSwapAvatar.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F1→blocked",
-    "why": "SHARED_FEATURES depends at runtime on REVIEW features/chat/components/ChatPartyAvatar.tsx",
-    "blockedBy": "features/chat/components/ChatPartyAvatar.tsx",
-    "intended": "SHARED_FEATURES",
-    "root": "components/Avatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/shared/ChatDriverSwapAvatarCompact.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F1→blocked",
-    "why": "SHARED_FEATURES depends at runtime on REVIEW features/chat/components/ChatPartyAvatar.tsx",
-    "blockedBy": "features/chat/components/ChatPartyAvatar.tsx",
-    "intended": "SHARED_FEATURES",
-    "root": "components/Avatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/shared/ChatDriverSwapInboxPreview.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F1→blocked",
-    "why": "SHARED_FEATURES depends at runtime on REVIEW features/chat/components/shared/ChatDriverSwapAvatarCompact.tsx",
-    "blockedBy": "features/chat/components/shared/ChatDriverSwapAvatarCompact.tsx",
-    "intended": "SHARED_FEATURES",
-    "root": "components/Avatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/shared/ChatDriverSwapPreviewCopy.tsx": {
     "cls": "SHARED_FEATURES",
@@ -1544,14 +1455,9 @@
     "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/shared/ChatMediaBurstRow.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F1→blocked",
-    "why": "SHARED_FEATURES depends at runtime on REVIEW features/chat/components/ChatPartyAvatar.tsx",
-    "blockedBy": "features/chat/components/ChatPartyAvatar.tsx",
-    "intended": "SHARED_FEATURES",
-    "root": "components/Avatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/shared/ChatMediaGalleryLightbox.tsx": {
     "cls": "SHARED_FEATURES",
@@ -1579,14 +1485,9 @@
     "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/shared/ChatSlackMirrorToggle.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F1→blocked",
-    "why": "SHARED_FEATURES depends at runtime on REVIEW features/chat/components/ChatPartyAvatar.tsx",
-    "blockedBy": "features/chat/components/ChatPartyAvatar.tsx",
-    "intended": "SHARED_FEATURES",
-    "root": "components/Avatar.tsx",
-    "rootBucket": "D5"
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/shared/ChatThreadMediaStrip.tsx": {
     "cls": "SHARED_FEATURES",
@@ -1644,34 +1545,19 @@
     "why": "feature service/util/hook/domain code"
   },
   "features/chat/services/chat.service.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/avatarUpload.ts",
-    "blockedBy": "lib/avatarUpload.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/chat/services/chatAssignmentBridge.service.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/avatarUpload.ts",
-    "blockedBy": "lib/avatarUpload.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/chat/services/chatLedgerBridge.service.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/chat/services/chat.service.ts",
-    "blockedBy": "features/chat/services/chat.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/chat/services/networkConversation.service.ts": {
     "cls": "SHARED_DOMAIN",
@@ -1679,14 +1565,9 @@
     "why": "feature service/util/hook/domain code"
   },
   "features/chat/store/useChatStore.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/chat/services/chat.service.ts",
-    "blockedBy": "features/chat/services/chat.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/chat/types/chat.types.ts": {
     "cls": "SHARED_DOMAIN",
@@ -1824,14 +1705,9 @@
     "why": "feature service/util/hook/domain code"
   },
   "features/chat/utils/partyDisplay.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/partyAvatarDisplay.ts",
-    "blockedBy": "lib/partyAvatarDisplay.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/chat/utils/resolveChatDocumentUrl.util.ts": {
     "cls": "SHARED_DOMAIN",
@@ -2306,9 +2182,10 @@
     "why": "driver seed, no live main-app importer"
   },
   "features/driver/job-card/parts/RoutePlanMapPin.tsx": {
-    "cls": "DRIVER_ONLY",
-    "rule": "S1",
-    "why": "driver seed, no live main-app importer"
+    "cls": "SHARED_UI",
+    "rule": "MANUAL:D14",
+    "why": "rendered by the shared LeafletMap family",
+    "manual": true
   },
   "features/driver/job-card/parts/RouteProgressHeader.tsx": {
     "cls": "DRIVER_ONLY",
@@ -2432,14 +2309,10 @@
     "why": "driver seed, no live main-app importer"
   },
   "features/driver/tripHistory/tripHistoryDetail.util.ts": {
-    "cls": "REVIEW",
-    "bucket": "DV",
-    "rule": "MANUAL:D4→blocked",
-    "why": "approved SHARED_DOMAIN depends at runtime on REVIEW features/trips/utils/driverAssignerDisplay.util.ts",
-    "blockedBy": "features/trips/utils/driverAssignerDisplay.util.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "MANUAL:D4",
+    "why": "used by TripDetailScreen",
+    "manual": true
   },
   "features/driver/tripSettlement/driverTripSettlement.util.ts": {
     "cls": "DRIVER_ONLY",
@@ -3107,14 +2980,9 @@
     "why": "feature service/util/hook/domain code"
   },
   "features/finance/services/finance.service.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/avatarUpload.ts",
-    "blockedBy": "lib/avatarUpload.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/finance/services/ledgerAggregationRpc.service.ts": {
     "cls": "MAIN_ONLY",
@@ -3292,24 +3160,14 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/ledger/vehicle/index.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/ledger/vehicle/syncOperationalExpenseToCashLedger.service.ts",
-    "blockedBy": "features/ledger/vehicle/syncOperationalExpenseToCashLedger.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/ledger/vehicle/postVehicleOperationalEntry.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/trips/services/trips.service.ts",
-    "blockedBy": "features/trips/services/trips.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/ledger/vehicle/postingMessages.util.ts": {
     "cls": "SHARED_DOMAIN",
@@ -3322,64 +3180,34 @@
     "why": "feature service/util/hook/domain code"
   },
   "features/ledger/vehicle/reconciliation/index.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/ledger/vehicle/reconciliation/reconciliation.service.ts",
-    "blockedBy": "features/ledger/vehicle/reconciliation/reconciliation.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/ledger/vehicle/reconciliation/reconciliation.service.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/trips/services/trips.service.ts",
-    "blockedBy": "features/trips/services/trips.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/ledger/vehicle/reconciliation/usePostingReconciliation.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/ledger/vehicle/reconciliation/reconciliation.service.ts",
-    "blockedBy": "features/ledger/vehicle/reconciliation/reconciliation.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/ledger/vehicle/runtime/index.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/ledger/vehicle/runtime/postingRuntime.service.ts",
-    "blockedBy": "features/ledger/vehicle/runtime/postingRuntime.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/ledger/vehicle/runtime/postingRuntime.service.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/trips/services/trips.service.ts",
-    "blockedBy": "features/trips/services/trips.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/ledger/vehicle/syncOperationalExpenseToCashLedger.service.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/finance/services/finance.service.ts",
-    "blockedBy": "features/finance/services/finance.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/ledger/vehicle/vehicleEconomics.ts": {
     "cls": "SHARED_DOMAIN",
@@ -3387,14 +3215,9 @@
     "why": "feature service/util/hook/domain code"
   },
   "features/ledger/vehicle/vehicleLedgerEngine.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/trips/services/trips.service.ts",
-    "blockedBy": "features/trips/services/trips.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/ledger/vehicle/vehiclePostingRules.ts": {
     "cls": "SHARED_DOMAIN",
@@ -3749,7 +3572,7 @@
   "features/organization/utils/teamInviteRoles.util.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2←pulled",
-    "why": "feature service/util/hook/domain code; pulled into shared by lib/platform-identity/workspace/workspaceContextStore.ts"
+    "why": "feature service/util/hook/domain code; pulled into shared by contexts/ActiveWorkspaceContext.tsx"
   },
   "features/ratings/components/TripRatingsBlock.tsx": {
     "cls": "MAIN_ONLY",
@@ -4272,14 +4095,9 @@
     "why": "feature service/util/hook/domain code"
   },
   "features/trips/operations/queries/useTripOperations.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/trips/services/trips.service.ts",
-    "blockedBy": "features/trips/services/trips.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/trips/operations/reimbursement/driverExpenseRequest.service.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4557,14 +4375,9 @@
     "why": "feature service/util/hook/domain code"
   },
   "features/trips/services/trips.service.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/chat/services/chatAssignmentBridge.service.ts",
-    "blockedBy": "features/chat/services/chatAssignmentBridge.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/trips/styles/assignmentShellShared.ts": {
     "cls": "MAIN_ONLY",
@@ -4577,14 +4390,9 @@
     "why": "feature service/util/hook/domain code"
   },
   "features/trips/utils/driverAssignerDisplay.util.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2←pulled→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/vehicles/utils/fleetAvatar.util.ts",
-    "blockedBy": "features/vehicles/utils/fleetAvatar.util.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2←pulled",
+    "why": "feature service/util/hook/domain code; pulled into shared by features/driver/tripHistory/tripHistoryDetail.util.ts"
   },
   "features/trips/utils/driverLastPingDisplay.util.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4703,13 +4511,10 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/verification/components/VerificationStatusChip.tsx": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→D6",
-    "why": "SHARED_DOMAIN depends at runtime on SHARED_FEATURES features/trips/verification/VerificationStatusChip.tsx",
-    "blockedBy": "features/trips/verification/VerificationStatusChip.tsx",
-    "intended": "SHARED_DOMAIN",
-    "directBreak": true
+    "cls": "SHARED_FEATURES",
+    "rule": "MANUAL:D15",
+    "why": "one-line re-export; goes with its target",
+    "manual": true
   },
   "features/trips/verification/hooks/useHydrateOdometerPhotos.ts": {
     "cls": "MAIN_ONLY",
@@ -4757,14 +4562,9 @@
     "why": "feature service/util/hook/domain code"
   },
   "features/trips/verification/queries/useTripVerification.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW features/trips/services/trips.service.ts",
-    "blockedBy": "features/trips/services/trips.service.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/trips/verification/selectors/verificationSelectors.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4862,14 +4662,9 @@
     "why": "feature service/util/hook/domain code"
   },
   "features/vehicles/utils/fleetAvatar.util.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "F2→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/partyAvatarDisplay.ts",
-    "blockedBy": "lib/partyAvatarDisplay.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/vehicles/utils/indianTruckData.util.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4902,24 +4697,14 @@
     "why": "generic infrastructure/helper"
   },
   "lib/avatarContext.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "L4→V1→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/avatarUpload.ts",
-    "blockedBy": "lib/avatarUpload.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "L4→V1",
+    "why": "generic infrastructure/helper; promoted: depends on domain lib/avatarUpload.ts"
   },
   "lib/avatarUpload.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "L4→V1→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW contexts/AuthContext.tsx",
-    "blockedBy": "contexts/AuthContext.tsx",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "L4→V1",
+    "why": "generic infrastructure/helper; promoted: depends on domain contexts/AuthContext.tsx"
   },
   "lib/brand/pulseBrandMark.tokens.ts": {
     "cls": "SHARED_CORE",
@@ -4972,9 +4757,10 @@
     "why": "asset/lottie module"
   },
   "lib/chatPerf.ts": {
-    "cls": "SHARED_DOMAIN",
-    "rule": "L3",
-    "why": "business-named shared module"
+    "cls": "SHARED_CORE",
+    "rule": "MANUAL:D12",
+    "why": "client-side perf counters, infrastructure",
+    "manual": true
   },
   "lib/chatUnreadSignal.ts": {
     "cls": "MAIN_ONLY",
@@ -5122,14 +4908,9 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "lib/globalSync/inboundProtocol.util.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "L3→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/avatarUpload.ts",
-    "blockedBy": "lib/avatarUpload.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "L3",
+    "why": "business-named shared module"
   },
   "lib/globalSync/priorityEngine.util.ts": {
     "cls": "SHARED_DOMAIN",
@@ -5147,14 +4928,9 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "lib/globalSync/useGlobalSyncStore.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "L3→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/globalSync/inboundProtocol.util.ts",
-    "blockedBy": "lib/globalSync/inboundProtocol.util.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "L3",
+    "why": "business-named shared module"
   },
   "lib/hooks/appQueryGate.util.ts": {
     "cls": "MAIN_ONLY",
@@ -5352,14 +5128,10 @@
     "why": "only reachable from driver code"
   },
   "lib/maps/leafletNativeImplementation.ts": {
-    "cls": "REVIEW",
-    "bucket": "DV",
-    "rule": "MANUAL:D8→blocked",
-    "why": "approved SHARED_UI depends at runtime on REVIEW components/driver/LeafletMap.rnmaps.tsx",
-    "blockedBy": "components/driver/LeafletMap.rnmaps.tsx",
-    "intended": "SHARED_UI",
-    "root": "components/driver/LeafletMap.rnmaps.tsx",
-    "rootBucket": "D6"
+    "cls": "SHARED_UI",
+    "rule": "MANUAL:D8",
+    "why": "component loader, not infrastructure",
+    "manual": true
   },
   "lib/maps/mapEnvironment.ts": {
     "cls": "SHARED_CORE",
@@ -5447,14 +5219,9 @@
     "why": "generic infrastructure/helper"
   },
   "lib/partyAvatarDisplay.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "L3→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/avatarUpload.ts",
-    "blockedBy": "lib/avatarUpload.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "L3",
+    "why": "business-named shared module"
   },
   "lib/partyEntityAccent.ts": {
     "cls": "MAIN_ONLY",
@@ -5677,14 +5444,10 @@
     "manual": true
   },
   "lib/platform/scalability/index.ts": {
-    "cls": "REVIEW",
-    "bucket": "DV",
-    "rule": "MANUAL:D2→blocked",
-    "why": "approved SHARED_CORE depends at runtime on REVIEW lib/platform/scalability/platformHealth.ts",
-    "blockedBy": "lib/platform/scalability/platformHealth.ts",
-    "intended": "SHARED_CORE",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_CORE",
+    "rule": "MANUAL:D2",
+    "why": "request moderation / scalability / DB wiring = infrastructure",
+    "manual": true
   },
   "lib/platform/scalability/performanceBudgets.ts": {
     "cls": "SHARED_CORE",
@@ -5693,13 +5456,10 @@
     "manual": true
   },
   "lib/platform/scalability/platformHealth.ts": {
-    "cls": "REVIEW",
-    "bucket": "DV",
-    "rule": "MANUAL:D2→DV",
-    "why": "approved SHARED_CORE depends at runtime on SHARED_DOMAIN lib/chatPerf.ts",
-    "blockedBy": "lib/chatPerf.ts",
-    "intended": "SHARED_CORE",
-    "directBreak": true
+    "cls": "SHARED_CORE",
+    "rule": "MANUAL:D2",
+    "why": "request moderation / scalability / DB wiring = infrastructure",
+    "manual": true
   },
   "lib/platform/scalability/queryCacheMetrics.ts": {
     "cls": "SHARED_CORE",
@@ -5855,14 +5615,9 @@
     "why": "only reachable from driver code"
   },
   "lib/queries/useDriverAvailabilityQuery.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "Q1→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW contexts/AuthContext.tsx",
-    "blockedBy": "contexts/AuthContext.tsx",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "Q1",
+    "why": "query hooks / domain query keys"
   },
   "lib/queries/useDriverFleetOwnerQuery.ts": {
     "cls": "DRIVER_ONLY",
@@ -5870,14 +5625,9 @@
     "why": "only reachable from driver code"
   },
   "lib/queries/useDriverHomeDriversQuery.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "Q1→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW contexts/AuthContext.tsx",
-    "blockedBy": "contexts/AuthContext.tsx",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "Q1",
+    "why": "query hooks / domain query keys"
   },
   "lib/queries/useDriverInvitesQuery.ts": {
     "cls": "SHARED_DOMAIN",
@@ -5890,14 +5640,9 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "lib/queries/useDriverUiTripsQuery.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "Q1→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/queries/useDriverHomeDriversQuery.ts",
-    "blockedBy": "lib/queries/useDriverHomeDriversQuery.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "Q1",
+    "why": "query hooks / domain query keys"
   },
   "lib/queries/useDriversQuery.ts": {
     "cls": "MAIN_ONLY",
@@ -5920,14 +5665,9 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "lib/queries/useInvalidateDriverHomeDashboard.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "Q1→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/queries/useDriverAvailabilityQuery.ts",
-    "blockedBy": "lib/queries/useDriverAvailabilityQuery.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "Q1",
+    "why": "query hooks / domain query keys"
   },
   "lib/queries/useLedgerAggregationQuery.ts": {
     "cls": "MAIN_ONLY",
@@ -5975,14 +5715,9 @@
     "why": "only reachable from driver code"
   },
   "lib/queries/usePendingOtpTripsQuery.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "Q1→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW contexts/AuthContext.tsx",
-    "blockedBy": "contexts/AuthContext.tsx",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "Q1",
+    "why": "query hooks / domain query keys"
   },
   "lib/queries/usePilotWorkSummaryQuery.ts": {
     "cls": "DRIVER_ONLY",
@@ -6050,14 +5785,9 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "lib/queries/useTripTimelineQuery.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "Q1→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW lib/realtimeRegistry.ts",
-    "blockedBy": "lib/realtimeRegistry.ts",
-    "intended": "SHARED_DOMAIN",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "Q1",
+    "why": "query hooks / domain query keys"
   },
   "lib/queries/useTripVerificationQuery.ts": {
     "cls": "MAIN_ONLY",
@@ -6075,14 +5805,9 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "lib/queries/useWorkspaceProductsQuery.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "Q1→blocked",
-    "why": "SHARED_DOMAIN depends at runtime on REVIEW contexts/OrganizationContext.tsx",
-    "blockedBy": "contexts/OrganizationContext.tsx",
-    "intended": "SHARED_DOMAIN",
-    "root": "contexts/OrganizationContext.tsx",
-    "rootBucket": "DV"
+    "cls": "SHARED_DOMAIN",
+    "rule": "Q1",
+    "why": "query hooks / domain query keys"
   },
   "lib/queryClient.ts": {
     "cls": "SHARED_CORE",
@@ -6110,14 +5835,9 @@
     "why": "only reachable from driver code"
   },
   "lib/realtimeRegistry.ts": {
-    "cls": "REVIEW",
-    "bucket": "D6",
-    "rule": "L4→blocked",
-    "why": "SHARED_CORE depends at runtime on REVIEW lib/platform/scalability/index.ts",
-    "blockedBy": "lib/platform/scalability/index.ts",
-    "intended": "SHARED_CORE",
-    "root": "lib/platform/scalability/platformHealth.ts",
-    "rootBucket": "DV"
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper"
   },
   "lib/reportWatermark.util.ts": {
     "cls": "SHARED_UI",

@@ -193,6 +193,11 @@ while (changed && passes < 50) {
       } else if (r.fallback && ALLOWED[r.fallback].has(tr.cls)) {
         result.set(f, { ...r, cls: r.fallback, fallback: undefined, rule: `${r.rule}→fallback`, why: `${r.why}; fell back to ${r.fallback}: needs ${tr.cls} ${to}` });
         changed = true;
+      } else if (DEC.D13_avatarRenderersFollow && !r.manual && r.cls === 'SHARED_UI' && tr.cls === 'SHARED_FEATURES'
+        && (tr.rule === 'MANUAL:D13' || tr.rule.includes('→D13'))) {
+        // D13: a UI file that renders Avatar/PartyAvatar (directly or via another D13 follower) goes with them.
+        result.set(f, { ...r, cls: 'SHARED_FEATURES', rule: `${r.rule}→D13`, why: `${r.why}; D13: renders ${to}` });
+        changed = true;
       } else if (!r.manual && r.cls === 'SHARED_CORE' && tr.cls === 'SHARED_DOMAIN') {
         result.set(f, { ...r, cls: 'SHARED_DOMAIN', rule: `${r.rule}→V1`, why: `${r.why}; promoted: depends on domain ${to}` });
         changed = true;

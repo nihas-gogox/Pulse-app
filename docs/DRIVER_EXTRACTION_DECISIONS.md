@@ -120,3 +120,28 @@ node scripts/driver-extraction-inventory.mjs --json && node scripts/driver-extra
 ### D15 — Re-export shim goes with its target
 - **The facts:** `features/trips/verification/components/VerificationStatusChip.tsx` is a one-line re-export of `../VerificationStatusChip` (features).
 - **Recommendation:** SHARED_FEATURES.
+
+---
+
+## Round 3 — gate passed (2026-09-24)
+
+D11–D15 and both rule tweaks are recorded in `docs/DRIVER_EXTRACTION_OVERRIDES.json`. Applied narrowly:
+- D3 is amended to SHARED_DOMAIN.
+- D13 moves only `Avatar`, `PartyAvatar` and the 3 UI files that render them: `mobile-input/SmartInput`, `FullscreenNumericEntry` and `NumericEntryRecipientHero`.
+
+| Gate | Result |
+|---|---|
+| REVIEW = 0 | ✅ 0 |
+| Package-rule violations = 0 (every shared file's runtime imports checked against core → domain → ui/features, including shared → driver-only/main-only edges) | ✅ 0 |
+| Files the driver no longer loads once D2/D9 rewrites are done | 125 |
+
+| Final class | Files |
+|---|---:|
+| DRIVER_ONLY → `apps/driver` | 249 |
+| SHARED_CORE → `@pulse/core` | 86 |
+| SHARED_DOMAIN → `@pulse/domain` | 275 |
+| SHARED_UI → `@pulse/ui` | 45 |
+| SHARED_FEATURES → `@pulse/features` | 64 |
+| MAIN_ONLY (the driver uses types only; the files stay put) | 481 |
+
+**Stopped here. No code has moved.** Next, only on Nihas's go: the Phase 1 code changes, i.e. the reverse-import fixes, the D2/D9 path-only rewrites and the ESLint boundary rules.

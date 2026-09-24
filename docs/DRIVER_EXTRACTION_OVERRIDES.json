@@ -3,7 +3,8 @@
   "decisions": {
     "D1_sharedFeatures": true,
     "D9_barrelRewritesForDriverCode": true,
-    "D10_typeOnlyStaysMainOnly": true
+    "D10_typeOnlyStaysMainOnly": true,
+    "D13_avatarRenderersFollow": true
   },
   "rewrites": [
     {
@@ -14,6 +15,36 @@
     }
   ],
   "patterns": [
+    {
+      "match": "^contexts/AuthContext\\.tsx$",
+      "cls": "SHARED_DOMAIN",
+      "decision": "D11",
+      "why": "shared business code for now; session part moves to @pulse/core in the Phase 2 auth split; no behavior change"
+    },
+    {
+      "match": "^lib/chatPerf\\.ts$",
+      "cls": "SHARED_CORE",
+      "decision": "D12",
+      "why": "client-side perf counters, infrastructure"
+    },
+    {
+      "match": "^components/(Avatar|PartyAvatar)\\.tsx$",
+      "cls": "SHARED_FEATURES",
+      "decision": "D13",
+      "why": "renders party/business avatars (needs avatar data from domain)"
+    },
+    {
+      "match": "^features/driver/job-card/parts/RoutePlanMapPin\\.tsx$",
+      "cls": "SHARED_UI",
+      "decision": "D14",
+      "why": "rendered by the shared LeafletMap family"
+    },
+    {
+      "match": "^features/trips/verification/components/VerificationStatusChip\\.tsx$",
+      "cls": "SHARED_FEATURES",
+      "decision": "D15",
+      "why": "one-line re-export; goes with its target"
+    },
     {
       "match": "^lib/platform/(moderator|scalability|db)/",
       "cls": "SHARED_CORE",
@@ -40,9 +71,9 @@
     },
     {
       "match": "^contexts/(OrganizationContext|ActiveWorkspaceContext)\\.tsx$",
-      "cls": "SHARED_CORE",
+      "cls": "SHARED_DOMAIN",
       "decision": "D3",
-      "why": "shared context; driver app supplies its own DRIVER_ADAPTER provider; context logic unchanged"
+      "why": "shared context (D3 amended by D11: depends on AuthContext, which is domain for now); driver app supplies its own DRIVER_ADAPTER provider; context logic unchanged"
     },
     {
       "match": "^features/driver/services/driverLocation\\.service\\.ts$",
@@ -106,5 +137,6 @@
       "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain",
       "jsxOnly": true
     }
-  ]
+  ],
+  "_approved_round2": "Nihas, 2026-09-24: D11-D15 and both rule tweaks (D1 = rendering files only; type-only deps stay MAIN_ONLY) approved."
 }
