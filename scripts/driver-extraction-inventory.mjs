@@ -18,14 +18,18 @@
  * Run:
  *   node scripts/driver-extraction-inventory.mjs [--json]
  */
-import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const OUT_MD = path.join(ROOT, 'docs/DRIVER_EXTRACTION_INVENTORY.md');
-const OUT_JSON = path.join(ROOT, 'docs/DRIVER_EXTRACTION_INVENTORY.json');
+// --out-dir=DIR writes the report elsewhere (used by check-driver-boundaries so
+// CI/local checks don't rewrite the committed docs).
+const OUT_DIR_ARG = process.argv.find((a) => a.startsWith('--out-dir='));
+const OUT_DIR = OUT_DIR_ARG ? path.resolve(ROOT, OUT_DIR_ARG.slice('--out-dir='.length)) : path.join(ROOT, 'docs');
+const OUT_MD = path.join(OUT_DIR, 'DRIVER_EXTRACTION_INVENTORY.md');
+const OUT_JSON = path.join(OUT_DIR, 'DRIVER_EXTRACTION_INVENTORY.json');
 
 // Same exclusions as root tsconfig/jest + non-app trees.
 const EXCLUDED_DIRS = new Set([
@@ -552,6 +556,7 @@ L.push('');
 L.push('_Unrelated issues found during extraction are recorded here by hand (plan: scope discipline)._');
 L.push('');
 
+await mkdir(OUT_DIR, { recursive: true });
 await writeFile(OUT_MD, L.join('\n'));
 if (process.argv.includes('--json')) {
   await writeFile(OUT_JSON, JSON.stringify({

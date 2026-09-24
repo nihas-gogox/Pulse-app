@@ -14,7 +14,7 @@ import Theme from "@/constants/Theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDriverThemeColors } from "@/contexts/DriverThemeContext";
 import { tripHistoryDetailStyles as td } from "@/features/driver/tripHistory/tripHistoryDetail.styles";
-import type { TripCostEvent, TripCostCategory } from "@/features/finance";
+import type { TripCostEvent, TripCostCategory } from "@/features/finance/domain/tripCostEvent";
 import { ExpenseEntryDetailPanel } from "@/features/trips/operations/hub/ExpenseEntryDetailPanel";
 import {
   useCancelDriverExpenseRequest,

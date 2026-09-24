@@ -19,7 +19,7 @@ import { createClient, processLock, type SupabaseClient } from '@supabase/supaba
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { configurePlatformDb } from '@/lib/platform';
+import { configurePlatformDb } from '@/lib/platform/db/platformDb';
 import { currentFetchAbortSignals } from '@/lib/supabaseAbort.util';
 import {
   AUTH_TOKEN_MAX_RETRIES,

@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SmartInput } from "@/components/mobile-input";
+import { SmartInput } from "@/components/mobile-input/SmartInput";
 import Theme from "@/constants/Theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDriverThemeColors } from "@/contexts/DriverThemeContext";

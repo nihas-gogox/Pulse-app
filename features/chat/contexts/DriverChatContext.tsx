@@ -29,7 +29,7 @@ import type { InfiniteData } from '@tanstack/react-query';
 import type { DriverChatMessagesPage } from '@/features/chat/utils/driverChatMessageCache.util';
 import { useQueryClient } from '@tanstack/react-query';
 import { getLinkedDriversForCurrentUser } from '@/features/drivers/services/drivers.service';
-import { getTripOperationalDisplay } from "@/features/operations/display";
+import { getTripOperationalDisplay } from "@/features/operations/display/operationalDisplay";
 
 /**
  * Accepts either a full `TripRow` or a `trips_driver_view` row — the driver path

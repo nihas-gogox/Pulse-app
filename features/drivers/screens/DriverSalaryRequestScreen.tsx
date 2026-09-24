@@ -29,7 +29,7 @@ import * as driversService from '@/features/drivers/services/drivers.service';
 import * as salaryRequestsService from '@/features/drivers/services/salaryRequests.service';
 import * as tripsService from '@/features/trips/services/trips.service';
 import { NeededByCalendar } from '@/components/driver/NeededByCalendar';
-import { SmartInput } from '@/components/mobile-input';
+import { SmartInput } from '@/components/mobile-input/SmartInput';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import {
   ArrowLeft,

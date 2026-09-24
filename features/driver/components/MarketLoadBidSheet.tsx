@@ -2,12 +2,9 @@
  * Full-page Market bid amount entry — same FullscreenNumericEntry +
  * BidConfirmModal flow as business IndentBidAmountEntry / Get Load.
  */
-import {
-  FullscreenNumericEntry,
-  parseRawToNumber,
-  toRawString,
-  type NumericEntryPartyPreview,
-} from '@/components/mobile-input';
+import { FullscreenNumericEntry } from '@/components/mobile-input/FullscreenNumericEntry';
+import type { NumericEntryPartyPreview } from '@/components/mobile-input/NumericEntryPartyBanner';
+import { parseRawToNumber, toRawString } from '@/components/mobile-input/keypad';
 import {
   BidConfirmModal,
   type BidConfirmPhase,

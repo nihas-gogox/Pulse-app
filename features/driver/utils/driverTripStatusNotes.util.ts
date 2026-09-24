@@ -4,7 +4,7 @@
  */
 import { supabase } from '@/lib/supabase';
 import type { TripRow } from '@/features/trips/services/trips.service';
-import { deriveTripStage, type TripStage } from '@/features/trips/domain';
+import { deriveTripStage, type TripStage } from '@/features/trips/domain/tripStage';
 
 export type DriverFlowStepId = TripStage;
 

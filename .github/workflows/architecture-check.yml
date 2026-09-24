@@ -23,6 +23,17 @@ jobs:
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
 
+  driver-boundaries:
+    name: Driver extraction boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Node built-ins only, so no npm ci needed. See docs/DRIVER_EXTRACTION_PLAN.md.
+      - run: node scripts/check-driver-boundaries.mjs
+
   circular-deps:
     name: Circular dependency check
     runs-on: ubuntu-latest

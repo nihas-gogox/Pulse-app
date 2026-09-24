@@ -9,16 +9,16 @@ Plan: `docs/DRIVER_EXTRACTION_PLAN.md`. Classifications are *suggestions*; every
 |---|---:|
 | Source files scanned | 3148 |
 | Driver seed files (non-test) | 184 |
-| Driver transitive closure (incl. type-only imports) | 1200 |
-| Driver runtime closure (what the bundle loads) | 832 |
+| Driver transitive closure (incl. type-only imports) | 1112 |
+| Driver runtime closure (what the bundle loads) | 707 |
 | Main-app transitive closure | 2231 |
 | Main-app files that (transitively) depend on driver seeds | 1267 |
 | Direct boundary violations (main → driver seed) | 129 |
 | DRIVER_ONLY | 219 |
-| SHARED_CORE | 18 |
-| SHARED_DOMAIN | 172 |
+| SHARED_CORE | 17 |
+| SHARED_DOMAIN | 164 |
 | SHARED_UI | 145 |
-| REVIEW | 646 |
+| REVIEW | 567 |
 | Tests that touch driver code | 34 |
 | Cycles (all) / touching driver closure | 16 / 6 |
 | Driver route URLs colliding with main-app URLs | 5 |
@@ -1655,7 +1655,7 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `lib/safeForegroundPositionWatch.ts` |  | only reachable from driver code |
 | `lib/useAvatar.ts` |  | only reachable from driver code |
 
-## SHARED_CORE (18)
+## SHARED_CORE (17)
 
 | File | Seed | Reason |
 |---|:-:|---|
@@ -1668,7 +1668,6 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `lib/format.ts` |  | reached by both apps |
 | `lib/formatEstimatedDuration.ts` |  | reached by both apps |
 | `lib/maps/mapEnvironment.ts` |  | reached by both apps |
-| `lib/media/captureImage.util.ts` |  | reached by both apps |
 | `lib/phoneValidation.ts` |  | reached by both apps |
 | `lib/queryClient.ts` |  | reached by both apps |
 | `lib/storageSignedUrlCache.ts` |  | reached by both apps |
@@ -1678,7 +1677,7 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `lib/uuidv7.ts` |  | reached by both apps |
 | `lib/validation.ts` |  | reached by both apps |
 
-## SHARED_DOMAIN (172)
+## SHARED_DOMAIN (164)
 
 | File | Seed | Reason |
 |---|:-:|---|
@@ -1741,7 +1740,6 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `features/finance/utils/ledgerWriteCompat.util.ts` |  | reached by both apps |
 | `features/finance/utils/partnerIndentFreightCost.util.ts` |  | reached by both apps |
 | `features/finance/utils/tripLedgerPayoutMode.util.ts` |  | reached by both apps |
-| `features/identity/utils/identityUtils.ts` |  | reached by both apps |
 | `features/indents/services/direct-quotes.service.ts` |  | reached by both apps |
 | `features/indents/services/indents.service.ts` |  | reached by both apps |
 | `features/indents/utils/bidding/indentReviewHubOffers.util.ts` |  | reached by both apps |
@@ -1765,13 +1763,6 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `features/network/utils/storyDisplay.ts` |  | reached by both apps |
 | `features/network/utils/storyReplyPreview.util.ts` |  | reached by both apps |
 | `features/ocr/services/ocrJob.service.ts` |  | reached by both apps |
-| `features/ocr/services/ocrJobProcessor.service.ts` |  | reached by both apps |
-| `features/ocr/services/ocrQuota.service.ts` |  | reached by both apps |
-| `features/ocr/services/pulseScanEngine.service.ts` |  | reached by both apps |
-| `features/ocr/services/vehicleOdometerEvent.service.ts` |  | reached by both apps |
-| `features/ocr/utils/ocrConfidenceReview.util.ts` |  | reached by both apps |
-| `features/ocr/utils/ocrNotification.util.ts` |  | reached by both apps |
-| `features/ocr/utils/ocrRescan.util.ts` |  | reached by both apps |
 | `features/organization/services/members.service.ts` |  | reached by both apps |
 | `features/organization/services/organization.service.ts` |  | reached by both apps |
 | `features/organization/services/teamInvitePrecheck.service.ts` |  | reached by both apps |
@@ -2005,7 +1996,7 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `features/auth/signup/SignUpPulseTitle.tsx` |  | reached by both apps |
 | `features/auth/signup/signUpTypography.ts` |  | reached by both apps |
 
-## REVIEW (646)
+## REVIEW (567)
 
 | File | Seed | Reason |
 |---|:-:|---|
@@ -2234,13 +2225,6 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `features/fleet/selectors/index.ts` |  | reached by both apps |
 | `features/fleet/selectors/profitabilitySelectors.ts` |  | reached by both apps |
 | `features/fleet/selectors/vehicleAccountingSelectors.ts` |  | reached by both apps |
-| `features/identity/avatars/IdentityAvatar.tsx` |  | reached by both apps |
-| `features/identity/cache/identityCache.ts` |  | reached by both apps |
-| `features/identity/index.ts` |  | reached by both apps |
-| `features/identity/queries/useIdentityQuery.ts` |  | reached by both apps |
-| `features/identity/selectors/identitySelectors.ts` |  | reached by both apps |
-| `features/identity/trust/trustModel.ts` |  | reached by both apps |
-| `features/identity/types.ts` |  | reached by both apps |
 | `features/indents/constants.ts` |  | reached by both apps |
 | `features/ledger/vehicle/index.ts` |  | reached by both apps |
 | `features/ledger/vehicle/postingMessages.util.ts` |  | reached by both apps |
@@ -2263,10 +2247,6 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `features/network/components/RouteEndpointStack.tsx` |  | reached by both apps |
 | `features/network/components/StoryBroadcastPreview.tsx` |  | reached by both apps |
 | `features/network/constants/networkHubGrid.ts` |  | reached by both apps |
-| `features/ocr/constants/ocr.constants.ts` |  | reached by both apps |
-| `features/ocr/constants/pulseScanEngine.constants.ts` |  | reached by both apps |
-| `features/ocr/hooks/useOcrJobPoll.ts` |  | reached by both apps |
-| `features/ocr/index.ts` |  | reached by both apps |
 | `features/ocr/types/ocr.types.ts` |  | reached by both apps |
 | `features/onboarding/components/onboardingPersonaAssets.ts` |  | reached by both apps |
 | `features/onboarding/components/PulseSplitBrandLogo.tsx` |  | reached by both apps |
@@ -2289,14 +2269,11 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `features/operations/numbering/index.ts` |  | reached by both apps |
 | `features/operations/numbering/operationalNumbering.service.ts` |  | reached by both apps |
 | `features/operations/numbering/sequenceSelectors.ts` |  | reached by both apps |
-| `features/operations/observability/index.ts` |  | reached by both apps |
 | `features/operations/observability/operationalHealthEngine.ts` |  | reached by both apps |
-| `features/operations/observability/operationsObservability.service.ts` |  | reached by both apps |
 | `features/operations/observability/postingHealth.ts` |  | reached by both apps |
 | `features/operations/observability/queueHealth.ts` |  | reached by both apps |
 | `features/operations/observability/syncHealth.ts` |  | reached by both apps |
 | `features/operations/observability/useOperationalHealthSnapshot.ts` |  | reached by both apps |
-| `features/operations/observability/useOperationalObservability.ts` |  | reached by both apps |
 | `features/organization/types/organizationKycDocuments.types.ts` |  | reached by both apps |
 | `features/ratings/components/TripRatingsBlock.tsx` |  | reached by both apps |
 | `features/ratings/index.ts` |  | reached by both apps |
@@ -2363,96 +2340,39 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `features/trips/hooks/useTripLiveTracking.ts` |  | reached by both apps |
 | `features/trips/initialTripForDetail.ts` |  | reached by both apps |
 | `features/trips/operations/fuel/fuel.service.ts` |  | reached by both apps |
-| `features/trips/operations/fuel/FuelEntryScreen.tsx` |  | reached by both apps |
-| `features/trips/operations/health/operationalHealth.ts` |  | reached by both apps |
 | `features/trips/operations/hooks/useTripOperationsSync.ts` |  | reached by both apps |
-| `features/trips/operations/hub/ExpensePreviewSheet.tsx` |  | reached by both apps |
-| `features/trips/operations/hub/OperationsHub.tsx` |  | reached by both apps |
-| `features/trips/operations/hub/TripExpensesScreen.tsx` |  | reached by both apps |
-| `features/trips/operations/index.ts` |  | reached by both apps |
-| `features/trips/operations/maintenance/index.ts` |  | reached by both apps |
 | `features/trips/operations/maintenance/maintenance.service.ts` |  | reached by both apps |
-| `features/trips/operations/maintenance/useTripMaintenance.ts` |  | reached by both apps |
-| `features/trips/operations/metrics/operationsMetrics.ts` |  | reached by both apps |
 | `features/trips/operations/mileage/mileageEngine.ts` |  | reached by both apps |
 | `features/trips/operations/offline/outbox.ts` |  | reached by both apps |
 | `features/trips/operations/offline/sync.ts` |  | reached by both apps |
 | `features/trips/operations/other/otherExpense.service.ts` |  | reached by both apps |
-| `features/trips/operations/other/OtherExpenseEntryScreen.tsx` |  | reached by both apps |
 | `features/trips/operations/queries/useTripOperations.ts` |  | reached by both apps |
 | `features/trips/operations/reimbursement/driverExpenseRequest.service.ts` |  | reached by both apps |
-| `features/trips/operations/reimbursement/index.ts` |  | reached by both apps |
 | `features/trips/operations/reimbursement/reimbursement.service.ts` |  | reached by both apps |
 | `features/trips/operations/reimbursement/reimbursementEngine.ts` |  | reached by both apps |
 | `features/trips/operations/reimbursement/reimbursementMetrics.ts` |  | reached by both apps |
-| `features/trips/operations/reimbursement/reimbursementSelectors.ts` |  | reached by both apps |
 | `features/trips/operations/reimbursement/reimbursementState.ts` |  | reached by both apps |
-| `features/trips/operations/reimbursement/reimbursementTimeline.ts` |  | reached by both apps |
 | `features/trips/operations/reimbursement/useReimbursementQueue.ts` |  | reached by both apps |
-| `features/trips/operations/shared/applyExpenseReceiptOcr.util.ts` |  | reached by both apps |
 | `features/trips/operations/shared/driverExpenseCategoryNav.util.ts` |  | reached by both apps |
-| `features/trips/operations/shared/DriverExpenseCategorySwitch.tsx` |  | reached by both apps |
-| `features/trips/operations/shared/DriverExpenseChipSelect.tsx` |  | reached by both apps |
-| `features/trips/operations/shared/driverExpenseChipVisuals.util.ts` |  | reached by both apps |
-| `features/trips/operations/shared/DriverExpenseEntryLayout.tsx` |  | reached by both apps |
-| `features/trips/operations/shared/driverOpsEntry.styles.ts` |  | reached by both apps |
-| `features/trips/operations/shared/DriverOpsEntryFooter.tsx` |  | reached by both apps |
 | `features/trips/operations/shared/driverReimbursementEvents.util.ts` |  | reached by both apps |
-| `features/trips/operations/shared/ExpenseBillPhotoScan.tsx` |  | reached by both apps |
-| `features/trips/operations/shared/expenseBillScan.constants.ts` |  | reached by both apps |
-| `features/trips/operations/shared/expenseBillScan.types.ts` |  | reached by both apps |
-| `features/trips/operations/shared/ExpenseBillScanBanner.tsx` |  | reached by both apps |
-| `features/trips/operations/shared/ExpenseBillScanOverlay.tsx` |  | reached by both apps |
 | `features/trips/operations/shared/expenseEntryEdit.util.ts` |  | reached by both apps |
-| `features/trips/operations/shared/expenseEntryPartyPreview.util.ts` |  | reached by both apps |
 | `features/trips/operations/shared/expensePreview.util.ts` |  | reached by both apps |
-| `features/trips/operations/shared/expenseReceiptOcr.parse.util.ts` |  | reached by both apps |
-| `features/trips/operations/shared/expenseReceiptOcr.service.ts` |  | reached by both apps |
 | `features/trips/operations/shared/operationsEntryOptions.ts` |  | reached by both apps |
-| `features/trips/operations/shared/operationsEntryScreen.styles.ts` |  | reached by both apps |
-| `features/trips/operations/shared/OpsEntryBodyPhotoSlot.tsx` |  | reached by both apps |
-| `features/trips/operations/shared/tripExpenseEntryExit.util.ts` |  | reached by both apps |
 | `features/trips/operations/shared/tripOtherExpenseCategories.ts` |  | reached by both apps |
-| `features/trips/operations/shared/useExpenseBillCapture.ts` |  | reached by both apps |
-| `features/trips/operations/shared/useLeaveTripExpenseEntry.ts` |  | reached by both apps |
-| `features/trips/operations/state/useOperationsSyncState.ts` |  | reached by both apps |
-| `features/trips/operations/summary/TripOperationsSummary.tsx` |  | reached by both apps |
 | `features/trips/operations/timeline/timelineEvents.service.ts` |  | reached by both apps |
 | `features/trips/operations/toll/toll.service.ts` |  | reached by both apps |
-| `features/trips/operations/toll/TollEntryScreen.tsx` |  | reached by both apps |
 | `features/trips/operations/types.ts` |  | reached by both apps |
 | `features/trips/operations/uploads/photoUploads.ts` |  | reached by both apps |
-| `features/trips/operations/vehicle/syncPostedExpensesToOperationLedger.service.ts` |  | reached by both apps |
-| `features/trips/operations/vehicle/useVehicleOperationLedgerPipeline.ts` |  | reached by both apps |
-| `features/trips/operations/vehicle/useVehicleOperationsLedger.ts` |  | reached by both apps |
 | `features/trips/operations/vehicle/vehicleOperationsLedger.service.ts` |  | reached by both apps |
 | `features/trips/styles/assignmentShellShared.ts` |  | reached by both apps |
-| `features/trips/verification/applyOdometerScan.util.ts` |  | reached by both apps |
-| `features/trips/verification/components/OdometerEntryShell.tsx` |  | reached by both apps |
-| `features/trips/verification/components/OdometerKeypadFlow.tsx` |  | reached by both apps |
-| `features/trips/verification/components/OdometerNotesField.tsx` |  | reached by both apps |
-| `features/trips/verification/components/OdometerScanBanner.tsx` |  | reached by both apps |
 | `features/trips/verification/components/VerificationStatusChip.tsx` |  | reached by both apps |
-| `features/trips/verification/DistanceComparisonCard.tsx` |  | reached by both apps |
 | `features/trips/verification/GPSDistanceHook.ts` |  | reached by both apps |
-| `features/trips/verification/hooks/useHydrateOdometerPhotos.ts` |  | reached by both apps |
-| `features/trips/verification/hooks/useOdometerPhotoOcr.ts` |  | reached by both apps |
-| `features/trips/verification/hooks/useTripVerification.ts` |  | reached by both apps |
 | `features/trips/verification/hooks/useTripVerificationSync.ts` |  | reached by both apps |
-| `features/trips/verification/index.ts` |  | reached by both apps |
-| `features/trips/verification/OdometerEntryScreen.tsx` |  | reached by both apps |
-| `features/trips/verification/OdometerPhotoCapture.tsx` |  | reached by both apps |
-| `features/trips/verification/odometerPhotoOcr.service.ts` |  | reached by both apps |
-| `features/trips/verification/odometerScan.types.ts` |  | reached by both apps |
-| `features/trips/verification/OdometerStartEndScreen.tsx` |  | reached by both apps |
-| `features/trips/verification/OdometerTimelineEvent.tsx` |  | reached by both apps |
 | `features/trips/verification/offline/outbox.ts` |  | reached by both apps |
 | `features/trips/verification/offline/sync.ts` |  | reached by both apps |
 | `features/trips/verification/queries/useTripVerification.ts` |  | reached by both apps |
 | `features/trips/verification/selectors/verificationSelectors.ts` |  | reached by both apps |
-| `features/trips/verification/state/useVerificationSyncState.ts` |  | reached by both apps |
 | `features/trips/verification/state/verificationState.ts` |  | reached by both apps |
-| `features/trips/verification/TripVerificationSummary.tsx` |  | reached by both apps |
 | `features/trips/verification/types.ts` |  | reached by both apps |
 | `features/trips/verification/uploads/odometerUploads.ts` |  | reached by both apps |
 | `features/trips/verification/verification.service.ts` |  | reached by both apps |
@@ -2487,8 +2407,6 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `lib/contactPickerNative.ts` |  | reached by both apps |
 | `lib/contactPickerWeb.ts` |  | reached by both apps |
 | `lib/crashReporter.ts` |  | reached by both apps |
-| `lib/crypto/sha256.util.ts` |  | reached by both apps |
-| `lib/crypto/sha256File.util.ts` |  | reached by both apps |
 | `lib/dateRangePresets.ts` |  | reached by both apps |
 | `lib/driverInviteDeepLink.util.ts` |  | reached by both apps |
 | `lib/driverPerfMetrics.ts` |  | reached by both apps |
@@ -2502,8 +2420,6 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `lib/financePromoAssets.ts` |  | reached by both apps |
 | `lib/financePromoLottieAssets.ts` |  | reached by both apps |
 | `lib/firstLaunch.ts` |  | reached by both apps |
-| `lib/gemini/geminiVisionJson.util.ts` |  | reached by both apps |
-| `lib/gemini/resolveGeminiApiKey.util.ts` |  | reached by both apps |
 | `lib/globalId.ts` |  | reached by both apps |
 | `lib/globalSync/inboundProtocol.types.ts` |  | reached by both apps |
 | `lib/globalSync/inboundProtocol.util.ts` |  | reached by both apps |
@@ -2608,8 +2524,6 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `lib/platformShadow.ts` |  | reached by both apps |
 | `lib/platformViewStyle.util.ts` |  | reached by both apps |
 | `lib/pod/imageCompression.ts` |  | reached by both apps |
-| `lib/pod/ocr.ts` |  | reached by both apps |
-| `lib/pod/prompts.ts` |  | reached by both apps |
 | `lib/productRegistry.ts` |  | reached by both apps |
 | `lib/pulseInputChrome.ts` |  | reached by both apps |
 | `lib/pulseMascotIllustrations.ts` |  | reached by both apps |
@@ -2644,7 +2558,6 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `lib/usePaginatedScroll.ts` |  | reached by both apps |
 | `lib/usePreventScreenCapture.ts` |  | reached by both apps |
 | `lib/useSafeBack.ts` |  | reached by both apps |
-| `lib/useWebLayoutWidth.ts` |  | reached by both apps |
 | `lib/utils/lr.ts` |  | reached by both apps |
 | `lib/webKeyboard.ts` |  | reached by both apps |
 | `lib/webOverlayPortal.tsx` |  | reached by both apps |
@@ -2652,13 +2565,12 @@ These must be removed in Phase 1. `type` means a type-only import.
 | `lib/webViewportHeight.ts` |  | reached by both apps |
 | `lib/wizardLayout.util.ts` |  | reached by both apps |
 | `types/organization.ts` |  | reached by both apps |
-| `types/pod.ts` |  | reached by both apps |
 | `types/trip-views.ts` |  | reached by both apps |
 | `types/workspace.ts` |  | reached by both apps |
 
 ## MAIN_ONLY / MAIN_ADAPTER / DRIVER_ADAPTER / DELETE
 
-MAIN_ONLY: 1302 files, reached only by the main app. Not listed; they stay where they are.
+MAIN_ONLY: 1390 files, reached only by the main app. Not listed; they stay where they are.
 `MAIN_ADAPTER`, `DRIVER_ADAPTER` and `DELETE` are assigned by hand while resolving `REVIEW`.
 
 ## features/drivers split
@@ -2848,7 +2760,7 @@ Known (from `.github/workflows/architecture-check.yml`):
 
 | Imported area | Edges from driver seeds |
 |---|---:|
-| `features/trips` | 55 |
+| `features/trips` | 59 |
 | `constants/Theme.ts` | 49 |
 | `lib/queries` | 46 |
 | `features/drivers` | 44 |
@@ -2870,6 +2782,7 @@ Known (from `.github/workflows/architecture-check.yml`):
 | `lib/queryKeys.ts` | 4 |
 | `features/marketplace` | 4 |
 | `lib/formatEstimatedDuration.ts` | 4 |
+| `components/mobile-input` | 4 |
 | `lib/useSafeBack.ts` | 3 |
 | `constants/DriverLevels.ts` | 3 |
 | `lib/avatarUpload.ts` | 3 |
@@ -2893,7 +2806,6 @@ Known (from `.github/workflows/architecture-check.yml`):
 | `lib/color.ts` | 2 |
 | `lib/realtimeRegistry.ts` | 2 |
 | `features/finance` | 2 |
-| `components/mobile-input` | 2 |
 | `lib/uuidv7.ts` | 2 |
 | `components/AppLoadingSplash.tsx` | 1 |
 | `lib/driverInviteDeepLink.util.ts` | 1 |

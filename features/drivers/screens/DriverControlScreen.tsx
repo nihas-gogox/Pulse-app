@@ -37,8 +37,8 @@ import * as salaryRequestsService from "@/features/drivers/services/salaryReques
 import { getOptimalRoute } from "@/lib/routingService";
 import * as tripDocumentsService from "@/features/trips/services/tripDocuments.service";
 import * as tripsService from "@/features/trips/services/trips.service";
-import { useTripVerificationSync } from "@/features/trips/verification";
-import { useTripOperationsSync } from "@/features/trips/operations";
+import { useTripVerificationSync } from "@/features/trips/verification/hooks/useTripVerificationSync";
+import { useTripOperationsSync } from "@/features/trips/operations/hooks/useTripOperationsSync";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";

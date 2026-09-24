@@ -15922,7 +15922,7 @@
     },
     "components/full-page-wizard/fullPageWizardStyles.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -17817,12 +17817,24 @@
             "static",
             "type"
           ]
+        },
+        {
+          "from": "features/driver/components/MarketLoadBidSheet.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
+          "from": "features/reach/components/DriverDirectBidSheet.tsx",
+          "kinds": [
+            "static"
+          ]
         }
       ]
     },
     "components/mobile-input/FullscreenTextEntry.tsx": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -17926,7 +17938,7 @@
     },
     "components/mobile-input/NumericEntryPartyBanner.tsx": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -17981,6 +17993,12 @@
           ]
         },
         {
+          "from": "features/driver/components/MarketLoadBidSheet.tsx",
+          "kinds": [
+            "type"
+          ]
+        },
+        {
           "from": "features/indents/components/create-indent/CreateIndentNetworkTargetStep.tsx",
           "kinds": [
             "type"
@@ -17988,6 +18006,12 @@
         },
         {
           "from": "features/network/components/bidding/BidSheet.tsx",
+          "kinds": [
+            "type"
+          ]
+        },
+        {
+          "from": "features/reach/components/DriverDirectBidSheet.tsx",
           "kinds": [
             "type"
           ]
@@ -18172,6 +18196,18 @@
           "kinds": [
             "static",
             "type"
+          ]
+        },
+        {
+          "from": "features/driver/components/DriverGeneralExpenseScreen.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
+          "from": "features/drivers/screens/DriverSalaryRequestScreen.tsx",
+          "kinds": [
+            "static"
           ]
         }
       ]
@@ -18373,7 +18409,7 @@
     },
     "components/mobile-input/index.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -18502,24 +18538,6 @@
           ]
         },
         {
-          "from": "features/driver/components/DriverGeneralExpenseScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/driver/components/MarketLoadBidSheet.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/drivers/screens/DriverSalaryRequestScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
           "from": "features/indents/components/bidding/IndentBidAmountEntry.tsx",
           "kinds": [
             "static",
@@ -18535,12 +18553,6 @@
         },
         {
           "from": "features/network/components/bidding/BidSheet.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/reach/components/DriverDirectBidSheet.tsx",
           "kinds": [
             "static"
           ]
@@ -18671,6 +18683,12 @@
           ]
         },
         {
+          "from": "features/driver/components/MarketLoadBidSheet.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
           "from": "features/indents/components/create-indent/CreateIndentNetworkTargetStep.tsx",
           "kinds": [
             "static"
@@ -18684,6 +18702,12 @@
         },
         {
           "from": "features/onboarding/components/OnboardingKeypadStep.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
+          "from": "features/reach/components/DriverDirectBidSheet.tsx",
           "kinds": [
             "static"
           ]
@@ -19078,7 +19102,7 @@
     },
     "components/operational/MetricDisplay.tsx": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -19104,7 +19128,7 @@
     },
     "components/operational/OperationalBottomActionBar.tsx": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -19131,7 +19155,7 @@
     },
     "components/operational/OperationalButton.tsx": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -19170,7 +19194,7 @@
     },
     "components/operational/OperationalChipSelect.tsx": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -19197,7 +19221,7 @@
     },
     "components/operational/OperationalEmptyState.tsx": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -19230,7 +19254,7 @@
     },
     "components/operational/OperationalHeader.tsx": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -19257,7 +19281,7 @@
     },
     "components/operational/OperationalListRow.tsx": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -19290,7 +19314,7 @@
     },
     "components/operational/OperationalSkeleton.tsx": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -19317,7 +19341,7 @@
     },
     "components/operational/Surface.tsx": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -19344,7 +19368,7 @@
     },
     "components/operational/index.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -19545,7 +19569,7 @@
     },
     "components/operational/useOperationalDensity.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -28246,7 +28270,7 @@
     },
     "contexts/ActiveWorkspaceContext.tsx": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -42976,12 +43000,9 @@
           ]
         },
         {
-          "to": "features/operations/display/index.ts",
+          "to": "features/operations/display/operationalDisplay.ts",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "features/operations/display/operationalDisplay.ts"
           ]
         }
       ],
@@ -53102,12 +53123,9 @@
       "reactQuery": false,
       "imports": [
         {
-          "to": "components/mobile-input/index.ts",
+          "to": "components/mobile-input/SmartInput.tsx",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "components/mobile-input/SmartInput.tsx"
           ]
         },
         {
@@ -53294,7 +53312,7 @@
           ]
         },
         {
-          "to": "features/finance/index.ts",
+          "to": "features/finance/domain/tripCostEvent.ts",
           "kinds": [
             "type"
           ]
@@ -53442,21 +53460,33 @@
           ]
         },
         {
-          "to": "features/trips/domain/index.ts",
+          "to": "features/trips/domain/tripJourneyMetrics.ts",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "features/trips/domain/tripAlertActions.ts",
-            "features/trips/domain/tripExecutionModel.ts",
-            "features/trips/domain/tripJourneyMetrics.ts",
-            "features/trips/domain/tripOperationalAlerts.ts",
-            "features/trips/domain/tripStage.ts",
-            "features/trips/domain/tripStageEta.ts",
-            "features/trips/domain/tripStageGuidance.ts",
-            "features/trips/domain/tripStageMetadata.ts",
-            "features/trips/domain/tripStageMetrics.ts",
-            "features/trips/domain/tripTimeline.ts"
+          ]
+        },
+        {
+          "to": "features/trips/domain/tripOperationalAlerts.ts",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
+          "to": "features/trips/domain/tripStage.ts",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
+          "to": "features/trips/domain/tripStageMetadata.ts",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
+          "to": "features/trips/domain/tripStageMetrics.ts",
+          "kinds": [
+            "static"
           ]
         },
         {
@@ -53775,12 +53805,9 @@
           ]
         },
         {
-          "to": "features/trips/verification/index.ts",
+          "to": "features/trips/verification/hooks/useTripVerificationSync.ts",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "features/trips/verification/hooks/useTripVerificationSync.ts"
           ]
         },
         {
@@ -54024,13 +54051,21 @@
       "reactQuery": false,
       "imports": [
         {
-          "to": "components/mobile-input/index.ts",
+          "to": "components/mobile-input/FullscreenNumericEntry.tsx",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "components/mobile-input/FullscreenNumericEntry.tsx",
-            "components/mobile-input/keypad.ts"
+          ]
+        },
+        {
+          "to": "components/mobile-input/NumericEntryPartyBanner.tsx",
+          "kinds": [
+            "type"
+          ]
+        },
+        {
+          "to": "components/mobile-input/keypad.ts",
+          "kinds": [
+            "static"
           ]
         },
         {
@@ -58654,12 +58689,9 @@
           ]
         },
         {
-          "to": "features/operations/display/index.ts",
+          "to": "features/operations/display/operationalDisplay.ts",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "features/operations/display/operationalDisplay.ts"
           ]
         }
       ],
@@ -58768,21 +58800,9 @@
           ]
         },
         {
-          "to": "features/trips/domain/index.ts",
+          "to": "features/trips/domain/tripStage.ts",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "features/trips/domain/tripAlertActions.ts",
-            "features/trips/domain/tripExecutionModel.ts",
-            "features/trips/domain/tripJourneyMetrics.ts",
-            "features/trips/domain/tripOperationalAlerts.ts",
-            "features/trips/domain/tripStage.ts",
-            "features/trips/domain/tripStageEta.ts",
-            "features/trips/domain/tripStageGuidance.ts",
-            "features/trips/domain/tripStageMetadata.ts",
-            "features/trips/domain/tripStageMetrics.ts",
-            "features/trips/domain/tripTimeline.ts"
           ]
         }
       ],
@@ -61784,21 +61804,15 @@
           ]
         },
         {
-          "to": "features/trips/verification/index.ts",
+          "to": "features/trips/verification/hooks/useTripVerificationSync.ts",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "features/trips/verification/hooks/useTripVerificationSync.ts"
           ]
         },
         {
-          "to": "features/trips/operations/index.ts",
+          "to": "features/trips/operations/hooks/useTripOperationsSync.ts",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "features/trips/operations/hooks/useTripOperationsSync.ts"
           ]
         }
       ],
@@ -62239,21 +62253,21 @@
           ]
         },
         {
-          "to": "features/trips/domain/index.ts",
+          "to": "features/trips/domain/tripStage.ts",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "features/trips/domain/tripAlertActions.ts",
-            "features/trips/domain/tripExecutionModel.ts",
-            "features/trips/domain/tripJourneyMetrics.ts",
-            "features/trips/domain/tripOperationalAlerts.ts",
-            "features/trips/domain/tripStage.ts",
-            "features/trips/domain/tripStageEta.ts",
-            "features/trips/domain/tripStageGuidance.ts",
-            "features/trips/domain/tripStageMetadata.ts",
-            "features/trips/domain/tripStageMetrics.ts",
-            "features/trips/domain/tripTimeline.ts"
+          ]
+        },
+        {
+          "to": "features/trips/domain/tripStageEta.ts",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
+          "to": "features/trips/domain/tripStageGuidance.ts",
+          "kinds": [
+            "static"
           ]
         },
         {
@@ -63241,12 +63255,9 @@
           ]
         },
         {
-          "to": "components/mobile-input/index.ts",
+          "to": "components/mobile-input/SmartInput.tsx",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "components/mobile-input/SmartInput.tsx"
           ]
         }
       ],
@@ -71956,6 +71967,12 @@
       "imports": [],
       "importedBy": [
         {
+          "from": "features/driver/components/DriverTripExpenseLogSection.tsx",
+          "kinds": [
+            "type"
+          ]
+        },
+        {
           "from": "features/finance/index.ts",
           "kinds": [
             "type"
@@ -71999,6 +72016,12 @@
         },
         {
           "from": "features/finance/selectors/tripAccountingSelectors.ts",
+          "kinds": [
+            "type"
+          ]
+        },
+        {
+          "from": "features/trips/operations/hub/ExpenseEntryDetailPanel.tsx",
           "kinds": [
             "type"
           ]
@@ -72700,12 +72723,6 @@
           ]
         },
         {
-          "from": "features/driver/components/DriverTripExpenseLogSection.tsx",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
           "from": "features/drivers/components/DriverDetailScreen.tsx",
           "kinds": [
             "static"
@@ -72803,12 +72820,6 @@
           "from": "features/trips/components/trip-detail/TripDetailScreen.tsx",
           "kinds": [
             "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/hub/ExpenseEntryDetailPanel.tsx",
-          "kinds": [
-            "type"
           ]
         },
         {
@@ -76461,8 +76472,8 @@
       ]
     },
     "features/identity/avatars/IdentityAvatar.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -76493,33 +76504,6 @@
         }
       ]
     },
-    "features/identity/cache/identityCache.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/identity/types.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/identity/queries/useIdentityQuery.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/identity/hooks/useResolvedIdentity.ts": {
       "inDriver": false,
       "inDriverRuntime": false,
@@ -76541,8 +76525,8 @@
       "importedBy": []
     },
     "features/identity/index.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -76586,8 +76570,8 @@
       ]
     },
     "features/identity/queries/useIdentityQuery.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -76673,8 +76657,8 @@
       ]
     },
     "features/identity/selectors/identitySelectors.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -76718,8 +76702,8 @@
       ]
     },
     "features/identity/trust/trustModel.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -76750,76 +76734,6 @@
         },
         {
           "from": "features/identity/selectors/identitySelectors.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/identity/types.ts": {
-      "inDriver": true,
-      "inDriverRuntime": false,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "features/identity/avatars/IdentityAvatar.tsx",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/identity/cache/identityCache.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/identity/index.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/identity/queries/useIdentityQuery.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/identity/selectors/identitySelectors.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/identity/trust/trustModel.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ]
-    },
-    "features/identity/utils/identityUtils.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "features/identity/queries/useIdentityQuery.ts",
           "kinds": [
             "static"
           ]
@@ -95653,256 +95567,6 @@
         }
       ]
     },
-    "features/ocr/constants/ocr.constants.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/ocr/utils/ocrConfidenceReview.util.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/ocr/constants/pulseScanEngine.constants.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/index.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/services/ocrJobProcessor.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/utils/ocrRescan.util.test.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/utils/ocrRescan.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/hooks/useOdometerPhotoOcr.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/ocr/constants/pulseScanEngine.constants.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/ocr/constants/ocr.constants.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/types/ocr.types.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/ocr/index.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/services/pulseScanEngine.service.ts",
-          "kinds": [
-            "type",
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/ocr/hooks/useOcrJobPoll.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/ocr/services/ocrJob.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/types/ocr.types.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/shared/useExpenseBillCapture.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/hooks/useOdometerPhotoOcr.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/ocr/index.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/ocr/services/ocrJob.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/services/ocrJobProcessor.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/services/pulseScanEngine.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/services/ocrQuota.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/services/vehicleOdometerEvent.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/types/ocr.types.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "to": "features/ocr/constants/ocr.constants.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/constants/pulseScanEngine.constants.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/utils/ocrRescan.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/utils/ocrConfidenceReview.util.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/pod-reconciliation/components/PodValidationView.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/useExpenseBillCapture.ts",
-          "kinds": [
-            "static",
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/services/lrDocumentOcr.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/hooks/useHydrateOdometerPhotos.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/hooks/useOdometerPhotoOcr.ts",
-          "kinds": [
-            "static",
-            "type"
-          ]
-        },
-        {
-          "from": "lib/queries/useOcrMetricsQuery.ts",
-          "kinds": [
-            "static",
-            "type"
-          ]
-        }
-      ]
-    },
     "features/ocr/services/ocrJob.service.ts": {
       "inDriver": true,
       "inDriverRuntime": true,
@@ -95955,244 +95619,6 @@
         },
         {
           "from": "features/trips/verification/queries/useTripVerification.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/ocr/services/ocrJobProcessor.service.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/ocr/constants/ocr.constants.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/services/ocrJob.service.ts",
-          "kinds": [
-            "static",
-            "dynamic"
-          ]
-        },
-        {
-          "to": "features/ocr/services/ocrQuota.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/services/vehicleOdometerEvent.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/types/ocr.types.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "to": "features/ocr/utils/ocrRescan.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/utils/ocrNotification.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/utils/ocrConfidenceReview.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/expenseReceiptOcr.service.ts",
-          "kinds": [
-            "static",
-            "type",
-            "dynamic"
-          ]
-        },
-        {
-          "to": "features/trips/verification/odometerPhotoOcr.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "lib/pod/ocr.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "lib/crypto/sha256File.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "types/pod.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/ocr/index.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/services/pulseScanEngine.service.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/ocr/services/ocrQuota.service.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": true,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "lib/supabase.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/ocr/index.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/services/ocrJobProcessor.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/services/pulseScanEngine.service.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/ocr/services/pulseScanEngine.service.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/ocr/services/ocrJobProcessor.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/services/ocrQuota.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/constants/pulseScanEngine.constants.ts",
-          "kinds": [
-            "type",
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/types/ocr.types.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/ocr/index.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/ocr/services/vehicleOdometerEvent.service.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": true,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "lib/supabase.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/types/ocr.types.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "to": "features/trips/verification/odometerPhotoOcr.service.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/ocr/index.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/services/ocrJobProcessor.service.ts",
           "kinds": [
             "static"
           ]
@@ -96275,134 +95701,6 @@
           "from": "features/trips/services/lrDocumentOcr.util.ts",
           "kinds": [
             "type"
-          ]
-        }
-      ]
-    },
-    "features/ocr/utils/ocrConfidenceReview.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "features/ocr/constants/ocr.constants.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/index.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/services/ocrJobProcessor.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/utils/ocrNotification.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/useExpenseBillCapture.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/hooks/useOdometerPhotoOcr.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/ocr/utils/ocrNotification.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/ocr/types/ocr.types.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "to": "features/ocr/utils/ocrConfidenceReview.util.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/ocr/services/ocrJobProcessor.service.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/ocr/utils/ocrRescan.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/ocr/types/ocr.types.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "to": "features/ocr/constants/ocr.constants.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/ocr/index.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/services/ocrJobProcessor.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/utils/ocrRescan.util.test.ts",
-          "kinds": [
-            "static"
           ]
         }
       ]
@@ -97352,7 +96650,7 @@
     },
     "features/operations/control-center/queries/controlCenter.service.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -97469,7 +96767,7 @@
     },
     "features/operations/control-center/selectors/buildQueueSections.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -97502,7 +96800,7 @@
     },
     "features/operations/control-center/types.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -97595,12 +96893,6 @@
           ]
         },
         {
-          "from": "features/chat/contexts/DriverChatContext.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
           "from": "features/chat/services/chat.service.ts",
           "kinds": [
             "static"
@@ -97626,12 +96918,6 @@
         },
         {
           "from": "features/clients/components/clientProfileLedgerTrip.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/driver/utils/driverTripSequence.util.ts",
           "kinds": [
             "static"
           ]
@@ -97842,6 +97128,18 @@
       "reactQuery": false,
       "imports": [],
       "importedBy": [
+        {
+          "from": "features/chat/contexts/DriverChatContext.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
+          "from": "features/driver/utils/driverTripSequence.util.ts",
+          "kinds": [
+            "static"
+          ]
+        },
         {
           "from": "features/operations/display/index.ts",
           "kinds": [
@@ -98080,8 +97378,8 @@
       ]
     },
     "features/operations/observability/index.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -98150,7 +97448,7 @@
     },
     "features/operations/observability/operationalHealthEngine.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -98200,8 +97498,8 @@
       ]
     },
     "features/operations/observability/operationsObservability.service.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -98246,7 +97544,7 @@
     },
     "features/operations/observability/postingHealth.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -98279,7 +97577,7 @@
     },
     "features/operations/observability/queueHealth.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -98312,7 +97610,7 @@
     },
     "features/operations/observability/syncHealth.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -98345,7 +97643,7 @@
     },
     "features/operations/observability/useOperationalHealthSnapshot.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -98383,8 +97681,8 @@
       ]
     },
     "features/operations/observability/useOperationalObservability.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -100178,7 +99476,7 @@
     },
     "features/organization/services/members.service.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -100497,7 +99795,7 @@
     },
     "features/organization/services/teamInvitePrecheck.service.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -100774,7 +100072,7 @@
     },
     "features/organization/utils/teamInviteRoles.util.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -102698,13 +101996,21 @@
       "reactQuery": false,
       "imports": [
         {
-          "to": "components/mobile-input/index.ts",
+          "to": "components/mobile-input/FullscreenNumericEntry.tsx",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "components/mobile-input/FullscreenNumericEntry.tsx",
-            "components/mobile-input/keypad.ts"
+          ]
+        },
+        {
+          "to": "components/mobile-input/NumericEntryPartyBanner.tsx",
+          "kinds": [
+            "type"
+          ]
+        },
+        {
+          "to": "components/mobile-input/keypad.ts",
+          "kinds": [
+            "static"
           ]
         },
         {
@@ -118612,7 +117918,7 @@
     },
     "features/trips/components/trip-detail/completedTripInitialLoad.util.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -119837,24 +119143,6 @@
       ],
       "importedBy": [
         {
-          "from": "features/driver/components/DriverTripFlowCard.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/driver/utils/driverTripStatusNotes.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/drivers/screens/DriverHomeScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
           "from": "features/trips/components/trip-detail/TripStageControlPanel.tsx",
           "kinds": [
             "static"
@@ -120280,6 +119568,12 @@
       ],
       "importedBy": [
         {
+          "from": "features/driver/components/DriverTripFlowCard.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
           "from": "features/trips/components/trip-detail/TripDetailScreen.tsx",
           "kinds": [
             "static"
@@ -120412,6 +119706,12 @@
       ],
       "importedBy": [
         {
+          "from": "features/driver/components/DriverTripFlowCard.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
           "from": "features/driver/utils/driverAlertGuidance.util.ts",
           "kinds": [
             "type"
@@ -120469,6 +119769,24 @@
       ],
       "importedBy": [
         {
+          "from": "features/driver/components/DriverTripFlowCard.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
+          "from": "features/driver/utils/driverTripStatusNotes.util.ts",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
+          "from": "features/drivers/screens/DriverHomeScreen.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
           "from": "features/trips/domain/index.ts",
           "kinds": [
             "static"
@@ -120513,6 +119831,12 @@
       "imports": [],
       "importedBy": [
         {
+          "from": "features/drivers/screens/DriverHomeScreen.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
           "from": "features/trips/domain/index.ts",
           "kinds": [
             "static"
@@ -120546,6 +119870,12 @@
       ],
       "importedBy": [
         {
+          "from": "features/drivers/screens/DriverHomeScreen.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
           "from": "features/trips/domain/index.ts",
           "kinds": [
             "static"
@@ -120572,6 +119902,12 @@
         }
       ],
       "importedBy": [
+        {
+          "from": "features/driver/components/DriverTripFlowCard.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
         {
           "from": "features/trips/domain/index.ts",
           "kinds": [
@@ -120637,6 +119973,12 @@
         }
       ],
       "importedBy": [
+        {
+          "from": "features/driver/components/DriverTripFlowCard.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
         {
           "from": "features/trips/components/trip-detail/TripDetailScreen.tsx",
           "kinds": [
@@ -121357,8 +120699,8 @@
       ]
     },
     "features/trips/operations/fuel/FuelEntryScreen.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -121686,8 +121028,8 @@
       ]
     },
     "features/trips/operations/health/operationalHealth.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -121751,6 +121093,12 @@
       ],
       "importedBy": [
         {
+          "from": "features/drivers/screens/DriverControlScreen.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
           "from": "features/trips/operations/hub/TripExpensesScreen.tsx",
           "kinds": [
             "static"
@@ -121782,7 +121130,7 @@
           ]
         },
         {
-          "to": "features/finance/index.ts",
+          "to": "features/finance/domain/tripCostEvent.ts",
           "kinds": [
             "type"
           ]
@@ -121810,8 +121158,8 @@
       ]
     },
     "features/trips/operations/hub/ExpensePreviewSheet.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -121855,8 +121203,8 @@
       ]
     },
     "features/trips/operations/hub/OperationsHub.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -122045,8 +121393,8 @@
       "importedBy": []
     },
     "features/trips/operations/hub/TripExpensesScreen.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -122177,8 +121525,8 @@
       ]
     },
     "features/trips/operations/index.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -122312,12 +121660,6 @@
       ],
       "importedBy": [
         {
-          "from": "features/drivers/screens/DriverControlScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
           "from": "features/trips/components/trip-detail/TripDetailScreen.tsx",
           "kinds": [
             "static"
@@ -122325,39 +121667,6 @@
         },
         {
           "from": "features/vehicles/components/VehicleOperationsHub.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/maintenance/index.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/trips/operations/maintenance/maintenance.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/maintenance/useTripMaintenance.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/index.ts",
           "kinds": [
             "static"
           ]
@@ -122421,48 +121730,9 @@
         }
       ]
     },
-    "features/trips/operations/maintenance/useTripMaintenance.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": true,
-      "imports": [
-        {
-          "to": "features/trips/operations/uploads/photoUploads.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/types.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "to": "features/trips/operations/maintenance/maintenance.service.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/maintenance/index.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/operations/metrics/operationsMetrics.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -122678,8 +121948,8 @@
       ]
     },
     "features/trips/operations/other/OtherExpenseEntryScreen.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -123252,81 +122522,6 @@
         }
       ]
     },
-    "features/trips/operations/reimbursement/index.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/trips/operations/reimbursement/reimbursementState.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/reimbursement/reimbursementSelectors.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/reimbursement/reimbursement.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/reimbursement/reimbursementEngine.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/reimbursement/reimbursementTimeline.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/reimbursement/reimbursementMetrics.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/reimbursement/useReimbursementQueue.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/reimbursement/driverExpenseRequest.service.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/hub/OperationsHub.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/index.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/operations/reimbursement/reimbursement.service.ts": {
       "inDriver": true,
       "inDriverRuntime": true,
@@ -123386,7 +122581,7 @@
     },
     "features/trips/operations/reimbursement/reimbursementEngine.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -123431,7 +122626,7 @@
     },
     "features/trips/operations/reimbursement/reimbursementMetrics.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -123456,33 +122651,6 @@
         },
         {
           "from": "features/trips/operations/reimbursement/useReimbursementQueue.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/reimbursement/reimbursementSelectors.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/trips/operations/types.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/reimbursement/index.ts",
           "kinds": [
             "static"
           ]
@@ -123522,36 +122690,9 @@
         }
       ]
     },
-    "features/trips/operations/reimbursement/reimbursementTimeline.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/trips/operations/reimbursement/reimbursementEngine.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/reimbursement/index.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/operations/reimbursement/useReimbursementQueue.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -123621,117 +122762,9 @@
         }
       ]
     },
-    "features/trips/operations/shared/DriverExpenseCategorySwitch.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": true,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/trips/operations/shared/DriverExpenseChipSelect.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/driverExpenseCategoryNav.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/types.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/fuel/FuelEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/other/OtherExpenseEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/toll/TollEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/shared/DriverExpenseChipSelect.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": true,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "constants/Theme.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "constants/Typography.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/driverExpenseChipVisuals.util.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/fuel/FuelEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/other/OtherExpenseEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/DriverExpenseCategorySwitch.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/toll/TollEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/operations/shared/DriverExpenseEntryLayout.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -123823,8 +122856,8 @@
       ]
     },
     "features/trips/operations/shared/DriverOpsEntryFooter.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -123942,54 +122975,9 @@
         }
       ]
     },
-    "features/trips/operations/shared/ExpenseBillPhotoScan.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": true,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "constants/Theme.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/expenseBillScan.types.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/fuel/FuelEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/other/OtherExpenseEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/toll/TollEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/operations/shared/ExpenseBillScanBanner.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -124038,170 +123026,6 @@
       "importedBy": [
         {
           "from": "features/trips/operations/shared/DriverExpenseEntryLayout.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/shared/ExpenseBillScanOverlay.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": true,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/shared/DriverExpenseEntryLayout.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/OpsEntryBodyPhotoSlot.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/OdometerPhotoCapture.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/components/OdometerBodyCaptureRow.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/components/OdometerEntryShell.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/shared/OpsEntryBodyPhotoSlot.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": true,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "constants/Theme.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "constants/Typography.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/ExpenseBillScanOverlay.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/shared/DriverExpenseEntryLayout.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/OpsEntryBodyPhotoPreview.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/OdometerEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/OdometerStartEndScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/shared/applyExpenseReceiptOcr.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/trips/operations/shared/expenseReceiptOcr.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/tripOtherExpenseCategories.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/expenseBillScan.types.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "to": "features/trips/operations/types.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/fuel/FuelEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/other/OtherExpenseEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/useExpenseBillCapture.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/toll/TollEntryScreen.tsx",
           "kinds": [
             "static"
           ]
@@ -124307,102 +123131,6 @@
         }
       ]
     },
-    "features/trips/operations/shared/driverExpenseChipVisuals.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "constants/Theme.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/types.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/shared/DriverExpenseChipSelect.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/shared/driverOpsEntry.styles.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "constants/Layout.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "constants/Theme.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "constants/Typography.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/shared/DriverExpenseEntryLayout.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/DriverOpsEntryFooter.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/ExpenseBillScanBanner.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/components/OdometerEntryShell.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/components/OdometerScanBanner.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/operations/shared/driverReimbursementEvents.util.ts": {
       "inDriver": true,
       "inDriverRuntime": true,
@@ -124436,76 +123164,6 @@
         },
         {
           "from": "features/trips/operations/shared/expensePreview.util.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/shared/expenseBillScan.constants.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/shared/ExpenseBillScanBanner.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/useExpenseBillCapture.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/shared/expenseBillScan.types.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/shared/DriverExpenseEntryLayout.tsx",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/ExpenseBillPhotoScan.tsx",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/ExpenseBillScanBanner.tsx",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/applyExpenseReceiptOcr.util.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/useExpenseBillCapture.ts",
           "kinds": [
             "static"
           ]
@@ -124570,8 +123228,8 @@
       ]
     },
     "features/trips/operations/shared/expenseEntryPartyPreview.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -124689,115 +123347,6 @@
         }
       ]
     },
-    "features/trips/operations/shared/expenseReceiptOcr.parse.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/shared/expenseReceiptOcr.service.test.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/expenseReceiptOcr.service.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/shared/expenseReceiptOcr.service.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "lib/gemini/geminiVisionJson.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/uploads/photoUploads.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/types.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/expenseReceiptOcr.parse.util.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/ocr/services/ocrJobProcessor.service.ts",
-          "kinds": [
-            "static",
-            "type",
-            "dynamic"
-          ]
-        },
-        {
-          "from": "features/trips/operations/fuel/FuelEntryScreen.tsx",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/operations/other/OtherExpenseEntryScreen.tsx",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/applyExpenseReceiptOcr.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/expenseReceiptOcr.service.test.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/useExpenseBillCapture.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/toll/TollEntryScreen.tsx",
-          "kinds": [
-            "type"
-          ]
-        }
-      ]
-    },
     "features/trips/operations/shared/operationsEntryOptions.ts": {
       "inDriver": true,
       "inDriverRuntime": true,
@@ -124867,45 +123416,6 @@
         }
       ]
     },
-    "features/trips/operations/shared/operationsEntryScreen.styles.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "constants/Theme.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/fuel/FuelEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/other/OtherExpenseEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/toll/TollEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/operations/shared/resolveExpenseEntryKind.util.ts": {
       "inDriver": false,
       "inDriverRuntime": false,
@@ -124951,39 +123461,6 @@
       "importedBy": [
         {
           "from": "features/trips/operations/shared/DriverUnifiedExpenseEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/shared/tripExpenseEntryExit.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "lib/routes.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/shared/__tests__/useLeaveTripExpenseEntry.test.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/useLeaveTripExpenseEntry.ts",
           "kinds": [
             "static"
           ]
@@ -125065,190 +123542,9 @@
         }
       ]
     },
-    "features/trips/operations/shared/useExpenseBillCapture.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/ocr/index.ts",
-          "kinds": [
-            "static",
-            "type"
-          ],
-          "barrelTargets": [
-            "features/ocr/services/ocrJobProcessor.service.ts"
-          ]
-        },
-        {
-          "to": "features/ocr/hooks/useOcrJobPoll.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/utils/ocrConfidenceReview.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "lib/media/captureImage.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/applyExpenseReceiptOcr.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/expenseReceiptOcr.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/expenseBillScan.constants.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/expenseBillScan.types.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/fuel/FuelEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/other/OtherExpenseEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/shared/DriverUnifiedExpenseEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/toll/TollEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/shared/useLeaveTripExpenseEntry.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "lib/useSafeBack.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/tripExpenseEntryExit.util.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "app/trip/[id]/operations/other.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/fuel/FuelEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/hub/TripExpenseLauncherScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/other/OtherExpenseEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/toll/TollEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/state/useOperationsSyncState.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/trips/operations/offline/outbox.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/fuel/FuelEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/toll/TollEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/operations/summary/TripOperationsSummary.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -125417,8 +123713,8 @@
       ]
     },
     "features/trips/operations/toll/TollEntryScreen.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -126044,8 +124340,8 @@
       ]
     },
     "features/trips/operations/vehicle/syncPostedExpensesToOperationLedger.service.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -126076,96 +124372,6 @@
       "importedBy": [
         {
           "from": "features/trips/operations/hub/TripExpensesScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/vehicle/useVehicleOperationLedgerPipeline.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": true,
-      "imports": [
-        {
-          "to": "lib/queryClient.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "lib/queryKeys.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/types.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "to": "features/trips/operations/vehicle/vehicleOperationsLedger.service.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/index.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/operations/vehicle/useVehicleOperationsLedger.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": true,
-      "imports": [
-        {
-          "to": "lib/queryClient.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "lib/queryKeys.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/vehicle/vehicleOperationsLedger.service.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/hub/OperationsHub.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/index.ts",
           "kinds": [
             "static"
           ]
@@ -131490,45 +129696,6 @@
         }
       ]
     },
-    "features/trips/verification/DistanceComparisonCard.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": true,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "constants/Theme.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/verification/TripVerificationSummary.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/components/DistanceComparisonCard.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/index.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/verification/GPSDistanceHook.ts": {
       "inDriver": true,
       "inDriverRuntime": true,
@@ -131581,8 +129748,8 @@
       ]
     },
     "features/trips/verification/OdometerEntryScreen.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -131715,57 +129882,9 @@
         }
       ]
     },
-    "features/trips/verification/OdometerPhotoCapture.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": true,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "constants/Theme.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "components/operational/index.ts",
-          "kinds": [
-            "static"
-          ],
-          "barrelTargets": [
-            "components/operational/OperationalButton.tsx"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/ExpenseBillScanOverlay.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/verification/components/OdometerPhotoCapture.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/index.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/verification/OdometerStartEndScreen.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -131886,42 +130005,9 @@
         }
       ]
     },
-    "features/trips/verification/OdometerTimelineEvent.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": true,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "constants/Theme.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/verification/components/OdometerTimelineEvent.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/index.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/verification/TripVerificationSummary.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -132049,117 +130135,9 @@
         }
       ]
     },
-    "features/trips/verification/applyOdometerScan.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/trips/verification/odometerScan.types.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/verification/OdometerEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/OdometerStartEndScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/__tests__/applyOdometerScan.util.test.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/hooks/useOdometerPhotoOcr.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/verification/components/OdometerEntryShell.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": true,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "constants/Layout.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "constants/Theme.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/ExpenseBillScanOverlay.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/driverOpsEntry.styles.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "lib/hooks/useKeyboardVisible.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/verification/odometerScan.types.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/verification/OdometerEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/OdometerStartEndScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/verification/components/OdometerKeypadFlow.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -132220,102 +130198,6 @@
         },
         {
           "from": "features/trips/verification/OdometerStartEndScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/verification/components/OdometerNotesField.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": true,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "components/mobile-input/FullscreenTextEntry.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "constants/Theme.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/verification/OdometerEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/OdometerStartEndScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/verification/components/OdometerScanBanner.tsx": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": true,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "constants/Theme.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "constants/Typography.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/shared/driverOpsEntry.styles.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/verification/odometerScan.types.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/verification/OdometerEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/OdometerStartEndScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/components/OdometerBodyCaptureRow.tsx",
           "kinds": [
             "static"
           ]
@@ -132408,8 +130290,8 @@
       "importedBy": []
     },
     "features/trips/verification/hooks/useHydrateOdometerPhotos.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -132455,91 +130337,9 @@
         }
       ]
     },
-    "features/trips/verification/hooks/useOdometerPhotoOcr.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/ocr/index.ts",
-          "kinds": [
-            "static",
-            "type"
-          ],
-          "barrelTargets": [
-            "features/ocr/constants/ocr.constants.ts",
-            "features/ocr/services/ocrJobProcessor.service.ts",
-            "features/ocr/utils/ocrRescan.util.ts"
-          ]
-        },
-        {
-          "to": "features/ocr/hooks/useOcrJobPoll.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/ocr/utils/ocrConfidenceReview.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "lib/media/captureImage.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/verification/applyOdometerScan.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/verification/odometerPhotoOcr.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/verification/odometerScan.types.ts",
-          "kinds": [
-            "static",
-            "type"
-          ]
-        },
-        {
-          "to": "features/ocr/constants/ocr.constants.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/verification/OdometerEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/OdometerStartEndScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "features/trips/verification/hooks/useTripVerification.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -132614,6 +130414,18 @@
       ],
       "importedBy": [
         {
+          "from": "features/driver/components/DriverTripHistoryDetailScreen.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
+          "from": "features/drivers/screens/DriverControlScreen.tsx",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
           "from": "features/trips/verification/hooks/index.ts",
           "kinds": [
             "static"
@@ -132628,8 +130440,8 @@
       ]
     },
     "features/trips/verification/index.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriver": false,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -132731,117 +130543,9 @@
           ]
         },
         {
-          "from": "features/driver/components/DriverTripHistoryDetailScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/drivers/screens/DriverControlScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
           "from": "features/trips/components/trip-detail/TripDetailScreen.tsx",
           "kinds": [
             "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/verification/odometerPhotoOcr.service.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "lib/gemini/geminiVisionJson.util.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "features/trips/operations/uploads/photoUploads.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/ocr/services/ocrJobProcessor.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/ocr/services/vehicleOdometerEvent.service.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/verification/hooks/useOdometerPhotoOcr.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/verification/odometerScan.types.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "features/trips/verification/applyOdometerScan.util.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/verification/components/OdometerBodyCaptureRow.tsx",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/verification/components/OdometerEntryShell.tsx",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/verification/components/OdometerFieldPhotoScan.tsx",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/verification/components/OdometerScanBanner.tsx",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/trips/verification/hooks/useOdometerPhotoOcr.ts",
-          "kinds": [
-            "static",
-            "type"
           ]
         }
       ]
@@ -133205,45 +130909,6 @@
         },
         {
           "from": "features/trips/verification/queries/useTripVerification.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "features/trips/verification/state/useVerificationSyncState.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "features/trips/verification/offline/outbox.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/verification/OdometerEntryScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/OdometerStartEndScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/hooks/useTripVerification.ts",
           "kinds": [
             "static"
           ]
@@ -138151,7 +135816,7 @@
     },
     "lib/capabilities.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -138699,53 +136364,6 @@
         },
         {
           "from": "lib/logger.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "lib/crypto/sha256.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "lib/crypto/sha256File.util.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "lib/crypto/sha256File.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "lib/crypto/sha256.util.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/ocr/services/ocrJobProcessor.service.ts",
           "kinds": [
             "static"
           ]
@@ -140870,59 +138488,6 @@
         },
         {
           "from": "features/trips/utils/manifestEta.util.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "lib/gemini/geminiVisionJson.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "lib/gemini/resolveGeminiApiKey.util.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/shared/expenseReceiptOcr.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/odometerPhotoOcr.service.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "lib/gemini/resolveGeminiApiKey.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "lib/gemini/geminiVisionJson.util.ts",
           "kinds": [
             "static"
           ]
@@ -144512,32 +142077,6 @@
         }
       ]
     },
-    "lib/media/captureImage.util.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "features/trips/operations/shared/useExpenseBillCapture.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/verification/hooks/useOdometerPhotoOcr.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
     "lib/media/compressLocalImage.util.ts": {
       "inDriver": true,
       "inDriverRuntime": true,
@@ -144579,7 +142118,7 @@
     },
     "lib/memberSurfaces.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -145155,7 +142694,7 @@
     },
     "lib/onboarding/membershipTypes.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -146328,7 +143867,7 @@
     },
     "lib/platform-identity/types/workspace.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -146374,7 +143913,7 @@
     },
     "lib/platform-identity/workspace/workspaceContextStore.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -146485,6 +144024,12 @@
         },
         {
           "from": "lib/platform/repositories/warehouseRepository.ts",
+          "kinds": [
+            "static"
+          ]
+        },
+        {
+          "from": "lib/supabase.ts",
           "kinds": [
             "static"
           ]
@@ -146842,12 +144387,6 @@
         },
         {
           "from": "features/clients/services/clients.service.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "lib/supabase.ts",
           "kinds": [
             "static"
           ]
@@ -148619,59 +146158,6 @@
         },
         {
           "from": "lib/media/compressLocalImage.util.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "lib/pod/ocr.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [
-        {
-          "to": "lib/pod/prompts.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "to": "types/pod.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ],
-      "importedBy": [
-        {
-          "from": "features/ocr/services/ocrJobProcessor.service.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "lib/pod/prompts.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "lib/pod/ocr.ts",
           "kinds": [
             "static"
           ]
@@ -157159,7 +154645,7 @@
     },
     "lib/safeAreaWeb.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -157849,12 +155335,9 @@
       "reactQuery": false,
       "imports": [
         {
-          "to": "lib/platform/index.ts",
+          "to": "lib/platform/db/platformDb.ts",
           "kinds": [
             "static"
-          ],
-          "barrelTargets": [
-            "lib/platform/db/platformDb.ts"
           ]
         },
         {
@@ -159805,7 +157288,7 @@
     },
     "lib/useCapabilities.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -160177,7 +157660,7 @@
     },
     "lib/useMemberAccess.ts": {
       "inDriver": true,
-      "inDriverRuntime": true,
+      "inDriverRuntime": false,
       "inMain": true,
       "seed": false,
       "test": false,
@@ -160895,68 +158378,6 @@
         },
         {
           "from": "features/trips/operations/shared/useLeaveTripExpenseEntry.ts",
-          "kinds": [
-            "static"
-          ]
-        }
-      ]
-    },
-    "lib/useWebLayoutWidth.ts": {
-      "inDriver": true,
-      "inDriverRuntime": true,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": true,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "app/_layout.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "components/GlobalOperationsToast.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "components/OperationsNotificationBell.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/network/components/ConnectionsView.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/network/components/DiscoverView.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/network/screens/NetworkScreen.tsx",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/party/hooks/useProfileHubCompact.ts",
-          "kinds": [
-            "static"
-          ]
-        },
-        {
-          "from": "features/trips/operations/other/OtherExpenseEntryScreen.tsx",
           "kinds": [
             "static"
           ]
@@ -161796,50 +159217,6 @@
         },
         {
           "from": "types/index.ts",
-          "kinds": [
-            "type"
-          ]
-        }
-      ]
-    },
-    "types/pod.ts": {
-      "inDriver": true,
-      "inDriverRuntime": false,
-      "inMain": true,
-      "seed": false,
-      "test": false,
-      "jsx": false,
-      "reactNative": false,
-      "supabase": false,
-      "reactQuery": false,
-      "imports": [],
-      "importedBy": [
-        {
-          "from": "features/ocr/services/ocrJobProcessor.service.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "features/pod-reconciliation/components/PodValidationView.tsx",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "lib/pod/extractionHelpers.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "lib/pod/extractionMigration.ts",
-          "kinds": [
-            "type"
-          ]
-        },
-        {
-          "from": "lib/pod/ocr.ts",
           "kinds": [
             "type"
           ]
@@ -165606,54 +162983,6 @@
       "seed": false
     },
     {
-      "file": "features/identity/avatars/IdentityAvatar.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/identity/cache/identityCache.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/identity/index.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/identity/queries/useIdentityQuery.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/identity/selectors/identitySelectors.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/identity/trust/trustModel.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/identity/types.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/identity/utils/identityUtils.ts",
-      "cls": "SHARED_DOMAIN",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/indents/constants.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
@@ -165918,55 +163247,7 @@
       "seed": false
     },
     {
-      "file": "features/ocr/constants/ocr.constants.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/ocr/constants/pulseScanEngine.constants.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/ocr/hooks/useOcrJobPoll.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/ocr/index.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/ocr/services/ocrJob.service.ts",
-      "cls": "SHARED_DOMAIN",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/ocr/services/ocrJobProcessor.service.ts",
-      "cls": "SHARED_DOMAIN",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/ocr/services/ocrQuota.service.ts",
-      "cls": "SHARED_DOMAIN",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/ocr/services/pulseScanEngine.service.ts",
-      "cls": "SHARED_DOMAIN",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/ocr/services/vehicleOdometerEvent.service.ts",
       "cls": "SHARED_DOMAIN",
       "why": "reached by both apps",
       "seed": false
@@ -165974,24 +163255,6 @@
     {
       "file": "features/ocr/types/ocr.types.ts",
       "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/ocr/utils/ocrConfidenceReview.util.ts",
-      "cls": "SHARED_DOMAIN",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/ocr/utils/ocrNotification.util.ts",
-      "cls": "SHARED_DOMAIN",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/ocr/utils/ocrRescan.util.ts",
-      "cls": "SHARED_DOMAIN",
       "why": "reached by both apps",
       "seed": false
     },
@@ -166122,19 +163385,7 @@
       "seed": false
     },
     {
-      "file": "features/operations/observability/index.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/operations/observability/operationalHealthEngine.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/operations/observability/operationsObservability.service.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -166159,12 +163410,6 @@
     },
     {
       "file": "features/operations/observability/useOperationalHealthSnapshot.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/operations/observability/useOperationalObservability.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -166722,19 +163967,7 @@
       "seed": false
     },
     {
-      "file": "features/trips/operations/fuel/FuelEntryScreen.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/trips/operations/fuel/fuel.service.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/health/operationalHealth.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -166752,49 +163985,7 @@
       "seed": false
     },
     {
-      "file": "features/trips/operations/hub/ExpensePreviewSheet.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/hub/OperationsHub.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/hub/TripExpensesScreen.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/index.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/maintenance/index.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/trips/operations/maintenance/maintenance.service.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/maintenance/useTripMaintenance.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/metrics/operationsMetrics.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -166818,12 +164009,6 @@
       "seed": false
     },
     {
-      "file": "features/trips/operations/other/OtherExpenseEntryScreen.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/trips/operations/other/otherExpense.service.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
@@ -166837,12 +164022,6 @@
     },
     {
       "file": "features/trips/operations/reimbursement/driverExpenseRequest.service.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/reimbursement/index.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -166866,19 +164045,7 @@
       "seed": false
     },
     {
-      "file": "features/trips/operations/reimbursement/reimbursementSelectors.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/trips/operations/reimbursement/reimbursementState.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/reimbursement/reimbursementTimeline.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -166890,73 +164057,7 @@
       "seed": false
     },
     {
-      "file": "features/trips/operations/shared/DriverExpenseCategorySwitch.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/DriverExpenseChipSelect.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/DriverExpenseEntryLayout.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/DriverOpsEntryFooter.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/ExpenseBillPhotoScan.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/ExpenseBillScanBanner.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/ExpenseBillScanOverlay.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/OpsEntryBodyPhotoSlot.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/applyExpenseReceiptOcr.util.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/trips/operations/shared/driverExpenseCategoryNav.util.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/driverExpenseChipVisuals.util.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/driverOpsEntry.styles.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -166968,25 +164069,7 @@
       "seed": false
     },
     {
-      "file": "features/trips/operations/shared/expenseBillScan.constants.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/expenseBillScan.types.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/trips/operations/shared/expenseEntryEdit.util.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/expenseEntryPartyPreview.util.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -166998,31 +164081,7 @@
       "seed": false
     },
     {
-      "file": "features/trips/operations/shared/expenseReceiptOcr.parse.util.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/expenseReceiptOcr.service.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/trips/operations/shared/operationsEntryOptions.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/operationsEntryScreen.styles.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/tripExpenseEntryExit.util.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -167034,37 +164093,7 @@
       "seed": false
     },
     {
-      "file": "features/trips/operations/shared/useExpenseBillCapture.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/shared/useLeaveTripExpenseEntry.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/state/useOperationsSyncState.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/summary/TripOperationsSummary.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/trips/operations/timeline/timelineEvents.service.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/toll/TollEntryScreen.tsx",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -167083,24 +164112,6 @@
     },
     {
       "file": "features/trips/operations/uploads/photoUploads.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/vehicle/syncPostedExpensesToOperationLedger.service.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/vehicle/useVehicleOperationLedgerPipeline.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/operations/vehicle/useVehicleOperationsLedger.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -167250,43 +164261,7 @@
       "seed": false
     },
     {
-      "file": "features/trips/verification/DistanceComparisonCard.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/trips/verification/GPSDistanceHook.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/OdometerEntryScreen.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/OdometerPhotoCapture.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/OdometerStartEndScreen.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/OdometerTimelineEvent.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/TripVerificationSummary.tsx",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -167298,79 +164273,13 @@
       "seed": false
     },
     {
-      "file": "features/trips/verification/applyOdometerScan.util.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/components/OdometerEntryShell.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/components/OdometerKeypadFlow.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/components/OdometerNotesField.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/components/OdometerScanBanner.tsx",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/trips/verification/components/VerificationStatusChip.tsx",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
     },
     {
-      "file": "features/trips/verification/hooks/useHydrateOdometerPhotos.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/hooks/useOdometerPhotoOcr.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/hooks/useTripVerification.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "features/trips/verification/hooks/useTripVerificationSync.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/index.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/odometerPhotoOcr.service.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/odometerScan.types.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -167395,12 +164304,6 @@
     },
     {
       "file": "features/trips/verification/selectors/verificationSelectors.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "features/trips/verification/state/useVerificationSyncState.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -167664,18 +164567,6 @@
       "seed": false
     },
     {
-      "file": "lib/crypto/sha256.util.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "lib/crypto/sha256File.util.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "lib/dateRangePresets.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
@@ -167774,18 +164665,6 @@
     {
       "file": "lib/formatEstimatedDuration.ts",
       "cls": "SHARED_CORE",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "lib/gemini/geminiVisionJson.util.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "lib/gemini/resolveGeminiApiKey.util.ts",
-      "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
     },
@@ -168093,12 +164972,6 @@
       "file": "lib/mapsNavigation.util.ts",
       "cls": "DRIVER_ONLY",
       "why": "only reachable from driver code",
-      "seed": false
-    },
-    {
-      "file": "lib/media/captureImage.util.ts",
-      "cls": "SHARED_CORE",
-      "why": "reached by both apps",
       "seed": false
     },
     {
@@ -168499,18 +165372,6 @@
     },
     {
       "file": "lib/pod/imageCompression.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "lib/pod/ocr.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "lib/pod/prompts.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false
@@ -169074,12 +165935,6 @@
       "seed": false
     },
     {
-      "file": "lib/useWebLayoutWidth.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
       "file": "lib/utils/lr.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
@@ -169129,12 +165984,6 @@
     },
     {
       "file": "types/organization.ts",
-      "cls": "REVIEW",
-      "why": "reached by both apps",
-      "seed": false
-    },
-    {
-      "file": "types/pod.ts",
       "cls": "REVIEW",
       "why": "reached by both apps",
       "seed": false

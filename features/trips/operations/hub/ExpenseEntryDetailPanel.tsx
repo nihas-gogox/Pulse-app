@@ -11,7 +11,7 @@ import {
 } from "react-native";
 
 import Theme from "@/constants/Theme";
-import type { TripCostEvent } from "@/features/finance";
+import type { TripCostEvent } from "@/features/finance/domain/tripCostEvent";
 import { getDocumentViewUrl } from "@/features/trips/services/tripDocuments.service";
 import {
   loadExpensePreviewDetail,

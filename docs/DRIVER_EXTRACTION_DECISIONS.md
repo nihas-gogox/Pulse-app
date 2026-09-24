@@ -145,3 +145,40 @@ D11–D15 and both rule tweaks are recorded in `docs/DRIVER_EXTRACTION_OVERRIDES
 | MAIN_ONLY (the driver uses types only; the files stay put) | 481 |
 
 **Stopped here. No code has moved.** Next, only on Nihas's go: the Phase 1 code changes, i.e. the reverse-import fixes, the D2/D9 path-only rewrites and the ESLint boundary rules.
+
+---
+
+## Phase 1 code — result (2026-09-24)
+
+**Changes (path-only, no behavior change):**
+- **D2:** `lib/supabase.ts` now imports `configurePlatformDb` from `@/lib/platform/db/platformDb` instead of the `@/lib/platform` barrel.
+- **D9:** `scripts/driver-extraction-rewrite-barrels.mjs` rewrote 14 barrel imports in 13 driver files. Each name now comes straight from the one file that defines it. Nothing was ambiguous and nothing was skipped.
+- **Boundary enforcement:** `npm run check:driver-boundaries` (`scripts/check-driver-boundaries.mjs`) runs as a new job in `.github/workflows/architecture-check.yml`. It rebuilds the import graph and fails on:
+  - main → driver-only runtime imports
+  - driver → main-only runtime imports
+  - shared-package direction breaks
+  - files that enter the driver graph without a classification
+
+  I checked it with a throwaway probe file, and it catches a main → driver import.
+- **Why a script, not ESLint:** the installed `eslint-plugin-boundaries` is v6, where type-import handling moved to a new selector syntax. A 1,100-file ESLint list would also be fragile. The script uses the same graph and classification as the approved sorting, and it treats type-only imports as allowed (D10).
+- **Reverse imports:** every live main → driver-folder import now points at a file approved as shared (D4, D8, D14). They're allowed under the boundary check, and the files physically move into the packages in Phase 2, so nothing moves twice.
+
+**Checks against the V1 baseline:**
+
+| Check | Result |
+|---|---|
+| typecheck | same 26 errors as baseline, 0 new |
+| lint | identical findings to baseline, 0 new |
+| unit tests | same 5 failures in the same 2 suites, 0 new |
+| navigation-policy | 64/64 pass |
+| `check:driver-boundaries` | ✅ 0 breaks |
+| Re-classification on the new code | REVIEW = 0, 0 rule violations. The only change: 88 type-only files dropped out of the driver graph |
+
+### D16 — Dead code that imports driver-only files (decision needed before Phase 2)
+These files are imported by nothing, so neither app loads them. They would fail typechecking once Phase 2 moves the driver files:
+- `components/OptimalRouteMap.tsx` (also referenced by `components/OptimalRouteMap.web.tsx`) → `lib/reactNativeMapsCompat.*`, `lib/mapStyles.ts`
+- `features/chat/components/PingProgressBar.tsx` and `features/chat/utils/longHaulPingCount.util.ts` → `features/driver/utils/long_haul_heartbeat.util.ts`
+
+**Recommendation:** classify them as **DELETE** and remove them in a separate small PR, with your OK. The checker reports them as warnings until then.
+
+**Still in Phase 1 scope, deliberately deferred:** the driver-self screens in `features/drivers/screens` are DRIVER_ONLY, but moving them to `features/driver/screens` now and again into `apps/driver` in Phase 3 would move them twice. **Recommendation:** move them once, in Phase 3.

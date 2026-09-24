@@ -1,5 +1,5 @@
 import type { TripRow } from "@/features/trips/services/trips.service";
-import { getTripOperationalDisplay } from "@/features/operations/display";
+import { getTripOperationalDisplay } from "@/features/operations/display/operationalDisplay";
 
 function toTime(value: string | null | undefined): number {
   if (!value) return 0;

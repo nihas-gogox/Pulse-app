@@ -118,19 +118,9 @@ import {
     shouldShowDriverToDropRoute,
 } from "@/lib/driverMapRoute.util";
 import * as tripsService from "@/features/trips/services/trips.service";
-import {
-  deriveTripStage,
-  getTripStageGuidance,
-  getTripStopCoordinate,
-  distanceMeters,
-  bearingDegrees,
-  subsampleRouteCoordinates,
-  formatRoadDistanceM,
-  formatEtaFromRouteSeconds,
-  formatEtaArrivalClock,
-  formatTripDistance,
-  type TripStage,
-} from "@/features/trips/domain";
+import { deriveTripStage, getTripStopCoordinate, type TripStage } from "@/features/trips/domain/tripStage";
+import { distanceMeters, bearingDegrees, subsampleRouteCoordinates, formatRoadDistanceM, formatEtaFromRouteSeconds, formatEtaArrivalClock, formatTripDistance } from "@/features/trips/domain/tripStageEta";
+import { getTripStageGuidance } from "@/features/trips/domain/tripStageGuidance";
 import {
   reverseGeocodeCityStateLabel,
 } from "@/lib/reverseGeocodePlace.util";

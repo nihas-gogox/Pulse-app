@@ -3074,46 +3074,6 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "features/identity/avatars/IdentityAvatar.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/identity/cache/identityCache.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/identity/index.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/identity/queries/useIdentityQuery.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/identity/selectors/identitySelectors.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/identity/trust/trustModel.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/identity/types.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/identity/utils/identityUtils.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/indents/constants.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
@@ -3334,67 +3294,12 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "features/ocr/constants/ocr.constants.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/ocr/constants/pulseScanEngine.constants.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/ocr/hooks/useOcrJobPoll.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/ocr/index.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/ocr/services/ocrJob.service.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/ocr/services/ocrJobProcessor.service.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/ocr/services/ocrQuota.service.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/ocr/services/pulseScanEngine.service.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/ocr/services/vehicleOdometerEvent.service.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/ocr/types/ocr.types.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/ocr/utils/ocrConfidenceReview.util.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/ocr/utils/ocrNotification.util.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/ocr/utils/ocrRescan.util.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -3504,17 +3409,7 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/operations/observability/index.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/operations/observability/operationalHealthEngine.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/operations/observability/operationsObservability.service.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -3535,11 +3430,6 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/operations/observability/useOperationalHealthSnapshot.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/operations/observability/useOperationalObservability.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -4004,20 +3894,10 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "features/trips/operations/fuel/FuelEntryScreen.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/operations/fuel/fuel.service.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
-  },
-  "features/trips/operations/health/operationalHealth.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/operations/hooks/useTripOperationsSync.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4029,45 +3909,10 @@
     "rule": "N1",
     "why": "only reachable from driver code"
   },
-  "features/trips/operations/hub/ExpensePreviewSheet.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/hub/OperationsHub.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/hub/TripExpensesScreen.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/index.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/maintenance/index.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/operations/maintenance/maintenance.service.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
-  },
-  "features/trips/operations/maintenance/useTripMaintenance.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/metrics/operationsMetrics.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/operations/mileage/mileageEngine.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4084,11 +3929,6 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/trips/operations/other/OtherExpenseEntryScreen.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/operations/other/otherExpense.service.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
@@ -4103,11 +3943,6 @@
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
-  },
-  "features/trips/operations/reimbursement/index.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/operations/reimbursement/reimbursement.service.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4124,67 +3959,12 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "features/trips/operations/reimbursement/reimbursementSelectors.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/operations/reimbursement/reimbursementState.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/trips/operations/reimbursement/reimbursementTimeline.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/operations/reimbursement/useReimbursementQueue.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/DriverExpenseCategorySwitch.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/DriverExpenseChipSelect.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/DriverExpenseEntryLayout.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/DriverOpsEntryFooter.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/ExpenseBillPhotoScan.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/ExpenseBillScanBanner.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/ExpenseBillScanOverlay.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/OpsEntryBodyPhotoSlot.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/applyExpenseReceiptOcr.util.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -4194,105 +3974,35 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/trips/operations/shared/driverExpenseChipVisuals.util.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/driverOpsEntry.styles.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/operations/shared/driverReimbursementEvents.util.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
-  },
-  "features/trips/operations/shared/expenseBillScan.constants.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/expenseBillScan.types.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/operations/shared/expenseEntryEdit.util.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/trips/operations/shared/expenseEntryPartyPreview.util.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/operations/shared/expensePreview.util.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
-  },
-  "features/trips/operations/shared/expenseReceiptOcr.parse.util.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/expenseReceiptOcr.service.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/operations/shared/operationsEntryOptions.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/trips/operations/shared/operationsEntryScreen.styles.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/tripExpenseEntryExit.util.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/operations/shared/tripOtherExpenseCategories.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/trips/operations/shared/useExpenseBillCapture.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/shared/useLeaveTripExpenseEntry.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/state/useOperationsSyncState.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/summary/TripOperationsSummary.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/operations/timeline/timelineEvents.service.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
-  },
-  "features/trips/operations/toll/TollEntryScreen.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/operations/toll/toll.service.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4308,21 +4018,6 @@
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
-  },
-  "features/trips/operations/vehicle/syncPostedExpensesToOperationLedger.service.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/vehicle/useVehicleOperationLedgerPipeline.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/operations/vehicle/useVehicleOperationsLedger.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/operations/vehicle/vehicleOperationsLedger.service.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4445,70 +4140,15 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/trips/verification/DistanceComparisonCard.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/verification/GPSDistanceHook.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/trips/verification/OdometerEntryScreen.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/verification/OdometerPhotoCapture.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/verification/OdometerStartEndScreen.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/verification/OdometerTimelineEvent.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/verification/TripVerificationSummary.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/verification/VerificationStatusChip.tsx": {
     "cls": "SHARED_FEATURES",
     "rule": "F1",
     "why": "shared business UI (D1: @pulse/features)"
-  },
-  "features/trips/verification/applyOdometerScan.util.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/verification/components/OdometerEntryShell.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/verification/components/OdometerKeypadFlow.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/verification/components/OdometerNotesField.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/verification/components/OdometerScanBanner.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/verification/components/VerificationStatusChip.tsx": {
     "cls": "SHARED_FEATURES",
@@ -4516,40 +4156,10 @@
     "why": "one-line re-export; goes with its target",
     "manual": true
   },
-  "features/trips/verification/hooks/useHydrateOdometerPhotos.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/verification/hooks/useOdometerPhotoOcr.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/verification/hooks/useTripVerification.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/verification/hooks/useTripVerificationSync.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
-  },
-  "features/trips/verification/index.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/verification/odometerPhotoOcr.service.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/verification/odometerScan.types.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/verification/offline/outbox.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4570,11 +4180,6 @@
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
-  },
-  "features/trips/verification/state/useVerificationSyncState.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/verification/state/verificationState.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4792,16 +4397,6 @@
     "rule": "L4",
     "why": "generic infrastructure/helper"
   },
-  "lib/crypto/sha256.util.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "lib/crypto/sha256File.util.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "lib/dateRangePresets.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
@@ -4886,16 +4481,6 @@
     "cls": "SHARED_CORE",
     "rule": "L4",
     "why": "generic infrastructure/helper"
-  },
-  "lib/gemini/geminiVisionJson.util.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "lib/gemini/resolveGeminiApiKey.util.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "lib/globalId.ts": {
     "cls": "SHARED_CORE",
@@ -5152,11 +4737,6 @@
     "cls": "DRIVER_ONLY",
     "rule": "N1",
     "why": "only reachable from driver code"
-  },
-  "lib/media/captureImage.util.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "lib/media/compressLocalImage.util.ts": {
     "cls": "DRIVER_ONLY",
@@ -5533,16 +5113,6 @@
     "cls": "SHARED_CORE",
     "rule": "L4",
     "why": "generic infrastructure/helper"
-  },
-  "lib/pod/ocr.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "lib/pod/prompts.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "lib/preloadDriverChatWarmup.ts": {
     "cls": "DRIVER_ONLY",
@@ -6009,11 +5579,6 @@
     "rule": "L4",
     "why": "generic infrastructure/helper"
   },
-  "lib/useWebLayoutWidth.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "lib/utils/lr.ts": {
     "cls": "SHARED_CORE",
     "rule": "L4",
@@ -6058,11 +5623,6 @@
     "cls": "SHARED_DOMAIN",
     "rule": "T1",
     "why": "shared domain types"
-  },
-  "types/pod.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "types/trip-views.ts": {
     "cls": "SHARED_DOMAIN",

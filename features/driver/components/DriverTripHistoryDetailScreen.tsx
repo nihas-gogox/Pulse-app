@@ -78,7 +78,7 @@ import {
 import { tripHistoryDetailStyles as styles } from "@/features/driver/tripHistory/tripHistoryDetail.styles";
 import { TripDetailSettlementPanel } from "@/features/driver/components/TripDetailSettlementPanel";
 import { DriverDocumentGalleryPreview } from "@/features/driver/components/DriverDocumentGalleryPreview";
-import { useTripVerificationSync } from "@/features/trips/verification";
+import { useTripVerificationSync } from "@/features/trips/verification/hooks/useTripVerificationSync";
 import { DriverTripOperationsTab } from "@/features/driver/components/DriverTripOperationsTab";
 import { useRegisterDriverContextTrip } from "@/contexts/DriverTripOpsContext";
 

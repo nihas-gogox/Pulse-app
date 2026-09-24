@@ -24,15 +24,11 @@ import type { JobCardAssignerPayload } from '@/features/trips/utils/driverAssign
 import type { DriverRoutePlanMap } from '@/features/driver/job-card/driverRoutePlanMap';
 import type { DriverFlowStepId as StepId } from '@/features/driver/utils/driverTripStatusNotes.util';
 import { deriveDriverFlowStepFromTrip } from '@/features/driver/utils/driverTripStatusNotes.util';
-import {
-  computeJourneyMetrics,
-  computeTripStageMetrics,
-  evaluateOperationalAlerts,
-  getStageMetadata,
-  getTripStageTarget,
-  getTripStopCoordinate,
-  type TripStageMetrics,
-} from '@/features/trips/domain';
+import { computeJourneyMetrics } from '@/features/trips/domain/tripJourneyMetrics';
+import { evaluateOperationalAlerts } from '@/features/trips/domain/tripOperationalAlerts';
+import { getTripStageTarget, getTripStopCoordinate } from '@/features/trips/domain/tripStage';
+import { getStageMetadata } from '@/features/trips/domain/tripStageMetadata';
+import { computeTripStageMetrics, type TripStageMetrics } from '@/features/trips/domain/tripStageMetrics';
 import { getDriverAlertGuidance } from '@/features/driver/utils/driverAlertGuidance.util';
 import { useTripTimelineQuery } from '@/lib/queries/useTripTimelineQuery';
 import { useTripCheckpointDistanceQuery } from '@/lib/queries/useTripCheckpointDistanceQuery';
