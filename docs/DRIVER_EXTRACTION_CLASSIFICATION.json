@@ -1147,6 +1147,60 @@
     "why": "shared context (D3 amended by D11: depends on AuthContext, which is domain for now); driver app supplies its own DRIVER_ADAPTER provider; context logic unchanged",
     "manual": true
   },
+  "design-system/colors.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "MANUAL:F1",
+    "why": "design tokens (like constants/Theme); runtime-imported by shared ui/domain files (Phase 3.5 finding F1)",
+    "decision": "F1"
+  },
+  "design-system/density.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "MANUAL:F1",
+    "why": "design tokens (like constants/Theme); runtime-imported by shared ui/domain files (Phase 3.5 finding F1)",
+    "decision": "F1"
+  },
+  "design-system/elevation.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "MANUAL:F1",
+    "why": "design tokens (like constants/Theme); runtime-imported by shared ui/domain files (Phase 3.5 finding F1)",
+    "decision": "F1"
+  },
+  "design-system/index.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "MANUAL:F1",
+    "why": "design tokens (like constants/Theme); runtime-imported by shared ui/domain files (Phase 3.5 finding F1)",
+    "decision": "F1"
+  },
+  "design-system/layout.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "MANUAL:F1",
+    "why": "design tokens (like constants/Theme); runtime-imported by shared ui/domain files (Phase 3.5 finding F1)",
+    "decision": "F1"
+  },
+  "design-system/motion.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "MANUAL:F1",
+    "why": "design tokens (like constants/Theme); runtime-imported by shared ui/domain files (Phase 3.5 finding F1)",
+    "decision": "F1"
+  },
+  "design-system/radius.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "MANUAL:F1",
+    "why": "design tokens (like constants/Theme); runtime-imported by shared ui/domain files (Phase 3.5 finding F1)",
+    "decision": "F1"
+  },
+  "design-system/spacing.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "MANUAL:F1",
+    "why": "design tokens (like constants/Theme); runtime-imported by shared ui/domain files (Phase 3.5 finding F1)",
+    "decision": "F1"
+  },
+  "design-system/typography.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "MANUAL:F1",
+    "why": "design tokens (like constants/Theme); runtime-imported by shared ui/domain files (Phase 3.5 finding F1)",
+    "decision": "F1"
+  },
   "features/ai/components/AIBadge.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",

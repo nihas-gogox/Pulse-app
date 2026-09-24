@@ -2,9 +2,9 @@ import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import Theme from "@pulse/core/constants/Theme";
-import { colors } from "@/design-system/colors";
-import { radius } from "@/design-system/radius";
-import { space } from "@/design-system/spacing";
+import { colors } from "@pulse/core/design-system/colors";
+import { radius } from "@pulse/core/design-system/radius";
+import { space } from "@pulse/core/design-system/spacing";
 
 export type OperationalChipOption<T extends string> = {
   value: T;

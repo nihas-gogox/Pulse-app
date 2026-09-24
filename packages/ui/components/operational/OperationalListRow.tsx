@@ -8,9 +8,9 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { colors } from '@/design-system/colors';
-import { space } from '@/design-system/spacing';
-import { typography } from '@/design-system/typography';
+import { colors } from '@pulse/core/design-system/colors';
+import { space } from '@pulse/core/design-system/spacing';
+import { typography } from '@pulse/core/design-system/typography';
 import { MetricDisplay, type MetricTone } from './MetricDisplay';
 import { useOperationalDensity, type DensityTier } from './useOperationalDensity';
 

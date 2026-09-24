@@ -1,8 +1,8 @@
 import { memo, type ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { elevation } from '@/design-system/elevation';
-import { radius } from '@/design-system/radius';
+import { elevation } from '@pulse/core/design-system/elevation';
+import { radius } from '@pulse/core/design-system/radius';
 import { useOperationalDensity, type DensityTier } from './useOperationalDensity';
 
 export type SurfaceElevation = 0 | 1 | 2;

@@ -17,9 +17,9 @@ import {
   pulsePillButtonPressed,
 } from '@pulse/core/constants/PulsePillButtonChrome';
 import Theme from '@pulse/core/constants/Theme';
-import { colors } from '@/design-system/colors';
-import { type DensityTier } from '@/design-system/density';
-import { space, touchTargetMin } from '@/design-system/spacing';
+import { colors } from '@pulse/core/design-system/colors';
+import { type DensityTier } from '@pulse/core/design-system/density';
+import { space, touchTargetMin } from '@pulse/core/design-system/spacing';
 
 /**
  * Operational button intents — not generic “primary/secondary”.

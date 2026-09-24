@@ -2,9 +2,9 @@ import { memo, type ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useEffectiveBottomInset } from '@pulse/core/lib/safeAreaWeb';
 
-import { colors } from '@/design-system/colors';
-import { layout } from '@/design-system/layout';
-import { space } from '@/design-system/spacing';
+import { colors } from '@pulse/core/design-system/colors';
+import { layout } from '@pulse/core/design-system/layout';
+import { space } from '@pulse/core/design-system/spacing';
 
 export interface OperationalBottomActionBarProps {
   children: ReactNode;

@@ -11,10 +11,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 
-import { colors } from '@/design-system/colors';
-import { layout } from '@/design-system/layout';
-import { space } from '@/design-system/spacing';
-import { typography } from '@/design-system/typography';
+import { colors } from '@pulse/core/design-system/colors';
+import { layout } from '@pulse/core/design-system/layout';
+import { space } from '@pulse/core/design-system/spacing';
+import { typography } from '@pulse/core/design-system/typography';
 import { useOperationalDensity, type DensityTier } from './useOperationalDensity';
 
 export type OperationalHeaderVariant = 'stack' | 'detail' | 'modal' | 'onboarding';

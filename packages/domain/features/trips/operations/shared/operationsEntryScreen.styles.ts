@@ -1,8 +1,8 @@
 import { StyleSheet } from "react-native";
 
 import Theme from "@pulse/core/constants/Theme";
-import { layout } from "@/design-system/layout";
-import { space } from "@/design-system/spacing";
+import { layout } from "@pulse/core/design-system/layout";
+import { space } from "@pulse/core/design-system/spacing";
 
 export const operationsEntryStyles = StyleSheet.create({
   screen: {

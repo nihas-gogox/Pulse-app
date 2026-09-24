@@ -31,11 +31,12 @@ const OUT_DIR = OUT_DIR_ARG ? path.resolve(ROOT, OUT_DIR_ARG.slice('--out-dir='.
 const OUT_MD = path.join(OUT_DIR, 'DRIVER_EXTRACTION_INVENTORY.md');
 const OUT_JSON = path.join(OUT_DIR, 'DRIVER_EXTRACTION_INVENTORY.json');
 
-// Same exclusions as root tsconfig/jest + non-app trees.
+// Same exclusions as root tsconfig/jest + non-app trees. design-system/ IS scanned
+// (Phase 3.5 finding F1: shared code imports it at runtime).
 const EXCLUDED_DIRS = new Set([
   'node_modules', 'oms', 'analytics', 'packages', 'tools', 'apps', 'dist',
   'supabase', 'docs', 'scripts', 'e2e', 'nihas-tests', '_reference',
-  'data-analytics', 'design-system', 'ios', 'android', 'coverage',
+  'data-analytics', 'ios', 'android', 'coverage',
   'playwright-report', 'test-results', 'netlify', 'Nihas', '__mocks__',
   'public', 'assets', 'locales', 'patches', 'native',
 ]);

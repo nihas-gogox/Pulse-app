@@ -7,10 +7,10 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { colors } from '@/design-system/colors';
-import { layout } from '@/design-system/layout';
-import { radius } from '@/design-system/radius';
-import { space } from '@/design-system/spacing';
+import { colors } from '@pulse/core/design-system/colors';
+import { layout } from '@pulse/core/design-system/layout';
+import { radius } from '@pulse/core/design-system/radius';
+import { space } from '@pulse/core/design-system/spacing';
 import { useOperationalDensity, type DensityTier } from './useOperationalDensity';
 
 function SkeletonBlock({

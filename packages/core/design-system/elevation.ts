@@ -1,7 +1,7 @@
 import { Platform, type ViewStyle } from 'react-native';
 
-import Theme from '@/constants/Theme';
-import { adaptShadowPropsForWeb } from '@/lib/platformViewStyle.util';
+import Theme from '../constants/Theme';
+import { adaptShadowPropsForWeb } from '../lib/platformViewStyle.util';
 
 type ElevationLevel = 0 | 1 | 2 | 3;
 

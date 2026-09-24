@@ -1,7 +1,7 @@
 # Driver Extraction — Phase 3.5 Validation
 
-Date: 2026-09-24 · Branch: `nihas/driver-app-extraction` · Code under test: `6fba0010`.
-**Validation only: no app code was changed in this phase.**
+Date: 2026-09-24 · Branch: `nihas/driver-app-extraction` · Code under test: `6fba0010`, plus the F1 fix commit.
+**Validation only**, except the approved F1 fix (below), which was applied as its own commit.
 
 Result key:
 - **PASS:** verified here, with evidence.
@@ -26,8 +26,8 @@ Result key:
 | 12 | Wallet / passbook | Wallet, passbook, salary request, pending earnings | **BLOCKED** (runtime) | routes resolve (row 1); needs a signed-in driver |
 | 13 | Onboarding | `/onboarding` → sign-up | **PASS** (signed out) | row 2; the OTP / signup completion needs a real phone → **BLOCKED** |
 | 14 | Main-app rollback | 14 old in-app driver and main URLs on the current main export vs the Phase 2 export | **PASS** | Identical 14/14 (e.g. `/driver-sign-in` renders driver sign-in; `/onboarding/driver` → `/driver-signup`; private routes → `/sign-in` → `/terminal-website`, the existing anonymous policy). Signed-in rollback: **BLOCKED** (accounts) |
-| 15 | No dispatcher code in the driver bundle | Every source file in the export (source maps) | **FAIL** (11 files) | `scripts/driver-extraction-bundle-sources.mjs` on web and Android: all code is `apps/driver`, the packages or `node_modules`, **except** `design-system/*` (9 files) and the 2 old-path shims they import (`constants/Theme.ts`, `lib/platformViewStyle.util.ts`). No dispatcher screens. See Finding F1 |
-| 16 | Import boundaries | `check:driver-boundaries` | **PASS**, with a known blind spot | 0 breaks; it does not scan `design-system/` (F1) |
+| 15 | No dispatcher/main-app code in the driver bundle | Every source file in the web, Android and iOS exports (source maps) | **PASS** (after the F1 fix) | `npm run check:driver-bundle`: 0 main-app code files. The only non-package sources are `node_modules`, Metro virtual modules and the root resources `assets/` and `locales/` (data, see F2). Before the fix: 11 files (F1) |
+| 16 | Import boundaries | `check:driver-boundaries` | **PASS** | 0 breaks. It now scans `design-system/`; a probe package → `@/design-system/colors` import is caught |
 | 17 | Driver typecheck | `tsc -p apps/driver` | **PASS** | 3 errors, all baseline, in shared package files |
 | 18 | Driver tests | `jest apps/driver` | **PASS** | 33 suites, 203 tests |
 | 19 | Driver web build | production export | **PASS** | exit 0 |
@@ -36,17 +36,17 @@ Result key:
 | 22 | Native runtime | EAS preview APK/IPA; auth, camera, background location on a device | **BLOCKED** | no EAS project / account owner |
 | 23 | Push | — | **OUT OF SCOPE** | Phase 0 token-keying blocker |
 | 24 | Backend untouched | `git diff 149fba7d..HEAD -- supabase/` | **PASS** | 0 files (migrations, RLS, RPCs, triggers, Edge Functions) |
-| 25 | Main-app gates | typecheck, tests, lint, nav-policy, cycles, web export | **PASS** | unchanged since the Phase 3 gate (no code change in 3.5) |
+| 25 | Main-app gates | typecheck, tests, lint, nav-policy, cycles, web export | **PASS** | re-run after the F1 fix: same as baseline (see "Re-run after the F1 fix") |
 
 ## Findings
 
-**F1: `design-system/` is main-app code inside the driver bundle (FAIL, row 15)**
+**F1: `design-system/` was main-app code inside the driver bundle (was FAIL, row 15). FIXED; see "F1 fix" below.**
 - `design-system/` is 9 files of pure tokens: colors, spacing, radius, elevation, typography, layout, density, motion and an index. They import only React Native, `@/constants/Theme` and `@/lib/platformViewStyle.util`, both of which are core in the old-path shim form.
 - 11 files that moved in D20/D21 import it at runtime: `components/operational/*` and `operationsEntryScreen.styles`. There were 0 such importers at Phase 3's first commit (`8bcc039a`).
 - **It was missed** because the inventory excludes `design-system/` (and `locales/`, `assets/`) from scanning. So neither the boundary checker nor the D20/D21 classifier saw these edges. That's my gap in the D20/D21 gate.
 - Impact: no functional or dispatcher impact. They're tokens, and the bundle works. It's a boundary violation: `apps/driver` must not reach main-app code or legacy shims.
-- **Proposed fix, for approval; not applied in 3.5:**
-  - Classify the 9 files as SHARED_CORE (they're design constants, like `constants/Theme`) and move them to `@pulse/core` with shims.
+- **Fix (approved and applied; see "F1 fix"):**
+  - Classify the 9 files as SHARED_CORE (they're design constants, like `constants/Theme`) and move them to `@pulse/core` with shims where needed.
   - Add `design-system/` to the inventory scan.
   - Add this bundle-sources check to the Phase 3 gate.
 
@@ -54,6 +54,23 @@ Result key:
 - Translation data, required by `@pulse/core` `i18n`.
 - It's data, not code, like `assets/`, so the check treats it as a shared resource.
 - It's listed so the Phase 6 audit decides whether it moves into `@pulse/core`. Not a failure.
+
+## F1 fix (approved, applied)
+- Classified the 9 `design-system/*.ts` files as SHARED_CORE (decision F1) and moved them to `packages/core/design-system/` with `scripts/driver-extraction-move.mjs`. Their only imports are Theme, the style helper and React Native, which are now package-internal.
+- **Shims kept only where required:** `colors`, `layout`, `radius`, `spacing` and `typography` (the main app imports them). `density`, `elevation`, `motion` and `index` have no main-app importer, so they have no shim.
+- **11 package files repointed** from `@/design-system/*` to `@pulse/core/design-system/*` (30 specifiers). The change is path-only.
+- **Inventory:** `design-system/` is no longer excluded from scanning, so `check:driver-boundaries` sees these edges.
+- **New gate:** `npm run check:driver-bundle` builds the driver web bundle with source maps and fails on any main-app code. It is also a CI job, `driver-bundle-sources`, in `.github/workflows/architecture-check.yml`. That job is not yet run on GitHub.
+
+**Bundle leak, before and after**
+
+| Before (11 main-app code files) | After |
+|---|---|
+| `design-system/{colors,density,elevation,index,layout,motion,radius,spacing,typography}.ts`, `constants/Theme.ts` (shim), `lib/platformViewStyle.util.ts` (shim) | **0**, on web, Android and iOS |
+
+**Remaining intentional shared-resource exceptions (data, not code):**
+- `assets/`: images and fonts (129 on web).
+- `locales/*.json`: 22 translation files. Left for the Phase 6 audit, as instructed.
 
 ## Intentional deviations from V1 (documented, approved)
 
@@ -72,10 +89,29 @@ Result key:
 - **An EAS project and account owner for `com.gogopulse.driver`.** That covers rows 6 and 22.
 - **Push:** stays out of scope until the backend token-keying decision (Phase 0).
 
+## Re-run after the F1 fix (all local)
+| Check | Result |
+|---|---|
+| Driver bundle source scan (web, Android, iOS) | ✅ 0 main-app code |
+| `check:driver-boundaries` | ✅ 0 breaks (618 in packages, 273 in `apps/driver`, 48 shims) |
+| Driver typecheck | ✅ 3 errors (baseline, shared package files) |
+| Driver tests | ✅ 203/203 |
+| Driver web build + route matrix | ✅ 46/46 URLs (including `/terminal-website`), 0 `/driver` asset 404s |
+| Driver Android and iOS bundles | ✅ Hermes `.hbc` built |
+| Main-app rollback | ✅ 14/14 URLs identical to the Phase 2 build |
+| Main typecheck | ✅ same 26 errors |
+| Main unit tests | ✅ same 5 failures in the same 2 suites; 2706 pass |
+| Nav-policy | ✅ 64/64 |
+| Lint | ✅ same findings (normalized) |
+| Circular imports | ✅ 39, all inside V1's existing cycle clusters |
+| Main web build | ✅ 145 assets (identical set), 66 chunks |
+| `oms` typecheck / build | ✅ 0 errors / builds |
+| `supabase/` since V1 | ✅ 0 files changed |
+
 ## Reproduce
 ```
 cd apps/driver && NODE_ENV=production CI=1 npx expo export -p web --source-maps --output-dir /tmp/drv
-node scripts/driver-extraction-bundle-sources.mjs /tmp/drv/_expo/static/js/web     # row 15
+node scripts/driver-extraction-bundle-sources.mjs /tmp/drv/_expo/static/js/web     # row 15 (or: npm run check:driver-bundle)
 cd apps/driver && npx expo export -p android --output-dir /tmp/drv-android           # row 20
 npx tsc --noEmit -p apps/driver/tsconfig.json && npx jest apps/driver                # rows 17–18
 npm run check:driver-boundaries                                                       # row 16

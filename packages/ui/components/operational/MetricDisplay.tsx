@@ -1,8 +1,8 @@
 import { memo } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { colors } from '@/design-system/colors';
-import { tabularNums, typography } from '@/design-system/typography';
+import { colors } from '@pulse/core/design-system/colors';
+import { tabularNums, typography } from '@pulse/core/design-system/typography';
 
 export type MetricTone = 'neutral' | 'revenue' | 'cost' | 'pending' | 'brand';
 export type MetricSize = 'compact' | 'default' | 'hero';

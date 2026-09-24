@@ -2,9 +2,9 @@ import { memo } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
-import { colors } from '@/design-system/colors';
-import { space } from '@/design-system/spacing';
-import { typography } from '@/design-system/typography';
+import { colors } from '@pulse/core/design-system/colors';
+import { space } from '@pulse/core/design-system/spacing';
+import { typography } from '@pulse/core/design-system/typography';
 import { OperationalButton, type OperationalButtonIntent } from './OperationalButton';
 import { useOperationalDensity, type DensityTier } from './useOperationalDensity';
 
