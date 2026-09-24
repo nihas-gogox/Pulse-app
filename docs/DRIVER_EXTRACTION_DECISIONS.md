@@ -289,3 +289,11 @@ These files are imported by nothing, so neither app loads them. They would fail 
 Not fixed, per instruction: the 52 clean-install baseline errors (undeclared `expo-asset`, and local-only typings).
 
 **Phase 3 not started.** It waits for explicit approval.
+
+## Phase 2 complete — D17 done (2026-09-24)
+- **D17:** deleted `lib/tracking/useTrackingAppState.ts` and its re-export line in `lib/tracking/index.ts`, after verifying there were zero imports of the file and zero uses of `useTrackingAppState` anywhere, and that nothing imports the `lib/tracking` barrel.
+- **Final Phase 2 gate:** baseline-equivalent on every check. One unit run hit a Jest worker SIGSEGV crash in `unifiedCreateFlow.test.ts`; re-run alone it passes 18/18, and the full re-run matches the baseline exactly.
+- **Remaining checker warnings** (dead code, not failures, already present before D17):
+  - `features/drivers/components/DriverMapView.tsx`
+  - `features/tracking/index.ts` (3 re-exports of driver-only tracking files)
+- **Phase 3 not started.**
