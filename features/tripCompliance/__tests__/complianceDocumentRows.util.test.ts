@@ -138,14 +138,28 @@ describe("deriveEntityComplianceRows", () => {
     expect(rows.every((r) => r.status === "missing")).toBe(true);
   });
 
-  it("treats active unexpired entity docs as verified; Aadhaar stays optional", () => {
+  it("keeps an uploaded license pending until it is approved", () => {
     const rows = deriveEntityComplianceRows(COMPLIANCE_DRIVER_DOCUMENT_TYPES, [
       entityDoc({ id: "d1", entity_type: "driver", entity_id: "dr1", doc_type: "license", status: "active" }),
     ]);
-    expect(rows.find((r) => r.type === "license")?.status).toBe("verified");
+    expect(rows.find((r) => r.type === "license")?.status).toBe("pending");
     expect(rows.find((r) => r.type === "license")?.required).toBe(true);
     expect(rows.find((r) => r.type === "aadhaar")?.status).toBe("missing");
     expect(rows.find((r) => r.type === "aadhaar")?.required).toBe(false);
+  });
+
+  it("keeps uploaded RC pending until it is approved", () => {
+    const rows = deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, [
+      entityDoc({
+        id: "rc-1",
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type: "rc",
+        status: "active",
+        expiry_date: null,
+      }),
+    ]);
+    expect(rows.find((r) => r.type === "rc")?.status).toBe("pending");
   });
 
   it("marks insurance without expiry as pending, not verified", () => {

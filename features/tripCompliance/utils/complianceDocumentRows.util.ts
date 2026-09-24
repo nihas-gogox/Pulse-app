@@ -16,7 +16,6 @@ import {
 } from "@/features/tripCompliance/tripCompliance.types";
 import {
   isEntityDocumentExpired,
-  isEntityDocumentSlotVerified,
 } from "@/features/tripCompliance/utils/complianceChecklist.util";
 import { isEwayBillMetaPath } from "@/features/trips/services/ewayBillFields.util";
 
@@ -104,12 +103,12 @@ function entityRowStatus(
   docType?: string,
 ): ComplianceDocRowStatus {
   if (!doc) return "missing";
-  if (doc.status === "rejected") return "rejected";
+  if (doc.status === "rejected" || doc.status === "replaced") return "rejected";
   if (doc.status === "expired" || isEntityDocumentExpired(doc, now)) return "expired";
+  // On file is not approval. Only an explicit verify action sets status to verified.
+  if (doc.status !== "verified") return "pending";
   if (docType && documentRequiresExpiry(docType) && !doc.expiry_date?.trim()) return "pending";
-  if (doc.status === "pending") return "pending";
-  if (isEntityDocumentSlotVerified(doc, now, docType ?? doc.doc_type)) return "verified";
-  return "pending";
+  return "verified";
 }
 
 /** Vehicle or driver types from vault / entity_documents. */

@@ -20,6 +20,21 @@ describe("vehicleVaultDocumentsToEntityDocs", () => {
     expect(rows.map((row) => row.doc_type).sort()).toEqual(["insurance", "permit", "rc"]);
     expect(rows.every((row) => row.source === "vehicle-vault")).toBe(true);
     expect(rows.find((row) => row.doc_type === "rc")?.storage_path).toBe("org/v1/rc.pdf");
+    expect(rows.find((row) => row.doc_type === "rc")?.status).toBe("pending");
+  });
+
+  it("keeps an uploaded RC pending until Compliance approval is stored", () => {
+    const pending = vehicleVaultDocumentsToEntityDocs("v1", {
+      rc: { url: "org/v1/rc.pdf", expiryDate: "", uploadedAt: "2026-09-24" },
+    });
+    expect(pending[0]?.status).toBe("pending");
+    expect(pending[0]?.verified_at).toBeNull();
+
+    const approved = vehicleVaultDocumentsToEntityDocs("v1", {
+      rc: { url: "org/v1/rc.pdf", expiryDate: "", uploadedAt: "2026-09-24", verifiedAt: "2026-09-24T12:00:00Z" },
+    });
+    expect(approved[0]?.status).toBe("verified");
+    expect(approved[0]?.verified_at).toBe("2026-09-24T12:00:00Z");
   });
 
   it("returns nothing when the vault JSON is empty", () => {

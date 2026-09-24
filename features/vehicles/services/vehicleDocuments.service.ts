@@ -437,6 +437,80 @@ export async function updateVehicleDocumentExpiry(
   return { documents: (savedRow.documents ?? updated) as VehicleDocuments, error: null };
 }
 
+const VAULT_SLOT_TYPES = ["rc", "insurance", "fitness", "pollution"] as const;
+
+function isVaultSlotType(docType: string): docType is VehicleComplianceDocType {
+  return (VAULT_SLOT_TYPES as readonly string[]).includes(docType);
+}
+
+function extraMatchesDocType(fileName: string | undefined, docType: string): boolean {
+  const name = (fileName ?? "").toLowerCase();
+  if (docType === "permit") return name.includes("permit");
+  if (docType === "road_tax") {
+    return (
+      name.includes("road_tax") ||
+      name.includes("road tax") ||
+      name.includes("tax token") ||
+      /\btax\b/.test(name)
+    );
+  }
+  return false;
+}
+
+/** Record an explicit Compliance approval on a vault file. A new upload clears this. */
+export async function markVehicleDocumentVerified(
+  orgId: string,
+  vehicleId: string,
+  docType: string,
+): Promise<{ documents: VehicleDocuments | null; error: Error | null }> {
+  const resolved = await resolveVehicleDocumentsWriteTarget(vehicleId, [orgId]);
+  if (!resolved) {
+    return {
+      documents: null,
+      error: new Error("Could not approve this vehicle document. The vehicle record was not found."),
+    };
+  }
+  const base = resolved.documents ?? {};
+  const verifiedAt = new Date().toISOString();
+  let updated: VehicleDocuments;
+  if (isVaultSlotType(docType)) {
+    const current = base[docType];
+    if (!current?.url?.trim()) {
+      return { documents: null, error: new Error("Upload this document before approving it.") };
+    }
+    updated = {
+      ...base,
+      [docType]: { ...current, verifiedAt },
+    };
+  } else {
+    const extras = base.extras ?? [];
+    let matched = false;
+    const nextExtras = extras.map((extra) => {
+      if (matched || !extra.url?.trim() || !extraMatchesDocType(extra.fileName, docType)) return extra;
+      matched = true;
+      return { ...extra, verifiedAt };
+    });
+    if (!matched) {
+      return { documents: null, error: new Error("Upload this document before approving it.") };
+    }
+    updated = { ...base, extras: nextExtras };
+  }
+  const { data: savedRow, error: dbError } = await supabase()
+    .from("vehicles")
+    .update({ documents: updated })
+    .eq("organization_id", resolved.orgId)
+    .eq("id", vehicleId)
+    .select("id, documents")
+    .maybeSingle();
+  if (dbError || !savedRow) {
+    return {
+      documents: null,
+      error: new Error(dbError?.message ?? "Could not save the approval for this vehicle document."),
+    };
+  }
+  return { documents: (savedRow.documents ?? updated) as VehicleDocuments, error: null };
+}
+
 /**
  * Trip Manifest vault write for RC / insurance / FC / PUC.
  * 1) Try the normal org-owned vault path.

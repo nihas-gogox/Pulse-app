@@ -15,6 +15,7 @@ import {
 } from "@/features/compliance/services/documents.service";
 import { getVehicleById } from "@/features/vehicles/services/vehicles.service";
 import {
+  markVehicleDocumentVerified,
   resolveVehicleDocumentsWriteTarget,
   updateVehicleDocumentExpiry,
   uploadAndSaveVehicleDocument,
@@ -440,7 +441,6 @@ export function ComplianceDocumentReviewSheet({
           scope === "vehicle" &&
           vehicleId
         ) {
-          // Vault docs are "verified" when on file (+ expiry for Insurance/FC).
           if (documentRequiresExpiry(row.type)) {
             const { error } = await updateVehicleDocumentExpiry(
               organizationId,
@@ -473,7 +473,11 @@ export function ComplianceDocumentReviewSheet({
               }
             }
           }
-          // No separate verify step for vault — checklist treats on-file + expiry as verified.
+          const marked = await markVehicleDocumentVerified(organizationId, vehicleId, row.type);
+          if (marked.error) {
+            alertMessage("Couldn't approve document", marked.error.message);
+            return;
+          }
         } else if (row.entityDoc?.source === "driver-kyc") {
           alertMessage(
             "Couldn't approve document",

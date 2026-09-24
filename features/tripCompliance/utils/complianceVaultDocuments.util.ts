@@ -83,6 +83,10 @@ export function normalizeTripDocumentType(type: string | null | undefined): stri
   return TRIP_DOC_TYPE_ALIASES[key] ?? key;
 }
 
+function vaultApprovalStatus(verifiedAt: string | null | undefined): "verified" | "pending" {
+  return verifiedAt?.trim() ? "verified" : "pending";
+}
+
 function extraDocType(fileName: string | undefined): string | null {
   const name = (fileName ?? "").toLowerCase();
   if (name.includes("permit")) return "permit";
@@ -108,10 +112,10 @@ export function vehicleVaultDocumentsToEntityDocs(
       entity_type: "vehicle",
       entity_id: vehicleId,
       doc_type: docType,
-      status: "active",
+      status: vaultApprovalStatus(slot?.verifiedAt),
       storage_path: path,
       expiry_date: slot?.expiryDate ?? null,
-      verified_at: slot?.uploadedAt ?? null,
+      verified_at: slot?.verifiedAt?.trim() || null,
       notes: null,
       created_at: slot?.uploadedAt ?? new Date(0).toISOString(),
       source: "vehicle-vault",
@@ -128,10 +132,10 @@ export function vehicleVaultDocumentsToEntityDocs(
       entity_type: "vehicle",
       entity_id: vehicleId,
       doc_type: docType,
-      status: "active",
+      status: vaultApprovalStatus(extra.verifiedAt),
       storage_path: path,
       expiry_date: extra.expiryDate ?? null,
-      verified_at: extra.uploadedAt ?? null,
+      verified_at: extra.verifiedAt?.trim() || null,
       notes: extra.fileName ?? null,
       created_at: extra.uploadedAt ?? new Date(0).toISOString(),
       source: "vehicle-vault",
