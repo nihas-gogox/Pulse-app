@@ -3544,6 +3544,18 @@ export default function TripDetailScreen({
     detail.setVehiclePreviewIndex(fileIndex >= 0 ? fileIndex : 0);
     detail.setSelectedDoc(ewayBillDoc);
   };
+  const openEwayBillUpload = (_rowId?: string) => {
+    const doc =
+      ewayBillDoc ??
+      ({
+        id: "eway_bill",
+        label: "Eway Bill",
+        type: "PDF",
+        status: "Pending",
+        category: "eway",
+      } satisfies TripDocItem);
+    void handleVaultUpload(doc);
+  };
   const canUploadTripDocs =
     !!currentOrganization?.id &&
     !!trip.organization_id &&
@@ -4348,6 +4360,8 @@ export default function TripDetailScreen({
                 onAddMore={(doc) => startAddMoreForDoc(doc)}
                 ewayStripRows={ewayStripRows}
                 onViewEwayBill={openEwayBillPreview}
+                onUploadEwayBill={openEwayBillUpload}
+                canUploadEwayBill={canUploadTripDocs}
                 canEditEwayBill={canUploadTripDocs}
                 onSaveEwayBill={saveEwayBillFields}
                 tripIdLabel={mobileTripIdLabel}
@@ -5749,6 +5763,8 @@ export default function TripDetailScreen({
                       <EwayBillLrStrip
                         rows={ewayStripRows}
                         onView={openEwayBillPreview}
+                        onUpload={openEwayBillUpload}
+                        canUpload={canUploadTripDocs}
                         canEdit={canUploadTripDocs}
                         onSave={saveEwayBillFields}
                       />

@@ -163,7 +163,7 @@ const SCOPE_COPY: Record<
   { title: string; section: string; hint: string }
 > = {
   trip: {
-    title: "Compliance Review",
+    title: "Trip documents",
     section: "LR, E-WAY BILL, INVOICE",
     hint: "Upload or select LR, e-way bill, invoice, or another trip document.",
   },
@@ -869,6 +869,22 @@ export function ComplianceDocumentReviewSheet({
               <ComplianceStatusChip status={row.status} label={meta.label} compact />
             </View>
             <View style={styles.docActionBtns}>
+              {actorId ? (
+                <TouchableOpacity
+                  disabled={uploadingMissing}
+                  onPress={() => handleAddMissing(row.type)}
+                  style={styles.eyeBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${uploadLabel} ${labelForDocType(row.type)}`}
+                >
+                  {uploadingMissing && retryType === row.type ? (
+                    <ActivityIndicator size="small" color={Theme.primary} />
+                  ) : (
+                    <Upload size={15} color={Theme.primary} strokeWidth={2.2} />
+                  )}
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 onPress={() => void openRowPreview(row)}
                 disabled={viewingKey != null || !canViewDocuments}
@@ -891,18 +907,6 @@ export function ComplianceDocumentReviewSheet({
                   />
                 )}
               </TouchableOpacity>
-              {canVerify && entityAssigned ? (
-                <TouchableOpacity
-                  disabled={uploadingMissing}
-                  onPress={() => handleAddMissing(row.type)}
-                  style={styles.addBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${uploadLabel} ${labelForDocType(row.type)}`}
-                >
-                  <Upload size={12} color={Theme.buttonPrimaryText} strokeWidth={2.4} />
-                  <Text style={styles.addBtnText}>{uploadLabel}</Text>
-                </TouchableOpacity>
-              ) : null}
             </View>
           </View>
         </View>

@@ -60,6 +60,8 @@ type Props = {
   onAddPress?: (doc: TripDocItem) => void;
   ewayStripRows?: EwayBillStripRow[];
   onViewEwayBill?: (rowId: string) => void;
+  onUploadEwayBill?: (rowId: string) => void;
+  canUploadEwayBill?: boolean;
   canEditEwayBill?: boolean;
   onSaveEwayBill?: (values: EwayFieldValues[]) => Promise<boolean>;
 };
@@ -73,6 +75,8 @@ export function TripAssetVaultPanel({
   onAddPress,
   ewayStripRows = [],
   onViewEwayBill,
+  onUploadEwayBill,
+  canUploadEwayBill,
   canEditEwayBill,
   onSaveEwayBill,
 }: Props) {
@@ -211,6 +215,8 @@ export function TripAssetVaultPanel({
         <EwayBillLrStrip
           rows={ewayStripRows}
           onView={onViewEwayBill ?? (() => undefined)}
+          onUpload={onUploadEwayBill}
+          canUpload={canUploadEwayBill}
           canEdit={canEditEwayBill}
           onSave={onSaveEwayBill}
         />

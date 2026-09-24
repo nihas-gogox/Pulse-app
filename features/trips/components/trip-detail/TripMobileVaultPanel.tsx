@@ -45,6 +45,8 @@ type Props = {
   onAddMore?: (doc: TripDocItem) => void;
   ewayStripRows?: EwayBillStripRow[];
   onViewEwayBill?: (rowId: string) => void;
+  onUploadEwayBill?: (rowId: string) => void;
+  canUploadEwayBill?: boolean;
   canEditEwayBill?: boolean;
   onSaveEwayBill?: (values: EwayFieldValues[]) => Promise<boolean>;
   tripIdLabel: string;
@@ -201,6 +203,8 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
   onAddMore,
   ewayStripRows = [],
   onViewEwayBill,
+  onUploadEwayBill,
+  canUploadEwayBill,
   canEditEwayBill,
   onSaveEwayBill,
   tripIdLabel,
@@ -444,6 +448,8 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
             <EwayBillLrStrip
               rows={ewayStripRows}
               onView={onViewEwayBill ?? (() => undefined)}
+              onUpload={onUploadEwayBill}
+              canUpload={canUploadEwayBill}
               canEdit={canEditEwayBill}
               onSave={onSaveEwayBill}
             />
