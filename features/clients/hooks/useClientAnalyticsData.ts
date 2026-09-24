@@ -5,6 +5,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { LedgerRow } from "@/features/finance";
 import { fetchClientPageBootstrap } from "@/features/clients/services/clientPageBootstrap.service";
+import { useFinanceAlignedClientLedger } from "@/features/finance/hooks/useFinanceAlignedPartyTrips";
 import type { ClientRow } from "@/features/clients/services/clients.service";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import { queryKeys } from "@/lib/queryKeys";
@@ -17,6 +18,10 @@ export function useClientAnalyticsData(clientId: string) {
   const queryClient = useQueryClient();
   const [client, setClient] = useState<ClientRow | null>(null);
   const [trips, setTrips] = useState<TripRow[]>([]);
+  const financeAligned = useFinanceAlignedClientLedger(
+    currentOrganization?.id ?? null,
+    clientId,
+  );
   const [transactions, setTransactions] = useState<LedgerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +52,7 @@ export function useClientAnalyticsData(clientId: string) {
     }>(queryKeys.clients.pageBootstrap(orgId, clientId));
     if (cached?.client) {
       setClient(cached.client);
-      setTrips(cached.trips ?? []);
+      if (!financeAligned.ready) setTrips(cached.trips ?? []);
       setTransactions(cached.transactions ?? []);
       setLoading(false);
     }
@@ -65,7 +70,7 @@ export function useClientAnalyticsData(clientId: string) {
       .then((bundle) => {
         if (bundle?.client) {
           setClient(bundle.client);
-          setTrips(bundle.trips);
+          if (!financeAligned.ready) setTrips(bundle.trips);
           setTransactions(bundle.transactions);
         } else if (!cached?.client) {
           setError("Client not found");
@@ -82,6 +87,11 @@ export function useClientAnalyticsData(clientId: string) {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!financeAligned.ready) return;
+    setTrips(financeAligned.trips);
+  }, [financeAligned.ready, financeAligned.trips]);
 
   useFocusEffect(
     useCallback(() => {

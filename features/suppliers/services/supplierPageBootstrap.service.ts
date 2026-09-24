@@ -5,11 +5,18 @@ import {
   toLedgerRow,
   type LedgerRow,
 } from "@/features/finance/services/finance.service";
+import { getTripSubcontracts } from "@/features/finance/services/tripSubcontracts.service";
 import {
   getSupplierDetails,
   type SupplierRow,
 } from "@/features/suppliers/services/suppliers.service";
-import type { TripRow } from "@/features/trips/services/trips.service";
+import {
+  getTripsWhereOrgIsClient,
+  getTripsWhereOrgIsSupplier,
+  supplierRowToTripRow,
+  type TripRow,
+} from "@/features/trips/services/trips.service";
+import { isLoadBasedTrip } from "@/features/trips/visibility/tripVisibility";
 import { supabase } from "@/lib/supabase";
 
 export type SupplierPageBootstrap = {
@@ -86,8 +93,12 @@ async function fetchSupplierPageBootstrapScoped(
   orgId: string,
   supplierId: string,
 ): Promise<{ error: Error | null; bundle: SupplierPageBootstrap | null }> {
-  const [detail, tripsRes, txRes] = await Promise.all([
+  const [detail, peersRes, ownTripsRes, txRes, asClientRes, asSupplierRes] = await Promise.all([
     getSupplierDetails(supplierId),
+    supabase()
+      .from("suppliers")
+      .select("id, linked_organization_id")
+      .eq("organization_id", orgId),
     supabase()
       .from("trips")
       .select("*")
@@ -97,23 +108,70 @@ async function fetchSupplierPageBootstrapScoped(
       .order("created_at", { ascending: false })
       .limit(400),
     getTransactionsByOrganizationAndContactId(orgId, supplierId),
+    getTripsWhereOrgIsClient(orgId),
+    getTripsWhereOrgIsSupplier(orgId),
   ]);
   if (detail.error) return { error: detail.error, bundle: null };
   if (!detail.supplier) return { error: null, bundle: null };
-  if (tripsRes.error) return { error: new Error(tripsRes.error.message), bundle: null };
+  if (ownTripsRes.error) return { error: new Error(ownTripsRes.error.message), bundle: null };
   if (txRes.error) return { error: txRes.error, bundle: null };
+
+  const linkedOrgId = detail.supplier.linked_organization_id ?? null;
+  const linkedCount = (peersRes.data ?? []).filter(
+    (row) => row.linked_organization_id === linkedOrgId,
+  ).length;
+  const uniqueLinked = Boolean(linkedOrgId) && linkedCount === 1;
+
+  const extra: TripRow[] = [];
+  const sharedTrips = (asSupplierRes.error ? [] : asSupplierRes.trips).map(
+    supplierRowToTripRow,
+  );
+  const ownTrips = (ownTripsRes.data ?? []) as TripRow[];
+  const candidateIds = [...ownTrips, ...extra, ...sharedTrips]
+    .map((trip) => trip.id)
+    .filter(Boolean);
+  const subRes = await getTripSubcontracts({ viewerOrgId: orgId, tripIds: candidateIds });
+  const subcontractTrips = (asClientRes.error ? [] : asClientRes.trips).filter(
+    (trip) =>
+      uniqueLinked &&
+      linkedOrgId &&
+      isLoadBasedTrip(trip) &&
+      trip.organization_id === linkedOrgId,
+  );
+
+  const seen = new Set<string>();
+  const trips: TripRow[] = [];
+  const aggregateTripSalesById: Record<string, number> = {};
+  const subByTrip = new Map((subRes.rows ?? []).map((row) => [row.trip_id, row]));
+  for (const trip of [...ownTrips, ...extra, ...sharedTrips, ...subcontractTrips]) {
+    if (!trip.id || seen.has(trip.id)) continue;
+    seen.add(trip.id);
+    const sub = subByTrip.get(trip.id);
+    if (sub && sub.supplier_id === supplierId) {
+      trips.push({ ...trip, supplier_rate: sub.rate });
+      const sales = Number(trip.supplier_rate ?? trip.client_price ?? 0);
+      if (sales > 0) aggregateTripSalesById[trip.id] = sales;
+      continue;
+    }
+    trips.push(trip);
+    if (trip.organization_id !== orgId) {
+      const sales = Number(trip.client_price ?? trip.supplier_rate ?? 0);
+      if (sales > 0) aggregateTripSalesById[trip.id] = sales;
+    }
+  }
+
   return {
     error: null,
     bundle: {
       supplier: detail.supplier,
-      trips: (tripsRes.data ?? []) as TripRow[],
+      trips,
       transactions: (txRes.transactions ?? []).filter(
         (tx) => tx.contact_type === "supplier" && tx.contact_id === supplierId,
       ),
       suppliers: [detail.supplier],
       drivers: [],
       clients: [],
-      aggregateTripSalesById: {},
+      aggregateTripSalesById,
     },
   };
 }

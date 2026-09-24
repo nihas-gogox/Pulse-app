@@ -79,7 +79,7 @@ async function fetchClientPageBootstrapScoped(
   orgId: string,
   clientId: string,
 ): Promise<{ error: Error | null; bundle: ClientPageBootstrap | null }> {
-  const [detail, tripsRes, txRes] = await Promise.all([
+  const [detail, ownTripsRes, txRes] = await Promise.all([
     getClientDetailBundle(orgId, clientId),
     supabase()
       .from("trips")
@@ -93,8 +93,35 @@ async function fetchClientPageBootstrapScoped(
   ]);
   if (detail.error) return { error: detail.error, bundle: null };
   if (!detail.client) return { error: null, bundle: null };
-  if (tripsRes.error) return { error: new Error(tripsRes.error.message), bundle: null };
+  if (ownTripsRes.error) return { error: new Error(ownTripsRes.error.message), bundle: null };
   if (txRes.error) return { error: txRes.error, bundle: null };
+
+  const nameKey = (detail.client.name || detail.client.contact_person || "")
+    .trim()
+    .toLowerCase();
+
+  const extra: TripRow[] = [];
+  if (nameKey) {
+    const named = await supabase()
+      .from("trips")
+      .select("*")
+      .eq("organization_id", orgId)
+      .is("deleted_at", null)
+      .ilike("client_name", nameKey)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (named.error) return { error: new Error(named.error.message), bundle: null };
+    extra.push(...((named.data ?? []) as TripRow[]));
+  }
+
+  const seen = new Set<string>();
+  const trips: TripRow[] = [];
+  for (const trip of [...((ownTripsRes.data ?? []) as TripRow[]), ...extra]) {
+    if (!trip.id || seen.has(trip.id)) continue;
+    seen.add(trip.id);
+    trips.push(trip);
+  }
+
   return {
     error: null,
     bundle: {
@@ -102,7 +129,7 @@ async function fetchClientPageBootstrapScoped(
       ratings: detail.ratings,
       warehouses: detail.warehouses,
       contracts: detail.contracts,
-      trips: (tripsRes.data ?? []) as TripRow[],
+      trips,
       transactions: (txRes.transactions ?? []).filter(
         (tx) => tx.contact_type === "client" && tx.contact_id === clientId,
       ),

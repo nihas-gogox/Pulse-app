@@ -58,6 +58,7 @@ import {
 } from "@/features/trips/services/trips.service";
 import { isLoadBasedTrip } from "@/features/trips/visibility/tripVisibility";
 import { fetchClientPageBootstrap } from "@/features/clients/services/clientPageBootstrap.service";
+import { useFinanceAlignedClientLedger } from "@/features/finance/hooks/useFinanceAlignedPartyTrips";
 import { computeClientPaidSeed } from "@/features/clients/utils/clientPaidSeed.util";
 import {
   clearInitialClientForDetail,
@@ -241,6 +242,10 @@ export default function ClientDetailScreen({
   );
   const clientName = client?.name || client?.contact_person || t("client");
   const [trips, setTrips] = useState<TripRow[]>([]);
+  const financeAligned = useFinanceAlignedClientLedger(
+    currentOrganization?.id ?? null,
+    clientId,
+  );
   const tripIdsForFinanceAdj = useMemo(
     () => trips.map((t) => String(t.id)).filter(Boolean),
     [trips],
@@ -456,7 +461,7 @@ export default function ClientDetailScreen({
       setOrgTrips(bundle.trips);
       setOrganizationClients(bundle.clients);
       setAllOrgTransactions(bundle.transactions);
-      setTrips(bundle.trips);
+      if (!financeAligned.ready) setTrips(bundle.trips);
       setSuppliers(bundle.suppliers);
       setDrivers(bundle.drivers);
       setClientRatingAvg(averageScore(bundle.ratings ?? []));
@@ -522,6 +527,11 @@ export default function ClientDetailScreen({
     setPartnerOrgNamesByOrgId({});
     setPartnerOrgBrandingByOrgId({});
   }, [clientId]);
+
+  useEffect(() => {
+    if (!financeAligned.ready) return;
+    setTrips(financeAligned.trips);
+  }, [financeAligned.ready, financeAligned.trips]);
 
   const supplierDisplayById = useMemo(() => {
     const m = new Map<string, string>();
@@ -1266,10 +1276,10 @@ export default function ClientDetailScreen({
   );
   const tripsForMissionTable = useMemo(
     () =>
-      trips.filter((t) =>
+      (financeAligned.ready ? financeAligned.trips : trips).filter((t) =>
         ledgerDayMatchesPeriod(tripDayIso(t), tripDatePeriod, tripDateOpts),
       ),
-    [trips, tripDatePeriod, tripDateOpts],
+    [financeAligned.ready, financeAligned.trips, trips, tripDatePeriod, tripDateOpts],
   );
 
   const missionRows = useMemo(() => {
@@ -1287,15 +1297,23 @@ export default function ClientDetailScreen({
         ? Number(t.supplier_rate ?? 0)
         : Number(t.client_price ?? 0);
       const adj = tripFinanceAdjRecord[key] ?? [];
-      const sales = adjustedRevenue(base, adj);
+      const sales = financeAligned.ready
+        ? (financeAligned.salesByTripId[t.id] ?? adjustedRevenue(base, adj))
+        : adjustedRevenue(base, adj);
+      const paid = financeAligned.ready
+        ? (financeAligned.paidByTripId[t.id] ?? 0)
+        : (paidByTripId[key] ?? 0);
+      const due = financeAligned.ready
+        ? Math.max(0, sales - paid)
+        : (tripIdToDue[t.id] ?? 0);
       return {
         trip: t,
         missionId: getTripDisplayNumber(t),
         route:
           `${t.pickup_area ?? ""} → ${t.drop_location ?? ""}`.trim() || "—",
         sales,
-        paid: paidByTripId[key] ?? 0,
-        due: tripIdToDue[t.id] ?? 0,
+        paid,
+        due,
       };
     });
   }, [
@@ -1305,6 +1323,9 @@ export default function ClientDetailScreen({
     client?.linked_organization_id,
     client?.is_integrated,
     tripFinanceAdjRecord,
+    financeAligned.ready,
+    financeAligned.salesByTripId,
+    financeAligned.paidByTripId,
   ]);
 
   const tripSelectionDue = useMemo(
@@ -1565,10 +1586,18 @@ export default function ClientDetailScreen({
     );
   }
 
-  const sales = totalBilledConsolidated;
-  const paid = sales - totalPendingConsolidated;
-  const due = totalPendingConsolidated;
-  const tripsHandled = missionRows.length;
+  const sales = financeAligned.ready
+    ? financeAligned.billed
+    : totalBilledConsolidated;
+  const paid = financeAligned.ready
+    ? financeAligned.received
+    : sales - totalPendingConsolidated;
+  const due = financeAligned.ready
+    ? financeAligned.pending
+    : totalPendingConsolidated;
+  const tripsHandled = financeAligned.ready
+    ? financeAligned.tripCount
+    : missionRows.length;
   const isIntegrated = Boolean(
     client.is_integrated || client.linked_organization_id,
   );

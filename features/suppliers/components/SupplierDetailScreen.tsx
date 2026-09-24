@@ -96,6 +96,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fetchSupplierPageBootstrap } from "../services/supplierPageBootstrap.service";
+import { useFinanceAlignedSupplierLedger } from "@/features/finance/hooks/useFinanceAlignedPartyTrips";
 import {
     getLinkedOrgProfileForSupplier,
     getSupplierDetails,
@@ -179,6 +180,10 @@ export default function SupplierDetailScreen({
     supplier?.contact_person ||
     t("supplier");
   const [trips, setTrips] = useState<TripRow[]>([]);
+  const financeAligned = useFinanceAlignedSupplierLedger(
+    currentOrganization?.id ?? null,
+    supplierId,
+  );
   const tripIdsForFinanceAdj = useMemo(
     () => trips.map((t) => String(t.id)).filter(Boolean),
     [trips],
@@ -464,7 +469,7 @@ export default function SupplierDetailScreen({
     }>(queryKeys.suppliers.pageBootstrap(orgId, requestSupplierId));
     if (cached?.supplier) {
       setSupplier(cached.supplier);
-      setTrips(cached.trips);
+      if (!financeAligned.ready) setTrips(cached.trips);
       setAggregateTripSalesById(cached.aggregateTripSalesById ?? {});
       setAllOrgTransactions(cached.transactions);
       setOrgSuppliers(cached.suppliers);
@@ -489,7 +494,7 @@ export default function SupplierDetailScreen({
         if (activeSupplierIdRef.current !== requestSupplierId) return;
         if (bundle?.supplier) {
           setSupplier(bundle.supplier);
-          setTrips(bundle.trips);
+          if (!financeAligned.ready) setTrips(bundle.trips);
           setAggregateTripSalesById(bundle.aggregateTripSalesById);
           setAllOrgTransactions(bundle.transactions);
           setOrgSuppliers(bundle.suppliers);
@@ -511,6 +516,11 @@ export default function SupplierDetailScreen({
         finishLoad();
       });
   }, [supplierId, currentOrganization?.id, queryClient]);
+
+  useEffect(() => {
+    if (!financeAligned.ready) return;
+    setTrips(financeAligned.trips);
+  }, [financeAligned.ready, financeAligned.trips]);
 
   const resolveClientDisplayName = useCallback(
     (trip: TripRow): string => {
@@ -743,10 +753,10 @@ export default function SupplierDetailScreen({
   );
   const tripsForMissionTable = useMemo(
     () =>
-      trips.filter((t) =>
+      (financeAligned.ready ? financeAligned.trips : trips).filter((t) =>
         ledgerDayMatchesPeriod(tripDayIso(t), tripDatePeriod, tripDateOpts),
       ),
-    [trips, tripDatePeriod, tripDateOpts],
+    [financeAligned.ready, financeAligned.trips, trips, tripDatePeriod, tripDateOpts],
   );
 
   const missionRows = useMemo(() => {
@@ -1149,10 +1159,18 @@ export default function SupplierDetailScreen({
     );
   }
 
-  const contractValue = totalBilledConsolidated;
-  const paid = contractValue - totalPendingConsolidated;
-  const due = totalPendingConsolidated;
-  const tripsHandled = missionRows.length;
+  const contractValue = financeAligned.ready
+    ? financeAligned.due
+    : totalBilledConsolidated;
+  const paid = financeAligned.ready
+    ? financeAligned.paid
+    : contractValue - totalPendingConsolidated;
+  const due = financeAligned.ready
+    ? financeAligned.unsettled
+    : totalPendingConsolidated;
+  const tripsHandled = financeAligned.ready
+    ? financeAligned.tripCount
+    : missionRows.length;
   const isIntegrated =
     supplier.supplier_type === "integrated" ||
     Boolean(supplier.linked_organization_id);
