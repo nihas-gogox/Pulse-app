@@ -134,7 +134,15 @@ export function deriveComplianceQueueReadiness(summary: ComplianceTripSummary): 
   if (advance.status === "posted" && advance.reason) blockerLines.push(advance.reason);
   if (balance.status === "posted" && balance.reason) blockerLines.push(balance.reason);
 
-  const uniqueLines = [...new Set(blockerLines)];
+  // Normalize trailing punctuation so "…not completed" / "…not completed." collapse.
+  const uniqueLines = [
+    ...new Map(
+      blockerLines.map((line) => {
+        const normalized = line.replace(/\.+$/, "").trim();
+        return [normalized.toLowerCase(), normalized] as const;
+      }),
+    ).values(),
+  ];
   let nextAction = requiredDocs.nextAction;
   if (requiredDocs.markVerifiedReady && complianceVerificationIncomplete) {
     nextAction = "Mark Compliance Verified";

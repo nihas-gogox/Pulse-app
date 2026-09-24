@@ -13,7 +13,6 @@ import { ComplianceTripCard } from "@/features/tripCompliance/components/Complia
 import { ComplianceTripsTable } from "@/features/tripCompliance/components/ComplianceTripsTable";
 import { useComplianceProductEnabled } from "@/features/tripCompliance/hooks/useComplianceProductEnabled";
 import {
-    COMPLIANCE_QUEUE_PAGE_SIZE,
     useComplianceStageFilter,
     useComplianceTripsQuery,
     useInvalidateComplianceTrips,
@@ -37,32 +36,44 @@ function StageChip({
   countColor,
   active,
   onPress,
+  compact = false,
 }: {
   label: string;
   count: number;
   countColor: string;
   active: boolean;
   onPress: () => void;
+  compact?: boolean;
 }) {
   return (
     <TouchableOpacity
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
-      style={[styles.chip, active && styles.chipActive]}
+      style={[styles.chip, compact && styles.chipCompact, active && styles.chipActive]}
       hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
     >
-      <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+      <Text
+        style={[styles.chipText, compact && styles.chipTextCompact, active && styles.chipTextActive]}
+        numberOfLines={1}
+      >
         {label}
       </Text>
       {count > 0 ? (
         <View
           style={[
             styles.chipCountBadge,
-            !active && { backgroundColor: `${countColor}18` },
+            compact && styles.chipCountBadgeCompact,
+            { backgroundColor: active ? Theme.buttonDarkText : countColor },
           ]}
         >
-          <Text style={[styles.chipCount, { color: active ? Theme.buttonDarkText : countColor }]}>
+          <Text
+            style={[
+              styles.chipCount,
+              compact && styles.chipCountCompact,
+              { color: active ? Theme.buttonDark : Theme.buttonDarkText },
+            ]}
+          >
             {count}
           </Text>
         </View>
@@ -75,10 +86,12 @@ function SummaryMetricCard({
   label,
   value,
   tone,
+  compact = false,
 }: {
   label: string;
   value: string;
   tone: "success" | "warning" | "danger" | "neutral";
+  compact?: boolean;
 }) {
   const palette =
     tone === "success"
@@ -86,34 +99,43 @@ function SummaryMetricCard({
           bg: Theme.complianceStageSuccessBg,
           border: Theme.complianceVerifiedPillBorder,
           label: Theme.complianceStageSuccessFg,
-          value: Theme.complianceStageSuccessFg,
+          value: Theme.textPrimaryDark,
         }
       : tone === "warning"
         ? {
             bg: Theme.complianceStagePendingBg,
             border: Theme.complianceGroupWarningDot,
             label: Theme.complianceStagePendingFg,
-            value: Theme.complianceStagePendingFg,
+            value: Theme.textPrimaryDark,
           }
         : tone === "danger"
           ? {
               bg: Theme.complianceStageDocsBg,
               border: Theme.complianceGroupDangerDot,
               label: Theme.complianceStageDocsFg,
-              value: Theme.complianceStageDocsFg,
+              value: Theme.textPrimaryDark,
             }
           : {
               bg: Theme.cardWhite,
               border: Theme.complianceCardBorder,
-              label: Theme.textMuted,
+              label: Theme.textSecondary,
               value: Theme.textPrimaryDark,
             };
   return (
-    <View style={[styles.metricCard, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+    <View
+      style={[
+        styles.metricCard,
+        compact && styles.metricCardCompact,
+        { backgroundColor: palette.bg, borderColor: palette.border },
+      ]}
+    >
       <Text style={[styles.metricLabel, { color: palette.label }]} numberOfLines={1}>
         {label}
       </Text>
-      <Text style={[styles.metricValue, { color: palette.value }]} numberOfLines={1}>
+      <Text
+        style={[styles.metricValue, compact && styles.metricValueCompact, { color: palette.value }]}
+        numberOfLines={1}
+      >
         {value}
       </Text>
     </View>
@@ -151,18 +173,33 @@ export default function ComplianceScreen() {
 
   const contentTopInset = layout.isDesktopWeb ? Layout.desktopTopNavOffset : layout.top;
   const pagePad = Layout.screenPaddingHorizontal;
-  const gridGap = Math.min(Layout.spacingMedium, 12);
-  const compactToolbar = width < 760;
+  /** Responsive breakpoints for header / toolbar / metrics. */
+  const isNarrow = width < 560;
+  const isCompact = width < 760;
+  const stackToolbar = width < 980;
+  const compactActions = width < 700;
   const columns = width >= 1100 ? 3 : width >= 760 ? 2 : 1;
+  const cardGap = 16;
   const usableWidth = Math.max(280, width - pagePad * 2);
   const nativeCardWidth =
-    columns === 1 ? usableWidth : Math.floor((usableWidth - gridGap * (columns - 1)) / columns);
-  const cardSlotStyle =
+    columns === 1 ? usableWidth : Math.floor((usableWidth - cardGap * (columns - 1)) / columns);
+  const cardGridStyle =
     Platform.OS === "web"
       ? {
-          width: `calc((100% - ${gridGap * (columns - 1)}px) / ${columns})`,
+          display: "grid" as const,
+          width: "100%" as const,
+          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+          gap: cardGap,
+          alignItems: "stretch" as const,
         }
-      : { width: nativeCardWidth };
+      : { gap: cardGap };
+  const cardSlotStyle: ViewStyle =
+    Platform.OS === "web"
+      ? { minWidth: 0, width: "100%", height: "100%" }
+      : { width: nativeCardWidth, minWidth: 0, alignSelf: "stretch" };
+  const searchWidthStyle = stackToolbar
+    ? undefined
+    : { width: Math.min(300, Math.max(180, Math.floor(width * 0.22))) };
 
   const openTrip = useCallback(
     (tripId: string) => {
@@ -226,126 +263,163 @@ export default function ComplianceScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.header}>
-        <View style={[styles.headerTop, compactToolbar && styles.headerTopStack]}>
+        <View style={[styles.headerTop, isCompact && styles.headerTopStack]}>
           <View style={styles.titleBlock}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={[styles.title, isNarrow && styles.titleCompact]} numberOfLines={1}>
               Compliance Verification
             </Text>
-            <Text style={styles.subtitle} numberOfLines={2}>
-              Showing the first {COMPLIANCE_QUEUE_PAGE_SIZE} trips
-              {data?.hasMore ? " — more exist in this organization." : "."} Stage counts apply to this
-              page only.
-            </Text>
-            <View style={styles.headerMeta}>
-              <View style={styles.activeBadge}>
-                <View style={styles.activeDot} />
-                <Text style={styles.activeBadgeText}>{counts.all} trips on this page</Text>
-              </View>
-            </View>
           </View>
-          <View style={[styles.headerActions, compactToolbar && styles.headerActionsStart]}>
+          <View style={[styles.headerActions, isCompact && styles.headerActionsStart]}>
+            <View style={[styles.viewToggle, compactActions && styles.viewToggleCompact]}>
+              <TouchableOpacity
+                onPress={() => setViewMode("card")}
+                style={[
+                  styles.toggleBtn,
+                  compactActions && styles.toggleBtnCompact,
+                  viewMode === "card" && styles.toggleBtnActive,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Cards view"
+                accessibilityState={{ selected: viewMode === "card" }}
+              >
+                <LayoutGrid
+                  size={14}
+                  color={viewMode === "card" ? Theme.buttonDarkText : Theme.textPrimary}
+                  strokeWidth={2.2}
+                />
+                {!compactActions ? (
+                  <Text style={[styles.toggleBtnText, viewMode === "card" && styles.toggleBtnTextActive]}>
+                    Cards
+                  </Text>
+                ) : null}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setViewMode("table")}
+                style={[
+                  styles.toggleBtn,
+                  compactActions && styles.toggleBtnCompact,
+                  viewMode === "table" && styles.toggleBtnActive,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Table view"
+                accessibilityState={{ selected: viewMode === "table" }}
+              >
+                <Table2
+                  size={14}
+                  color={viewMode === "table" ? Theme.buttonDarkText : Theme.textPrimary}
+                  strokeWidth={2.2}
+                />
+                {!compactActions ? (
+                  <Text style={[styles.toggleBtnText, viewMode === "table" && styles.toggleBtnTextActive]}>
+                    Table
+                  </Text>
+                ) : null}
+              </TouchableOpacity>
+            </View>
             {canViewFinance ? (
               <TouchableOpacity
-                style={styles.reportBtn}
+                style={[styles.reportBtn, compactActions && styles.actionBtnCompact]}
                 onPress={() => router.push(ROUTES.COMPLIANCE_REPORT as Parameters<typeof router.push>[0])}
                 hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                accessibilityRole="button"
+                accessibilityLabel="Export Report"
               >
                 <Download size={14} color={Theme.textPrimary} strokeWidth={2.2} />
-                <Text style={styles.reportBtnText}>Export Report</Text>
+                {!isNarrow ? (
+                  <Text style={styles.reportBtnText}>{compactActions ? "Export" : "Export Report"}</Text>
+                ) : null}
               </TouchableOpacity>
             ) : null}
             {canManageFinance ? (
               <TouchableOpacity
-                style={styles.bulkBtn}
+                style={[styles.bulkBtn, compactActions && styles.actionBtnCompact]}
                 onPress={() => router.push(ROUTES.COMPLIANCE_BULK_PAYMENT as Parameters<typeof router.push>[0])}
                 hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                accessibilityRole="button"
+                accessibilityLabel="Bulk Payment"
               >
                 <Wallet size={14} color={Theme.complianceBulkText} strokeWidth={2.2} />
-                <Text style={styles.bulkBtnText}>Bulk Payment</Text>
+                {!isNarrow ? (
+                  <Text style={styles.bulkBtnText}>{compactActions ? "Bulk" : "Bulk Payment"}</Text>
+                ) : null}
               </TouchableOpacity>
             ) : null}
           </View>
         </View>
 
-        <View style={[styles.metricRow, compactToolbar && styles.metricRowStack]}>
+        <View style={[styles.metricRow, isNarrow && styles.metricRowStack, !isNarrow && isCompact && styles.metricRowWrap]}>
           <SummaryMetricCard
             label="Pending Docs"
             value={`${counts.pending_for_docs} trip${counts.pending_for_docs === 1 ? "" : "s"}`}
             tone="danger"
+            compact={isCompact}
           />
           <SummaryMetricCard
             label="Compliance Pending"
             value={`${counts.compliance_pending} trip${counts.compliance_pending === 1 ? "" : "s"}`}
             tone="warning"
+            compact={isCompact}
           />
           <SummaryMetricCard
             label="Verified"
             value={`${counts.compliance_verified} trip${counts.compliance_verified === 1 ? "" : "s"}`}
             tone="success"
+            compact={isCompact}
           />
         </View>
       </View>
 
-      <View style={styles.searchRow}>
-        <Search size={16} color={Theme.textMuted} strokeWidth={2.2} />
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search trip ID, vehicle, driver, or client"
-          placeholderTextColor={Theme.textMuted}
-          style={styles.searchInput as TextStyle}
-          autoCorrect={false}
-          autoCapitalize="none"
-          spellCheck={false}
-          accessibilityLabel="Search compliance trips"
-        />
-      </View>
-
-      <View style={[styles.toolbarRow, compactToolbar && styles.toolbarStack]}>
-        <ScrollView
-          horizontal
-          nestedScrollEnabled
-          showsHorizontalScrollIndicator={false}
-          style={styles.chipScroll}
-          contentContainerStyle={styles.chipScrollContent}
+      <View style={[styles.toolbarRow, stackToolbar && styles.toolbarStack]}>
+        <View
+          style={[
+            styles.searchRow,
+            stackToolbar ? styles.searchRowStacked : searchWidthStyle,
+            isNarrow && styles.searchRowNarrow,
+          ]}
         >
-          <StageChip
-            label="All"
-            count={counts.all}
-            countColor={COMPLIANCE_FILTER_COUNT_TONE.all}
-            active={stage === "all"}
-            onPress={() => setStage("all")}
+          <Search size={15} color={Theme.textSecondary} strokeWidth={2.2} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder={isNarrow ? "Search trips…" : "Search trip ID, vehicle, driver, or client"}
+            placeholderTextColor={Theme.textSecondary}
+            style={styles.searchInput as TextStyle}
+            autoCorrect={false}
+            autoCapitalize="none"
+            spellCheck={false}
+            accessibilityLabel="Search compliance trips"
           />
-          {COMPLIANCE_STAGES.map((s) => (
-            <StageChip
-              key={s}
-              label={COMPLIANCE_STAGE_FILTER_LABEL[s]}
-              count={counts[s]}
-              countColor={COMPLIANCE_FILTER_COUNT_TONE[s]}
-              active={stage === s}
-              onPress={() => setStage(s)}
-            />
-          ))}
-        </ScrollView>
-        <View style={[styles.viewToggle, compactToolbar && styles.viewToggleEnd]}>
-          <TouchableOpacity
-            onPress={() => setViewMode("card")}
-            style={[styles.toggleBtn, viewMode === "card" && styles.toggleBtnActive]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: viewMode === "card" }}
-          >
-            <LayoutGrid size={14} color={viewMode === "card" ? Theme.buttonDarkText : Theme.textMuted} strokeWidth={2.2} />
-            <Text style={[styles.toggleBtnText, viewMode === "card" && styles.toggleBtnTextActive]}>Cards</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setViewMode("table")}
-            style={[styles.toggleBtn, viewMode === "table" && styles.toggleBtnActive]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: viewMode === "table" }}
-          >
-            <Table2 size={14} color={viewMode === "table" ? Theme.buttonDarkText : Theme.textMuted} strokeWidth={2.2} />
-            <Text style={[styles.toggleBtnText, viewMode === "table" && styles.toggleBtnTextActive]}>Table</Text>
-          </TouchableOpacity>
+        </View>
+        <View style={styles.filtersRow}>
+          <View style={styles.chipTray}>
+            <ScrollView
+              horizontal
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              style={styles.chipScroll}
+              contentContainerStyle={[styles.chipScrollContent, isNarrow && styles.chipScrollContentNarrow]}
+            >
+              <StageChip
+                label="All"
+                count={counts.all}
+                countColor={COMPLIANCE_FILTER_COUNT_TONE.all}
+                active={stage === "all"}
+                onPress={() => setStage("all")}
+                compact={isNarrow}
+              />
+              {COMPLIANCE_STAGES.map((s) => (
+                <StageChip
+                  key={s}
+                  label={COMPLIANCE_STAGE_FILTER_LABEL[s]}
+                  count={counts[s]}
+                  countColor={COMPLIANCE_FILTER_COUNT_TONE[s]}
+                  active={stage === s}
+                  onPress={() => setStage(s)}
+                  compact={isNarrow}
+                />
+              ))}
+            </ScrollView>
+          </View>
         </View>
       </View>
 
@@ -383,9 +457,9 @@ export default function ComplianceScreen() {
           canManageFinance={canManageFinance}
         />
       ) : (
-        <View style={[styles.cardGrid, { gap: gridGap }]}>
+        <View style={[styles.cardGrid, cardGridStyle]}>
           {visible.map((summary) => (
-            <View key={summary.trip.id} style={cardSlotStyle as ViewStyle}>
+            <View key={summary.trip.id} style={cardSlotStyle}>
               <ComplianceTripCard
                 summary={summary}
                 onReviewDocuments={(scope) => setReview({ tripId: summary.trip.id, documentKey: null, scope })}
@@ -466,7 +540,7 @@ const styles = StyleSheet.create({
   header: { gap: 14 },
   headerTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16 },
   headerTopStack: { flexDirection: "column", alignItems: "stretch" },
-  titleBlock: { flex: 1, minWidth: 0, gap: 6 },
+  titleBlock: { flex: 1, minWidth: 0 },
   title: {
     fontSize: 24,
     fontWeight: "700",
@@ -474,144 +548,221 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     letterSpacing: -0.3,
   },
-  headerMeta: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 2 },
-  activeBadge: {
+  titleCompact: {
+    fontSize: 20,
+    lineHeight: 26,
+  },
+  headerActions: {
     flexShrink: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: Theme.complianceActiveBadgeBg,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
+    justifyContent: "flex-end",
+    gap: 8,
+    flexWrap: "wrap",
   },
-  activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Theme.complianceActiveBadgeFg },
-  activeBadgeText: { fontSize: 12, fontWeight: "600", color: Theme.complianceActiveBadgeFg },
-  subtitle: { fontSize: 13, color: Theme.textMuted, lineHeight: 18, fontWeight: "400" },
-  headerActions: { flexShrink: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" },
   headerActionsStart: { justifyContent: "flex-start" },
-  metricRow: { flexDirection: "row", gap: 12, alignItems: "stretch" },
+  metricRow: { flexDirection: "row", gap: 10, alignItems: "stretch" },
+  metricRowWrap: { flexWrap: "wrap" },
   metricRowStack: { flexDirection: "column" },
   metricCard: {
     flex: 1,
     minWidth: 0,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 4,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 2,
+  },
+  metricCardCompact: {
+    minWidth: "30%",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   metricLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
-    letterSpacing: 0.4,
+    letterSpacing: 0.35,
     textTransform: "uppercase",
   },
   metricValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
     letterSpacing: -0.2,
-    lineHeight: 22,
+    lineHeight: 20,
+  },
+  metricValueCompact: {
+    fontSize: 14,
+    lineHeight: 18,
   },
   searchRow: {
+    flexShrink: 0,
+    height: 36,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    minHeight: 44,
-    paddingHorizontal: 14,
-    borderRadius: 12,
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
     backgroundColor: Theme.cardWhite,
     borderWidth: 1,
     borderColor: Theme.complianceCardBorder,
   },
+  searchRowStacked: {
+    width: "100%",
+    maxWidth: "100%",
+  },
+  searchRowNarrow: {
+    height: 34,
+    paddingHorizontal: 10,
+  },
   searchInput: {
     flex: 1,
     minWidth: 0,
-    minHeight: 44,
+    height: 36,
     paddingVertical: 0,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "500",
     color: Theme.textPrimary,
     ...(Platform.OS === "web" ? { outlineStyle: "none" as const } : null),
   },
   bulkBtn: {
-    minHeight: Layout.minTouchTargetSize,
+    height: 36,
     paddingHorizontal: 14,
-    borderRadius: 10,
+    borderRadius: 999,
     backgroundColor: Theme.complianceBulk,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
   },
-  bulkBtnText: { fontSize: 13, fontWeight: "700", color: Theme.complianceBulkText },
   reportBtn: {
-    minHeight: Layout.minTouchTargetSize,
+    height: 36,
     paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: Theme.cardWhite,
-    borderWidth: 1,
-    borderColor: Theme.complianceCardBorder,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  reportBtnText: { fontSize: 13, fontWeight: "700", color: Theme.textPrimary },
-  toolbarRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  toolbarStack: { flexDirection: "column", alignItems: "stretch" },
-  chipScroll: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
-  chipScrollContent: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 2, paddingRight: 4 },
-  chip: {
-    flexShrink: 0,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
     borderRadius: 999,
     backgroundColor: Theme.cardWhite,
     borderWidth: 1,
     borderColor: Theme.complianceCardBorder,
-    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  actionBtnCompact: {
+    paddingHorizontal: 10,
+    minWidth: 36,
+  },
+  bulkBtnText: { fontSize: 13, fontWeight: "700", color: Theme.complianceBulkText },
+  reportBtnText: { fontSize: 13, fontWeight: "600", color: Theme.textPrimary },
+  toolbarRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  toolbarStack: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 10,
+  },
+  filtersRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  chipTray: {
+    flex: 1,
+    minWidth: 0,
+    width: "100%",
+    ...(Platform.OS === "web" ? ({ overflow: "hidden" } as ViewStyle) : null),
+  },
+  chipScroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+    width: "100%",
+  },
+  chipScrollContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    paddingRight: 2,
+  },
+  chipScrollContentNarrow: {
+    gap: 6,
+  },
+  chip: {
+    flexShrink: 0,
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: Theme.cardWhite,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  chipCompact: {
+    height: 32,
+    paddingHorizontal: 10,
+    gap: 6,
   },
   chipActive: {
     backgroundColor: Theme.buttonDark,
     borderColor: Theme.buttonDark,
   },
-  chipText: { fontSize: 12, fontWeight: "600", color: Theme.textMuted },
+  chipText: { fontSize: 13, fontWeight: "600", color: Theme.textPrimary, lineHeight: 16 },
+  chipTextCompact: { fontSize: 12, lineHeight: 15 },
   chipTextActive: { color: Theme.buttonDarkText },
   chipCountBadge: {
-    minWidth: 22,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
   },
-  chipCount: { fontSize: 11, fontWeight: "800" },
+  chipCountBadgeCompact: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+  },
+  chipCount: { fontSize: 11, fontWeight: "800", lineHeight: 14 },
+  chipCountCompact: { fontSize: 10, lineHeight: 12 },
   viewToggle: {
     flexShrink: 0,
+    height: 36,
     flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Theme.cardWhite,
-    borderRadius: 10,
+    borderRadius: 999,
     padding: 3,
     borderWidth: 1,
     borderColor: Theme.complianceCardBorder,
     gap: 2,
   },
-  viewToggleEnd: { alignSelf: "flex-end" },
+  viewToggleCompact: {
+    height: 34,
+  },
   toggleBtn: {
+    height: 30,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minHeight: 40,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  toggleBtnCompact: {
+    width: 32,
+    height: 28,
+    paddingHorizontal: 0,
   },
   toggleBtnActive: { backgroundColor: Theme.buttonDark },
-  toggleBtnText: { fontSize: 12, fontWeight: "700", color: Theme.textMuted },
+  toggleBtnText: { fontSize: 13, fontWeight: "600", color: Theme.textPrimary, lineHeight: 16 },
   toggleBtnTextActive: { color: Theme.buttonDarkText },
   cardGrid: { flexDirection: "row", flexWrap: "wrap", alignItems: "stretch" },
-  message: { fontSize: 14, color: Theme.textMuted, textAlign: "center", paddingVertical: 28, lineHeight: 20 },
-  stale: { fontSize: 12, color: Theme.textMuted },
+  message: { fontSize: 14, color: Theme.textSecondary, textAlign: "center", paddingVertical: 28, lineHeight: 20 },
+  stale: { fontSize: 12, color: Theme.textSecondary },
 });

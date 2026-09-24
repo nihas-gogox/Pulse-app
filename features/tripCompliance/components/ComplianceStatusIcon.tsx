@@ -58,10 +58,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     paddingVertical: 0,
     borderRadius: 0,
-    gap: 6,
+    gap: 4,
   },
   glyph: { fontSize: 10, fontWeight: "700", lineHeight: 14 },
-  glyphCompact: { fontSize: 12, lineHeight: 16, width: 12, textAlign: "center" },
+  glyphCompact: { fontSize: 10, lineHeight: 13, width: 10, textAlign: "center" },
   label: { fontSize: 10, fontWeight: "600", lineHeight: 14 },
-  labelCompact: { fontSize: 12, fontWeight: "500", color: Theme.textPrimary, lineHeight: 16 },
+  labelCompact: { fontSize: 11, fontWeight: "500", color: Theme.textPrimary, lineHeight: 13 },
 });

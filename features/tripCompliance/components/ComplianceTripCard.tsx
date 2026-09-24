@@ -1,10 +1,9 @@
 /**
- * Compliance Verification card — ticket layout aligned with Trips hub cards
- * (client head, horizontal route, party chips), plus docs checklist + Verify Docs.
+ * Compliance Verification card — Trips-hub ticket layout (client head,
+ * route, party chips, docs checklist). Same summary data and callbacks.
  */
 import { PartyAvatar } from "@/components/PartyAvatar";
 import { HUB_MOBILE_TICKET_REF } from "@/components/hub/hubMobileTicketTokens";
-import { FinanceTxnTypography } from "@/constants/FinanceTxnTypography";
 import Theme from "@/constants/Theme";
 import {
   type ComplianceChecklistGroup,
@@ -19,7 +18,10 @@ import {
   shouldShowPaymentStatusPill,
   verificationStatusVisual,
 } from "@/features/tripCompliance/utils/complianceCardVisual.util";
-import { checklistTone, ensureComplianceChecklist } from "@/features/tripCompliance/utils/complianceChecklist.util";
+import {
+  complianceGroupOnFileCount,
+  ensureComplianceChecklist,
+} from "@/features/tripCompliance/utils/complianceChecklist.util";
 import {
   deriveComplianceQueueReadiness,
   paymentReadinessLabel,
@@ -40,10 +42,8 @@ import {
 
 const REF = HUB_MOBILE_TICKET_REF;
 const ROUTE_PIN_SIZE = 6;
-/** Compact vs hub defaults — denser queue cards without dropping fields. */
-const HEAD_AVATAR = 32;
+const HEAD_AVATAR = 34;
 const CHIP_AVATAR = 22;
-const HEAD_LEFT_GAP = 8;
 
 export type ComplianceTripCardProps = {
   summary: ComplianceTripSummary;
@@ -91,19 +91,11 @@ function RouteLeg({
       <View style={[styles.legRow, end && styles.legRowEnd]}>
         {!end ? <RoutePin variant={variant} /> : null}
         <View style={[styles.legText, end && styles.legTextEnd]}>
-          <Text
-            style={[styles.legCity, end && styles.textEnd]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
+          <Text style={[styles.legCity, end && styles.textEnd]} numberOfLines={1} ellipsizeMode="tail">
             {asLabel(city)}
           </Text>
           <Text
-            style={[
-              styles.legState,
-              end && styles.textEnd,
-              !state && styles.legStatePlaceholder,
-            ]}
+            style={[styles.legState, end && styles.textEnd, !state && styles.legStatePlaceholder]}
             numberOfLines={1}
             ellipsizeMode="tail"
           >
@@ -130,17 +122,9 @@ function PartyChip({
   const label = formatPartyName(name);
   return (
     <View style={[styles.chip, alignEnd && styles.chipEnd]}>
-      <PartyAvatar
-        name={label}
-        initialsColorSeed={avatarSeed}
-        entityType={entityType}
-        size={CHIP_AVATAR}
-      />
+      <PartyAvatar name={label} initialsColorSeed={avatarSeed} entityType={entityType} size={CHIP_AVATAR} />
       <View style={[styles.chipCopy, alignEnd && styles.chipCopyEnd]}>
-        <Text
-          style={[styles.chipName, alignEnd && styles.chipNameEnd]}
-          numberOfLines={1}
-        >
+        <Text style={[styles.chipName, alignEnd && styles.chipNameEnd]} numberOfLines={1}>
           {label}
         </Text>
       </View>
@@ -158,28 +142,39 @@ function ChecklistGroupTile({
   onPress?: () => void;
 }) {
   const tone = groupToneVisual(group.tone);
+  const requiredComplete = group.tone === "success";
   const content = (
     <>
       <View style={styles.groupHeader}>
-        <Text style={[styles.groupLabel, { color: tone.fg }]} numberOfLines={1}>
+        <Text style={styles.groupLabel} numberOfLines={1}>
           {group.label}
         </Text>
-        <Eye size={10} color={tone.fg} strokeWidth={2.2} />
+        <Eye size={11} color={Theme.textRouteCard} strokeWidth={2.2} />
       </View>
       <View style={styles.groupDots}>
         {group.slots.map((slot) => (
           <View
             key={slot.type}
-            style={[styles.groupDot, { backgroundColor: slot.verified ? tone.dot : tone.emptyDot }]}
+            style={[
+              styles.groupDot,
+              { backgroundColor: slot.verified ? tone.dot : Theme.complianceCardBorder },
+            ]}
           />
         ))}
       </View>
-      <Text style={[styles.groupCount, { color: tone.fg }]}>{countLabel}</Text>
+      <Text style={[styles.groupCount, requiredComplete && { color: tone.fg }]} numberOfLines={1}>
+        {countLabel}
+      </Text>
     </>
   );
 
+  const tileStyle = [
+    styles.groupTile,
+    requiredComplete && { backgroundColor: tone.bg, borderColor: tone.fg },
+  ];
+
   if (!onPress) {
-    return <View style={[styles.groupTile, { backgroundColor: tone.bg }]}>{content}</View>;
+    return <View style={tileStyle}>{content}</View>;
   }
 
   return (
@@ -187,7 +182,7 @@ function ChecklistGroupTile({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${group.label} documents, ${countLabel}`}
-      style={[styles.groupTile, { backgroundColor: tone.bg }]}
+      style={tileStyle}
     >
       {content}
     </TouchableOpacity>
@@ -206,34 +201,19 @@ export function ComplianceTripCard({
   const checklist = ensureComplianceChecklist(summary);
   const readiness = useMemo(() => deriveComplianceQueueReadiness(summary), [summary]);
   const required = readiness.requiredDocs;
-  const verifiedTripTypes = new Set(
-    summary.documents.filter((doc) => doc.status === "verified").map((doc) => doc.document_type),
-  );
-  const displayGroups = checklist.groups.map((group) => {
-    if (group.key !== "trip") return group;
-    const slots = group.slots.map((slot) => ({ ...slot, verified: verifiedTripTypes.has(slot.type) }));
-    return {
-      ...group,
-      slots,
-      verified: required.verified,
-      total: required.total,
-      tone: checklistTone(required.verified, required.total),
-    };
-  });
   const verification = verificationStatusVisual(summary);
   const payment = paymentStatusVisual(summary);
   const showPaymentPill = shouldShowPaymentStatusPill(summary);
-  /** Pending-docs cards already show status in the header — hide the duplicate footer pill + Verify Docs. */
   const isPendingDocsCard = verification.kind === "pending_docs";
-  const showVerificationPill = !isPendingDocsCard;
+  const fullyVerified = Boolean(summary.complianceVerifiedAt);
+  const showVerificationPill = !isPendingDocsCard && !(fullyVerified && verification.kind === "verified");
   const showVerifyDocsAction = !isPendingDocsCard;
   const showPayAction = Boolean(canManageFinance && readiness.paymentReady && onPay);
   const showCardFooter =
     showVerificationPill || showPaymentPill || showVerifyDocsAction || showPayAction;
-  const requiredTone = groupToneVisual(checklistTone(required.verified, required.total));
+  const progressComplete = required.total > 0 && required.verified === required.total;
   const tripId = complianceTripDisplayId(trip);
   const when = formatComplianceTimestamp(complianceEventAt(trip));
-  const fullyVerified = Boolean(summary.complianceVerifiedAt);
   const payLabel = paymentReadinessLabel(readiness);
 
   const clientName = asLabel(trip.client_name);
@@ -257,6 +237,17 @@ export function ComplianceTripCard({
   const dest = trip.drop_location ?? "";
   const openDetails = onOpenDetails ?? onViewTrip;
 
+  const nextLine = readiness.nextAction?.trim() || "";
+  const blockerLines = readiness.blockerLines
+    .filter((line) => {
+      const n = line.replace(/\.+$/, "").trim().toLowerCase();
+      const next = nextLine.replace(/\.+$/, "").trim().toLowerCase();
+      if (!n) return false;
+      if (next && (n === next || n === `next: ${next}`)) return false;
+      return true;
+    })
+    .slice(0, 2);
+
   return (
     <View style={styles.cardWrap}>
       <View style={styles.card}>
@@ -278,7 +269,7 @@ export function ComplianceTripCard({
                 <Text style={styles.brand} numberOfLines={1}>
                   {formatPartyName(clientName)}
                 </Text>
-                <Text style={styles.partnerSubline} numberOfLines={1}>
+                <Text style={styles.tripIdLink} numberOfLines={1}>
                   {tripId}
                 </Text>
               </View>
@@ -287,9 +278,7 @@ export function ComplianceTripCard({
               <View
                 style={[
                   styles.headStatusPill,
-                  {
-                    backgroundColor: showPaymentPill ? payment.tone.bg : verification.tone.bg,
-                  },
+                  { backgroundColor: showPaymentPill ? payment.tone.bg : verification.tone.bg },
                 ]}
               >
                 <Text
@@ -325,35 +314,34 @@ export function ComplianceTripCard({
 
           <View style={styles.partyRow}>
             <PartyChip name={vehicleLabel} entityType="vehicle" avatarSeed={vehicleFb} />
-            <PartyChip
-              name={driverLabel}
-              entityType="driver"
-              avatarSeed={driverFb}
-              alignEnd
-            />
+            <PartyChip name={driverLabel} entityType="driver" avatarSeed={driverFb} alignEnd />
           </View>
         </Pressable>
 
         <View style={styles.complianceBody}>
           <View style={styles.checklistHeader}>
             <Text style={styles.checklistTitle}>REQUIRED DOCUMENTS</Text>
-            <Text style={[styles.checklistProgress, { color: requiredTone.fg }]}>
+            <Text
+              style={[
+                styles.checklistProgress,
+                progressComplete ? styles.checklistProgressOk : styles.checklistProgressMuted,
+              ]}
+            >
               {required.verified}/{required.total} verified
             </Text>
           </View>
           <View style={styles.groupRow}>
-            {displayGroups.map((group) => (
-              <ChecklistGroupTile
-                key={group.key}
-                group={group}
-                countLabel={
-                  group.key === "trip"
-                    ? `${required.verified}/${required.total} Verified`
-                    : `${group.verified}/${group.total} On file`
-                }
-                onPress={() => onReviewDocuments(group.key)}
-              />
-            ))}
+            {checklist.groups.map((group) => {
+              const onFile = complianceGroupOnFileCount(group, summary.documents);
+              return (
+                <ChecklistGroupTile
+                  key={group.key}
+                  group={group}
+                  countLabel={`${onFile.onFile}/${onFile.total} On file`}
+                  onPress={() => onReviewDocuments(group.key)}
+                />
+              );
+            })}
           </View>
 
           <View
@@ -367,15 +355,22 @@ export function ComplianceTripCard({
                 styles.payLabel,
                 readiness.paymentReady ? styles.payReady : styles.payBlocked,
               ]}
+              numberOfLines={1}
             >
               {payLabel.label}
             </Text>
             {fullyVerified ? (
-              <Text style={styles.blockerLine}>Compliance Verified ✓</Text>
+              <Text style={styles.blockerLine} numberOfLines={1}>
+                Compliance Verified ✓
+              </Text>
             ) : null}
-            <Text style={styles.blockerLine}>Next: {readiness.nextAction}</Text>
-            {readiness.blockerLines.slice(0, 3).map((line) => (
-              <Text key={line} style={styles.blockerLine}>
+            {nextLine ? (
+              <Text style={styles.nextLine} numberOfLines={1}>
+                Next: {nextLine}
+              </Text>
+            ) : null}
+            {blockerLines.map((line) => (
+              <Text key={line} style={styles.blockerLine} numberOfLines={1}>
                 {line}
               </Text>
             ))}
@@ -388,11 +383,7 @@ export function ComplianceTripCard({
               <View style={styles.pillRow}>
                 {showVerificationPill ? (
                   <View
-                    style={[
-                      styles.stagePill,
-                      styles.stagePillWide,
-                      { backgroundColor: verification.tone.bg },
-                    ]}
+                    style={[styles.stagePill, { backgroundColor: verification.tone.bg }]}
                     accessibilityLabel={`Verification: ${verification.label}`}
                   >
                     {verification.kind === "verified" ? (
@@ -410,11 +401,7 @@ export function ComplianceTripCard({
                 ) : null}
                 {showPaymentPill ? (
                   <View
-                    style={[
-                      styles.stagePill,
-                      styles.stagePillWide,
-                      { backgroundColor: payment.tone.bg },
-                    ]}
+                    style={[styles.stagePill, { backgroundColor: payment.tone.bg }]}
                     accessibilityLabel={`Payment: ${payment.label}`}
                   >
                     {summary.stage === "payment_settled" ? (
@@ -445,11 +432,7 @@ export function ComplianceTripCard({
                       accessibilityRole="button"
                       accessibilityLabel="Documents verified"
                     >
-                      <Check
-                        size={12}
-                        color={Theme.complianceVerifiedPillFg}
-                        strokeWidth={2.4}
-                      />
+                      <Check size={12} color={Theme.complianceVerifiedPillFg} strokeWidth={2.4} />
                       <Text style={styles.verifiedBtnText}>Verified</Text>
                     </TouchableOpacity>
                   ) : (
@@ -466,11 +449,7 @@ export function ComplianceTripCard({
                   )
                 ) : null}
                 {showPayAction ? (
-                  <TouchableOpacity
-                    style={styles.verifyBtn}
-                    onPress={onPay}
-                    accessibilityRole="button"
-                  >
+                  <TouchableOpacity style={styles.verifyBtn} onPress={onPay} accessibilityRole="button">
                     <Text style={styles.verifyBtnText}>Pay</Text>
                   </TouchableOpacity>
                 ) : null}
@@ -484,198 +463,173 @@ export function ComplianceTripCard({
 }
 
 const styles = StyleSheet.create({
-  cardWrap: {
-    width: "100%",
-  },
+  cardWrap: { width: "100%", height: "100%", minWidth: 0 },
   card: {
+    flex: 1,
+    width: "100%",
+    minWidth: 0,
+    height: "100%",
+    flexDirection: "column",
     backgroundColor: Theme.cardWhite,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: Theme.borderLight,
+    borderColor: Theme.complianceCardBorder,
     overflow: "hidden",
     ...Platform.select({
-      web: {
-        boxShadow: "0 1px 4px rgba(15, 23, 42, 0.04)",
-      } as ViewStyle,
+      web: { boxShadow: "0 1px 3px rgba(15, 23, 42, 0.05)" } as ViewStyle,
       default: {
-        shadowColor: "#0f172a",
+        shadowColor: Theme.textPrimaryDark,
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 4,
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
         elevation: 1,
       },
     }),
   },
   body: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingTop: 12,
-    paddingBottom: 8,
+    paddingBottom: 10,
   },
-  bodyPressed: {
-    opacity: 0.98,
-  },
+  bodyPressed: { opacity: 0.98 },
   head: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 8,
-    marginBottom: 8,
+    gap: 10,
+    marginBottom: 10,
   },
   headLeft: {
     flex: 1,
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: HEAD_LEFT_GAP,
+    gap: 10,
   },
   headText: {
     flex: 1,
     minWidth: 0,
-    minHeight: HEAD_AVATAR,
     justifyContent: "center",
-    gap: 1,
+    gap: 2,
   },
   brand: {
-    ...FinanceTxnTypography.partyTitle,
+    fontSize: 13,
+    lineHeight: 16,
+    letterSpacing: -0.1,
+    fontWeight: "700",
+    color: Theme.textPrimary,
+  },
+  tripIdLink: {
     fontSize: 12,
     lineHeight: 15,
-    letterSpacing: -0.1,
     fontWeight: "600",
-  },
-  partnerSubline: {
-    fontSize: 10,
-    lineHeight: 12,
-    fontWeight: "600",
-    color: REF.accent,
-    letterSpacing: 0.2,
+    color: Theme.complianceBulk,
   },
   headMetaCol: {
     flexShrink: 0,
-    maxWidth: "46%",
     alignItems: "flex-end",
-    gap: 2,
-    paddingTop: 0,
+    gap: 4,
   },
   headStatusPill: {
     maxWidth: "100%",
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 999,
   },
   headStatusPillText: {
-    fontSize: 9,
-    lineHeight: 11,
+    fontSize: 10,
+    lineHeight: 12,
     fontWeight: "700",
     textAlign: "right",
-    textTransform: "uppercase",
     letterSpacing: 0.2,
   },
   headMetaMuted: {
-    fontSize: 9,
-    lineHeight: 11,
+    fontSize: 10,
+    lineHeight: 13,
     fontWeight: "400",
-    color: REF.muted,
+    color: Theme.textRouteCard,
     textAlign: "right",
   },
   route: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 2,
+    gap: 4,
     width: "100%",
-    maxWidth: "100%",
-    overflow: "hidden",
   },
   leg: {
     flex: 1,
     flexBasis: 0,
     minWidth: 0,
     maxWidth: "48%",
-    overflow: "hidden",
   },
-  legEnd: {
-    alignItems: "flex-end",
-  },
+  legEnd: { alignItems: "flex-end" },
   legRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 5,
+    gap: 6,
     minWidth: 0,
   },
-  legRowEnd: {
-    justifyContent: "flex-end",
-  },
+  legRowEnd: { justifyContent: "flex-end" },
   legText: {
     flex: 1,
     minWidth: 0,
-    overflow: "hidden",
     ...Platform.select({
       web: { width: "100%" } as ViewStyle,
       default: {},
     }),
   },
-  legTextEnd: {
-    alignItems: "flex-end",
-  },
+  legTextEnd: { alignItems: "flex-end" },
   routePin: {
     width: ROUTE_PIN_SIZE,
     height: ROUTE_PIN_SIZE,
     borderRadius: ROUTE_PIN_SIZE / 2,
-    marginTop: 3,
+    marginTop: 4,
     flexShrink: 0,
   },
-  routePinOrigin: {
-    backgroundColor: REF.accent,
-  },
-  routePinDest: {
-    backgroundColor: Theme.positive,
-  },
+  routePinOrigin: { backgroundColor: REF.accent },
+  routePinDest: { backgroundColor: Theme.positive },
   legCity: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
-    color: REF.ink,
+    color: Theme.textPrimary,
     letterSpacing: -0.1,
-    lineHeight: 14,
+    lineHeight: 15,
     textTransform: "uppercase",
     width: "100%",
   },
   legState: {
-    marginTop: 0,
-    fontSize: 9,
+    marginTop: 1,
+    fontSize: 10,
     fontWeight: "400",
-    color: REF.muted,
-    lineHeight: 11,
+    color: Theme.textRouteCard,
+    lineHeight: 13,
     width: "100%",
   },
-  legStatePlaceholder: {
-    opacity: 0,
-  },
-  textEnd: {
-    textAlign: "right",
-  },
+  legStatePlaceholder: { opacity: 0 },
+  textEnd: { textAlign: "right" },
   routeMid: {
     width: 18,
-    paddingTop: 1,
+    paddingTop: 2,
     alignItems: "center",
-    justifyContent: "flex-start",
     flexShrink: 0,
   },
   routeArrow: {
     fontSize: 13,
     fontWeight: "400",
-    color: REF.muted,
+    color: Theme.textRouteCard,
     lineHeight: 15,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: REF.hairline,
-    marginTop: 8,
-    marginBottom: 8,
+    backgroundColor: Theme.complianceCardBorder,
+    marginTop: 10,
+    marginBottom: 10,
   },
   partyRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 8,
+    gap: 10,
     minHeight: CHIP_AVATAR,
   },
   chip: {
@@ -683,80 +637,85 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 7,
   },
-  chipEnd: {
-    justifyContent: "flex-end",
-  },
-  chipCopy: {
-    flex: 1,
-    minWidth: 0,
-    justifyContent: "center",
-  },
-  chipCopyEnd: {
-    alignItems: "flex-end",
-  },
+  chipEnd: { justifyContent: "flex-end" },
+  chipCopy: { flex: 1, minWidth: 0, justifyContent: "center" },
+  chipCopyEnd: { alignItems: "flex-end" },
   chipName: {
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: "600",
-    color: REF.ink,
+    color: Theme.textPrimary,
     letterSpacing: -0.1,
   },
-  chipNameEnd: {
-    textAlign: "right",
-  },
+  chipNameEnd: { textAlign: "right" },
   complianceBody: {
-    paddingHorizontal: 12,
-    paddingBottom: 8,
-    gap: 6,
+    flexGrow: 1,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+    gap: 12,
   },
   checklistHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
   checklistTitle: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: "700",
-    color: REF.muted,
-    letterSpacing: 0.35,
+    color: Theme.textRouteCard,
+    letterSpacing: 0.4,
   },
   checklistProgress: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: "700",
+  },
+  checklistProgressMuted: {
+    color: Theme.textRouteCard,
+  },
+  checklistProgressOk: {
+    color: Theme.complianceStageSuccessFg,
   },
   groupRow: {
     flexDirection: "row",
+    alignItems: "stretch",
     flexWrap: "nowrap",
-    gap: 6,
+    gap: 8,
   },
   groupTile: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
     minWidth: 0,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    gap: 3,
+    alignSelf: "stretch",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    gap: 5,
+    backgroundColor: Theme.compliancePageBg,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
   },
   groupHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 2,
+    gap: 4,
   },
   groupLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     flex: 1,
     minWidth: 0,
+    color: Theme.textPrimary,
   },
   groupDots: {
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    gap: 2,
+    gap: 3,
   },
   groupDot: {
     width: 5,
@@ -764,43 +723,48 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   groupCount: {
-    fontSize: 9,
-    fontWeight: "700",
+    marginTop: "auto",
+    fontSize: 10,
+    fontWeight: "600",
+    color: Theme.textRouteCard,
   },
   blockerBox: {
-    gap: 1,
-    paddingTop: 6,
-    paddingHorizontal: 8,
-    paddingBottom: 6,
-    borderRadius: 8,
+    width: "100%",
+    gap: 4,
+    paddingTop: 10,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+    borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
     borderLeftWidth: 3,
   },
   blockerBoxBlocked: {
     backgroundColor: Theme.complianceStageDocsBg,
     borderColor: Theme.complianceStageDocsBg,
-    borderLeftColor: Theme.complianceStageDocsFg,
+    borderLeftColor: Theme.complianceGroupDangerDot,
   },
   blockerBoxReady: {
     backgroundColor: Theme.complianceStageSuccessBg,
     borderColor: Theme.complianceStageSuccessBg,
-    borderLeftColor: Theme.complianceStageSuccessFg,
+    borderLeftColor: Theme.complianceGroupSuccessDot,
   },
   payLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 16,
+  },
+  payReady: { color: Theme.complianceStageSuccessFg },
+  payBlocked: { color: Theme.complianceStageDocsFg },
+  nextLine: {
     fontSize: 11,
-    fontWeight: "800",
-    lineHeight: 14,
-  },
-  payReady: {
-    color: Theme.complianceStageSuccessFg,
-  },
-  payBlocked: {
-    color: Theme.complianceStageDocsFg,
+    fontWeight: "600",
+    color: Theme.complianceBulk,
+    lineHeight: 15,
   },
   blockerLine: {
-    fontSize: 10,
-    color: Theme.textMuted,
-    lineHeight: 13,
+    fontSize: 11,
+    color: Theme.textRouteCard,
+    lineHeight: 15,
   },
   cardFooter: {
     flexDirection: "row",
@@ -808,32 +772,30 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 8,
     flexWrap: "wrap",
-    paddingHorizontal: 12,
+    marginTop: "auto",
+    paddingHorizontal: 14,
     paddingTop: 8,
     paddingBottom: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: REF.hairline,
+    borderTopColor: Theme.complianceCardBorder,
   },
   pillRow: {
     flex: 1,
     minWidth: 0,
     flexDirection: "row",
-    alignItems: "stretch",
+    alignItems: "center",
+    flexWrap: "wrap",
     gap: 6,
   },
   stagePill: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     borderRadius: 999,
     flexShrink: 1,
     minWidth: 0,
-  },
-  stagePillWide: {
-    flex: 1,
   },
   stageDot: {
     width: 5,
@@ -841,18 +803,20 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   stagePillText: {
-    fontSize: 10,
-    fontWeight: "700",
+    fontSize: 11,
+    fontWeight: "600",
     flexShrink: 1,
   },
   footerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    justifyContent: "flex-end",
+    gap: 8,
     flexShrink: 0,
+    marginLeft: "auto",
   },
   verifyBtn: {
-    minHeight: 32,
+    minHeight: 30,
     paddingHorizontal: 12,
     borderRadius: Theme.buttonPrimaryRadius,
     backgroundColor: Theme.buttonPrimary,
@@ -869,7 +833,7 @@ const styles = StyleSheet.create({
     color: Theme.buttonPrimaryText,
   },
   verifiedBtn: {
-    minHeight: 32,
+    minHeight: 30,
     paddingHorizontal: 10,
     borderRadius: 999,
     backgroundColor: Theme.complianceVerifiedPillBg,
