@@ -33,7 +33,7 @@ jest.mock("@/lib/chatUnreadSignal", () => ({ setNetworkUnreadCount: jest.fn() })
 jest.mock("@/features/network/utils/storyReplyPreview.util", () => ({
   networkMetadataToReplyPreview: jest.fn(() => null),
 }));
-jest.mock("../../services/chat.service", () => ({
+jest.mock("@/features/chat/services/chat.service", () => ({
   getNetworkConversationsByOrg: jest.fn(),
   getIntegratedPartners: jest.fn(),
   getNetworkMessagesByConversation: jest.fn(),

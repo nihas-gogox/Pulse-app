@@ -6,12 +6,12 @@ jest.mock('@/lib/supabase', () => ({
   supabase: () => ({ from: mockFrom }),
 }));
 
-jest.mock('../../vehicle/vehicleOperationsLedger.service', () => ({
+jest.mock('@/features/trips/operations/vehicle/vehicleOperationsLedger.service', () => ({
   createVehicleOperationLedgerDraftFromSource: jest.fn().mockResolvedValue({ error: null }),
   syncVehicleOperationLedgerDraftAmountFromSource: jest.fn().mockResolvedValue({ error: null }),
 }));
 
-jest.mock('../../timeline/timelineEvents.service', () => ({
+jest.mock('@/features/trips/operations/timeline/timelineEvents.service', () => ({
   appendTripOperationalTimelineEventSafe: jest.fn().mockResolvedValue(undefined),
 }));
 

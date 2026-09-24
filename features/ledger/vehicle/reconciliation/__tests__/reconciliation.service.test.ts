@@ -14,7 +14,7 @@ jest.mock("@/lib/supabase", () => ({
 // Untouched by this change (only used by reconcileOperationalPosting) — mocked out because
 // its real import chain drags in @sentry/react-native, which this project's Jest config
 // doesn't transform.
-jest.mock("../../runtime", () => ({ executeVehiclePostingRuntime: jest.fn() }));
+jest.mock("@/features/ledger/vehicle/runtime", () => ({ executeVehiclePostingRuntime: jest.fn() }));
 
 type Row = Record<string, unknown>;
 

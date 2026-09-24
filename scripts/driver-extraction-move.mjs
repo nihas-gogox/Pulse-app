@@ -10,7 +10,8 @@
  *   2. Rewrite the moved file's import specifiers:
  *        · target in the same package → relative path inside the package
  *        · target in another package  → '@pulse/<pkg>/<path>'
- *        · target still in the app    → '@/<path>' (only type-only imports allowed, D10)
+ *        · target still in the app    → unchanged alias, or a relative path recomputed
+ *                                         from the new location (type-only only, D10)
  *        · relative asset (png/json/…) → '@/<path>'
  *   3. Leave a SHIM at the old path. It re-exports the new file through a
  *      relative path, which Metro, Vite (oms), TypeScript and Jest all resolve
@@ -120,7 +121,9 @@ async function rewriteMoved(oldPath) {
       const mv = movedBase(base, r.viaIndex);
       if (mv && mv.pkg === PKG) next = relSpec(newPath, mv.newBase);
       else if (mv) next = `@pulse/${mv.pkg}/${base}`;
-      else if (spec.startsWith('.')) next = `@/${base}`;
+      // Relative import of an app file that stays: keep it relative from the new
+      // location. `@/` would mean oms/src inside oms (lib/platform is shared with oms).
+      else if (spec.startsWith('.')) next = relSpec(newPath, base);
       // else: '@/…' alias to an app file stays as-is (type-only per D10; checker enforces)
       // Keep an explicit platform suffix if the original spec had one.
       const platSuffix = spec.match(/\.(web|native|ios|android)$/)?.[0];

@@ -1,4 +1,4 @@
-import type { SuiteProductId } from '@/lib/suite/suiteProducts';
+import type { SuiteProductId } from '../../../../lib/suite/suiteProducts';
 
 export type SuiteSignInCopy = {
   brandLabel: string;

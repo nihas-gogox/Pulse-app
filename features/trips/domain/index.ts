@@ -1,10 +1,2 @@
-export * from "./tripExecutionModel";
-export * from "./tripStage";
-export * from "./tripStageGuidance";
-export * from "./tripStageEta";
-export * from "./tripStageMetadata";
-export * from "./tripStageMetrics";
-export * from "./tripJourneyMetrics";
-export * from "./tripOperationalAlerts";
-export * from "./tripAlertActions";
-export * from "./tripTimeline";
+// Moved to packages/domain/features/trips/domain/index.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../../packages/domain/features/trips/domain/index';

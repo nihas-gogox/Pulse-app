@@ -150,7 +150,7 @@ describe("Nvidia a — Finance Pro client picture", () => {
     const hardCopySrc = readFileSync(
       join(
         process.cwd(),
-        "features/trips/services/tripDocumentLrPod.service.ts",
+        "packages/domain/features/trips/services/tripDocumentLrPod.service.ts",
       ),
       "utf8",
     );
