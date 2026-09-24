@@ -181,7 +181,7 @@ export default function LedgerSyncScreen() {
         case "SUPPLIER":
           return `/supplier/${params.entityId}`;
         case "DRIVER":
-          return `/driver/${params.entityId}`;
+          return `/fleet-driver/${params.entityId}`;
         case "VEHICLE":
           return `/vehicle/${params.entityId}`;
       }
@@ -490,7 +490,7 @@ export default function LedgerSyncScreen() {
             router.replace(`/supplier/${params.entityId}`);
             return;
           case "DRIVER":
-            router.replace(`/driver/${params.entityId}`);
+            router.replace(`/fleet-driver/${params.entityId}`);
             return;
           case "VEHICLE":
             router.replace(`/vehicle/${params.entityId}`);
@@ -519,7 +519,7 @@ export default function LedgerSyncScreen() {
         if (contactType === "driver") {
           const driverId =
             partyId === "driver-salary" ? (data.contactId ?? partyId) : partyId;
-          if (driverId) router.replace(`/driver/${driverId}`);
+          if (driverId) router.replace(`/fleet-driver/${driverId}`);
           return;
         }
       }

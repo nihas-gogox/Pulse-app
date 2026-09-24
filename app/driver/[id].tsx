@@ -1,45 +1,8 @@
-import DriverDetailScreen from '@/features/drivers/components/DriverDetailScreen';
-import { useLocalSearchParams } from 'expo-router';
-import { useSafeBack } from '@/lib/useSafeBack';
+// Legacy dispatcher URL /driver/:id → /fleet-driver/:id (driver extraction Phase 4A: /driver/* belongs to the
+// Pulse Driver web app). Only bookmarks/old links land here; internal links use /fleet-driver/:id.
+import { Redirect, useLocalSearchParams, type Href } from 'expo-router';
 
-type DriverDetailTab =
-  | 'trips'
-  | 'ledger'
-  | 'statement'
-  | 'ranking'
-  | 'earnings';
-
-function parseDriverDetailTab(raw: string | undefined): DriverDetailTab | undefined {
-  if (
-    raw === 'trips' ||
-    raw === 'ledger' ||
-    raw === 'statement' ||
-    raw === 'ranking' ||
-    raw === 'earnings' ||
-    raw === 'cash'
-  ) {
-    return raw === 'cash' ? 'ledger' : raw;
-  }
-  return undefined;
-}
-
-export default function DriverDetailRoute() {
-  const { id, profile, tab } = useLocalSearchParams<{
-    id: string;
-    profile?: string;
-    tab?: string;
-  }>();
-  const safeBack = useSafeBack();
-  const driverId = typeof id === 'string' ? id : id?.[0] ?? '';
-  const tabRaw = typeof tab === 'string' ? tab : tab?.[0];
-  const autoOpenProfile = profile === '1';
-
-  return (
-    <DriverDetailScreen
-      driverId={driverId}
-      onBack={safeBack}
-      autoOpenProfile={autoOpenProfile}
-      initialDetailTab={parseDriverDetailTab(tabRaw)}
-    />
-  );
+export default function LegacyDriverDetailRedirect() {
+  const params = useLocalSearchParams();
+  return <Redirect href={{ pathname: '/fleet-driver/[id]', params } as Href} />;
 }

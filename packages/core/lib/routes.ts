@@ -234,7 +234,7 @@ export const ROUTES = {
     return `${base}?tab=${encodeURIComponent(tab)}` as const;
   },
   driverProfile: (driverId: string, tab?: string) => {
-    const base = `/driver/${encodeURIComponent(driverId)}/profile` as const;
+    const base = `/fleet-driver/${encodeURIComponent(driverId)}/profile` as const;
     if (!tab) return base;
     return `${base}?tab=${encodeURIComponent(tab)}` as const;
   },
@@ -265,7 +265,7 @@ export const ROUTES = {
     driverId: string,
     tab?: "trips" | "ledger" | "statement" | "ranking" | "earnings" | "cash",
   ) => {
-    const base = `/driver/${encodeURIComponent(driverId)}` as const;
+    const base = `/fleet-driver/${encodeURIComponent(driverId)}` as const;
     if (!tab || tab === "trips") return base;
     const normalized = tab === "cash" ? "ledger" : tab;
     return `${base}?tab=${encodeURIComponent(normalized)}` as const;
@@ -282,7 +282,7 @@ export const ROUTES = {
   supplierAnalytics: (supplierId: string) =>
     `/supplier/${encodeURIComponent(supplierId)}/analytics` as const,
   driverAnalytics: (driverId: string) =>
-    `/driver/${encodeURIComponent(driverId)}/analytics` as const,
+    `/fleet-driver/${encodeURIComponent(driverId)}/analytics` as const,
 
   // Full-screen flows (root-level stack)
   ADD_TRIP:       '/add-trip'       as const,

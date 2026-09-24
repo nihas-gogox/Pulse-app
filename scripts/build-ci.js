@@ -20,6 +20,10 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 
+// Driver extraction Phase 4A: the Pulse Driver web app ships at /driver ONLY when the
+// web kill switch is on (preprod). Off (production default) = the build is unchanged.
+const DRIVER_WEB = process.env.EXPO_PUBLIC_DRIVER_APP_EXTRACTION_ENABLED === 'true';
+
 /**
  * Live children, so a SIGINT/SIGTERM can tear down the whole tree. Without
  * this, Ctrl+C killed only the orchestrator and left expo/metro/vite running,
@@ -101,13 +105,18 @@ function assertExists(rel) {
 
   // Phase 1 — concurrent. Disjoint output dirs: dist/, analytics/dist, oms/dist.
   const web = run('npx', ['expo', 'export', '--platform', 'web'], ROOT, 'expo export');
+  // Driver export runs after the main export (two Metro builds at once risk OOM) but
+  // still concurrently with the Vite builds. Output: apps/driver/dist (disjoint).
+  const driver = DRIVER_WEB
+    ? web.then(() => run('npx', ['expo', 'export', '--platform', 'web', '--output-dir', 'dist'], path.join(ROOT, 'apps', 'driver'), 'driver export'))
+    : Promise.resolve();
   const admin = run('npm', ['ci', '--prefer-offline'], path.join(ROOT, 'analytics'), 'analytics install')
     .then(() => run('npm', ['run', 'build'], path.join(ROOT, 'analytics'), 'analytics build'));
   const oms = run('npm', ['ci', '--prefer-offline', '--legacy-peer-deps'], path.join(ROOT, 'oms'), 'oms install')
     .then(() => run('npm', ['run', 'build'], path.join(ROOT, 'oms'), 'oms build'));
 
   // Barrier: all three must finish before any copy into dist/.
-  await Promise.all([web, admin, oms]);
+  await Promise.all([web, driver, admin, oms]);
 
   // Phase 2 — copy now that dist/ is final and will not be wiped again.
   await run('cp', ['-r', 'analytics/dist', 'dist/ops-9f3a2c'], ROOT, 'copy admin');
@@ -116,6 +125,17 @@ function assertExists(rel) {
   assertExists('dist/index.html');
   assertExists('dist/ops-9f3a2c/index.html');
   assertExists('dist/oms/index.html');
+
+  if (DRIVER_WEB) {
+    await run('cp', ['-r', 'apps/driver/dist', 'dist/driver'], ROOT, 'copy driver');
+    assertExists('dist/driver/index.html');
+    const { driverRedirects, driverHeaders } = require('./driver-web-redirects');
+    fs.writeFileSync(path.join(ROOT, 'dist/_redirects'), driverRedirects());
+    fs.appendFileSync(path.join(ROOT, 'dist/_headers'), driverHeaders());
+    console.log('[build-ci] Pulse Driver web app included at /driver (EXPO_PUBLIC_DRIVER_APP_EXTRACTION_ENABLED=true)');
+  } else {
+    console.log('[build-ci] Pulse Driver web app NOT included (EXPO_PUBLIC_DRIVER_APP_EXTRACTION_ENABLED is not true)');
+  }
 
   // Phase 3 — compress the finished bundle.
   await run('node', ['scripts/compress-dist.js'], ROOT, 'compress');

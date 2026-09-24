@@ -190,7 +190,7 @@ export function DocumentCenter({ orgId: orgIdProp }: DocumentCenterProps) {
     if (doc.entity_type === "vehicle") {
       router.push(`/vehicle/${doc.entity_id}` as Parameters<typeof router.push>[0]);
     } else if (doc.entity_type === "driver") {
-      router.push(`/driver/${doc.entity_id}` as Parameters<typeof router.push>[0]);
+      router.push(`/fleet-driver/${doc.entity_id}` as Parameters<typeof router.push>[0]);
     }
   };
 

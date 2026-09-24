@@ -524,7 +524,7 @@ export function DriverFleetRankingTab({ currentDriverId }: Props) {
           }}
           onPressRow={(r) => {
             if (r.driverId === currentDriverId) return;
-            router.push(`/driver/${r.driverId}`);
+            router.push(`/fleet-driver/${r.driverId}`);
           }}
           emptyLabel="No fleet drivers yet"
         />

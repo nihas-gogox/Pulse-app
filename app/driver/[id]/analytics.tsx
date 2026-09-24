@@ -1,10 +1,8 @@
-import { useLocalSearchParams } from "expo-router";
-import { DriverAnalyticsFullScreen } from "@/features/drivers/components/DriverAnalyticsFullScreen";
+// Legacy dispatcher URL /driver/:id/analytics → /fleet-driver/:id/analytics (driver extraction Phase 4A: /driver/* belongs to the
+// Pulse Driver web app). Only bookmarks/old links land here; internal links use /fleet-driver/:id/analytics.
+import { Redirect, useLocalSearchParams, type Href } from 'expo-router';
 
-export default function DriverAnalyticsRoute() {
-  const { id } = useLocalSearchParams<{ id?: string | string[] }>();
-  const driverId =
-    typeof id === "string" ? id : Array.isArray(id) ? id[0] ?? "" : "";
-
-  return <DriverAnalyticsFullScreen driverId={driverId} />;
+export default function LegacyDriverAnalyticsRedirect() {
+  const params = useLocalSearchParams();
+  return <Redirect href={{ pathname: '/fleet-driver/[id]/analytics', params } as Href} />;
 }

@@ -27,6 +27,7 @@ import {
 } from '@/lib/onboarding/incompleteOwnerOrg.util';
 import { hasPendingOAuthMetadata } from '@/features/auth/services/auth.service';
 import { DEFAULT_DRIVER_ROUTE } from '@/lib/routes';
+import { driverAppPathFor, isDriverWebHandoffEnabled } from '@/features/drivers/utils/driverAppHandoff.util';
 import {
   finalizeSuiteNavigationIntent,
   isSuiteExternalAppPath,
@@ -147,6 +148,12 @@ export default function Index() {
         return;
       }
       if (!claimIndexBootRedirect(uid)) return;
+      // Phase 4A kill switch (web only): drivers use the Pulse Driver web app at /driver.
+      if (isDriverWebHandoffEnabled() && typeof window !== 'undefined') {
+        logRouteDecision('handoff_driver_app', { uid, pathname });
+        window.location.replace(driverAppPathFor('/'));
+        return;
+      }
       logRouteDecision('redirect_driver_root', { uid, pathname });
       router.replace(DEFAULT_DRIVER_ROUTE as '/');
       return;
