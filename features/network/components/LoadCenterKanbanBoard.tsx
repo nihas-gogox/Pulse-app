@@ -7,7 +7,7 @@ import Theme from "@/constants/Theme";
 import type { IndentRow } from "@/features/indents";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -34,10 +34,11 @@ export type LoadCenterKanbanColumn = {
   label: string;
   accent: string;
   loads: IndentRow[];
-  /** Prefixed content inside the column (e.g. Open Market opportunity loads). */
-  topExtra?: ReactNode;
-  /** Added to the badge count (e.g. opportunity cards above indent loads). */
-  countExtra?: number;
+  /**
+   * How many cards to paint before "Load more".
+   * The header badge stays `loads.length` — the page size is not the total.
+   */
+  pageSize?: number;
   /**
    * Optional in-column tabs (e.g. Claimed → In Transit / Completed).
    * When set, `loads` is the union used for the header badge.
@@ -79,9 +80,19 @@ function KanbanColumn({
   );
   const activeTab =
     tabs.find((t) => t.id === activeTabId) ?? tabs[0] ?? null;
-  const visibleLoads = hasTabs ? (activeTab?.loads ?? []) : column.loads;
-  const badgeCount = column.loads.length + (column.countExtra ?? 0);
-  const showEmpty = visibleLoads.length === 0 && !column.topExtra;
+  const stageLoads = hasTabs ? (activeTab?.loads ?? []) : column.loads;
+  const pageSize = column.pageSize;
+  const [shownCount, setShownCount] = useState(
+    pageSize ?? stageLoads.length,
+  );
+  useEffect(() => {
+    setShownCount(pageSize ?? stageLoads.length);
+  }, [column.id, activeTabId, pageSize, stageLoads.length]);
+  const visibleLoads =
+    pageSize != null ? stageLoads.slice(0, shownCount) : stageLoads;
+  const badgeCount = column.loads.length;
+  const hiddenCount = Math.max(0, stageLoads.length - visibleLoads.length);
+  const showEmpty = visibleLoads.length === 0;
 
   return (
     <View
@@ -161,9 +172,6 @@ function KanbanColumn({
         showsVerticalScrollIndicator={hovered || Platform.OS !== "web"}
         nestedScrollEnabled
       >
-        {column.topExtra ? (
-          <View style={styles.topExtraWrap}>{column.topExtra}</View>
-        ) : null}
         {showEmpty ? (
           <View style={styles.emptyColumn}>
             <View style={styles.emptyIconWrap}>
@@ -184,6 +192,25 @@ function KanbanColumn({
             </View>
           ))
         )}
+        {hiddenCount > 0 ? (
+          <Pressable
+            onPress={() =>
+              setShownCount((n) =>
+                Math.min(stageLoads.length, n + (pageSize ?? stageLoads.length)),
+              )
+            }
+            style={({ pressed }) => [
+              styles.loadMoreBtn,
+              pressed && styles.loadMoreBtnPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Load more ${column.label}`}
+          >
+            <Text style={styles.loadMoreBtnText}>
+              Load more ({hiddenCount} more)
+            </Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -461,10 +488,26 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  topExtraWrap: {
-    width: "100%",
+  loadMoreBtn: {
     alignSelf: "stretch",
-    gap: 8,
+    minHeight: 44,
+    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    backgroundColor: Theme.screenBackground,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadMoreBtnPressed: {
+    opacity: 0.85,
+  },
+  loadMoreBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Theme.primary,
   },
   cardWrap: {
     width: "100%",

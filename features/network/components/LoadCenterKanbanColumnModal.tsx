@@ -1,8 +1,8 @@
 /**
  * Full-page modal listing indent cards for a Load Center kanban column.
- * Open Market is search-first: From / To / Vehicle must be picked before any
- * cards render. Other stages keep search + cascade chips. Nested Award / Bid
- * + indent detail stay on-page.
+ * Network loads and marketplace search stay separate — this page lists the
+ * stage's own indents. Cards lazy-load; the badge is the full stage count.
+ * Nested Award / Bid + indent detail stay on-page.
  */
 import Theme from "@/constants/Theme";
 import Layout from "@/constants/Layout";
@@ -12,14 +12,15 @@ import { getIndentDisplayNumber, type IndentRow } from "@/features/indents";
 import type {
   LoadCenterKanbanColumn,
 } from "@/features/network/components/LoadCenterKanbanBoard";
-import { MarketplaceLaneFilters } from "@/features/network/components/MarketplaceLaneFilters";
-import { MarketplaceSearchSheet } from "@/features/network/components/MarketplaceSearchSheet";
 import {
   filterMarketplaceOptions,
-  isMarketplaceSearchReady,
   lanesFromMarketplaceLoads,
-  type MarketplaceLoadSearch,
 } from "@/features/network/utils/marketplaceSearch.util";
+import {
+  growVisibleLoadCount,
+  MARKETPLACE_LOAD_PAGE_SIZE,
+  takeVisibleLoadPage,
+} from "@/features/network/utils/marketplaceLoadsPage.util";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import type { ReactNode } from "react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -246,12 +247,7 @@ export function LoadCenterKanbanColumnModal({
   const [vehicleFilter, setVehicleFilter] = useState("");
   const [openMenu, setOpenMenu] = useState<FilterKey | null>(null);
   const [menuQuery, setMenuQuery] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState<MarketplaceLoadSearch | null>(
-    null,
-  );
-  const [filterOpen, setFilterOpen] = useState(false);
-  const searchFirst = column?.id === "OPEN";
-  const searchReady = isMarketplaceSearchReady(appliedSearch);
+  const [visibleCount, setVisibleCount] = useState(MARKETPLACE_LOAD_PAGE_SIZE);
 
   const tabs = column?.tabs ?? [];
   const hasTabs = tabs.length > 0;
@@ -268,9 +264,12 @@ export function LoadCenterKanbanColumnModal({
     setVehicleFilter("");
     setOpenMenu(null);
     setMenuQuery("");
-    setAppliedSearch(null);
-    setFilterOpen(false);
+    setVisibleCount(MARKETPLACE_LOAD_PAGE_SIZE);
   }, [column]);
+
+  useEffect(() => {
+    setVisibleCount(MARKETPLACE_LOAD_PAGE_SIZE);
+  }, [searchQuery, pickupFilter, dropFilter, vehicleFilter, activeTabId]);
 
   const allColumnLoads = column?.loads ?? [];
 
@@ -284,39 +283,30 @@ export function LoadCenterKanbanColumnModal({
     }),
     [pickupFilter, dropFilter, vehicleFilter],
   );
-  const openMarketLanes = useMemo(
+  const columnLanes = useMemo(
     () => lanesFromMarketplaceLoads(allColumnLoads),
     [allColumnLoads],
   );
   const cascadeOptions = useMemo(
     () =>
       filterMarketplaceOptions(
-        openMarketLanes,
+        columnLanes,
         laneDraft,
         openMenu ?? "pickup",
         menuQuery,
       ),
-    [openMarketLanes, laneDraft, openMenu, menuQuery],
+    [columnLanes, laneDraft, openMenu, menuQuery],
   );
 
   const filteredLoads = useMemo(() => {
-    if (searchFirst && !searchReady) return [];
-    const pickup = searchFirst ? (appliedSearch?.pickup ?? "") : pickupFilter;
-    const drop = searchFirst ? (appliedSearch?.drop ?? "") : dropFilter;
-    const vehicle = searchFirst
-      ? (appliedSearch?.vehicleType ?? "")
-      : vehicleFilter;
     return stageLoads.filter(
       (load) =>
-        loadMatchesSearch(load, searchFirst ? "" : searchQuery) &&
-        fieldEquals(load.pickup_area, pickup) &&
-        fieldEquals(load.drop_location, drop) &&
-        fieldEquals(load.vehicle_type, vehicle),
+        loadMatchesSearch(load, searchQuery) &&
+        fieldEquals(load.pickup_area, pickupFilter) &&
+        fieldEquals(load.drop_location, dropFilter) &&
+        fieldEquals(load.vehicle_type, vehicleFilter),
     );
   }, [
-    searchFirst,
-    searchReady,
-    appliedSearch,
     stageLoads,
     searchQuery,
     pickupFilter,
@@ -324,7 +314,12 @@ export function LoadCenterKanbanColumnModal({
     vehicleFilter,
   ]);
 
-  const columns = columnsForGrid(width, filteredLoads.length);
+  const visibleLoads = useMemo(
+    () => takeVisibleLoadPage(filteredLoads, visibleCount),
+    [filteredLoads, visibleCount],
+  );
+
+  const columns = columnsForGrid(width, visibleLoads.length);
 
   const cellStyle = useMemo(() => {
     if (Platform.OS === "web") {
@@ -361,12 +356,11 @@ export function LoadCenterKanbanColumnModal({
     };
   }, [columns, boardMaxWidth]);
 
-  const hasActiveFilters = searchFirst
-    ? searchReady
-    : searchQuery.trim().length > 0 ||
-      pickupFilter.length > 0 ||
-      dropFilter.length > 0 ||
-      vehicleFilter.length > 0;
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    pickupFilter.length > 0 ||
+    dropFilter.length > 0 ||
+    vehicleFilter.length > 0;
 
   const clearFilters = useCallback(() => {
     setSearchQuery("");
@@ -375,9 +369,8 @@ export function LoadCenterKanbanColumnModal({
     setVehicleFilter("");
     setOpenMenu(null);
     setMenuQuery("");
-    setAppliedSearch(null);
-    if (searchFirst) setFilterOpen(true);
-  }, [searchFirst]);
+    setVisibleCount(MARKETPLACE_LOAD_PAGE_SIZE);
+  }, []);
 
   const badgeCount = allColumnLoads.length;
   const shownCount = filteredLoads.length;
@@ -496,7 +489,7 @@ export function LoadCenterKanbanColumnModal({
               />
               <View style={styles.headerText}>
                 <Text style={styles.eyebrow} numberOfLines={1}>
-                  {searchFirst ? "LIVE MARKETPLACE" : "LOAD STAGE"}
+                  LOAD STAGE
                 </Text>
                 <Text
                   style={[styles.title, isDesktop && styles.titleDesktop]}
@@ -505,42 +498,18 @@ export function LoadCenterKanbanColumnModal({
                   {column.label}
                 </Text>
                 <Text style={styles.subtitle} numberOfLines={1}>
-                  {searchFirst && !searchReady
-                    ? "Pick a lane to browse open loads"
-                    : hasActiveFilters
-                      ? `${shownCount} matching load${shownCount === 1 ? "" : "s"}`
-                      : `${badgeCount} load${badgeCount === 1 ? "" : "s"} in this stage`}
+                  {hasActiveFilters
+                    ? `${shownCount} matching load${shownCount === 1 ? "" : "s"}`
+                    : `${badgeCount} load${badgeCount === 1 ? "" : "s"} in this stage`}
                 </Text>
               </View>
             </View>
             <View style={styles.headerRight}>
-              {searchFirst && !searchReady ? null : (
-                <View style={styles.countBadge}>
-                  <Text style={styles.countText}>
-                    {hasActiveFilters ? shownCount : badgeCount}
-                  </Text>
-                </View>
-              )}
-              {searchFirst ? (
-                <Pressable
-                  onPress={() => setFilterOpen(true)}
-                  style={({ pressed }) => [
-                    styles.headerAction,
-                    searchReady && styles.filterIconBtnActive,
-                    pressed && styles.closeBtnPressed,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Search loads"
-                >
-                  <FontAwesome
-                    name="sliders"
-                    size={14}
-                    color={
-                      searchReady ? Theme.textOnPrimary : Theme.textPrimaryDark
-                    }
-                  />
-                </Pressable>
-              ) : null}
+              <View style={styles.countBadge}>
+                <Text style={styles.countText}>
+                  {hasActiveFilters ? shownCount : badgeCount}
+                </Text>
+              </View>
               <Pressable
                 onPress={onClose}
                 style={({ pressed }) => [
@@ -599,34 +568,6 @@ export function LoadCenterKanbanColumnModal({
           </View>
         ) : null}
 
-        {searchFirst ? (
-          <View style={[styles.toolbarBand, { paddingHorizontal: sidePad }]}>
-            <View style={styles.lanePanel}>
-              <View style={styles.lanePanelHead}>
-                <Text style={styles.lanePanelHint}>
-                  Pickup · Drop · Vehicle
-                </Text>
-                {searchReady ? (
-                  <Text style={styles.lanePanelMeta} numberOfLines={1}>
-                    {shownCount} match{shownCount === 1 ? "" : "es"}
-                  </Text>
-                ) : (
-                  <Text style={styles.lanePanelMeta} numberOfLines={1}>
-                    Choose a lane
-                  </Text>
-                )}
-              </View>
-              <MarketplaceLaneFilters
-                lanes={openMarketLanes}
-                value={appliedSearch}
-                onChange={setAppliedSearch}
-                autoOpenFirst
-              />
-            </View>
-          </View>
-        ) : null}
-
-        {!searchFirst ? (
         <View style={[styles.toolbarBand, { paddingHorizontal: sidePad }]}>
           <View style={[styles.toolbar, !isDesktop && styles.toolbarMobile]}>
             <View style={[styles.searchWrap, !isDesktop && styles.searchWrapMobile]}>
@@ -692,7 +633,6 @@ export function LoadCenterKanbanColumnModal({
             </View>
           </View>
         </View>
-        ) : null}
 
         <ScrollView
           style={styles.scroll}
@@ -716,36 +656,24 @@ export function LoadCenterKanbanColumnModal({
             <View style={styles.empty}>
               <View style={styles.emptyIcon}>
                 <FontAwesome
-                  name={
-                    searchFirst && !searchReady
-                      ? "search"
-                      : hasActiveFilters
-                        ? "filter"
-                        : "inbox"
-                  }
+                  name={hasActiveFilters ? "filter" : "inbox"}
                   size={18}
                   color={Theme.primary}
                 />
               </View>
               <Text style={styles.emptyTitle}>
-                {searchFirst && !searchReady
-                  ? "Start with a lane"
-                  : hasActiveFilters
-                    ? "No loads on this lane"
-                    : "Nothing in this stage"}
+                {hasActiveFilters
+                  ? "No loads on this lane"
+                  : "Nothing in this stage"}
               </Text>
               <Text style={styles.emptyText}>
-                {searchFirst && !searchReady
-                  ? "Choose pickup, drop, then vehicle to see live marketplace loads."
-                  : hasActiveFilters
-                    ? "Try another city pair or vehicle type."
-                    : "Loads will appear here when they enter this stage."}
+                {hasActiveFilters
+                  ? "Try another city pair or vehicle type."
+                  : "Loads will appear here when they enter this stage."}
               </Text>
               {hasActiveFilters ? (
                 <Pressable onPress={clearFilters} style={styles.emptyClearBtn}>
-                  <Text style={styles.emptyClearText}>
-                    {searchFirst ? "Change search" : "Clear filters"}
-                  </Text>
+                  <Text style={styles.emptyClearText}>Clear filters</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -758,7 +686,7 @@ export function LoadCenterKanbanColumnModal({
                 webGridStyle as object,
               ]}
             >
-              {filteredLoads.map((load) => (
+              {visibleLoads.map((load) => (
                 <View
                   key={load.id}
                   style={[
@@ -771,6 +699,25 @@ export function LoadCenterKanbanColumnModal({
               ))}
             </View>
           )}
+          {filteredLoads.length > visibleLoads.length ? (
+            <Pressable
+              onPress={() =>
+                setVisibleCount((n) =>
+                  growVisibleLoadCount(n, filteredLoads.length),
+                )
+              }
+              style={({ pressed }) => [
+                styles.loadMoreBtn,
+                pressed && styles.loadMoreBtnPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Load more loads"
+            >
+              <Text style={styles.loadMoreBtnText}>
+                Load more ({filteredLoads.length - visibleLoads.length} more)
+              </Text>
+            </Pressable>
+          ) : null}
         </ScrollView>
 
         {/* Bookmark-style stage jumpers — hide on first/last and while detail is open */}
@@ -937,19 +884,6 @@ export function LoadCenterKanbanColumnModal({
             </Pressable>
           </Pressable>
         </Modal>
-
-        <MarketplaceSearchSheet
-          visible={searchFirst && filterOpen && visible}
-          initial={appliedSearch}
-          lanes={openMarketLanes}
-          eyebrow="Network Loads"
-          title="Search live loads"
-          onClose={() => setFilterOpen(false)}
-          onApply={(search) => {
-            setAppliedSearch(search);
-            setFilterOpen(false);
-          }}
-        />
       </View>
     </Modal>
   );
@@ -1037,10 +971,6 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.cardWhite,
     alignItems: "center",
     justifyContent: "center",
-  },
-  filterIconBtnActive: {
-    backgroundColor: Theme.primary,
-    borderColor: Theme.primary,
   },
   countBadge: {
     minWidth: 40,
@@ -1228,49 +1158,6 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 4,
     width: "100%",
-  },
-  lanePanel: {
-    width: "100%",
-    maxWidth: BOARD_MAX_THREE,
-    alignSelf: "center",
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: Theme.cardWhite,
-    borderWidth: 1,
-    borderColor: Theme.surfaceBorder,
-    gap: 10,
-    ...Platform.select({
-      web: {
-        boxShadow: "0 8px 24px rgba(15,23,42,0.04)",
-      } as object,
-      default: {
-        shadowColor: Theme.shadow,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-      },
-    }),
-  },
-  lanePanelHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  lanePanelHint: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    color: Theme.textMuted,
-  },
-  lanePanelMeta: {
-    flexShrink: 0,
-    fontSize: 11,
-    fontWeight: "700",
-    color: Theme.textSecondary,
   },
   toolbar: {
     flexDirection: "row",
@@ -1489,6 +1376,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: Theme.textOnDark,
+  },
+  loadMoreBtn: {
+    alignSelf: "center",
+    marginTop: 16,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    backgroundColor: Theme.cardWhite,
+    justifyContent: "center",
+  },
+  loadMoreBtnPressed: {
+    opacity: 0.85,
+  },
+  loadMoreBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Theme.primary,
   },
   menuBackdrop: {
     flex: 1,

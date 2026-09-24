@@ -1,7 +1,5 @@
 import {
-  countUniqueLoadRoutes,
   growVisibleLoadCount,
-  indentLoadRouteKey,
   MARKETPLACE_LOAD_PAGE_SIZE,
   nextMarketplacePageOffset,
   sliceMarketplaceLoadsPage,
@@ -31,20 +29,14 @@ describe("marketplaceLoadsPage", () => {
     expect(growVisibleLoadCount(30, 40)).toBe(40);
   });
 
-  it("samples unique routes so one lane cannot fill the page", () => {
-    const rows = [
-      { pickup_area: "Bhandara", drop_location: "Bengaluru" },
-      { pickup_area: "Bhandara", drop_location: "Bengaluru" },
-      { pickup_area: "Bhandara", drop_location: "Bhiwadi" },
-      { pickup_area: "Chennai", drop_location: "Hyderabad" },
-    ];
-    const sample = takeVisibleLoadPage(rows, 15, 15, indentLoadRouteKey);
-    expect(sample).toHaveLength(3);
-    expect(sample.map((r) => `${r.pickup_area}→${r.drop_location}`)).toEqual([
-      "Bhandara→Bengaluru",
-      "Bhandara→Bhiwadi",
-      "Chennai→Hyderabad",
-    ]);
-    expect(countUniqueLoadRoutes(rows, indentLoadRouteKey)).toBe(3);
+  it("pages every load, including repeated routes", () => {
+    const rows = Array.from({ length: 20 }, (_, i) => ({
+      id: i,
+      pickup_area: "Periyapalayam",
+      drop_location: "Poonamallee",
+    }));
+    expect(takeVisibleLoadPage(rows, 15)).toHaveLength(15);
+    expect(takeVisibleLoadPage(rows, 30)).toHaveLength(20);
+    expect(rows).toHaveLength(20);
   });
 });

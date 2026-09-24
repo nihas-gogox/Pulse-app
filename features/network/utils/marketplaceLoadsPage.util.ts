@@ -21,59 +21,13 @@ export function nextMarketplacePageOffset(
   return offset + pageSize;
 }
 
-export function loadRouteKey(
-  pickup?: string | null,
-  drop?: string | null,
-): string {
-  return `${(pickup ?? "").trim().toLowerCase()}→${(drop ?? "").trim().toLowerCase()}`;
-}
-
-export function indentLoadRouteKey(load: {
-  pickup_area?: string | null;
-  drop_location?: string | null;
-}): string {
-  return loadRouteKey(load.pickup_area, load.drop_location);
-}
-
-/** First unique pickup→drop per sample slot so the page is not one repeated lane. */
-export function takeDiverseRouteSample<T>(
-  rows: readonly T[],
-  getRouteKey: (row: T) => string,
-  limit: number = MARKETPLACE_LOAD_PAGE_SIZE,
-): T[] {
-  const size = Math.max(1, limit);
-  const out: T[] = [];
-  const seen = new Set<string>();
-  for (const row of rows) {
-    const key = getRouteKey(row);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(row);
-    if (out.length >= size) break;
-  }
-  return out;
-}
-
-export function countUniqueLoadRoutes<T>(
-  rows: readonly T[],
-  getRouteKey: (row: T) => string,
-): number {
-  const seen = new Set<string>();
-  for (const row of rows) seen.add(getRouteKey(row));
-  return seen.size;
-}
-
-/** Visible prefix for Get Load network cards — unique routes first. */
+/** Visible prefix for a lazy-loaded list. The page size never replaces the total. */
 export function takeVisibleLoadPage<T>(
-  rows: T[],
+  rows: readonly T[],
   visibleCount: number,
   pageSize: number = MARKETPLACE_LOAD_PAGE_SIZE,
-  getRouteKey?: (row: T) => string,
 ): T[] {
   const size = Math.max(pageSize, visibleCount);
-  if (getRouteKey) {
-    return takeDiverseRouteSample(rows, getRouteKey, size);
-  }
   return rows.slice(0, size);
 }
 

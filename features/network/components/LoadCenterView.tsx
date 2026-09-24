@@ -105,10 +105,7 @@ import { LoadCenterUnderlineTabStrip } from "@/features/network/components/LoadC
 import { LoadCenterPromoCard } from "@/features/network/components/LoadCenterPromoCard";
 import { FindNetworkVehiclesDrawer } from "@/features/network/components/FindNetworkVehiclesDrawer";
 import { LoadCenterSidebarFindEmpty } from "@/features/network/components/LoadCenterSidebarFindEmpty";
-import {
-  LoadCenterOpportunityExchange,
-  useLoadCenterOpportunityPosts,
-} from "@/features/network/components/LoadCenterOpportunityExchange";
+import { LoadCenterOpportunityExchange } from "@/features/network/components/LoadCenterOpportunityExchange";
 import { LoadCenterPartnerRecommendations } from "@/features/network/components/LoadCenterPartnerRecommendations";
 import {
   selectIntegratedClientsForLoadCenter,
@@ -128,11 +125,8 @@ import {
   isEnabledListQueryPending,
 } from "@/lib/hooks/appQueryGate.util";
 import {
-  countUniqueLoadRoutes,
   growVisibleLoadCount,
-  indentLoadRouteKey,
   MARKETPLACE_LOAD_PAGE_SIZE,
-  takeDiverseRouteSample,
   takeVisibleLoadPage,
 } from "@/features/network/utils/marketplaceLoadsPage.util";
 import { useRouter } from "expo-router";
@@ -501,16 +495,11 @@ export function LoadCenterView({
         filteredFindWorkList,
         networkVisibleCount,
         MARKETPLACE_LOAD_PAGE_SIZE,
-        indentLoadRouteKey,
       ),
     [filteredFindWorkList, networkVisibleCount],
   );
-  const uniqueNetworkRouteCount = useMemo(
-    () => countUniqueLoadRoutes(filteredFindWorkList, indentLoadRouteKey),
-    [filteredFindWorkList],
-  );
   const hasMoreNetworkLoads =
-    uniqueNetworkRouteCount > visibleFindWorkList.length;
+    filteredFindWorkList.length > visibleFindWorkList.length;
 
   const renderNetworkLoadMore = () => {
     if (!hasMoreNetworkLoads) return null;
@@ -518,7 +507,7 @@ export function LoadCenterView({
       <Pressable
         onPress={() =>
           setNetworkVisibleCount((n) =>
-            growVisibleLoadCount(n, uniqueNetworkRouteCount),
+            growVisibleLoadCount(n, filteredFindWorkList.length),
           )
         }
         style={({ pressed }) => [
@@ -529,8 +518,8 @@ export function LoadCenterView({
         accessibilityLabel="Load more network loads"
       >
         <Text style={styles.loadMoreBtnText}>
-          Load more ({uniqueNetworkRouteCount - visibleFindWorkList.length}{" "}
-          more routes)
+          Load more ({filteredFindWorkList.length - visibleFindWorkList.length}{" "}
+          more)
         </Text>
       </Pressable>
     );
@@ -725,19 +714,12 @@ export function LoadCenterView({
           ],
         };
       }
-      const columnLoads =
-        id === "OPEN"
-          ? takeDiverseRouteSample(
-              buckets[id],
-              indentLoadRouteKey,
-              MARKETPLACE_LOAD_PAGE_SIZE,
-            )
-          : buckets[id];
       return {
         id,
         label: getLoadKanbanColumnLabel(id),
         accent: accents[id],
-        loads: columnLoads,
+        loads: buckets[id],
+        pageSize: id === "OPEN" ? MARKETPLACE_LOAD_PAGE_SIZE : undefined,
       };
     });
   }, [
@@ -890,63 +872,19 @@ export function LoadCenterView({
     () => new Set(clients.map((c) => c.linked_organization_id).filter(Boolean) as string[]),
     [clients],
   );
-  const {
-    posts: getLoadOpportunityPosts,
-    viewerBidByPostId: getLoadOppViewerBids,
-  } = useLoadCenterOpportunityPosts(
-    showLoadCenterChrome ? enrichmentOrgId : null,
-    "get",
-    connectedSupplierOrgIds,
-    connectedClientOrgIds,
-  );
-  /** Open Market column badge — only loads still open to bid (not already in My Bids). */
-  const openMarketOpportunityCount = useMemo(
-    () =>
-      getLoadOpportunityPosts.filter((p) => !getLoadOppViewerBids.has(p.id))
-        .length,
-    [getLoadOpportunityPosts, getLoadOppViewerBids],
-  );
-  const getLoadKanbanColumnsWithOpps = useMemo(() => {
-    if (openMarketOpportunityCount === 0) {
-      return getLoadKanbanColumns;
-    }
-    return getLoadKanbanColumns.map((col) => {
-      if (col.id !== "OPEN") return col;
-      return {
-        ...col,
-        countExtra: openMarketOpportunityCount,
-        topExtra: (
-          <LoadCenterOpportunityExchange
-            orgId={orgId}
-            mode="get"
-            columnStack
-            supplierOrgIds={connectedSupplierOrgIds}
-            clientOrgIds={connectedClientOrgIds}
-            embedded
-          />
-        ),
-      };
-    });
-  }, [
-    getLoadKanbanColumns,
-    openMarketOpportunityCount,
-    orgId,
-    connectedSupplierOrgIds,
-    connectedClientOrgIds,
-  ]);
 
   const expandedKanbanColumn = useMemo(() => {
     if (!expandedKanbanColumnId || !expandedKanbanMode) return null;
     const cols =
       expandedKanbanMode === "give"
         ? giveLoadKanbanColumns
-        : getLoadKanbanColumnsWithOpps;
+        : getLoadKanbanColumns;
     return cols.find((c) => c.id === expandedKanbanColumnId) ?? null;
   }, [
     expandedKanbanColumnId,
     expandedKanbanMode,
     giveLoadKanbanColumns,
-    getLoadKanbanColumnsWithOpps,
+    getLoadKanbanColumns,
   ]);
 
   const kanbanStageNeighbors = useMemo(() => {
@@ -956,7 +894,7 @@ export function LoadCenterView({
     const cols =
       expandedKanbanMode === "give"
         ? giveLoadKanbanColumns
-        : getLoadKanbanColumnsWithOpps;
+        : getLoadKanbanColumns;
     const idx = cols.findIndex((c) => c.id === expandedKanbanColumnId);
     if (idx < 0) return { previous: null, next: null };
     const prev = idx > 0 ? cols[idx - 1] : null;
@@ -964,7 +902,7 @@ export function LoadCenterView({
     const toNav = (col: LoadCenterKanbanColumn) => ({
       id: col.id,
       label: col.label,
-      count: col.loads.length + (col.countExtra ?? 0),
+      count: col.loads.length,
     });
     return {
       previous: prev ? toNav(prev) : null,
@@ -974,7 +912,7 @@ export function LoadCenterView({
     expandedKanbanColumnId,
     expandedKanbanMode,
     giveLoadKanbanColumns,
-    getLoadKanbanColumnsWithOpps,
+    getLoadKanbanColumns,
   ]);
 
   const openKanbanColumn = useCallback(
@@ -2459,8 +2397,7 @@ export function LoadCenterView({
             ) : !isMobileView ? (
               findWorkLoads.length === 0 &&
               awardedLoads.length === 0 &&
-              findWorkDoneUnionLoads.length === 0 &&
-              getLoadOpportunityPosts.length === 0 ? (
+              findWorkDoneUnionLoads.length === 0 ? (
                 renderLoadCenterEmptyPromo()
               ) : (
                 <>
@@ -2469,7 +2406,7 @@ export function LoadCenterView({
                   findWorkDoneUnionLoads.length > 0 ? (
                     <LoadCenterKanbanBoard
                       title="Market opportunities by stage"
-                      columns={getLoadKanbanColumnsWithOpps}
+                      columns={getLoadKanbanColumns}
                       renderCard={renderGetLoadGridCard}
                       highlightedIndentId={highlightedIndentId}
                       matchHeight={desktopBoardHeight}
@@ -2478,11 +2415,8 @@ export function LoadCenterView({
                   ) : null}
                 </>
               )
-            ) : filteredFindWorkList.length === 0 &&
-              getLoadOpportunityPosts.length === 0 ? (
-              renderLoadCenterEmptyPromo()
             ) : filteredFindWorkList.length === 0 ? (
-              <LoadCenterHubMobileListCanvas />
+              renderLoadCenterEmptyPromo()
             ) : useGridLayout ? (
               <View style={styles.gridList}>
                 <View style={styles.loadSectionRow}>
