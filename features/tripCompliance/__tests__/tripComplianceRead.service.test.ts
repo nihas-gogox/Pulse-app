@@ -82,6 +82,35 @@ describe("deriveComplianceStage", () => {
     ).toBe("advance_payment_processed");
   });
 
+  it("moves to PENDING_FOR_DOCS when required vehicle docs are expired (even with advance)", () => {
+    expect(
+      deriveComplianceStage({
+        documentCount: 3,
+        missingRequiredCount: 0,
+        hasExpiredRequiredVehicleDocs: true,
+        complianceVerifiedAt: "2026-09-01T00:00:00Z",
+        advance: PAYMENT,
+        tripStatus: "completed",
+        hardCopyReceived: false,
+        balance: null,
+      }),
+    ).toBe("pending_for_docs");
+  });
+
+  it("keeps PAYMENT_SETTLED when balance exists even if vehicle docs expired", () => {
+    expect(
+      deriveComplianceStage({
+        documentCount: 3,
+        hasExpiredRequiredVehicleDocs: true,
+        complianceVerifiedAt: "2026-09-01T00:00:00Z",
+        advance: PAYMENT,
+        tripStatus: "completed",
+        hardCopyReceived: true,
+        balance: PAYMENT,
+      }),
+    ).toBe("payment_settled");
+  });
+
   it("keeps ADVANCE_PAYMENT_PROCESSED when Finance already collected amount_paid but docs/verification are incomplete", () => {
     expect(
       deriveComplianceStage({

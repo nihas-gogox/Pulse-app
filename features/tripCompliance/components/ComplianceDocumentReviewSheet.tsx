@@ -100,6 +100,60 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
+/** Expiry shown on the list row (YYYY-MM-DD or ISO) with year so Ops can see validity. */
+function formatExpiryDate(iso: string | null | undefined): string | null {
+  const raw = iso?.trim();
+  if (!raw) return null;
+  try {
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+      ? new Date(`${raw}T00:00:00Z`)
+      : new Date(raw);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  } catch {
+    return null;
+  }
+}
+
+function documentUploadedLabel(row: {
+  doc?: { uploaded_at?: string | null; file_name?: string | null; uploaded_by?: string | null } | null;
+  entityDoc?: { created_at?: string | null } | null;
+}): string {
+  const uploaded = row.doc?.uploaded_at
+    ? `Uploaded ${formatDate(row.doc.uploaded_at)}`
+    : row.entityDoc?.created_at
+      ? `Uploaded ${formatDate(row.entityDoc.created_at)}`
+      : "Not uploaded";
+  const filePart = row.doc?.file_name
+    ? ` · ${row.doc.file_name}`
+    : row.doc?.uploaded_by
+      ? ` · ${row.doc.uploaded_by.slice(0, 8)}`
+      : "";
+  return `${uploaded}${filePart}`;
+}
+
+/** Dedicated expiry line for vehicle/driver entity docs — always visible when on file. */
+function documentExpiryLabel(row: {
+  status: string;
+  type: string;
+  entityDoc?: { expiry_date?: string | null; storage_path?: string | null } | null;
+}): string | null {
+  if (!row.entityDoc?.storage_path && row.status === "missing") return null;
+  const expiryLabel = formatExpiryDate(row.entityDoc?.expiry_date ?? null);
+  if (expiryLabel) {
+    return row.status === "expired" ? `Expired ${expiryLabel}` : `Expires ${expiryLabel}`;
+  }
+  if (row.type === "rc" || row.type === "insurance" || row.type === "fitness" || row.type === "license") {
+    return "Expiry not set";
+  }
+  return null;
+}
+
 const VAULT_VEHICLE_TYPES = new Set(["rc", "insurance", "fitness", "pollution"]);
 
 export type ComplianceReviewScope = ComplianceChecklistGroup["key"];
@@ -552,14 +606,17 @@ export function ComplianceDocumentReviewSheet({
   const resolveExpiryForUpload = useCallback(
     async (type: string): Promise<string | null> => {
       const existing = rows.find((row) => row.type === type)?.entityDoc?.expiry_date?.trim() ?? "";
-      if (!documentRequiresExpiry(type)) return existing;
       if (existing && /^\d{4}-\d{2}-\d{2}$/.test(existing)) return existing;
+      // Always collect expiry for RC / Insurance / FC / DL so the list can show it.
+      const needsExpiry =
+        documentRequiresExpiry(type) || type === "rc" || type === "insurance" || type === "fitness";
+      if (!needsExpiry) return existing || null;
       const entered = await promptExpiryDate(type);
-      if (!entered) return null;
+      if (!entered) return documentRequiresExpiry(type) ? null : existing || null;
       const trimmed = entered.trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
         alertMessage("Invalid expiry date", "Use YYYY-MM-DD (for example 2027-03-15).");
-        return null;
+        return documentRequiresExpiry(type) ? null : existing || null;
       }
       return trimmed;
     },
@@ -739,7 +796,6 @@ export function ComplianceDocumentReviewSheet({
     ],
   );
 
-  const uploadedAt = selected?.doc?.uploaded_at ?? selected?.entityDoc?.created_at ?? null;
   const verifiedAt = selected?.doc?.verified_at ?? selected?.entityDoc?.verified_at ?? null;
   const rejectionReason = selected?.doc?.rejection_reason ?? selected?.entityDoc?.notes ?? null;
   const statusMeta = selected ? COMPLIANCE_STATUS_META[selected.status] : null;
@@ -749,6 +805,7 @@ export function ComplianceDocumentReviewSheet({
     const decisions = complianceReviewDecisionActions(row);
     const canModerate = canVerify && canModerateComplianceRow(row, scope);
     const rowBusy = busy && busyRowKey === row.key;
+    const expiryLine = documentExpiryLabel(row);
     const uploadLabel =
       uploadingMissing && retryType === row.type
         ? "Uploading…"
@@ -780,16 +837,7 @@ export function ComplianceDocumentReviewSheet({
                 </Text>
               </View>
               <Text style={styles.docMetaLine} numberOfLines={1}>
-                {row.doc?.uploaded_at
-                  ? `Uploaded ${formatDate(row.doc.uploaded_at)}`
-                  : row.entityDoc?.created_at
-                    ? `Uploaded ${formatDate(row.entityDoc.created_at)}`
-                    : "Not uploaded"}
-                {row.doc?.file_name
-                  ? ` · ${row.doc.file_name}`
-                  : row.doc?.uploaded_by
-                    ? ` · ${row.doc.uploaded_by.slice(0, 8)}`
-                    : ""}
+                {documentUploadedLabel(row)}
               </Text>
               {row.status === "rejected" && (row.doc?.rejection_reason || row.entityDoc?.notes) ? (
                 <Text style={styles.rejectReasonText} numberOfLines={2}>
@@ -803,7 +851,23 @@ export function ComplianceDocumentReviewSheet({
             </View>
           </TouchableOpacity>
           <View style={styles.docActions}>
-            <ComplianceStatusChip status={row.status} label={meta.label} compact />
+            <View style={styles.docStatusRow}>
+              {expiryLine ? (
+                <Text
+                  style={[
+                    styles.docExpiryBesideStatus,
+                    row.status === "expired" || expiryLine === "Expiry not set"
+                      ? styles.docExpiryLineWarn
+                      : null,
+                  ]}
+                  numberOfLines={1}
+                  accessibilityLabel={expiryLine}
+                >
+                  {expiryLine}
+                </Text>
+              ) : null}
+              <ComplianceStatusChip status={row.status} label={meta.label} compact />
+            </View>
             <View style={styles.docActionBtns}>
               <TouchableOpacity
                 onPress={() => void openRowPreview(row)}
@@ -1215,12 +1279,27 @@ export function ComplianceDocumentReviewSheet({
               </View>
               <Text style={styles.docTitle}>{labelForDocType(selected.type)}</Text>
               <Text style={styles.docMeta}>
-                {uploadedAt ? `Uploaded ${formatDate(uploadedAt)}` : "Not uploaded"}
-                {selected.doc?.uploaded_by ? ` · ${selected.doc.uploaded_by.slice(0, 8)}` : ""}
+                {documentUploadedLabel(selected)}
                 {" · "}
                 {statusMeta?.label ?? selected.status}
                 {selected.status === "verified" && verifiedAt ? ` ${formatDate(verifiedAt)}` : ""}
               </Text>
+              {(() => {
+                const expiryLine = documentExpiryLabel(selected);
+                if (!expiryLine) return null;
+                return (
+                  <Text
+                    style={[
+                      styles.docExpiryLine,
+                      selected.status === "expired" || expiryLine === "Expiry not set"
+                        ? styles.docExpiryLineWarn
+                        : null,
+                    ]}
+                  >
+                    {expiryLine}
+                  </Text>
+                );
+              })()}
               {selected.status === "rejected" && rejectionReason ? (
                 <Text style={styles.rejectReasonText}>Reason: {rejectionReason}</Text>
               ) : null}
@@ -1570,7 +1649,23 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     alignItems: "flex-end",
     gap: 8,
-    maxWidth: "46%",
+    maxWidth: "52%",
+  },
+  docStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+    gap: 6,
+    maxWidth: "100%",
+  },
+  docExpiryBesideStatus: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Theme.textPrimary,
+    flexShrink: 1,
+    minWidth: 0,
+    textAlign: "right",
   },
   docActionBtns: {
     flexDirection: "row",
@@ -1693,6 +1788,16 @@ const styles = StyleSheet.create({
   docMeta: { fontSize: 12, color: Theme.textMuted, marginTop: 2 },
   rejectReasonText: { fontSize: 12, color: Theme.teslaRed, lineHeight: 16 },
   docMetaLine: { fontSize: 11, color: Theme.textMuted, lineHeight: 15 },
+  docExpiryLine: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Theme.textPrimary,
+    lineHeight: 16,
+    marginTop: 1,
+  },
+  docExpiryLineWarn: {
+    color: Theme.complianceStageDocsFg,
+  },
   actionsRow: { flexDirection: "row", gap: 10, marginTop: 8 },
   approveBtn: {
     flex: 1,

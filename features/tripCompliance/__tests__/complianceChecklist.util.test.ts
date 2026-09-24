@@ -6,6 +6,8 @@ import {
   checklistTone,
   ensureComplianceChecklist,
   isEntityDocumentSlotVerified,
+  listExpiredRequiredVehicleDocTypes,
+  listExpiringSoonRequiredVehicleDocTypes,
 } from "@/features/tripCompliance/utils/complianceChecklist.util";
 
 function tripDoc(type: string, status: ComplianceDocumentRow["status"] = "verified"): ComplianceDocumentRow {
@@ -105,6 +107,17 @@ describe("buildComplianceChecklist", () => {
       now: new Date("2026-09-01T00:00:00Z"),
     });
     expect(checklist.groups[1].verified).toBe(0);
+  });
+
+  it("lists expired required vehicle docs for Pending Docs routing", () => {
+    const docs = [
+      entityDoc({ entity_type: "vehicle", entity_id: "v1", doc_type: "rc", status: "active", expiry_date: "2025-01-01" }),
+      entityDoc({ entity_type: "vehicle", entity_id: "v1", doc_type: "insurance", status: "active", expiry_date: "2026-09-15" }),
+      entityDoc({ entity_type: "vehicle", entity_id: "v1", doc_type: "fitness", status: "active", expiry_date: "2027-01-01" }),
+    ];
+    const now = new Date("2026-09-01T00:00:00Z");
+    expect(listExpiredRequiredVehicleDocTypes(docs, now)).toEqual(["rc"]);
+    expect(listExpiringSoonRequiredVehicleDocTypes(docs, now, 30)).toEqual(["insurance"]);
   });
 
   it("does not count insurance/FC/DL without expiry as verified", () => {

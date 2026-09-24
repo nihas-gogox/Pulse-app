@@ -106,7 +106,7 @@ describe("normalizeVaultVehicleNumber", () => {
 });
 
 describe("mergeComplianceEntityDocs", () => {
-  it("lets vault files win over entity_documents of the same type", () => {
+  it("lets preferred (first arg) win over fallback of the same type", () => {
     const vault: ComplianceEntityDocument[] = [
       {
         id: "vault-rc",
@@ -138,5 +138,42 @@ describe("mergeComplianceEntityDocs", () => {
       },
     ];
     expect(mergeComplianceEntityDocs(vault, entity)[0]?.id).toBe("vault-rc");
+  });
+
+  it("inherits expiry from fallback when preferred has none", () => {
+    const entity: ComplianceEntityDocument[] = [
+      {
+        id: "entity-ins",
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type: "insurance",
+        status: "verified",
+        storage_path: "entity/ins.pdf",
+        expiry_date: "2027-08-15",
+        verified_at: null,
+        notes: null,
+        created_at: "2026-09-24",
+        source: "entity",
+      },
+    ];
+    const vault: ComplianceEntityDocument[] = [
+      {
+        id: "vault-ins",
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type: "insurance",
+        status: "active",
+        storage_path: "vault/ins.pdf",
+        expiry_date: "",
+        verified_at: null,
+        notes: null,
+        created_at: "2026-09-01",
+        source: "vehicle-vault",
+      },
+    ];
+    // Production: preferred = entity, fallback = vault
+    const merged = mergeComplianceEntityDocs(entity, vault);
+    expect(merged[0]?.id).toBe("entity-ins");
+    expect(merged[0]?.expiry_date).toBe("2027-08-15");
   });
 });

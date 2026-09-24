@@ -147,6 +147,21 @@ export function mergeComplianceEntityDocs(
 ): ComplianceEntityDocument[] {
   const byType = new Map<string, ComplianceEntityDocument>();
   for (const doc of fallback) byType.set(doc.doc_type, doc);
-  for (const doc of preferred) byType.set(doc.doc_type, doc);
+  for (const doc of preferred) {
+    const existing = byType.get(doc.doc_type);
+    if (!existing) {
+      byType.set(doc.doc_type, doc);
+      continue;
+    }
+    // Keep the preferred file/source, but inherit expiry from the other side
+    // when preferred has none (common: vault upload with empty expiryDate +
+    // entity_documents row that already has the date).
+    const preferredExpiry = doc.expiry_date?.trim() || null;
+    const fallbackExpiry = existing.expiry_date?.trim() || null;
+    byType.set(doc.doc_type, {
+      ...doc,
+      expiry_date: preferredExpiry ?? fallbackExpiry,
+    });
+  }
   return Array.from(byType.values());
 }

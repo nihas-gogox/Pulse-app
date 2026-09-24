@@ -162,6 +162,33 @@ describe("deriveEntityComplianceRows", () => {
     );
     expect(rows.find((r) => r.type === "fitness")?.status).toBe("expired");
   });
+
+  it("prefers verified insurance with expiry over a newer pending row without expiry", () => {
+    const rows = deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, [
+      entityDoc({
+        id: "ins-old",
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type: "insurance",
+        status: "verified",
+        expiry_date: "2027-08-15",
+        created_at: "2026-09-24T06:00:00Z",
+      }),
+      entityDoc({
+        id: "ins-new",
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type: "insurance",
+        status: "pending",
+        expiry_date: null,
+        created_at: "2026-09-24T07:00:00Z",
+      }),
+    ]);
+    const insurance = rows.find((r) => r.type === "insurance");
+    expect(insurance?.entityDoc?.id).toBe("ins-old");
+    expect(insurance?.entityDoc?.expiry_date).toBe("2027-08-15");
+    expect(insurance?.status).toBe("verified");
+  });
 });
 
 describe("requirementScopeLabel", () => {

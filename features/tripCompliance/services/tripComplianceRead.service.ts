@@ -11,7 +11,7 @@ import {
     type ComplianceStage,
     type ComplianceTripSummary,
 } from "@/features/tripCompliance/tripCompliance.types";
-import { buildComplianceChecklist } from "@/features/tripCompliance/utils/complianceChecklist.util";
+import { buildComplianceChecklist, listExpiredRequiredVehicleDocTypes } from "@/features/tripCompliance/utils/complianceChecklist.util";
 import {
     mergeComplianceEntityDocs,
     normalizeTripDocumentType,
@@ -300,6 +300,11 @@ export function deriveComplianceStage(input: {
   documentCount: number;
   /** Required trip types still missing (LR / E-way / Invoice). Prefer over raw count. */
   missingRequiredCount?: number;
+  /**
+   * Required vehicle docs (RC / Insurance / FC) that are on file but past
+   * expiry. Forces Pending Docs so Ops renews the vault before settlement.
+   */
+  hasExpiredRequiredVehicleDocs?: boolean;
   complianceVerifiedAt: string | null;
   advance: CompliancePaymentSummary | null;
   tripStatus: string;
@@ -313,6 +318,8 @@ export function deriveComplianceStage(input: {
     status === "delivered" || status === "completed" || status === "done";
 
   if (input.balance) return "payment_settled";
+  // Expired RC / Insurance / FC override payment-progress chips — Ops must renew.
+  if (input.hasExpiredRequiredVehicleDocs) return "pending_for_docs";
   if (input.advance && isDeliveredLike) {
     return input.hardCopyReceived ? "balance_pending" : "hard_copy_pod_received";
   }
@@ -598,10 +605,13 @@ export async function buildComplianceTripSummaries(
     const missingRequiredCount = REQUIRED_COMPLIANCE_DOCUMENT_TYPES.filter(
       (type) => !presentRequired.has(type),
     ).length;
+    const hasExpiredRequiredVehicleDocs =
+      listExpiredRequiredVehicleDocTypes(vehicleDocuments).length > 0;
 
     const stage = deriveComplianceStage({
       documentCount: documentCounts.total,
       missingRequiredCount,
+      hasExpiredRequiredVehicleDocs,
       complianceVerifiedAt: flags?.compliance_verified_at ?? null,
       advance,
       tripStatus: trip.status,

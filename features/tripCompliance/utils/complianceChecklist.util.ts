@@ -27,6 +27,74 @@ export function isEntityDocumentExpired(
   return expiry.getTime() < Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 }
 
+/** True when expiry is within the next `withinDays` (inclusive), and not already expired. */
+export function isEntityDocumentExpiringSoon(
+  doc: { expiry_date?: string | null } | undefined,
+  now = new Date(),
+  withinDays = 30,
+): boolean {
+  if (!doc?.expiry_date || isEntityDocumentExpired(doc, now)) return false;
+  const expiry = new Date(`${doc.expiry_date}T00:00:00Z`);
+  if (Number.isNaN(expiry.getTime())) return false;
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const horizon = todayUtc + withinDays * 24 * 60 * 60 * 1000;
+  return expiry.getTime() <= horizon;
+}
+
+type EntityDocLike = {
+  doc_type: string;
+  status: string;
+  expiry_date?: string | null;
+  storage_path?: string | null;
+};
+
+function hasOnFileEntityDoc(doc: EntityDocLike | undefined): boolean {
+  if (!doc) return false;
+  if (doc.status === "rejected" || doc.status === "replaced") return false;
+  return Boolean(doc.storage_path) || doc.status === "verified" || doc.status === "active" || doc.status === "expired";
+}
+
+/**
+ * Required vehicle slots (RC / Insurance / FC) that are on file but past expiry.
+ * Used to force Pending Docs and surface expiry alerts on the Compliance queue.
+ */
+export function listExpiredRequiredVehicleDocTypes(
+  vehicleDocuments: EntityDocLike[],
+  now = new Date(),
+): string[] {
+  const byType = new Map<string, EntityDocLike>();
+  for (const doc of vehicleDocuments) {
+    if (!byType.has(doc.doc_type)) byType.set(doc.doc_type, doc);
+  }
+  const expired: string[] = [];
+  for (const type of REQUIRED_VEHICLE_DOCUMENT_TYPES) {
+    const doc = byType.get(type);
+    if (!hasOnFileEntityDoc(doc) || !doc) continue;
+    if (doc.status === "expired" || isEntityDocumentExpired(doc, now)) {
+      expired.push(type);
+    }
+  }
+  return expired;
+}
+
+export function listExpiringSoonRequiredVehicleDocTypes(
+  vehicleDocuments: EntityDocLike[],
+  now = new Date(),
+  withinDays = 30,
+): string[] {
+  const byType = new Map<string, EntityDocLike>();
+  for (const doc of vehicleDocuments) {
+    if (!byType.has(doc.doc_type)) byType.set(doc.doc_type, doc);
+  }
+  const soon: string[] = [];
+  for (const type of REQUIRED_VEHICLE_DOCUMENT_TYPES) {
+    const doc = byType.get(type);
+    if (!hasOnFileEntityDoc(doc) || !doc) continue;
+    if (isEntityDocumentExpiringSoon(doc, now, withinDays)) soon.push(type);
+  }
+  return soon;
+}
+
 export function isEntityDocumentSlotVerified(
   doc: { status: string; expiry_date?: string | null; storage_path?: string | null } | undefined,
   now = new Date(),

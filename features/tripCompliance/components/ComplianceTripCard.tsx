@@ -356,6 +356,30 @@ export function ComplianceTripCard({
             ))}
           </View>
 
+          {readiness.expiredVehicleDocs.length > 0 ? (
+            <View
+              style={styles.expiryAlertBox}
+              accessibilityRole="alert"
+              accessibilityLabel={`Expired vehicle documents: ${readiness.expiredVehicleDocs.join(", ")}`}
+            >
+              <Text style={styles.expiryAlertTitle}>Vehicle docs expired</Text>
+              <Text style={styles.expiryAlertBody}>
+                {readiness.expiredVehicleDocs.join(", ")} — renew and re-upload. Trip moved to Pending Docs.
+              </Text>
+            </View>
+          ) : readiness.expiringSoonVehicleDocs.length > 0 ? (
+            <View
+              style={styles.expiryWarnBox}
+              accessibilityRole="alert"
+              accessibilityLabel={`Vehicle documents expiring soon: ${readiness.expiringSoonVehicleDocs.join(", ")}`}
+            >
+              <Text style={styles.expiryWarnTitle}>Expiring soon</Text>
+              <Text style={styles.expiryWarnBody}>
+                {readiness.expiringSoonVehicleDocs.join(", ")} — renew before expiry.
+              </Text>
+            </View>
+          ) : null}
+
           <View
             style={[
               styles.blockerBox,
@@ -766,6 +790,54 @@ const styles = StyleSheet.create({
   groupCount: {
     fontSize: 9,
     fontWeight: "700",
+  },
+  expiryAlertBox: {
+    gap: 2,
+    paddingTop: 6,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
+    backgroundColor: Theme.complianceDocNeedBg,
+    borderColor: Theme.complianceDocNeedBg,
+    borderLeftColor: Theme.teslaRed,
+  },
+  expiryAlertTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Theme.teslaRed,
+    lineHeight: 14,
+  },
+  expiryAlertBody: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Theme.textSecondary,
+    lineHeight: 13,
+  },
+  expiryWarnBox: {
+    gap: 2,
+    paddingTop: 6,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
+    backgroundColor: Theme.complianceStagePendingBg,
+    borderColor: Theme.complianceStagePendingBg,
+    borderLeftColor: Theme.complianceStagePendingFg,
+  },
+  expiryWarnTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Theme.complianceStagePendingFg,
+    lineHeight: 14,
+  },
+  expiryWarnBody: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Theme.textSecondary,
+    lineHeight: 13,
   },
   blockerBox: {
     gap: 1,
