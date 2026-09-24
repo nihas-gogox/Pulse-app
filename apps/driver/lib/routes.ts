@@ -36,6 +36,8 @@ const PUBLIC_PATHS: ReadonlySet<string> = new Set([
   '/driver-sign-in',
   '/driver-signup',
   '/onboarding/driver',
+  // Hand-off to the main app's marketing page (sign-up shell link, D20).
+  '/terminal-website',
 ]);
 
 /**
@@ -53,5 +55,14 @@ export function isPublicDriverPath(pathname: string, baseUrl?: string | null): b
   return PUBLIC_PATHS.has(stripBaseUrl(pathname, baseUrl));
 }
 
-/** Where a signed-in non-driver is sent: the main Pulse app. */
+/** The main Pulse app (production). */
 export const MAIN_APP_URL = 'https://gogopulse.com';
+
+/**
+ * A main-app page, as a full URL. On web under a base path (gogopulse.com/driver,
+ * or a preprod host) the main app is this same origin, so preprod never links to prod.
+ */
+export function mainAppHref(pathname: string, web?: { origin: string; baseUrl: string | null | undefined }): string {
+  const origin = web && (web.baseUrl ?? '').replace(/\/+$/, '') ? web.origin : MAIN_APP_URL;
+  return `${origin}${pathname === '/' ? '/' : pathname}`;
+}

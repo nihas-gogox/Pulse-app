@@ -1,0 +1,620 @@
+{
+  "d20Routes": {
+    "app/(modals)/language-settings.tsx": [
+      "apps/driver/components/driver/DriverHeader.tsx (ROUTES.MODALS.LANGUAGE_SETTINGS)",
+      "apps/driver/features/drivers/screens/DriverProfileScreen.tsx (ROUTES.MODALS.LANGUAGE_SETTINGS)"
+    ],
+    "app/trip/[id]/operations/other.tsx": [
+      "apps/driver/contexts/DriverTripOpsContext.tsx (ROUTES.tripOtherExpenseEntry)",
+      "apps/driver/features/driver/components/TripDetailSettlementPanel.tsx (ROUTES.tripOtherExpenseEntry)",
+      "apps/driver/features/driver/hooks/useDriverTripOpsActions.ts (ROUTES.tripOtherExpenseEntry)",
+      "apps/driver/features/drivers/screens/DriverHomeScreen.tsx (ROUTES.tripOtherExpenseEntry)"
+    ],
+    "app/trip/[id]/verification.tsx": [
+      "apps/driver/features/driver/components/DriverTripOperationsTab.tsx (ROUTES.tripVerification)",
+      "apps/driver/features/driver/hooks/useDriverTripOpsActions.ts (ROUTES.tripVerification)",
+      "apps/driver/features/drivers/screens/DriverControlScreen.tsx (ROUTES.tripVerification)"
+    ],
+    "app/trip/[id]/operations/fuel.tsx": [
+      "apps/driver/features/drivers/screens/DriverControlScreen.tsx (ROUTES.tripFuelEntry)",
+      "app/trip/[id]/operations/other.tsx (ROUTES.tripFuelEntry)"
+    ],
+    "app/trip/[id]/operations/toll.tsx": [
+      "apps/driver/features/drivers/screens/DriverControlScreen.tsx (ROUTES.tripTollEntry)",
+      "app/trip/[id]/operations/other.tsx (ROUTES.tripTollEntry)"
+    ]
+  },
+  "d20Layouts": [
+    "app/(modals)/_layout.tsx",
+    "app/trip/_layout.tsx"
+  ],
+  "d21RootShell": {
+    "lib/htmlShell.ts": "web shell CSS/JS parity (output \"single\" skips +html)",
+    "lib/installWebRnCompatPatches.ts": "RN-web shadow/pointerEvents patches; must run before any StyleSheet.create",
+    "components/AppAlertHost.tsx": "renders lib/appAlert alerts; 5 driver-runtime files call appAlert",
+    "components/AppErrorBoundary.tsx": "root crash boundary",
+    "components/ContentErrorState.tsx": "root ErrorBoundary screen (network/config/stale-deploy)",
+    "lib/webDeployRecovery.ts": "stale-chunk / stale-bundle recovery after a deploy",
+    "lib/tracking/backgroundTasks.ts": "registers the background GPS task at module scope (driver live tracking)",
+    "lib/cache/cacheBuster.ts": "build-scoped persisted-cache buster",
+    "components/useColorScheme.ts": "navigation theme scheme (web is always light)",
+    "components/useColorScheme.web.ts": "web variant of the above"
+  },
+  "d21MainOnly": {
+    "components/ConfirmDialogHost.tsx": "no driver-runtime caller of lib/confirmDialog",
+    "components/GlobalOperationsToast.tsx": "reads the global-sync store, which is off for drivers",
+    "components/NavigationLoadingOverlay.tsx": "main tab-chrome loading overlay",
+    "components/LazyChatProviders.tsx": "dispatcher Trip/Integrated chat; the driver uses its own DriverChatProvider",
+    "lib/globalSync/GlobalSyncContext.tsx": "explicitly disabled for role=driver (see the provider)",
+    "contexts/KeyboardAccessoryContext.tsx": "no driver-runtime consumer",
+    "contexts/WalletContext.tsx": "no driver-runtime consumer",
+    "contexts/PendingOnboardingContext.tsx": "no driver-runtime consumer",
+    "components/AppBootGate.tsx": "main cold-start overlay; the driver gate covers it and calls hydrateSignupFlowFlags itself",
+    "lib/bootGate.ts": "main route policy; replaced by apps/driver/lib/driverAppGate.ts",
+    "components/PushTokenRegistration.tsx": "push is blocked (Phase 0)",
+    "lib/navigationPolicy/NavigationPolicyShadowHost.tsx": "main registry telemetry; driver has its own registry",
+    "features/organization/components/workspace/kyc/OrgVerificationReminderProvider.tsx": "org KYC reminder (dispatcher)",
+    "components/PendingInviteResumeGate.tsx": "org invite resume (dispatcher)",
+    "components/ReferralCaptureGate.tsx": "org referral capture (dispatcher)",
+    "components/demo/DemoTabBar.tsx": "dispatcher tab bar",
+    "contexts/DemoTabBarScrollContext.tsx": "dispatcher tab bar",
+    "lib/preloadRoutes.ts": "dispatcher tab preloads",
+    "lib/preloadFinanceWarmup.ts": "dispatcher finance warmup",
+    "lib/rootChromeRoutes.ts": "dispatcher tab chrome",
+    "lib/useMemberAccess.ts": "dispatcher tab visibility",
+    "lib/useMemberCapabilities.ts": "dispatcher tab visibility",
+    "lib/useWebLayoutWidth.ts": "dispatcher overlay tab bar only",
+    "lib/floatingChatHostRoute.util.ts": "dispatcher chat host",
+    "lib/queries/entityListQueryOptions.ts": "restore-time purge of dispatcher entity lists",
+    "lib/lastRoute.ts": "main last-route restore",
+    "lib/devConsoleFilters.ts": "dev console noise filter only",
+    "lib/safeSplashScreen.util.ts": "main holds the splash for AppBootGate; the driver lets it auto-hide"
+  },
+  "classified": {
+    "app/(modals)/language-settings.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "R1",
+      "why": "route body the driver reaches by URL (D20); each app keeps a thin route"
+    },
+    "app/trip/[id]/operations/fuel.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "R1",
+      "why": "route body the driver reaches by URL (D20); each app keeps a thin route"
+    },
+    "app/trip/[id]/operations/other.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "R1",
+      "why": "route body the driver reaches by URL (D20); each app keeps a thin route"
+    },
+    "app/trip/[id]/operations/toll.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "R1",
+      "why": "route body the driver reaches by URL (D20); each app keeps a thin route"
+    },
+    "app/trip/[id]/verification.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "R1",
+      "why": "route body the driver reaches by URL (D20); each app keeps a thin route"
+    },
+    "components/AppAlertHost.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/AppErrorBoundary.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/ContentErrorState.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/full-page-wizard/fullPageWizardStyles.ts": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/mobile-input/FullscreenTextEntry.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/mobile-input/index.ts": {
+      "cls": "SHARED_FEATURES",
+      "rule": "U1→R2",
+      "why": "shared component; R2: needs SHARED_FEATURES components/mobile-input/SmartInput.tsx"
+    },
+    "components/mobile-input/NumericEntryPartyBanner.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "U1→R2",
+      "why": "shared component; R2: needs SHARED_FEATURES components/PartyAvatar.tsx"
+    },
+    "components/operational/index.ts": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/operational/MetricDisplay.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/operational/OperationalBottomActionBar.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/operational/OperationalButton.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/operational/OperationalChipSelect.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/operational/OperationalEmptyState.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/operational/OperationalHeader.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/operational/OperationalListRow.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/operational/OperationalSkeleton.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/operational/Surface.tsx": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/operational/useOperationalDensity.ts": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/useColorScheme.ts": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "components/useColorScheme.web.ts": {
+      "cls": "SHARED_UI",
+      "rule": "U1",
+      "why": "shared component"
+    },
+    "features/identity/avatars/IdentityAvatar.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/identity/cache/identityCache.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/identity/index.ts": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F2→R3",
+      "why": "feature service/util/hook/domain code; R3: barrel re-exports SHARED_FEATURES features/identity/avatars/IdentityAvatar.tsx"
+    },
+    "features/identity/queries/useIdentityQuery.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/identity/selectors/identitySelectors.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/identity/trust/trustModel.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/identity/utils/identityUtils.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/ocr/constants/ocr.constants.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/ocr/constants/pulseScanEngine.constants.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/ocr/hooks/useOcrJobPoll.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/ocr/index.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/ocr/services/ocrJobProcessor.service.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/ocr/services/ocrQuota.service.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/ocr/services/pulseScanEngine.service.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/ocr/services/vehicleOdometerEvent.service.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/ocr/utils/ocrConfidenceReview.util.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/ocr/utils/ocrNotification.util.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/ocr/utils/ocrRescan.util.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/organization/services/members.service.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/organization/services/teamInvitePrecheck.service.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/fuel/FuelEntryScreen.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/operations/other/OtherExpenseEntryScreen.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/operations/shared/applyExpenseReceiptOcr.util.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/shared/DriverExpenseCategorySwitch.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/operations/shared/DriverExpenseChipSelect.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/operations/shared/driverExpenseChipVisuals.util.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/shared/DriverExpenseEntryLayout.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/operations/shared/driverOpsEntry.styles.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/shared/DriverOpsEntryFooter.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/operations/shared/DriverUnifiedExpenseEntryScreen.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/operations/shared/ExpenseBillPhotoScan.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/operations/shared/expenseBillScan.constants.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/shared/expenseBillScan.types.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/shared/ExpenseBillScanBanner.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/operations/shared/ExpenseBillScanOverlay.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/operations/shared/expenseEntryPartyPreview.util.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/shared/expenseReceiptOcr.parse.util.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/shared/expenseReceiptOcr.service.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/shared/operationsEntryScreen.styles.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/shared/OpsEntryBodyPhotoSlot.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/operations/shared/resolveExpenseEntryKind.util.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/shared/tripExpenseEntryExit.util.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/shared/useExpenseBillCapture.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/shared/useLeaveTripExpenseEntry.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/state/useOperationsSyncState.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/operations/toll/TollEntryScreen.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/verification/applyOdometerScan.util.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/verification/components/OdometerEntryShell.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/verification/components/OdometerKeypadFlow.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/verification/components/OdometerNotesField.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/verification/components/OdometerScanBanner.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/verification/DistanceComparisonCard.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/verification/hooks/useHydrateOdometerPhotos.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/verification/hooks/useOdometerPhotoOcr.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/verification/hooks/useTripVerification.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/verification/index.ts": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F2→R3",
+      "why": "feature service/util/hook/domain code; R3: barrel re-exports SHARED_FEATURES features/trips/verification/OdometerEntryScreen.tsx"
+    },
+    "features/trips/verification/OdometerEntryScreen.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/verification/OdometerPhotoCapture.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/verification/odometerPhotoOcr.service.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/verification/odometerScan.types.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/verification/OdometerStartEndScreen.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/verification/OdometerTimelineEvent.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "features/trips/verification/state/useVerificationSyncState.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "F2",
+      "why": "feature service/util/hook/domain code"
+    },
+    "features/trips/verification/TripVerificationSummary.tsx": {
+      "cls": "SHARED_FEATURES",
+      "rule": "F1",
+      "why": "shared business UI (D1)"
+    },
+    "lib/cache/cacheBuster.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/capabilities.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "L3",
+      "why": "business-named shared module"
+    },
+    "lib/contentErrorIllustrations.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/crypto/sha256.util.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/crypto/sha256File.util.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/devConsoleFilters.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/gemini/geminiVisionJson.util.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/gemini/resolveGeminiApiKey.util.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/htmlShell.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/installWebRnCompatPatches.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/media/captureImage.util.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/pod/ocr.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "L3",
+      "why": "business-named shared module"
+    },
+    "lib/pod/prompts.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/safeAreaWeb.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/supabaseAuthLock.util.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/tracking/backgroundTasks.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "L3",
+      "why": "business-named shared module"
+    },
+    "lib/tracking/haversine.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "L3",
+      "why": "business-named shared module"
+    },
+    "lib/tracking/TrackingEngine.ts": {
+      "cls": "SHARED_DOMAIN",
+      "rule": "L3",
+      "why": "business-named shared module"
+    },
+    "lib/useWebLayoutWidth.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    },
+    "lib/webDeployRecovery.ts": {
+      "cls": "SHARED_CORE",
+      "rule": "L4",
+      "why": "generic infrastructure/helper"
+    }
+  }
+}

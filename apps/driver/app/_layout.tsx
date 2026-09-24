@@ -1,15 +1,35 @@
 /**
  * Pulse Driver root layout (driver extraction, Phase 3).
  *
- * Provider order follows the main app's app/_layout.tsx, limited to providers that are
- * already shared packages. Root-shell pieces the main layout also mounts (alert/confirm
- * hosts, error boundary, web RN compat patches, background-task registration, chat
- * providers, global sync, …) are not classified yet — decision D21 — and are NOT
- * mounted here until they are. See docs/DRIVER_EXTRACTION_DECISIONS.md (Phase 3).
+ * Provider order and root-shell pieces follow the main app's app/_layout.tsx, limited to
+ * what the driver relies on (D21, docs/DRIVER_EXTRACTION_D20_D21.json): web shell + RN-web
+ * patches, background GPS task, alert host, error boundaries, deploy recovery, crash
+ * reporting, realtime foreground pruning, driver-invite deep links. Dispatcher-only pieces
+ * (tab bars, global sync, org gates, dispatcher chat, confirm host, push) stay main-only.
  */
 import 'react-native-gesture-handler';
+// Shadow / pointerEvents RN Web compat — must run before any StyleSheet.create in the tree.
+import { ensureWebShellParity } from '@pulse/core/lib/htmlShell';
+import '@pulse/core/lib/installWebRnCompatPatches';
+import { ensureWebRnCompatPatches } from '@pulse/core/lib/installWebRnCompatPatches';
+// Background GPS task must be registered before any component mounts — keep it here.
+import '@pulse/domain/lib/tracking/backgroundTasks';
 import 'react-native-reanimated';
+import { AppAlertHost } from '@pulse/ui/components/AppAlertHost';
+import { AppErrorBoundary } from '@pulse/ui/components/AppErrorBoundary';
 import { AppLoadingSplash } from '@pulse/ui/components/AppLoadingSplash';
+import { useColorScheme } from '@pulse/ui/components/useColorScheme';
+import { QUERY_CACHE_BUSTER } from '@pulse/core/lib/cache/cacheBuster';
+import { initCrashReporter } from '@pulse/core/lib/crashReporter';
+import { installForegroundPruning } from '@pulse/core/lib/realtimeRegistry';
+import {
+  clearNativeBundleReloadGuard,
+  installNativeBundleRecoveryHandler,
+  installWebDeployRecoveryListener,
+} from '@pulse/core/lib/webDeployRecovery';
+import { installWebViewportHeight } from '@pulse/core/lib/webViewportHeight';
+import { installDriverInviteDeepLinkListener } from '@pulse/domain/lib/driverInviteDeepLink.util';
+import { hydrateSignupFlowFlags } from '@pulse/domain/lib/onboarding/businessSignupBranding.util';
 import { LanguageProvider } from '@pulse/core/contexts/LanguageContext';
 import { NetworkProvider } from '@pulse/core/contexts/NetworkContext';
 import Theme from '@pulse/core/constants/Theme';
@@ -28,24 +48,38 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
-import { useMemo } from 'react';
-import { Platform, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DriverAppGate } from '../components/DriverAppGate';
+import { DriverRouteErrorBoundary } from '../components/DriverRouteErrorBoundary';
 
 // Own persisted-cache key: on web both apps share the gogopulse.com origin, and the
 // driver app must not hydrate the main app's cache (or the reverse).
 const DRIVER_QUERY_CACHE_KEY = 'pulse-driver-cache-v1';
-// Same build-scoped buster rule as the main app (lib/cache/cacheBuster.ts, not yet
-// shared — D21): any deploy discards caches written by older code.
-const buildId = Constants.expoConfig?.extra?.buildId;
-const DRIVER_QUERY_CACHE_BUSTER = `2:${typeof buildId === 'string' && buildId ? buildId : 'dev'}`;
+
+initCrashReporter();
+// Dev (web.output "single") skips +html.tsx — inject its shell CSS/JS at runtime.
+ensureWebShellParity();
+
+export { DriverRouteErrorBoundary as ErrorBoundary };
 
 export default function DriverRootLayout() {
+  useEffect(() => {
+    ensureWebRnCompatPatches();
+    clearNativeBundleReloadGuard();
+    installNativeBundleRecoveryHandler();
+    installWebDeployRecoveryListener();
+    installForegroundPruning();
+    void hydrateSignupFlowFlags();
+    if (Platform.OS !== 'web') return;
+    return installWebViewportHeight();
+  }, []);
+  useEffect(() => installDriverInviteDeepLinkListener(), []);
+
   const [fontsLoaded] = useFonts({
     SpaceMono: require('@/assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
@@ -77,13 +111,14 @@ export default function DriverRootLayout() {
   return (
     <SafeAreaProvider>
       <LanguageProvider>
+        <AppErrorBoundary>
         <GestureHandlerRootView style={styles.ghRoot}>
           <PersistQueryClientProvider
             client={queryClient}
             onSuccess={() => purgeLinkedOrgDisplayQueries(queryClient)}
             persistOptions={{
               persister,
-              buster: DRIVER_QUERY_CACHE_BUSTER,
+              buster: QUERY_CACHE_BUSTER,
               maxAge: 6 * 60 * 60 * 1000,
               dehydrateOptions: {
                 shouldDehydrateQuery: (query) => {
@@ -111,23 +146,24 @@ export default function DriverRootLayout() {
             </NetworkProvider>
           </PersistQueryClientProvider>
         </GestureHandlerRootView>
+        </AppErrorBoundary>
       </LanguageProvider>
     </SafeAreaProvider>
   );
 }
 
 function DriverStack() {
-  // Main app: web is always light (components/useColorScheme.web.ts), native follows the OS.
-  const systemScheme = useColorScheme();
-  const scheme = Platform.OS === 'web' ? 'light' : systemScheme;
+  const scheme = useColorScheme();
   return (
     <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <AppAlertHost />
       <Stack screenOptions={routeStackScreenOptions}>
         <Stack.Screen name="(driver)" />
         <Stack.Screen name="(auth)/sign-in" options={{ animation: 'fade' }} />
         <Stack.Screen name="(auth)/sign-up" options={{ animation: 'fade' }} />
         <Stack.Screen name="(auth)/onboarding/index" options={{ animation: 'fade' }} />
         <Stack.Screen name="trip" options={{ animation: 'slide_from_right', headerShown: false }} />
+        <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
         <Stack.Screen name="+not-found" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>

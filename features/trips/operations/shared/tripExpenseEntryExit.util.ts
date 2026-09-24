@@ -1,10 +1,2 @@
-import { ROUTES } from "@/lib/routes";
-
-/** Parent surface for fuel / toll / other entry — Expense Hub on trip detail. */
-export function tripExpenseEntryExitHref(tripId: string): string {
-  return ROUTES.tripDetail(tripId, { tab: "expenses" });
-}
-
-export function tripExpenseEntryFallbackHref(tripId: string): string {
-  return tripId.trim() ? tripExpenseEntryExitHref(tripId) : ROUTES.TABS.TRIPS;
-}
+// Moved to packages/domain/features/trips/operations/shared/tripExpenseEntryExit.util.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../../../packages/domain/features/trips/operations/shared/tripExpenseEntryExit.util';

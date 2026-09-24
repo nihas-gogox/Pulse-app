@@ -394,3 +394,105 @@ Not fixed, per instruction: the 52 clean-install baseline errors (undeclared `ex
 **Found, not fixed:**
 - `@react-navigation/bottom-tabs`, `@react-navigation/native-stack` and `expo-localization` are imported but undeclared (same case as `expo-asset`).
 - NetInfo's web reachability probe issues `HEAD /`. That's fine at gogopulse.com, but needs checking in domain mode.
+
+## Phase 3 — D20, D21, D22 done (2026-09-24)
+
+Record: `docs/DRIVER_EXTRACTION_D20_D21.json`, produced by `scripts/driver-extraction-classify-d20-d21.mjs`.
+- The pass is focused and additive, using the Phase 1 rules plus R1–R3.
+- It is idempotent: a re-run gives 0 new files and 0 breaks.
+
+### D20 — routes the driver reaches by URL
+The sweep reads navigation targets through the TypeScript AST (comments ignored) and resolves `ROUTES.*` by evaluating the real `routes.ts`.
+
+**Callers that count:**
+- driver code
+- code that newly enters the driver with a D20 route
+
+Already-shared package code also serves the dispatcher. Its targets are reported and judged by hand, never auto-added.
+
+**Added to `apps/driver`.** Each is a thin route that re-exports the shared body in `@pulse/features/app/...`; the main app keeps a shim at the old path.
+
+| Route | Driver callers |
+|---|---|
+| `/trip/:id/verification` | DriverControlScreen, DriverTripOperationsTab, useDriverTripOpsActions |
+| `/trip/:id/operations/fuel` | DriverControlScreen, and the other-expense screen's category switch |
+| `/trip/:id/operations/toll` | DriverControlScreen, and the other-expense screen's category switch |
+| `/trip/:id/operations/other` | DriverTripOpsContext, DriverHomeScreen, TripDetailSettlementPanel, useDriverTripOpsActions |
+| `/(modals)/language-settings` | DriverHeader, DriverProfileScreen. Its own thin `(modals)/_layout` uses the main layout's screen options |
+
+**Layouts:** not shared. The trip ops routes sit under the driver's existing `trip/_layout`. Its 5 driver providers are documented there as safe to wrap extra screens.
+
+**Hand-off (nothing moved):** `/terminal-website`. The sign-up shell's "Pulse website" link opens the main app's page, same origin under `/driver`, else gogopulse.com. It is public in the gate.
+
+**Not added:**
+
+| Target | Reason |
+|---|---|
+| `/(tabs)/trips` | `tripExpenseEntryFallbackHref`, only when the trip id is empty |
+| `/(tabs)/finance` | the `useSafeBack` default; every driver call passes its own fallback |
+| `/auth/callback`, `/auth/reset-password` | email/OAuth redirects in `auth.service`; drivers use phone OTP |
+| `/onboarding/business` | business signup |
+
+**Behavior note:** the expense entry's normal exit, `ROUTES.tripDetail(id)` = `/trip/:id?tab=expenses`, lands on the driver's own trip detail in `apps/driver`. In the old in-app flow it lands on the main trip detail.
+
+### D21 — root-shell pieces the driver relies on
+**Shared and mounted in `apps/driver/app/_layout.tsx`:**
+- `htmlShell`
+- `installWebRnCompatPatches`
+- `tracking/backgroundTasks` (module scope)
+- `AppAlertHost` (5 driver callers of `appAlert`)
+- `AppErrorBoundary`
+- `ContentErrorState` and `webDeployRecovery`, used by the route `ErrorBoundary`: `components/DriverRouteErrorBoundary.tsx`, the same behavior as main but with driver sign-in
+- `cacheBuster`
+- `useColorScheme(.web)`
+
+**Already-shared pieces, now wired:** `initCrashReporter`, `installForegroundPruning`, `installWebViewportHeight`, `installDriverInviteDeepLinkListener`, `hydrateSignupFlowFlags`. That last one is instead of `AppBootGate`.
+
+**Kept main-only, 28 pieces, each with its reason in the JSON:**
+- `GlobalSyncProvider`: explicitly off for `role=driver`
+- `ConfirmDialogHost`: no driver caller
+- `LazyChatProviders`: dispatcher chat; the driver has `DriverChatProvider`
+- `GlobalOperationsToast`, `NavigationLoadingOverlay`, the tab bars and preloads
+- the org KYC, invite and referral gates
+- `AppBootGate` and `bootGate`
+- `PushTokenRegistration`: push is blocked
+- the Keyboard/Wallet/PendingOnboarding providers: no driver consumer
+
+### Newly classified: 109 files, 0 breaks
+| Class | Files |
+|---|---:|
+| SHARED_CORE | 15 |
+| SHARED_DOMAIN | 44 |
+| SHARED_UI | 18 |
+| SHARED_FEATURES | 32 |
+
+- 90 are new keys.
+- 19 are MAIN_ONLY(Y1) files the driver now needs at runtime, e.g. `lib/capabilities.ts`, `components/operational/*` and `members.service`. They were type-only before.
+- No other approved class changed.
+- All 109 were moved with `scripts/driver-extraction-move.mjs`, with a shim at each old path.
+- The two rule breaks the first pass hit were my own mistakes. My main-only list had blocked 2 real runtime dependencies (`useWebLayoutWidth`, `devConsoleFilters`). The list now only stops root seeding.
+- **New rules:**
+  - R1: a route body goes to a package, and each app keeps a thin route.
+  - R2: a `components/` file needing domain/features → SHARED_FEATURES (the D13 outcome).
+  - R3: a barrel takes the class of what it re-exports.
+
+### D22 — expo-router base-URL fix
+- `patches/expo-router+6.0.23.patch` gains one hunk, in `build/fork/getStateFromPath-forks.js` `stripBaseUrl`. The base is now stripped only as a whole segment: `(?=[\/?#]|$)`.
+- No upgrade.
+- The existing patch file (named for 6.0.23, applied to the installed 6.0.24, as before) was extended rather than renamed.
+- It's a no-op without a base URL, so the main app is unaffected.
+- **Regression test:** `apps/driver/lib/__tests__/expoRouterBaseUrl.test.ts`.
+  - 6 tests against the real patched module.
+  - Unpatched, 3 fail: `-sign-in`, `-signup`, `-trip/abc-123`.
+- **Browser checks on the `/driver` build:**
+  - `/driver/onboarding` → in-app `/driver-signup` → `/driver/sign-up`.
+  - Clicking "Already activated? Sign in" → `/driver-sign-in` → `/driver/sign-in`.
+  - 0 mangled `/-…` paths in the trace.
+
+### Dependency findings (documented only, nothing changed)
+| Package | V1 | How installed | Used by `apps/driver` |
+|---|---|---|---|
+| `@react-navigation/bottom-tabs` | undeclared (baseline) | transitive via expo-router (7.18.3) | type-only (`DriverTabBar`); erased at runtime → **not required** |
+| `@react-navigation/native-stack` | undeclared (baseline) | transitive via expo-router (7.17.6) | type-only (`@pulse/core` `routeStackOptions`) → **not required** |
+| `expo-localization` | undeclared (baseline) | **not installed** (not in lockfile) | guarded optional `require` in `@pulse/core` `i18n`; falls back to English, same as main → **not required** |
+| `expo-asset` | undeclared (baseline) | lockfile has only `expo/node_modules/expo-asset`; the local top-level copy is the undeclared extra | **runtime-required**: `@pulse/core` `presetAvatar` (both apps). Whether a clean install resolves it at bundle time: **unknown** |

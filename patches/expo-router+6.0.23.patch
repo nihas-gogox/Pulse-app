@@ -22,3 +22,17 @@ index 1111111..2222222 100644
      container: {
          flex: 1,
          backgroundColor: 'black',
+diff --git a/node_modules/expo-router/build/fork/getStateFromPath-forks.js b/node_modules/expo-router/build/fork/getStateFromPath-forks.js
+index 0d0b9a1..c0673f4 100644
+--- a/node_modules/expo-router/build/fork/getStateFromPath-forks.js
++++ b/node_modules/expo-router/build/fork/getStateFromPath-forks.js
+@@ -180,7 +180,8 @@ function spreadParamsAcrossAllStates(state, params) {
+ function stripBaseUrl(path, baseUrl = process.env.EXPO_BASE_URL) {
+     if (process.env.NODE_ENV !== 'development') {
+         if (baseUrl) {
+-            return path.replace(/^\/+/g, '/').replace(new RegExp(`^\\/?${(0, escape_string_regexp_1.default)(baseUrl)}`, 'g'), '');
++            // Strip the base only as a whole segment: '/driver' must not eat '/driver-signup'.
++            return path.replace(/^\/+/g, '/').replace(new RegExp(`^\\/?${(0, escape_string_regexp_1.default)(baseUrl)}(?=[\\/?#]|$)`, 'g'), '');
+         }
+     }
+     return path;

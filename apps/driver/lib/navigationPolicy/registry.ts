@@ -73,4 +73,11 @@ export const DRIVER_APP_POLICIES: readonly DriverPolicyRecord[] = [
   pub('driver.legacy.sign-up', '/driver-signup'),
   pub('driver.legacy.onboarding', '/(auth)/onboarding/driver'),
   driver('driver.legacy.trip-detail', '/driver-trip/:tripId', 80),
+  // D20: main-app screens the driver reaches by URL (shared bodies in @pulse/features).
+  driver('driver.trip-verification', '/trip/:id/verification', 80),
+  driver('driver.trip-fuel-entry', '/trip/:id/operations/fuel', 80),
+  driver('driver.trip-toll-entry', '/trip/:id/operations/toll', 80),
+  driver('driver.trip-other-expense-entry', '/trip/:id/operations/other', 80),
+  driver('driver.language-settings', '/(modals)/language-settings'),
+  pub('driver.handoff.terminal-website', '/terminal-website'),
 ];

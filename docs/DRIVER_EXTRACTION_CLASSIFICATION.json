@@ -4,12 +4,12 @@
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "app/(driver)/available-loads/[indentId].tsx": {
+  "app/(driver)/available-loads/_layout.tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "app/(driver)/available-loads/_layout.tsx": {
+  "app/(driver)/available-loads/[indentId].tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
@@ -34,12 +34,12 @@
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "app/(driver)/commerce-mission/[tripId].tsx": {
+  "app/(driver)/commerce-mission/_layout.tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "app/(driver)/commerce-mission/_layout.tsx": {
+  "app/(driver)/commerce-mission/[tripId].tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
@@ -94,12 +94,12 @@
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "app/(driver)/my-fleet/[vehicleId].tsx": {
+  "app/(driver)/my-fleet/_layout.tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "app/(driver)/my-fleet/_layout.tsx": {
+  "app/(driver)/my-fleet/[vehicleId].tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
@@ -119,12 +119,12 @@
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "app/(driver)/passbook/[orgId].tsx": {
+  "app/(driver)/passbook/_layout.tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "app/(driver)/passbook/_layout.tsx": {
+  "app/(driver)/passbook/[orgId].tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
@@ -154,12 +154,12 @@
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "app/(driver)/salary-request/[id].tsx": {
+  "app/(driver)/salary-request/_layout.tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "app/(driver)/salary-request/_layout.tsx": {
+  "app/(driver)/salary-request/[id].tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
@@ -194,6 +194,12 @@
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
+  "app/(modals)/language-settings.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "R1",
+    "why": "route body the driver reaches by URL (D20); each app keeps a thin route",
+    "decision": "D20/D21"
+  },
   "app/driver-sign-in.tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
@@ -204,12 +210,12 @@
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "app/driver-trip/[tripId].tsx": {
+  "app/driver-trip/_layout.tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "app/driver-trip/_layout.tsx": {
+  "app/driver-trip/[tripId].tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
@@ -218,6 +224,30 @@
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
+  },
+  "app/trip/[id]/operations/fuel.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "R1",
+    "why": "route body the driver reaches by URL (D20); each app keeps a thin route",
+    "decision": "D20/D21"
+  },
+  "app/trip/[id]/operations/other.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "R1",
+    "why": "route body the driver reaches by URL (D20); each app keeps a thin route",
+    "decision": "D20/D21"
+  },
+  "app/trip/[id]/operations/toll.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "R1",
+    "why": "route body the driver reaches by URL (D20); each app keeps a thin route",
+    "decision": "D20/D21"
+  },
+  "app/trip/[id]/verification.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "R1",
+    "why": "route body the driver reaches by URL (D20); each app keeps a thin route",
+    "decision": "D20/D21"
   },
   "components/AddTransactionModal.tsx": {
     "cls": "MAIN_ONLY",
@@ -229,6 +259,18 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "components/AppAlertHost.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
+  },
+  "components/AppErrorBoundary.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
+  },
   "components/AppLoadingSplash.tsx": {
     "cls": "SHARED_UI",
     "rule": "U1",
@@ -239,6 +281,11 @@
     "rule": "MANUAL:D13",
     "why": "renders party/business avatars (needs avatar data from domain)",
     "manual": true
+  },
+  "components/brand/PulseBrandMark.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
   },
   "components/CapacityDialPicker.tsx": {
     "cls": "MAIN_ONLY",
@@ -255,6 +302,17 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "components/chromeLoadingScreens.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/ContentErrorState.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
+  },
   "components/CreateTripSheetSearchInput.tsx": {
     "cls": "SHARED_UI",
     "rule": "U1",
@@ -266,157 +324,6 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "components/DateRangePickerModal.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/EntityAvatar.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/EntityIdentityAvatar.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/FAB.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/FinanceFAB.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/JobRequestCard.tsx": {
-    "cls": "DRIVER_ONLY",
-    "rule": "N1",
-    "why": "only reachable from driver code"
-  },
-  "components/LazySuspenseFallback.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/LedgerFlowGuardAlert.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/LiquidFillPill.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/LoadingIndicator.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/NativeHtmlWebView.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/PartyAddChip.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/PartyAddModalChrome.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/PartyAvatar.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "MANUAL:D13",
-    "why": "renders party/business avatars (needs avatar data from domain)",
-    "manual": true
-  },
-  "components/PartySpeedDialFab.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/PersistentTabPanel.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/PulseMascotBanner.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/PulsePillButton.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/RouteLoadingScreen.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/SearchBar.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/SemanticAddIcon.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/TeslaHeader.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/ThemedAlertModal.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/ThemedConfirmModal.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/TinyEmptyLottie.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/TripFeedbackModal.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/TripFinancialCard.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/TripLedgerFinancialSummary.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/WizardStepLayout.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/brand/PulseBrandMark.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/chromeLoadingScreens.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -527,6 +434,26 @@
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
+  "components/EntityAvatar.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/EntityIdentityAvatar.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/FAB.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/FinanceFAB.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
   "components/full-page-wizard/FullPageWizardBlock.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
@@ -552,6 +479,17 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "components/full-page-wizard/fullPageWizardStyles.ts": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
+  },
+  "components/full-page-wizard/index.ts": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
   "components/full-page-wizard/WizardActionBarContext.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
@@ -568,6 +506,11 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "components/full-page-wizard/WizardDesktopFrame.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/full-page-wizard/wizardDesktopInsights.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -612,21 +555,6 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "components/full-page-wizard/fullPageWizardStyles.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/full-page-wizard/index.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/full-page-wizard/wizardDesktopInsights.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "components/hub/HubPromoLottie.tsx": {
     "cls": "SHARED_UI",
     "rule": "U1",
@@ -647,7 +575,22 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "components/JobRequestCard.tsx": {
+    "cls": "DRIVER_ONLY",
+    "rule": "N1",
+    "why": "only reachable from driver code"
+  },
+  "components/LazySuspenseFallback.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
   "components/ledger/LedgerEntryReceiptCard.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/ledger/ledgerEntryReceiptPalette.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -668,6 +611,11 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "components/ledger/LedgerMobileWizard.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/ledger/ledgerPaymentVisuals.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -707,16 +655,6 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "components/ledger/ledgerEntryReceiptPalette.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/ledger/ledgerPaymentVisuals.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "components/ledger/paymentModeLogos.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
@@ -737,52 +675,32 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "components/LedgerFlowGuardAlert.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/LiquidFillPill.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/LoadingIndicator.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
+  "components/mobile-input/bidVsTarget.ts": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
   "components/mobile-input/BidVsTargetHint.tsx": {
     "cls": "SHARED_UI",
     "rule": "U1",
     "why": "shared component"
   },
   "components/mobile-input/DecimalKeypad.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/mobile-input/FullscreenNumericEntry.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "U1→D13",
-    "why": "shared component; D13: renders components/mobile-input/NumericEntryRecipientHero.tsx"
-  },
-  "components/mobile-input/FullscreenTextEntry.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/mobile-input/NumericDisplay.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/mobile-input/NumericEntryPartyBanner.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/mobile-input/NumericEntryRecipientHero.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "U1→D13",
-    "why": "shared component; D13: renders components/PartyAvatar.tsx"
-  },
-  "components/mobile-input/SmartInput.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "U1→D13",
-    "why": "shared component; D13: renders components/mobile-input/FullscreenNumericEntry.tsx"
-  },
-  "components/mobile-input/SmartInputTrigger.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "U1",
-    "why": "shared component"
-  },
-  "components/mobile-input/bidVsTarget.ts": {
     "cls": "SHARED_UI",
     "rule": "U1",
     "why": "shared component"
@@ -797,12 +715,50 @@
     "rule": "U1",
     "why": "shared component"
   },
+  "components/mobile-input/FullscreenNumericEntry.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "U1→D13",
+    "why": "shared component; D13: renders components/mobile-input/NumericEntryRecipientHero.tsx"
+  },
+  "components/mobile-input/FullscreenTextEntry.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
+  },
   "components/mobile-input/index.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_FEATURES",
+    "rule": "U1→R2",
+    "why": "shared component; R2: needs SHARED_FEATURES components/mobile-input/SmartInput.tsx",
+    "decision": "D20/D21"
   },
   "components/mobile-input/keypad.ts": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
+  "components/mobile-input/NumericDisplay.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
+  "components/mobile-input/NumericEntryPartyBanner.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "U1→R2",
+    "why": "shared component; R2: needs SHARED_FEATURES components/PartyAvatar.tsx",
+    "decision": "D20/D21"
+  },
+  "components/mobile-input/NumericEntryRecipientHero.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "U1→D13",
+    "why": "shared component; D13: renders components/PartyAvatar.tsx"
+  },
+  "components/mobile-input/SmartInput.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "U1→D13",
+    "why": "shared component; D13: renders components/mobile-input/FullscreenNumericEntry.tsx"
+  },
+  "components/mobile-input/SmartInputTrigger.tsx": {
     "cls": "SHARED_UI",
     "rule": "U1",
     "why": "shared component"
@@ -827,67 +783,113 @@
     "rule": "U1",
     "why": "shared component"
   },
+  "components/NativeHtmlWebView.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
   "components/navigation/PulseBottomTabBar/dockMetrics.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "components/operational/index.ts": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
+  },
   "components/operational/MetricDisplay.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
   },
   "components/operational/OperationalBottomActionBar.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
   },
   "components/operational/OperationalButton.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
   },
   "components/operational/OperationalChipSelect.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
   },
   "components/operational/OperationalEmptyState.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
   },
   "components/operational/OperationalHeader.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
   },
   "components/operational/OperationalListRow.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
   },
   "components/operational/OperationalSkeleton.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
   },
   "components/operational/Surface.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "components/operational/index.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
   },
   "components/operational/useOperationalDensity.ts": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
+  },
+  "components/party/IndiaFlagIcon.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "components/party/IndiaFlagIcon.tsx": {
+  "components/party/keypad/DriverNameKeypadFlow.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/party/keypad/IndianDrivingLicenseKeypadFlow.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/party/keypad/KeypadDisplayValueWithCaret.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
+  "components/party/keypad/partyKeypadFlowStyles.ts": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/party/keypad/PersonNameKeypad.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/party/keypad/PhoneNumberKeypadFlow.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -922,42 +924,115 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "components/party/partyMobileWizardStyles.ts": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
   "components/party/PartyVehicleMobileWizard.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "components/party/keypad/DriverNameKeypadFlow.tsx": {
+  "components/PartyAddChip.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "components/party/keypad/IndianDrivingLicenseKeypadFlow.tsx": {
+  "components/PartyAddModalChrome.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "components/party/keypad/KeypadDisplayValueWithCaret.tsx": {
+  "components/PartyAvatar.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "MANUAL:D13",
+    "why": "renders party/business avatars (needs avatar data from domain)",
+    "manual": true
+  },
+  "components/PartySpeedDialFab.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/PersistentTabPanel.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/PulseMascotBanner.tsx": {
     "cls": "SHARED_UI",
     "rule": "U1",
     "why": "shared component"
   },
-  "components/party/keypad/PersonNameKeypad.tsx": {
+  "components/PulsePillButton.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
+  "components/RouteLoadingScreen.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
+  "components/SearchBar.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
+  "components/SemanticAddIcon.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "components/party/keypad/PhoneNumberKeypadFlow.tsx": {
+  "components/TeslaHeader.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "components/party/keypad/partyKeypadFlowStyles.ts": {
+  "components/ThemedAlertModal.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
+  "components/ThemedConfirmModal.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
+  "components/TinyEmptyLottie.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
+  "components/TripFeedbackModal.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component"
+  },
+  "components/TripFinancialCard.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "components/party/partyMobileWizardStyles.ts": {
+  "components/TripLedgerFinancialSummary.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "components/useColorScheme.ts": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
+  },
+  "components/useColorScheme.web.ts": {
+    "cls": "SHARED_UI",
+    "rule": "U1",
+    "why": "shared component",
+    "decision": "D20/D21"
+  },
+  "components/WizardStepLayout.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -992,6 +1067,11 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "constants/presetAvatar.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "K1",
+    "why": "design/presentation constants"
+  },
   "constants/PulsePillButtonChrome.ts": {
     "cls": "SHARED_CORE",
     "rule": "K1",
@@ -1008,11 +1088,6 @@
     "why": "design/presentation constants"
   },
   "constants/UserAvatars.ts": {
-    "cls": "SHARED_CORE",
-    "rule": "K1",
-    "why": "design/presentation constants"
-  },
-  "constants/presetAvatar.ts": {
     "cls": "SHARED_CORE",
     "rule": "K1",
     "why": "design/presentation constants"
@@ -1157,61 +1232,6 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/auth/signup/SignUpMobileShell.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "MANUAL:D1→fallback",
-    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN lib/signupMobileWebFormScroll.ts",
-    "manual": true
-  },
-  "features/auth/signup/SignUpOtpBoxes.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "MANUAL:D1→fallback",
-    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN features/auth/signup/signUpConstants.ts",
-    "manual": true
-  },
-  "features/auth/signup/SignUpPulseField.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "MANUAL:D1→fallback",
-    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN lib/signupPasswordInput.util.ts",
-    "manual": true
-  },
-  "features/auth/signup/SignUpPulseFormStep.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "MANUAL:D1→fallback",
-    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN lib/signupMobileWebFormScroll.ts",
-    "manual": true
-  },
-  "features/auth/signup/SignUpPulseFormStepContext.tsx": {
-    "cls": "SHARED_UI",
-    "rule": "MANUAL:D1",
-    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain",
-    "fallback": "SHARED_FEATURES",
-    "manual": true
-  },
-  "features/auth/signup/SignUpPulseKeypadStep.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "MANUAL:D1→fallback",
-    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_FEATURES features/auth/components/GoogleBrandIcon.tsx",
-    "manual": true
-  },
-  "features/auth/signup/SignUpPulsePrimaryButton.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "MANUAL:D1→fallback",
-    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN features/auth/signup/signUpConstants.ts",
-    "manual": true
-  },
-  "features/auth/signup/SignUpPulseShell.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "MANUAL:D1→fallback",
-    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN features/auth/signup/signUpDriverTheme.ts",
-    "manual": true
-  },
-  "features/auth/signup/SignUpPulseTitle.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "MANUAL:D1→fallback",
-    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN features/auth/signup/signUpConstants.ts",
-    "manual": true
-  },
   "features/auth/signup/components/DriverSignupReadyCard.tsx": {
     "cls": "SHARED_UI",
     "rule": "MANUAL:D1",
@@ -1268,15 +1288,70 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
+  "features/auth/signup/SignUpMobileShell.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "MANUAL:D1→fallback",
+    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN lib/signupMobileWebFormScroll.ts",
+    "manual": true
+  },
   "features/auth/signup/signUpMobileTokens.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
+  "features/auth/signup/SignUpOtpBoxes.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "MANUAL:D1→fallback",
+    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN features/auth/signup/signUpConstants.ts",
+    "manual": true
+  },
+  "features/auth/signup/SignUpPulseField.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "MANUAL:D1→fallback",
+    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN lib/signupPasswordInput.util.ts",
+    "manual": true
+  },
+  "features/auth/signup/SignUpPulseFormStep.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "MANUAL:D1→fallback",
+    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN lib/signupMobileWebFormScroll.ts",
+    "manual": true
+  },
+  "features/auth/signup/SignUpPulseFormStepContext.tsx": {
+    "cls": "SHARED_UI",
+    "rule": "MANUAL:D1",
+    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain",
+    "fallback": "SHARED_FEATURES",
+    "manual": true
+  },
+  "features/auth/signup/SignUpPulseKeypadStep.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "MANUAL:D1→fallback",
+    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_FEATURES features/auth/components/GoogleBrandIcon.tsx",
+    "manual": true
+  },
+  "features/auth/signup/SignUpPulsePrimaryButton.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "MANUAL:D1→fallback",
+    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN features/auth/signup/signUpConstants.ts",
+    "manual": true
+  },
+  "features/auth/signup/SignUpPulseShell.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "MANUAL:D1→fallback",
+    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN features/auth/signup/signUpDriverTheme.ts",
+    "manual": true
+  },
   "features/auth/signup/signUpPulseTheme.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
+  },
+  "features/auth/signup/SignUpPulseTitle.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "MANUAL:D1→fallback",
+    "why": "signup shell/keypad UI (rendering files only; non-rendering signup files follow the normal rules); @pulse/features if runtime deps need domain; fell back to SHARED_FEATURES: needs SHARED_DOMAIN features/auth/signup/signUpConstants.ts",
+    "manual": true
   },
   "features/auth/signup/signUpTypography.ts": {
     "cls": "SHARED_DOMAIN",
@@ -1344,6 +1419,11 @@
     "rule": "F1",
     "why": "shared business UI (D1: @pulse/features)"
   },
+  "features/chat/components/desktop/chatSlackDesktop.styles.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
+  },
   "features/chat/components/DocumentPreviewModal.tsx": {
     "cls": "SHARED_FEATURES",
     "rule": "F1",
@@ -1353,16 +1433,6 @@
     "cls": "SHARED_FEATURES",
     "rule": "F1",
     "why": "shared business UI (D1: @pulse/features)"
-  },
-  "features/chat/components/SmartChatImage.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "F1",
-    "why": "shared business UI (D1: @pulse/features)"
-  },
-  "features/chat/components/desktop/chatSlackDesktop.styles.ts": {
-    "cls": "SHARED_DOMAIN",
-    "rule": "F2",
-    "why": "feature service/util/hook/domain code"
   },
   "features/chat/components/driver/DriverChatSlackInbox.tsx": {
     "cls": "DRIVER_ONLY",
@@ -1384,15 +1454,15 @@
     "rule": "F1",
     "why": "shared business UI (D1: @pulse/features)"
   },
-  "features/chat/components/mobile/ChatSlackMobileChrome.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "F1",
-    "why": "shared business UI (D1: @pulse/features)"
-  },
   "features/chat/components/mobile/chatSlackMobile.styles.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
+  },
+  "features/chat/components/mobile/ChatSlackMobileChrome.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/components/shared/ChatAnimatedEmoji.tsx": {
     "cls": "SHARED_FEATURES",
@@ -1408,6 +1478,11 @@
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/chat/components/shared/chatDriverSwapAvatar.styles.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/chat/components/shared/ChatDriverSwapAvatar.tsx": {
     "cls": "SHARED_FEATURES",
@@ -1479,6 +1554,11 @@
     "rule": "F1",
     "why": "shared business UI (D1: @pulse/features)"
   },
+  "features/chat/components/shared/chatSlackAvatar.constants.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
+  },
   "features/chat/components/shared/ChatSlackDocumentAttachment.tsx": {
     "cls": "SHARED_FEATURES",
     "rule": "F1",
@@ -1489,25 +1569,20 @@
     "rule": "F1",
     "why": "shared business UI (D1: @pulse/features)"
   },
+  "features/chat/components/shared/chatSlackStreamTabs.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
+  },
   "features/chat/components/shared/ChatThreadMediaStrip.tsx": {
     "cls": "SHARED_FEATURES",
     "rule": "F1",
     "why": "shared business UI (D1: @pulse/features)"
   },
-  "features/chat/components/shared/chatDriverSwapAvatar.styles.ts": {
-    "cls": "SHARED_DOMAIN",
-    "rule": "F2",
-    "why": "feature service/util/hook/domain code"
-  },
-  "features/chat/components/shared/chatSlackAvatar.constants.ts": {
-    "cls": "SHARED_DOMAIN",
-    "rule": "F2",
-    "why": "feature service/util/hook/domain code"
-  },
-  "features/chat/components/shared/chatSlackStreamTabs.ts": {
-    "cls": "SHARED_DOMAIN",
-    "rule": "F2",
-    "why": "feature service/util/hook/domain code"
+  "features/chat/components/SmartChatImage.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/chat/contexts/DriverChatContext.tsx": {
     "cls": "DRIVER_ONLY",
@@ -1754,15 +1829,15 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "features/clients/services/clientWarehouses.service.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/clients/services/clients.service.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
+  },
+  "features/clients/services/clientWarehouses.service.ts": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/clients/utils/clientContactDisplay.util.ts": {
     "cls": "MAIN_ONLY",
@@ -1809,17 +1884,17 @@
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
+  "features/driver/commerce-mission/driverCommerceMissionLabels.ts": {
+    "cls": "DRIVER_ONLY",
+    "rule": "S1",
+    "why": "driver seed, no live main-app importer"
+  },
   "features/driver/commerce-mission/DriverCommerceMissionScreen.tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
   "features/driver/commerce-mission/DriverCommerceMissionView.tsx": {
-    "cls": "DRIVER_ONLY",
-    "rule": "S1",
-    "why": "driver seed, no live main-app importer"
-  },
-  "features/driver/commerce-mission/driverCommerceMissionLabels.ts": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
@@ -1849,12 +1924,12 @@
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "features/driver/communication/DriverCommunicationProvider.tsx": {
+  "features/driver/communication/constants.ts": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "features/driver/communication/constants.ts": {
+  "features/driver/communication/DriverCommunicationProvider.tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
@@ -2115,31 +2190,6 @@
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "features/driver/job-card/DriverJobCard.tsx": {
-    "cls": "DRIVER_ONLY",
-    "rule": "S1",
-    "why": "driver seed, no live main-app importer"
-  },
-  "features/driver/job-card/DriverJobCardPending.tsx": {
-    "cls": "DRIVER_ONLY",
-    "rule": "S1",
-    "why": "driver seed, no live main-app importer"
-  },
-  "features/driver/job-card/DriverMultiOrderJobCard.tsx": {
-    "cls": "DRIVER_ONLY",
-    "rule": "S1",
-    "why": "driver seed, no live main-app importer"
-  },
-  "features/driver/job-card/DriverStopVerificationScreen.tsx": {
-    "cls": "DRIVER_ONLY",
-    "rule": "S1",
-    "why": "driver seed, no live main-app importer"
-  },
-  "features/driver/job-card/DriverTripCompletionScreen.tsx": {
-    "cls": "DRIVER_ONLY",
-    "rule": "S1",
-    "why": "driver seed, no live main-app importer"
-  },
   "features/driver/job-card/attachOrdersToStop.ts": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
@@ -2156,7 +2206,32 @@
     "why": "used by tripCompliance",
     "manual": true
   },
+  "features/driver/job-card/DriverJobCard.tsx": {
+    "cls": "DRIVER_ONLY",
+    "rule": "S1",
+    "why": "driver seed, no live main-app importer"
+  },
+  "features/driver/job-card/DriverJobCardPending.tsx": {
+    "cls": "DRIVER_ONLY",
+    "rule": "S1",
+    "why": "driver seed, no live main-app importer"
+  },
+  "features/driver/job-card/DriverMultiOrderJobCard.tsx": {
+    "cls": "DRIVER_ONLY",
+    "rule": "S1",
+    "why": "driver seed, no live main-app importer"
+  },
   "features/driver/job-card/driverRoutePlanMap.ts": {
+    "cls": "DRIVER_ONLY",
+    "rule": "S1",
+    "why": "driver seed, no live main-app importer"
+  },
+  "features/driver/job-card/DriverStopVerificationScreen.tsx": {
+    "cls": "DRIVER_ONLY",
+    "rule": "S1",
+    "why": "driver seed, no live main-app importer"
+  },
+  "features/driver/job-card/DriverTripCompletionScreen.tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
@@ -2389,6 +2464,11 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "features/drivers/components/analytics/FleetDriverAnalyticsTab.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
   "features/drivers/components/DriverRegistrationFormFields.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
@@ -2404,20 +2484,15 @@
     "rule": "N1",
     "why": "only reachable from driver code"
   },
-  "features/drivers/components/DriverWalletEarningsPanel.tsx": {
-    "cls": "DRIVER_ONLY",
-    "rule": "N1",
-    "why": "only reachable from driver code"
-  },
   "features/drivers/components/DriversTab.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "features/drivers/components/analytics/FleetDriverAnalyticsTab.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  "features/drivers/components/DriverWalletEarningsPanel.tsx": {
+    "cls": "DRIVER_ONLY",
+    "rule": "N1",
+    "why": "only reachable from driver code"
   },
   "features/drivers/hooks/useDriverLocation.ts": {
     "cls": "DRIVER_ONLY",
@@ -2649,6 +2724,41 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "features/finance/components/finance-tabs/FinanceCashKanbanPanel.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/finance/components/finance-tabs/FinanceCashLedgerPanel.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/finance/components/finance-tabs/FinanceCashTab.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/finance/components/finance-tabs/FinanceCustomersTab.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/finance/components/finance-tabs/FinanceDriversTab.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/finance/components/finance-tabs/FinanceGarageTab.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/finance/components/finance-tabs/FinanceSuppliersTab.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
   "features/finance/components/FinanceAIInsights.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
@@ -2719,6 +2829,16 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "features/finance/components/ledger/buildFinancialRowDataForLedgerRow.ts": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/finance/components/ledger/ledgerTransactionLayout.ts": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
   "features/finance/components/LedgerBlock.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
@@ -2780,51 +2900,6 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/finance/components/TripPnLDetailSheet.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/finance/components/finance-tabs/FinanceCashKanbanPanel.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/finance/components/finance-tabs/FinanceCashLedgerPanel.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/finance/components/finance-tabs/FinanceCashTab.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/finance/components/finance-tabs/FinanceCustomersTab.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/finance/components/finance-tabs/FinanceDriversTab.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/finance/components/finance-tabs/FinanceGarageTab.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/finance/components/finance-tabs/FinanceSuppliersTab.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/finance/components/ledger/buildFinancialRowDataForLedgerRow.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/finance/components/ledger/ledgerTransactionLayout.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -3074,6 +3149,48 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "features/identity/avatars/IdentityAvatar.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/identity/cache/identityCache.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/identity/index.ts": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F2→R3",
+    "why": "feature service/util/hook/domain code; R3: barrel re-exports SHARED_FEATURES features/identity/avatars/IdentityAvatar.tsx",
+    "decision": "D20/D21"
+  },
+  "features/identity/queries/useIdentityQuery.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/identity/selectors/identitySelectors.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/identity/trust/trustModel.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/identity/utils/identityUtils.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
   "features/indents/constants.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
@@ -3124,17 +3241,17 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/ledger/vehicle/postVehicleOperationalEntry.ts": {
-    "cls": "SHARED_DOMAIN",
-    "rule": "F2",
-    "why": "feature service/util/hook/domain code"
-  },
   "features/ledger/vehicle/postingMessages.util.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
   "features/ledger/vehicle/postingSelectors.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
+  },
+  "features/ledger/vehicle/postVehicleOperationalEntry.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
@@ -3209,16 +3326,6 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/network/components/RouteEndpointStack.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "F1",
-    "why": "shared business UI (D1: @pulse/features)"
-  },
-  "features/network/components/StoryBroadcastPreview.tsx": {
-    "cls": "SHARED_FEATURES",
-    "rule": "F1",
-    "why": "shared business UI (D1: @pulse/features)"
-  },
   "features/network/components/bidding/BidConfirmModal.tsx": {
     "cls": "SHARED_FEATURES",
     "rule": "F1",
@@ -3228,6 +3335,16 @@
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/network/components/RouteEndpointStack.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
+  },
+  "features/network/components/StoryBroadcastPreview.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
   },
   "features/network/constants/networkHubGrid.ts": {
     "cls": "MAIN_ONLY",
@@ -3294,15 +3411,86 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "features/ocr/constants/ocr.constants.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/ocr/constants/pulseScanEngine.constants.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/ocr/hooks/useOcrJobPoll.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/ocr/index.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
   "features/ocr/services/ocrJob.service.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
+  "features/ocr/services/ocrJobProcessor.service.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/ocr/services/ocrQuota.service.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/ocr/services/pulseScanEngine.service.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/ocr/services/vehicleOdometerEvent.service.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
   "features/ocr/types/ocr.types.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/ocr/utils/ocrConfidenceReview.util.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/ocr/utils/ocrNotification.util.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/ocr/utils/ocrRescan.util.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/onboarding/components/onboardingPersonaAssets.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
   },
   "features/onboarding/components/PulseSplitBrandLogo.tsx": {
     "cls": "SHARED_FEATURES",
@@ -3314,32 +3502,7 @@
     "rule": "F1",
     "why": "shared business UI (D1: @pulse/features)"
   },
-  "features/onboarding/components/onboardingPersonaAssets.ts": {
-    "cls": "SHARED_DOMAIN",
-    "rule": "F2",
-    "why": "feature service/util/hook/domain code"
-  },
   "features/operations/control-center/ApprovalQueue.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/operations/control-center/OperationalAlertsPanel.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/operations/control-center/OperationsControlCenter.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/operations/control-center/ReconciliationQueue.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/operations/control-center/ReimbursementQueue.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -3354,12 +3517,32 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "features/operations/control-center/OperationalAlertsPanel.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/operations/control-center/OperationsControlCenter.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
   "features/operations/control-center/queries/controlCenter.service.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/operations/control-center/queries/useOperationsControlCenter.ts": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/operations/control-center/ReconciliationQueue.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/operations/control-center/ReimbursementQueue.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -3435,9 +3618,10 @@
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/organization/services/members.service.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
   },
   "features/organization/services/organization.service.ts": {
     "cls": "SHARED_DOMAIN",
@@ -3445,9 +3629,10 @@
     "why": "feature service/util/hook/domain code"
   },
   "features/organization/services/teamInvitePrecheck.service.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
   },
   "features/organization/types/organizationKycDocuments.types.ts": {
     "cls": "SHARED_DOMAIN",
@@ -3574,11 +3759,6 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "features/tracking/broadcast/TrackingBroadcastSubscriptionManager.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/tracking/broadcast/publishTrackingBroadcast.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
@@ -3588,6 +3768,11 @@
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
+  },
+  "features/tracking/broadcast/TrackingBroadcastSubscriptionManager.ts": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/tracking/constants.ts": {
     "cls": "SHARED_DOMAIN",
@@ -3679,7 +3864,7 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/trips/components/TripAssignmentBlock.tsx": {
+  "features/trips/components/add-trip/addTripPulseTheme.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -3694,6 +3879,11 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "features/trips/components/add-trip/createTripDesktop.styles.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
+  },
   "features/trips/components/add-trip/DriverPhoneRecommendations.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
@@ -3703,16 +3893,6 @@
     "cls": "SHARED_FEATURES",
     "rule": "F1",
     "why": "shared business UI (D1: @pulse/features)"
-  },
-  "features/trips/components/add-trip/addTripPulseTheme.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/components/add-trip/createTripDesktop.styles.ts": {
-    "cls": "SHARED_DOMAIN",
-    "rule": "F2",
-    "why": "feature service/util/hook/domain code"
   },
   "features/trips/components/add-trip/types.ts": {
     "cls": "MAIN_ONLY",
@@ -3729,12 +3909,17 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "features/trips/components/allocation/tripPhoneAssignmentWizardSteps.ts": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
   "features/trips/components/allocation/TripPhoneReassignContextRail.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "features/trips/components/allocation/tripPhoneAssignmentWizardSteps.ts": {
+  "features/trips/components/assignment/assignmentFlowFooter.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -3749,17 +3934,12 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "features/trips/components/assignment/TripAssignmentWorkspace.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/components/assignment/assignmentFlowFooter.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/trips/components/assignment/tripAssignmentWorkspace.styles.ts": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/trips/components/assignment/TripAssignmentWorkspace.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -3769,17 +3949,12 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "features/trips/components/trip-detail/TripDetailFinanceView.tsx": {
+  "features/trips/components/trip-detail/adjustment/provisionCnDnImpact.util.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/components/trip-detail/adjustment/ProvisionCnDnImpactTag.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/trips/components/trip-detail/adjustment/provisionCnDnImpact.util.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -3804,10 +3979,20 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "features/trips/components/trip-detail/TripDetailFinanceView.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
   "features/trips/components/trip-detail/tripDocTypes.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
+  },
+  "features/trips/components/TripAssignmentBlock.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
   "features/trips/domain/index.ts": {
     "cls": "SHARED_DOMAIN",
@@ -3899,6 +4084,12 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
+  "features/trips/operations/fuel/FuelEntryScreen.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
   "features/trips/operations/hooks/useTripOperationsSync.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
@@ -3933,6 +4124,12 @@
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
+  },
+  "features/trips/operations/other/OtherExpenseEntryScreen.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
   },
   "features/trips/operations/queries/useTripOperations.ts": {
     "cls": "SHARED_DOMAIN",
@@ -3969,35 +4166,173 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "features/trips/operations/shared/applyExpenseReceiptOcr.util.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
   "features/trips/operations/shared/driverExpenseCategoryNav.util.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
+  },
+  "features/trips/operations/shared/DriverExpenseCategorySwitch.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/DriverExpenseChipSelect.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/driverExpenseChipVisuals.util.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/DriverExpenseEntryLayout.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/driverOpsEntry.styles.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/DriverOpsEntryFooter.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
   },
   "features/trips/operations/shared/driverReimbursementEvents.util.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
+  "features/trips/operations/shared/DriverUnifiedExpenseEntryScreen.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/ExpenseBillPhotoScan.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/expenseBillScan.constants.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/expenseBillScan.types.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/ExpenseBillScanBanner.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/ExpenseBillScanOverlay.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
   "features/trips/operations/shared/expenseEntryEdit.util.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
+  },
+  "features/trips/operations/shared/expenseEntryPartyPreview.util.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
   },
   "features/trips/operations/shared/expensePreview.util.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
+  "features/trips/operations/shared/expenseReceiptOcr.parse.util.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/expenseReceiptOcr.service.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
   "features/trips/operations/shared/operationsEntryOptions.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
+  "features/trips/operations/shared/operationsEntryScreen.styles.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/OpsEntryBodyPhotoSlot.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/resolveExpenseEntryKind.util.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/tripExpenseEntryExit.util.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
   "features/trips/operations/shared/tripOtherExpenseCategories.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
+  },
+  "features/trips/operations/shared/useExpenseBillCapture.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/shared/useLeaveTripExpenseEntry.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/operations/state/useOperationsSyncState.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
   },
   "features/trips/operations/timeline/timelineEvents.service.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4008,6 +4343,12 @@
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
+  },
+  "features/trips/operations/toll/TollEntryScreen.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
   },
   "features/trips/operations/types.ts": {
     "cls": "MAIN_ONLY",
@@ -4064,12 +4405,12 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/trips/services/tripWorkflow.service.ts": {
+  "features/trips/services/trips.service.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/trips/services/trips.service.ts": {
+  "features/trips/services/tripWorkflow.service.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
@@ -4140,15 +4481,35 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
-  "features/trips/verification/GPSDistanceHook.ts": {
+  "features/trips/verification/applyOdometerScan.util.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
-    "why": "feature service/util/hook/domain code"
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
   },
-  "features/trips/verification/VerificationStatusChip.tsx": {
+  "features/trips/verification/components/OdometerEntryShell.tsx": {
     "cls": "SHARED_FEATURES",
     "rule": "F1",
-    "why": "shared business UI (D1: @pulse/features)"
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/verification/components/OdometerKeypadFlow.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/verification/components/OdometerNotesField.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/verification/components/OdometerScanBanner.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
   },
   "features/trips/verification/components/VerificationStatusChip.tsx": {
     "cls": "SHARED_FEATURES",
@@ -4156,10 +4517,81 @@
     "why": "one-line re-export; goes with its target",
     "manual": true
   },
+  "features/trips/verification/DistanceComparisonCard.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/verification/GPSDistanceHook.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code"
+  },
+  "features/trips/verification/hooks/useHydrateOdometerPhotos.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/verification/hooks/useOdometerPhotoOcr.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/verification/hooks/useTripVerification.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
   "features/trips/verification/hooks/useTripVerificationSync.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
+  },
+  "features/trips/verification/index.ts": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F2→R3",
+    "why": "feature service/util/hook/domain code; R3: barrel re-exports SHARED_FEATURES features/trips/verification/OdometerEntryScreen.tsx",
+    "decision": "D20/D21"
+  },
+  "features/trips/verification/OdometerEntryScreen.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/verification/OdometerPhotoCapture.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/verification/odometerPhotoOcr.service.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/verification/odometerScan.types.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
+  "features/trips/verification/OdometerStartEndScreen.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
+  },
+  "features/trips/verification/OdometerTimelineEvent.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
   },
   "features/trips/verification/offline/outbox.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4181,10 +4613,22 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
+  "features/trips/verification/state/useVerificationSyncState.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "F2",
+    "why": "feature service/util/hook/domain code",
+    "decision": "D20/D21"
+  },
   "features/trips/verification/state/verificationState.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
+  },
+  "features/trips/verification/TripVerificationSummary.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1)",
+    "decision": "D20/D21"
   },
   "features/trips/verification/types.ts": {
     "cls": "MAIN_ONLY",
@@ -4201,6 +4645,11 @@
     "rule": "F2",
     "why": "feature service/util/hook/domain code"
   },
+  "features/trips/verification/VerificationStatusChip.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features)"
+  },
   "features/trips/visibility/tripVisibility.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "F2",
@@ -4211,17 +4660,12 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "features/vehicles/components/GarrageTab.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "features/vehicles/components/VehicleAvatar.tsx": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
   "features/vehicles/components/analytics/AnalyticsChart.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/vehicles/components/analytics/analyticsUtils.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -4231,7 +4675,12 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "features/vehicles/components/analytics/analyticsUtils.ts": {
+  "features/vehicles/components/GarrageTab.tsx": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "features/vehicles/components/VehicleAvatar.tsx": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -4316,6 +4765,12 @@
     "rule": "L4",
     "why": "generic infrastructure/helper"
   },
+  "lib/cache/cacheBuster.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
+  },
   "lib/cache/cacheKeys.ts": {
     "cls": "SHARED_CORE",
     "rule": "L4",
@@ -4352,9 +4807,10 @@
     "why": "generic infrastructure/helper"
   },
   "lib/capabilities.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_DOMAIN",
+    "rule": "L3",
+    "why": "business-named shared module",
+    "decision": "D20/D21"
   },
   "lib/chatPaymentLottieAssets.ts": {
     "cls": "SHARED_UI",
@@ -4392,15 +4848,39 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "lib/contentErrorIllustrations.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
+  },
   "lib/crashReporter.ts": {
     "cls": "SHARED_CORE",
     "rule": "L4",
     "why": "generic infrastructure/helper"
   },
+  "lib/crypto/sha256.util.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
+  },
+  "lib/crypto/sha256File.util.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
+  },
   "lib/dateRangePresets.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "lib/devConsoleFilters.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
   },
   "lib/driverInviteDeepLink.util.ts": {
     "cls": "SHARED_DOMAIN",
@@ -4481,6 +4961,18 @@
     "cls": "SHARED_CORE",
     "rule": "L4",
     "why": "generic infrastructure/helper"
+  },
+  "lib/gemini/geminiVisionJson.util.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
+  },
+  "lib/gemini/resolveGeminiApiKey.util.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
   },
   "lib/globalId.ts": {
     "cls": "SHARED_CORE",
@@ -4597,6 +5089,12 @@
     "rule": "L4",
     "why": "generic infrastructure/helper"
   },
+  "lib/htmlShell.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
+  },
   "lib/i18n.ts": {
     "cls": "SHARED_CORE",
     "rule": "L4",
@@ -4621,6 +5119,12 @@
     "cls": "SHARED_DOMAIN",
     "rule": "L3",
     "why": "business-named shared module"
+  },
+  "lib/installWebRnCompatPatches.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
   },
   "lib/invalidateFleetDriverConnectionCaches.ts": {
     "cls": "MAIN_ONLY",
@@ -4702,16 +5206,6 @@
     "rule": "L2",
     "why": "renders UI"
   },
-  "lib/mapStyles.ts": {
-    "cls": "DRIVER_ONLY",
-    "rule": "N1",
-    "why": "only reachable from driver code"
-  },
-  "lib/mapViewRef.types.ts": {
-    "cls": "DRIVER_ONLY",
-    "rule": "N1",
-    "why": "only reachable from driver code"
-  },
   "lib/maps/leafletNativeImplementation.ts": {
     "cls": "SHARED_UI",
     "rule": "MANUAL:D8",
@@ -4737,6 +5231,22 @@
     "cls": "DRIVER_ONLY",
     "rule": "N1",
     "why": "only reachable from driver code"
+  },
+  "lib/mapStyles.ts": {
+    "cls": "DRIVER_ONLY",
+    "rule": "N1",
+    "why": "only reachable from driver code"
+  },
+  "lib/mapViewRef.types.ts": {
+    "cls": "DRIVER_ONLY",
+    "rule": "N1",
+    "why": "only reachable from driver code"
+  },
+  "lib/media/captureImage.util.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
   },
   "lib/media/compressLocalImage.util.ts": {
     "cls": "DRIVER_ONLY",
@@ -4861,6 +5371,12 @@
     "why": "request moderation / scalability / DB wiring = infrastructure",
     "manual": true
   },
+  "lib/platform/events/commands.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "MANUAL:D2",
+    "why": "platform business services",
+    "manual": true
+  },
   "lib/platform/events/EventBus.contract.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "MANUAL:D2",
@@ -4874,12 +5390,6 @@
     "manual": true
   },
   "lib/platform/events/PlatformEventLog.ts": {
-    "cls": "SHARED_DOMAIN",
-    "rule": "MANUAL:D2",
-    "why": "platform business services",
-    "manual": true
-  },
-  "lib/platform/events/commands.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "MANUAL:D2",
     "why": "platform business services",
@@ -5114,6 +5624,18 @@
     "rule": "L4",
     "why": "generic infrastructure/helper"
   },
+  "lib/pod/ocr.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "L3",
+    "why": "business-named shared module",
+    "decision": "D20/D21"
+  },
+  "lib/pod/prompts.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
+  },
   "lib/preloadDriverChatWarmup.ts": {
     "cls": "DRIVER_ONLY",
     "rule": "N1",
@@ -5209,15 +5731,15 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
-  "lib/queries/useDriverUiTripsQuery.ts": {
-    "cls": "SHARED_DOMAIN",
-    "rule": "Q1",
-    "why": "query hooks / domain query keys"
-  },
   "lib/queries/useDriversQuery.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
+  "lib/queries/useDriverUiTripsQuery.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "Q1",
+    "why": "query hooks / domain query keys"
   },
   "lib/queries/useFinanceEntityQueries.ts": {
     "cls": "MAIN_ONLY",
@@ -5354,17 +5876,17 @@
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
   },
+  "lib/queries/useTripsQuery.ts": {
+    "cls": "MAIN_ONLY",
+    "rule": "Y1",
+    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+  },
   "lib/queries/useTripTimelineQuery.ts": {
     "cls": "SHARED_DOMAIN",
     "rule": "Q1",
     "why": "query hooks / domain query keys"
   },
   "lib/queries/useTripVerificationQuery.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
-  },
-  "lib/queries/useTripsQuery.ts": {
     "cls": "MAIN_ONLY",
     "rule": "Y1",
     "why": "driver imports only its types (extract types in Phase 2; the file stays)"
@@ -5419,12 +5941,12 @@
     "rule": "L4→V1",
     "why": "generic infrastructure/helper; promoted: depends on domain lib/mapLocationLabel.service.ts"
   },
-  "lib/routeStackOptions.ts": {
+  "lib/routes.ts": {
     "cls": "SHARED_CORE",
     "rule": "L4",
     "why": "generic infrastructure/helper"
   },
-  "lib/routes.ts": {
+  "lib/routeStackOptions.ts": {
     "cls": "SHARED_CORE",
     "rule": "L4",
     "why": "generic infrastructure/helper"
@@ -5435,9 +5957,10 @@
     "why": "generic infrastructure/helper"
   },
   "lib/safeAreaWeb.ts": {
-    "cls": "MAIN_ONLY",
-    "rule": "Y1",
-    "why": "driver imports only its types (extract types in Phase 2; the file stays)"
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
   },
   "lib/safeForegroundPositionWatch.ts": {
     "cls": "DRIVER_ONLY",
@@ -5519,6 +6042,12 @@
     "rule": "L4",
     "why": "generic infrastructure/helper"
   },
+  "lib/supabaseAuthLock.util.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
+  },
   "lib/supabaseHttp.util.ts": {
     "cls": "SHARED_CORE",
     "rule": "L4",
@@ -5533,6 +6062,24 @@
     "cls": "SHARED_CORE",
     "rule": "L4",
     "why": "generic infrastructure/helper"
+  },
+  "lib/tracking/backgroundTasks.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "L3",
+    "why": "business-named shared module",
+    "decision": "D20/D21"
+  },
+  "lib/tracking/haversine.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "L3",
+    "why": "business-named shared module",
+    "decision": "D20/D21"
+  },
+  "lib/tracking/TrackingEngine.ts": {
+    "cls": "SHARED_DOMAIN",
+    "rule": "L3",
+    "why": "business-named shared module",
+    "decision": "D20/D21"
   },
   "lib/trackingLocation.constants.ts": {
     "cls": "SHARED_CORE",
@@ -5579,6 +6126,12 @@
     "rule": "L4",
     "why": "generic infrastructure/helper"
   },
+  "lib/useWebLayoutWidth.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
+  },
   "lib/utils/lr.ts": {
     "cls": "SHARED_CORE",
     "rule": "L4",
@@ -5593,6 +6146,12 @@
     "cls": "SHARED_DOMAIN",
     "rule": "L4→V1",
     "why": "generic infrastructure/helper; promoted: depends on domain lib/indianVehicleInput.util.ts"
+  },
+  "lib/webDeployRecovery.ts": {
+    "cls": "SHARED_CORE",
+    "rule": "L4",
+    "why": "generic infrastructure/helper",
+    "decision": "D20/D21"
   },
   "lib/webKeyboard.ts": {
     "cls": "SHARED_CORE",

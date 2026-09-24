@@ -4,19 +4,10 @@
  */
 import Theme from '@pulse/core/constants/Theme';
 import { useAuth } from '@pulse/domain/contexts/AuthContext';
-import * as Linking from 'expo-linking';
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MAIN_APP_URL } from '../lib/routes';
-
-function openMainApp() {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.location.assign(MAIN_APP_URL);
-    return;
-  }
-  void Linking.openURL(MAIN_APP_URL);
-}
+import { openMainApp } from '../lib/openMainApp';
 
 export function NotDriverScreen() {
   const insets = useSafeAreaInsets();
@@ -29,7 +20,7 @@ export function NotDriverScreen() {
       <Text style={styles.body}>
         Your account isn&apos;t a driver account. Use the Pulse app to manage your business.
       </Text>
-      <Pressable accessibilityRole="link" onPress={openMainApp} style={[styles.button, styles.primary]}>
+      <Pressable accessibilityRole="link" onPress={() => openMainApp()} style={[styles.button, styles.primary]}>
         <Text style={styles.primaryText}>Go to Pulse</Text>
       </Pressable>
       <Pressable

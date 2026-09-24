@@ -1,0 +1,2 @@
+// /(modals)/language-settings (D20: the driver reaches it by URL). Shared body in @pulse/features.
+export { default } from '@pulse/features/app/(modals)/language-settings';

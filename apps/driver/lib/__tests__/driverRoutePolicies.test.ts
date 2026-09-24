@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { DRIVER_APP_POLICIES } from '../navigationPolicy/registry';
-import { isPublicDriverPath, LEGACY_ROUTE_ALIASES, stripBaseUrl } from '../routes';
+import { isPublicDriverPath, LEGACY_ROUTE_ALIASES, mainAppHref, stripBaseUrl } from '../routes';
 
 const APP_DIR = path.resolve(__dirname, '../../app');
 const NON_ROUTES = /(^|\/)(_layout|loading|\+not-found|\+html)\.tsx$/;
@@ -58,5 +58,12 @@ describe('Pulse Driver route policies', () => {
     expect(stripBaseUrl('/wallet', '')).toBe('/wallet');
     expect(isPublicDriverPath('/driver/sign-in', '/driver')).toBe(true);
     expect(isPublicDriverPath('/driver/wallet', '/driver')).toBe(false);
+  });
+
+  it('links to the main app on the same origin under a base path, else production', () => {
+    expect(mainAppHref('/terminal-website', { origin: 'https://preprod.example', baseUrl: '/driver' })).toBe('https://preprod.example/terminal-website');
+    expect(mainAppHref('/', { origin: 'https://driver.gogopulse.com', baseUrl: '' })).toBe('https://gogopulse.com/');
+    expect(mainAppHref('/terminal-website')).toBe('https://gogopulse.com/terminal-website');
+    expect(isPublicDriverPath('/terminal-website')).toBe(true);
   });
 });

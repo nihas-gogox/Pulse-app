@@ -1,14 +1,2 @@
-export const BILL_SCAN_PIPELINE_STEPS = [
-  { id: "prepare", label: "Photo" },
-  { id: "read", label: "Read" },
-  { id: "extract", label: "Extract" },
-  { id: "apply", label: "Apply" },
-] as const;
-
-export const BILL_SCAN_ANALYZING_MESSAGES = [
-  "Reading receipt layout…",
-  "Extracting amount & totals…",
-  "Detecting city & vendor…",
-  "Matching category & payment…",
-  "Validating extracted fields…",
-] as const;
+// Moved to packages/domain/features/trips/operations/shared/expenseBillScan.constants.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../../../packages/domain/features/trips/operations/shared/expenseBillScan.constants';
