@@ -181,4 +181,6 @@ These files are imported by nothing, so neither app loads them. They would fail 
 
 **Recommendation:** classify them as **DELETE** and remove them in a separate small PR, with your OK. The checker reports them as warnings until then.
 
+✅ **Approved and done (2026-09-24):** the 3 files are deleted. `components/OptimalRouteMap.web.tsx` (the unused web twin) is kept: it imports no driver-only code and wasn't part of D16. Driver-self screens move once, in Phase 3 (approved).
+
 **Still in Phase 1 scope, deliberately deferred:** the driver-self screens in `features/drivers/screens` are DRIVER_ONLY, but moving them to `features/driver/screens` now and again into `apps/driver` in Phase 3 would move them twice. **Recommendation:** move them once, in Phase 3.
