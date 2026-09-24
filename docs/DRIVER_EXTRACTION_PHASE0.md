@@ -52,7 +52,7 @@ The graph has 16 cycles, counting type-only edges. That is more than the 5 that 
 
 ## 6. Baseline (V1 `149fba7d`, before any extraction change)
 
-**V1 is already red.** Phase gates therefore mean **"no new failures compared with this baseline"**, not "all green". Logs are in `docs/driver-extraction-baseline/`.
+**V1 is already red.** Phase gates therefore mean **"no new failures compared with this baseline"**, not "all green". Logs are in `docs/driver-extraction-baseline/` (local only; `*.log` is gitignored).
 
 | Check | Result |
 |---|---|
