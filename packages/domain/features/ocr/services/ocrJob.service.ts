@@ -1,6 +1,6 @@
 import { supabase } from "@pulse/core/lib/supabase";
 
-import type { ExpenseOcrKind, OcrJobRow, OcrMetricsSummary } from "@/features/ocr/types/ocr.types";
+import type { ExpenseOcrKind, OcrJobRow, OcrMetricsSummary } from "../types/ocr.types";
 
 const EXPENSE_OCR_TABLE: Record<ExpenseOcrKind, "trip_fuel_entries" | "trip_toll_entries" | "trip_other_expenses"> = {
   fuel: "trip_fuel_entries",

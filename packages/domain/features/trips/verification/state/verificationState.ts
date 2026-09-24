@@ -1,5 +1,5 @@
 import type { TripRow } from "../../services/trips.service";
-import type { OdometerVerificationState } from "../../../../../../features/trips/verification/types";
+import type { OdometerVerificationState } from "../types";
 
 export function deriveVerificationState(
   trip: Pick<

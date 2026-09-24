@@ -1,13 +1,13 @@
-import type { IntegratedChat } from "@/features/chat/contexts/IntegratedChatContext";
+import type { IntegratedChat } from "../contexts/IntegratedChatContext.types";
 import type {
   ConversationPartyType,
   TripConversation,
   TripMessageRow,
 } from "../types/chat.types";
 import type { TripForCompose } from "../services/chat.service";
-import type { ResolvedPartyAvatarIdentity } from "@/lib/entityIdentity";
+import type { ResolvedPartyAvatarIdentity } from "../../../lib/entityIdentity.types";
 import type { PartyEntityType } from "../../../lib/partyAvatarDisplay";
-import type { LinkedOrgDisplay } from "@/lib/useLinkedOrgProfileMap";
+import type { LinkedOrgDisplay } from "../../../lib/useLinkedOrgProfileMap.types";
 
 export type ChatOrgBranding =
   | LinkedOrgDisplay

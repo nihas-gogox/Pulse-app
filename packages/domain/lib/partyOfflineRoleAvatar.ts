@@ -1,6 +1,6 @@
 import Theme from "@pulse/core/constants/Theme";
 import type { PartyEntityType } from "./partyAvatarDisplay";
-import type { PartyEntityAccent } from "@/lib/partyEntityAccent";
+import type { PartyEntityAccent } from "./partyEntityAccent.types";
 
 type OfflinePartyRole = "client" | "supplier" | "driver" | "vehicle";
 

@@ -1,6 +1,6 @@
 import { useOrganization } from "../../contexts/OrganizationContext";
 import { supabase } from "@pulse/core/lib/supabase";
-import type { ProductId } from "@/lib/productRegistry";
+import type { ProductId } from "../productRegistry.types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../queryKeys";
 import { STALE, shouldRetryQuery } from '@pulse/core/lib/queryClient';

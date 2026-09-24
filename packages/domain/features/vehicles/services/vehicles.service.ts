@@ -5,8 +5,8 @@ import { supabase } from '@pulse/core/lib/supabase';
 import { DEFAULT_PAGE_SIZE, type PageOpts } from '@pulse/core/lib/pagination';
 import { syncDomainRows } from '@pulse/core/lib/cache/domainSync';
 import { mergeDeltaRows } from '@pulse/core/lib/cache/mergeDelta';
-import type { DeltaResponse } from '@/lib/cache/deltaTypes';
-import type { VehicleDocuments } from '../../../../../features/vehicles/utils/vehicleDocuments.util';
+import type { DeltaResponse } from '../../../lib/cache/deltaTypes';
+import type { VehicleDocuments } from '../types/vehicleDocuments.types';
 
 export interface VehicleRow {
   id: string;

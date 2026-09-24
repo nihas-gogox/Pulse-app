@@ -3,7 +3,7 @@ import type {
   VehicleLedgerApprovalState,
   VehicleLedgerSourceType,
   VehicleOperationLedgerEntry,
-} from "../../../../../../features/trips/operations/types";
+} from "../types";
 
 export interface VehicleOperationsLedgerSummary {
   tripCount: number;

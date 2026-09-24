@@ -8,7 +8,7 @@ import type {
   ReimbursementState,
   SaveOtherExpenseInput,
   TripOtherExpenseEntry,
-} from "../../../../../../features/trips/operations/types";
+} from "../types";
 import {
   createVehicleOperationLedgerDraftFromSource,
   syncVehicleOperationLedgerDraftAmountFromSource,
@@ -18,7 +18,7 @@ import { appendTripOperationalTimelineEventSafe } from "../timeline/timelineEven
 import { buildExpenseEditApprovalReset } from "../shared/expenseEntryEdit.util";
 import { isDcoOperatingTrip } from "../../domain/tripDcoOperating";
 import { resolvePaymentOwnerForSave } from "../shared/operationsEntryOptions";
-import type { UpdateOtherExpenseInput } from "../../../../../../features/trips/operations/types";
+import type { UpdateOtherExpenseInput } from "../types";
 
 async function syncOtherExpenseLedgerDraft(input: {
   entryId: string;

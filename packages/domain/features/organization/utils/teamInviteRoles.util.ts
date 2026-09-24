@@ -3,7 +3,7 @@
  * Maps to legacy organization_members.role for mobile Supabase writes.
  */
 import type { OrgMember, OrgMemberRole } from "../../../types/organization";
-import type { Capability } from "@/lib/capabilities";
+import type { Capability } from "../../../lib/capabilities.types";
 import {
   defaultSurfacesForRole,
   domainsFromSurfaces,

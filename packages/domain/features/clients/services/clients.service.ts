@@ -14,10 +14,10 @@ import { supabase } from '@pulse/core/lib/supabase';
 import { DEFAULT_PAGE_SIZE, type PageOpts } from '@pulse/core/lib/pagination';
 import { syncDomainRows } from '@pulse/core/lib/cache/domainSync';
 import { mergeDeltaRows } from '@pulse/core/lib/cache/mergeDelta';
-import type { DeltaResponse } from '@/lib/cache/deltaTypes';
-import type { RatingRow } from '@/features/ratings';
-import type { ClientWarehouse } from '@/features/clients/services/clientWarehouses.service';
-import type { ClientContract } from '@/features/clients/services/clientContracts.service';
+import type { DeltaResponse } from '../../../lib/cache/deltaTypes';
+import type { RatingRow } from '../../ratings/types';
+import type { ClientWarehouse } from '../types/clientWarehouses.types';
+import type { ClientContract } from '../types/clientContracts.types';
 import type { InvoicePodPolicy } from '@/features/invoicing/utils/invoicePodPolicy.util';
 
 export interface ClientRow {

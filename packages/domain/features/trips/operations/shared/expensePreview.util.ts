@@ -1,4 +1,4 @@
-import type { TripCostEvent } from "@/features/finance";
+import type { TripCostEvent } from "../../../finance/domain/tripCostEvent";
 import { getTripFuelEntryById } from "../fuel/fuel.service";
 import { getTripOtherExpenseById } from "../other/otherExpense.service";
 import { formatOtherExpenseCategoryLabel } from "./tripOtherExpenseCategories";

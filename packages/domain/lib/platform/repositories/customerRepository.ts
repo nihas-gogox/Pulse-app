@@ -5,13 +5,13 @@ import {
   mapRowToPlatformCustomer,
 } from '../mappers/clientMappers';
 import { buildClientHubProfilePatch } from '../mappers/clientHubProfileMapper';
-import type { UpdateClientHubProfileInput } from '../../../../../lib/platform/types/client-hub-profile';
+import type { UpdateClientHubProfileInput } from '../types/client-hub-profile';
 import type {
   CreatePlatformCustomerInput,
   PlatformCustomer,
   UpdatePlatformCustomerInput,
   WorkspaceId,
-} from '../../../../../lib/platform/types/master-data';
+} from '../types/master-data';
 
 const CLIENT_COLUMNS =
   'id,organization_id,name,contact_person,phone,email,address,gstin,status,legal_name,trade_name,client_code,industry,country,state,registered_address,client_status,created_at,updated_at';

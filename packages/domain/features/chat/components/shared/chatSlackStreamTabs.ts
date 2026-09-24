@@ -1,4 +1,4 @@
-import type { SlackStreamTabId } from "@/features/chat/components/mobile/ChatSlackMobileChrome";
+import type { SlackStreamTabId } from "@pulse/features/features/chat/components/mobile/ChatSlackMobileChrome";
 import { Briefcase, Hash, MessageSquare } from "lucide-react-native";
 import type { ComponentType } from "react";
 

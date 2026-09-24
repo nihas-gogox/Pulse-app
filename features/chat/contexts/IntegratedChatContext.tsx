@@ -20,40 +20,10 @@ import type {
   NetworkMessageRow,
   NetworkPartner,
 } from "../types/chat.types";
+import type { IntegratedChat } from '@pulse/domain/features/chat/contexts/IntegratedChatContext.types';
+export type { DirectMessage, IntegratedChat } from '@pulse/domain/features/chat/contexts/IntegratedChatContext.types';
 
 export type { NetworkConversation, NetworkPartner };
-
-// ── Backward-compatible shape for ChatScreen ──────────────────────────────────
-
-export interface DirectMessage {
-  id: string;
-  senderId: string;
-  content: string;
-  timestamp: string;
-  isRead: boolean;
-  /** WhatsApp-style quoted preview (e.g. replied-to story). */
-  replyPreview?: {
-    messageId: string;
-    senderName: string;
-    content: string;
-    messageType?: string | null;
-  } | null;
-}
-
-export interface IntegratedChat {
-  id: string;
-  partnerId: string;
-  partnerName: string;
-  partnerPartyType?: "client" | "supplier";
-  partnerLogoUrl?: string | null;
-  partnerAvatarSeed?: string | null;
-  partnerRole: "dispatcher" | "owner";
-  organization: string;
-  isOnline: boolean;
-  messages: DirectMessage[];
-  lastActivity: string;
-  unreadCount: number;
-}
 
 export const INTEGRATED_QUICK_MESSAGES = [
   "Do you have availability this week?",

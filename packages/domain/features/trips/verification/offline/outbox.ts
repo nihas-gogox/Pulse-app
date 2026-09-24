@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { VerificationSide } from "../../../../../../features/trips/verification/types";
+import type { VerificationSide } from "../types";
 
 const OUTBOX_KEY = "trip_verification_outbox_v1";
 

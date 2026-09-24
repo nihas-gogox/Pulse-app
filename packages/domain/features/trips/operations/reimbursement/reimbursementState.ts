@@ -1,4 +1,4 @@
-import type { OperationalPaymentOwner, ReimbursementState } from "../../../../../../features/trips/operations/types";
+import type { OperationalPaymentOwner, ReimbursementState } from "../types";
 
 const TRANSITIONS: Record<ReimbursementState, ReadonlyArray<ReimbursementState>> = {
   reported: ["approved", "rejected"],

@@ -17,7 +17,7 @@ import {
 } from "../shared/ChatJumboEmojiMessage";
 import { ChatReplyThreadStrip, type ReplyPreviewData } from "../shared/ChatReplyPreview";
 import type { SlackMessageGroupMeta } from "@pulse/domain/features/chat/utils/slackMessageGroup.util";
-import type { ResolvedPartyAvatarIdentity } from "@/lib/entityIdentity";
+import type { ResolvedPartyAvatarIdentity } from "@pulse/domain/lib/entityIdentity.types";
 import { memo, useEffect, useRef, useState } from "react";
 import {
   Alert,

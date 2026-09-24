@@ -4,7 +4,7 @@ import {
   getDomainCacheMeta,
   upsertDomainCacheMeta,
 } from './cacheMetadataStore';
-import type { CacheDomain, DeltaResponse, SyncPolicy } from '@/lib/cache/deltaTypes';
+import type { CacheDomain, DeltaResponse, SyncPolicy } from '@pulse/domain/lib/cache/deltaTypes';
 import { runSingleflight } from './singleflight';
 
 /**

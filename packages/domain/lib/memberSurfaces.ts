@@ -10,7 +10,7 @@
  *
  * See docs/RBAC_OPERATING_MODEL.md.
  */
-import type { Capability } from "@/lib/capabilities";
+import type { Capability } from "./capabilities.types";
 import type {
   FunctionalRole,
   MemberDomainFlags,

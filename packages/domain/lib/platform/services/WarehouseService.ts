@@ -4,7 +4,7 @@ import type {
   PlatformWarehouse,
   UpdatePlatformWarehouseInput,
   WorkspaceId,
-} from '../../../../../lib/platform/types/master-data';
+} from '../types/master-data';
 
 export const WarehouseService = {
   list(workspaceId: WorkspaceId): Promise<PlatformWarehouse[]> {

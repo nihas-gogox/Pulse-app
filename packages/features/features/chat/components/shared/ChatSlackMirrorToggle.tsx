@@ -1,7 +1,7 @@
 import { PULSE_CHAT } from "@pulse/domain/features/chat/components/mobile/chatSlackMobile.styles";
 import { ChatPartyAvatar } from "../ChatPartyAvatar";
 import { CHAT_ACCENT, CHAT_ICON_MUTED } from "@pulse/domain/features/chat/chatTheme";
-import type { ResolvedPartyAvatarIdentity } from "@/lib/entityIdentity";
+import type { ResolvedPartyAvatarIdentity } from "@pulse/domain/lib/entityIdentity.types";
 import { ListFilter } from "lucide-react-native";
 import { useMirrorIndicator } from "@pulse/core/lib/hooks/useMirrorIndicator";
 import { useEffect, useRef } from "react";

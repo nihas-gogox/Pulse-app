@@ -1,4 +1,4 @@
-import type { PlatformCustomer } from '../../../../../lib/platform/types/master-data';
+import type { PlatformCustomer } from '../types/master-data';
 
 /** Core `ClientRow` columns — shared between repository reads and Core adapter. */
 export const CORE_CLIENT_COLUMNS =

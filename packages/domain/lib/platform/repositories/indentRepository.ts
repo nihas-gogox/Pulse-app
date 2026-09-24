@@ -1,7 +1,7 @@
 import { requirePlatformDb } from '@pulse/core/lib/platform/db/platformDb';
 import { ensurePublicUserRecord } from './userRepository';
 import type { SalesOrderForPublish } from './orderRepository';
-import type { WorkspaceId } from '../../../../../lib/platform/types/master-data';
+import type { WorkspaceId } from '../types/master-data';
 
 export type CreatedIndentRef = {
   id: string;

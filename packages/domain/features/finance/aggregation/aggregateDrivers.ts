@@ -4,8 +4,8 @@
  * when available; else the trip's already-stamped driver_commission (see stampTripDriverPayFromTerms,
  * which only ever writes this when real agreed terms existed). No agreed terms → 0, never a guess.
  */
-import type { FinancialRowData, AggregationTotals } from '../../../../../features/finance/aggregation/types';
-import type { LedgerTx, TripForDriver, DriverLike, DriverOfferForAggregation, TripPartyMap } from '../../../../../features/finance/aggregation/types';
+import type { FinancialRowData, AggregationTotals } from './types';
+import type { LedgerTx, TripForDriver, DriverLike, DriverOfferForAggregation, TripPartyMap } from './types';
 import { isDcoOperatingTrip } from '../../trips/domain/tripDcoOperating';
 import { isDriverLedgerContactType } from '../domain/financeCounterpartyLane';
 

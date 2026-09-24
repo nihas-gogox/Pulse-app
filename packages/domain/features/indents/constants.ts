@@ -2,7 +2,7 @@
  * Create indent form options — aligned with pulse-unified-base create-indent types.
  */
 
-import type { CirculationTarget } from "@/features/indents/services/indents.service";
+import type { CirculationTarget } from "./types/indents.types";
 
 /**
  * Truck body-length (FT) and payload (MT) presets used as vehicle type options

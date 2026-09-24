@@ -1,7 +1,7 @@
 import type { TripRow } from "../../trips/services/trips.service";
-import type { TripCostEvent } from "@/features/finance/domain/tripCostEvent";
+import type { TripCostEvent } from "../domain/tripCostEvent";
 import { computeDriverCommissionForTrip } from "../aggregation/aggregateDrivers";
-import type { DriverOfferForAggregation } from "@/features/finance/aggregation/types";
+import type { DriverOfferForAggregation } from "../aggregation/types";
 import { selectAssetTripOperationalCost } from "./tripAccountingSelectors";
 import { formatINR } from "@pulse/core/lib/format";
 

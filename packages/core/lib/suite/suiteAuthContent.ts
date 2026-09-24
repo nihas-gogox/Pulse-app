@@ -1,4 +1,4 @@
-import type { SuiteProductId } from '../../../../lib/suite/suiteProducts';
+import type { SuiteProductId } from '@pulse/domain/lib/suite/suiteProductModule.types';
 
 export type SuiteSignInCopy = {
   brandLabel: string;

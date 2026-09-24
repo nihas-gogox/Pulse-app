@@ -1,4 +1,4 @@
-import type { TripFuelEntry, TripTollEntry } from "@/features/trips/operations/types";
+import type { TripFuelEntry, TripTollEntry } from "../../trips/operations/types";
 
 export interface OperationalLedgerProjection {
   approvedToPostCount: number;

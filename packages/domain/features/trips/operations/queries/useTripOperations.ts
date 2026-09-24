@@ -17,7 +17,7 @@ import type {
   UpdateFuelEntryInput,
   UpdateOtherExpenseInput,
   UpdateTollEntryInput,
-} from "../../../../../../features/trips/operations/types";
+} from "../types";
 import { getTripOperationalCapabilities } from "../../capabilities";
 import {
   invalidateLedgerState,
@@ -29,7 +29,7 @@ import { syncOperationalFinanceProjection } from "../../../finance/projections/s
 import type {
   TripCostEvent,
   TripCostFinancialSnapshot,
-} from "@/features/finance/domain/tripCostEvent";
+} from "../../../finance/domain/tripCostEvent";
 import {
   deriveTripCostFinancialSnapshot,
   mapTripOperationalRowsToCostEvents,

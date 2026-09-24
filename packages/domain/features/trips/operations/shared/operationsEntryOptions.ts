@@ -2,7 +2,7 @@ import type {
   FuelType,
   OperationalPaymentMode,
   OperationalPaymentOwner,
-} from "../../../../../../features/trips/operations/types";
+} from "../types";
 import { isDcoOperatingTrip } from "../../domain/tripDcoOperating";
 
 export type ChipOption<T extends string> = { value: T; label: string };

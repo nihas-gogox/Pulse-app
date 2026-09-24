@@ -1,6 +1,6 @@
 import type { TripRow } from "../../trips/services/trips.service";
-import type { TripCostEvent } from "@/features/finance/domain/tripCostEvent";
-import type { VehicleExpenseEvent } from "@/features/fleet/domain/VehicleExpenseEvent";
+import type { TripCostEvent } from "../domain/tripCostEvent";
+import type { VehicleExpenseEvent } from "../../fleet/domain/VehicleExpenseEvent";
 import {
   selectAssetTripActualMargin,
   selectAssetTripOperationalCost,

@@ -4,7 +4,7 @@ import type {
   PublishExecutionPlanOrderInput,
   PublishExecutionPlanStopInput,
 } from '../orchestration/types';
-import type { WorkspaceId } from '../../../../../lib/platform/types/master-data';
+import type { WorkspaceId } from '../types/master-data';
 
 export const ExecutionPlanService = {
   findById(workspaceId: WorkspaceId, planId: string) {

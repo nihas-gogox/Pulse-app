@@ -1,24 +1,8 @@
 import { View, Text, StyleSheet } from "react-native";
 import Theme from "@/constants/Theme";
 import { PartyAvatar } from "@/components/PartyAvatar";
-
-export interface NumericEntryPartyPreview {
-  name: string;
-  subtitle?: string;
-  /**
-   * Optional route / corridor line (e.g. "Delhi → Hyderabad").
-   * When set, rendered as a compact hero under the name.
-   * If omitted but `subtitle` contains "→", the first ·-segment is treated as hero.
-   */
-  heroLine?: string;
-  /** Specs under the hero (vehicle, counter, target) — quieter than heroLine. */
-  detailLine?: string;
-  entityType?: "client" | "supplier" | "driver";
-  avatarUrl?: string | null;
-  avatarSeed?: string | null;
-  organizationImageUrl?: string | null;
-  organizationAvatarSeed?: string | null;
-}
+import type { NumericEntryPartyPreview } from '@pulse/domain/components/mobile-input/NumericEntryPartyBanner.types';
+export type { NumericEntryPartyPreview } from '@pulse/domain/components/mobile-input/NumericEntryPartyBanner.types';
 
 export function NumericEntryPartyBanner({
   party,

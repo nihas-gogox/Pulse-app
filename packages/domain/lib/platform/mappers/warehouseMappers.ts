@@ -1,4 +1,4 @@
-import type { PlatformWarehouse } from '../../../../../lib/platform/types/master-data';
+import type { PlatformWarehouse } from '../types/master-data';
 
 /** Core `ClientWarehouse` columns — full row reads for the Core adapter. */
 export const CORE_WAREHOUSE_COLUMNS =

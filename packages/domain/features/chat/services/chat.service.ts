@@ -1,4 +1,4 @@
-import type { RatedType, RatingRow } from "@/features/ratings/types";
+import type { RatedType, RatingRow } from "../../ratings/types";
 import { markStart, markEnd, recordMarkConversationRead } from "@pulse/core/lib/chatPerf";
 import { supabase } from "@pulse/core/lib/supabase";
 import type {
@@ -21,7 +21,7 @@ import {
 } from "../utils/mergeTripFeedbackMessages.util";
 import { syncDomainRows } from "@pulse/core/lib/cache/domainSync";
 import { mergeDeltaRows } from "@pulse/core/lib/cache/mergeDelta";
-import type { DeltaResponse } from "@/lib/cache/deltaTypes";
+import type { DeltaResponse } from "../../../lib/cache/deltaTypes";
 import { IdempotencyService } from "../../../lib/idempotencyService";
 import type { ChatLanes } from "../utils/laneMultiplexer.util";
 import {

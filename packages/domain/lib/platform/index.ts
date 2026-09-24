@@ -23,8 +23,8 @@ export type {
   UpdatePlatformCustomerInput,
   UpdatePlatformWarehouseInput,
   UpdatePlatformProductInput,
-} from '../../../../lib/platform/types/master-data';
-export type { UpdateClientHubProfileInput } from '../../../../lib/platform/types/client-hub-profile';
+} from './types/master-data';
+export type { UpdateClientHubProfileInput } from './types/client-hub-profile';
 export { getPlatformEventBus, resetPlatformEventBusForTests } from './events/InProcessEventBus';
 export {
   clearPlatformEventLog,

@@ -4,7 +4,7 @@
  */
 import { getClientsByOrganization } from '../../clients/services/clients.service';
 import { supabase } from '@pulse/core/lib/supabase';
-import type { CreateRatingData, RatingRow } from '../../../../../features/ratings/types';
+import type { CreateRatingData, RatingRow } from '../types';
 export type { RatingRow };
 
 /** Minimal trip fields for resolving CRM client id when only `client_name` is set on trip. */

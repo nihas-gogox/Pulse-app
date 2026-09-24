@@ -1,6 +1,6 @@
 import { orderRepository } from '../repositories/orderRepository';
 import type { SalesOrderForPublish } from '../repositories/orderRepository';
-import type { WorkspaceId } from '../../../../../lib/platform/types/master-data';
+import type { WorkspaceId } from '../types/master-data';
 
 const DISPATCHABLE_STATUSES = new Set(['Pending Consolidation']);
 

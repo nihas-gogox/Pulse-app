@@ -17,13 +17,13 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Platform, StyleSheet, Text, TextInput, View, useWindowDimensions, type TextStyle } from 'react-native';
 import { FullscreenNumericEntry } from './FullscreenNumericEntry';
-import type { NumericEntryPartyPreview } from '../../../../components/mobile-input/NumericEntryPartyBanner';
+import type { NumericEntryPartyPreview } from '@pulse/domain/components/mobile-input/NumericEntryPartyBanner.types';
 import { SmartInputTrigger } from '@pulse/ui/components/mobile-input/SmartInputTrigger';
 import { formatDisplayValue, toRawString, parseRawToNumber } from '@pulse/ui/components/mobile-input/keypad';
 import { validateEntry, resolveValidationRule } from '@pulse/ui/components/mobile-input/validation';
 import { triggerFeedback } from '@pulse/ui/components/mobile-input/feedback';
 import type { TriggerDensity, TriggerVariant, TriggerValueColor } from '@pulse/ui/components/mobile-input/SmartInputTrigger';
-import type { ValidationRule, SmartInputType } from '../../../../components/mobile-input/types';
+import type { ValidationRule, SmartInputType } from '@pulse/domain/components/mobile-input/types';
 import Theme from '@pulse/core/constants/Theme';
 
 export type { SmartInputType };

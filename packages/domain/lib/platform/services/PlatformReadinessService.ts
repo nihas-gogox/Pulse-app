@@ -1,7 +1,7 @@
 import { CustomerService } from './CustomerService';
 import { ProductService } from './ProductService';
 import { WarehouseService } from './WarehouseService';
-import type { WorkspaceId } from '../../../../../lib/platform/types/master-data';
+import type { WorkspaceId } from '../types/master-data';
 
 export type PlatformSetupEvaluation = {
   setupComplete: boolean;

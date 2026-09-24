@@ -5,7 +5,7 @@ import type {
   TripFuelEntry,
   TripOtherExpenseEntry,
   TripTollEntry,
-} from "@/features/trips/operations/types";
+} from "../../trips/operations/types";
 import { otherExpenseCategoryToCostCategory } from "../../trips/operations/shared/tripOtherExpenseCategories";
 import type {
   TripCostActor,
@@ -15,7 +15,7 @@ import type {
   TripCostPostingState,
   TripCostSettlementState,
   TripCostSource,
-} from "../../../../../features/finance/domain/tripCostEvent";
+} from "../domain/tripCostEvent";
 
 type LedgerLookup = {
   fuel: Record<string, string>;

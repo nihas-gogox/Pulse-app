@@ -2,7 +2,7 @@ import type { AnimationObject } from 'lottie-react-native';
 import type { ImageSourcePropType } from 'react-native';
 
 import Theme from '@pulse/core/constants/Theme';
-import type { OnboardingPersonaId } from '@/lib/onboarding/constants';
+import type { OnboardingPersonaId } from '../../../lib/onboarding/constants';
 
 export type OnboardingLottieAsset = {
   source: AnimationObject;

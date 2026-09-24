@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import Theme from '@pulse/core/constants/Theme';
 import { formatEntryDisplay } from './formatters';
-import type { SmartInputType } from '../../../../components/mobile-input/types';
+import type { SmartInputType } from '@pulse/domain/components/mobile-input/types';
 
 export type DisplayType = SmartInputType;
 

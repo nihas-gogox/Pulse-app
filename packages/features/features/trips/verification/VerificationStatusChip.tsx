@@ -1,5 +1,5 @@
 import Theme from "@pulse/core/constants/Theme";
-import type { OdometerVerificationState } from "../../../../../features/trips/verification/types";
+import type { OdometerVerificationState } from "@pulse/domain/features/trips/verification/types";
 import { StyleSheet, Text, View } from "react-native";
 
 const LABELS: Record<OdometerVerificationState, string> = {

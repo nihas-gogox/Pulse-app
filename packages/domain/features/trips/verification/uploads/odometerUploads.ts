@@ -1,7 +1,7 @@
 import * as tripDocumentsService from "../../services/tripDocuments.service";
 import { compressOperationsPhoto } from "../../operations/uploads/photoUploads";
 
-import type { VerificationSide } from "../../../../../../features/trips/verification/types";
+import type { VerificationSide } from "../types";
 
 export function verificationPhotoType(
   side: VerificationSide,

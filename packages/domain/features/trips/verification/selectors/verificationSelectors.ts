@@ -2,7 +2,7 @@ import type { TripRow } from "../../services/trips.service";
 import type {
   DistanceSource,
   TripVerificationSnapshot,
-} from "../../../../../../features/trips/verification/types";
+} from "../types";
 import { deriveVerificationState } from "../state/verificationState";
 import { computeDistanceDiscrepancy } from "../verification.service";
 

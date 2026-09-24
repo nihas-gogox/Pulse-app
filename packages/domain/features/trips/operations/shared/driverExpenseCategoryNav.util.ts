@@ -2,7 +2,7 @@ import type { Router } from "expo-router";
 
 import { ROUTES } from "@pulse/core/lib/routes";
 
-import type { TripOtherExpenseCategory } from "../../../../../../features/trips/operations/types";
+import type { TripOtherExpenseCategory } from "../types";
 import { TRIP_OTHER_EXPENSE_OPTIONS } from "./tripOtherExpenseCategories";
 
 /** Unified driver expense picker — fuel, toll, and other trip costs. */

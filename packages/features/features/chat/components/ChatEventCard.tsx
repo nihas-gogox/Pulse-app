@@ -42,7 +42,7 @@ import {
 import { ChatPartyAvatar } from "./ChatPartyAvatar";
 import { ChatDriverSwapAvatar } from "./shared/ChatDriverSwapAvatar";
 import { ChatDriverSwapPreviewCopy } from "./shared/ChatDriverSwapPreviewCopy";
-import type { ResolvedPartyAvatarIdentity } from "@/lib/entityIdentity";
+import type { ResolvedPartyAvatarIdentity } from "@pulse/domain/lib/entityIdentity.types";
 import { ledgerEventInvolvesOrg } from "@pulse/domain/features/chat/utils/ledgerVisibility.util";
 import {
   getLedgerBookPendingSnapshot,

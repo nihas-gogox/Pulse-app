@@ -1,5 +1,5 @@
 import { requirePlatformDb } from '@pulse/core/lib/platform/db/platformDb';
-import type { WorkspaceId } from '../../../../../lib/platform/types/master-data';
+import type { WorkspaceId } from '../types/master-data';
 
 export type SalesOrderForPublish = {
   id: string;

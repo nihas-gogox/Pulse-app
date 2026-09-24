@@ -1,4 +1,4 @@
-import type { TripFuelEntry } from "@/features/trips/operations/types";
+import type { TripFuelEntry } from "../../trips/operations/types";
 
 export interface FuelPostingCandidate {
   sourceType: "fuel";

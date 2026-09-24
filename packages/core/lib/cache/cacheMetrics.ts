@@ -1,4 +1,4 @@
-import type { CacheDomain } from '@/lib/cache/deltaTypes';
+import type { CacheDomain } from '@pulse/domain/lib/cache/deltaTypes';
 
 type CounterBucket = Record<string, number>;
 

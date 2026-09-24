@@ -8,7 +8,7 @@ import {
 } from "@pulse/core/lib/pagination";
 import { syncDomainRows } from "@pulse/core/lib/cache/domainSync";
 import { mergeDeltaRows } from "@pulse/core/lib/cache/mergeDelta";
-import type { DeltaResponse } from "@/lib/cache/deltaTypes";
+import type { DeltaResponse } from "../../../lib/cache/deltaTypes";
 import { supabase } from "@pulse/core/lib/supabase";
 import { TimeoutError, withTimeout } from "@pulse/core/lib/authEngine";
 import { getPlatformEventBus } from "../../../lib/platform/events/InProcessEventBus";

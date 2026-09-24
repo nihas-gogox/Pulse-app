@@ -6,7 +6,7 @@
  * Financial accuracy is critical — no silent coercions.
  */
 
-import type { ValidationRule, ValidationResult } from '../../../../components/mobile-input/types';
+import type { ValidationRule, ValidationResult } from '@pulse/domain/components/mobile-input/types';
 
 /** Max allowed currency value — mirrors VALIDATION.AMOUNT_MAX from lib/validation */
 export const SMART_INPUT_AMOUNT_MAX = 99_999_999;

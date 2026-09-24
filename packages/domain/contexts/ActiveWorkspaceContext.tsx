@@ -34,7 +34,7 @@ import {
 } from '../features/organization/utils/teamInviteRoles.util';
 import type { MemberSurfaceMap } from '../lib/memberSurfaces';
 import type { CurrentOrganization, OrgMemberRole } from '../types/organization';
-import type { ActiveWorkspaceState, Workspace, WorkspaceMember } from '@/types/workspace';
+import type { ActiveWorkspaceState, Workspace, WorkspaceMember } from '../types/workspace';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Storage key

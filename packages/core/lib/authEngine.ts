@@ -4,7 +4,7 @@
  * Separates "what state are we in" from React wiring.
  * The provider is a thin adapter around this engine.
  */
-import type { AuthProfile, AuthUser } from "@/features/auth/services/auth.service";
+import type { AuthProfile, AuthUser } from "@pulse/domain/features/auth/services/auth.service";
 import { captureMessage } from "./crashReporter";
 import { runWithFetchAbortScope } from "./supabaseAbort.util";
 

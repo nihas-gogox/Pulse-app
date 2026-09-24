@@ -1,24 +1,9 @@
 import { supabase } from '@/lib/supabase';
+import type { ClientContract } from '@pulse/domain/features/clients/types/clientContracts.types';
+export type { ClientContract } from '@pulse/domain/features/clients/types/clientContracts.types';
 
 function escapeLike(value: string): string {
   return value.replace(/[%_\\]/g, '\\$&');
-}
-
-export interface ClientContract {
-  id: string;
-  organization_id: string;
-  client_id: string;
-  warehouse_id: string | null;
-  pickup_area: string;
-  drop_location: string;
-  rate: number | null;
-  rate_type: 'per_trip' | 'per_ton' | 'per_kg' | 'per_km' | 'fixed';
-  billing_to_hq: boolean;
-  valid_from: string | null;
-  valid_to: string | null;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
 export type CreateContractData = Omit<ClientContract, 'id' | 'created_at' | 'updated_at'>;

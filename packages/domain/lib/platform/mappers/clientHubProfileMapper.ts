@@ -1,4 +1,4 @@
-import type { UpdateClientHubProfileInput } from '../../../../../lib/platform/types/client-hub-profile';
+import type { UpdateClientHubProfileInput } from '../types/client-hub-profile';
 
 function trimOrNull(v: string | undefined | null): string | null {
   const t = (v ?? '').trim();

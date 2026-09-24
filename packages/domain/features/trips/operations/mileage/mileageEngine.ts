@@ -3,7 +3,7 @@ import type {
   TripFuelEntry,
   TripTollEntry,
   VehicleMaintenanceEntry,
-} from "../../../../../../features/trips/operations/types";
+} from "../types";
 import type { TripOperationalCapabilities } from "../../capabilities";
 
 function parseTripDistanceKm(distance: TripRow["distance"]): number | null {

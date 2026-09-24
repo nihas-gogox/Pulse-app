@@ -11,7 +11,7 @@ import { getAvatarUriForSeed } from "@pulse/core/constants/DriverLevels";
 import { runSingleflight } from "@pulse/core/lib/cache/singleflight";
 import { syncDomainRows } from "@pulse/core/lib/cache/domainSync";
 import { mergeDeltaRows } from "@pulse/core/lib/cache/mergeDelta";
-import type { DeltaResponse } from "@/lib/cache/deltaTypes";
+import type { DeltaResponse } from "../../../lib/cache/deltaTypes";
 import { getDriverProfileDisplay, getDriverProfileDisplayBatch } from "../../drivers/services/drivers.service";
 import { interpretLedgerRowStructured } from "../ledger/ledgerEntryModel";
 import {

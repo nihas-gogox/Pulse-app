@@ -1,4 +1,4 @@
-import type { LottieSource } from "@/lib/lottieSource";
+import type { LottieSource } from "@pulse/domain/lib/lottieSource";
 
 /** Lottie glyphs for payment / ledger system cards in chat. */
 export const CHAT_PAYMENT_LOTTIE = {

@@ -4,7 +4,7 @@ import type {
   PlatformProduct,
   UpdatePlatformProductInput,
   WorkspaceId,
-} from '../../../../../lib/platform/types/master-data';
+} from '../types/master-data';
 
 /** Platform product catalog — shared by Commerce, Core cargo refs, and future products. */
 export const ProductService = {

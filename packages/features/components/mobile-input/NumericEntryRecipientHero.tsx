@@ -3,7 +3,7 @@ import { Pressable, View, Text, StyleSheet } from "react-native";
 import { ChevronRight } from "lucide-react-native";
 import Theme from "@pulse/core/constants/Theme";
 import { PartyAvatar } from "../PartyAvatar";
-import type { NumericEntryPartyPreview } from "../../../../components/mobile-input/NumericEntryPartyBanner";
+import type { NumericEntryPartyPreview } from "@pulse/domain/components/mobile-input/NumericEntryPartyBanner.types";
 
 export interface NumericEntryRecipientHeroProps {
   party: NumericEntryPartyPreview;

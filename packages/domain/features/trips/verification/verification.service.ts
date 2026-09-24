@@ -6,7 +6,7 @@ import type {
   OdometerVerificationState,
   TripVerificationSnapshot,
   VerificationSide,
-} from "../../../../../features/trips/verification/types";
+} from "./types";
 
 export interface SaveTripVerificationInput {
   tripId: string;

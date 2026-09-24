@@ -3,7 +3,7 @@ import { supabase } from "@pulse/core/lib/supabase";
 import type {
   SaveVehicleMaintenanceInput,
   VehicleMaintenanceEntry,
-} from "../../../../../../features/trips/operations/types";
+} from "../types";
 import { appendTripOperationalTimelineEventSafe } from "../timeline/timelineEvents.service";
 
 function toNullableText(value: string | null | undefined): string | null {

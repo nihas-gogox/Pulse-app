@@ -11,7 +11,7 @@ import type {
   PlatformWarehouse,
   UpdatePlatformWarehouseInput,
   WorkspaceId,
-} from '../../../../../lib/platform/types/master-data';
+} from '../types/master-data';
 
 const WAREHOUSE_COLUMNS =
   'id,organization_id,client_id,name,address,city,state,contact_name,contact_phone,warehouse_code,pincode,latitude,longitude,capacity_tons,deleted_at,created_at,updated_at';

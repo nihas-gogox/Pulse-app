@@ -1,4 +1,4 @@
-import type { TripCostEvent } from "@/features/finance";
+import type { TripCostEvent } from "../../../finance/domain/tripCostEvent";
 
 export function isDriverReimbursementCostEvent(event: TripCostEvent): boolean {
   return event.incurredBy === "driver" && event.reimbursable;

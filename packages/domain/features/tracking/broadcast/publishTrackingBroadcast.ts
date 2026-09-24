@@ -6,7 +6,7 @@ import type {
   FleetPositionPayload,
   TrackingBroadcastEventName,
   TrackingBroadcastPayload,
-} from '@/features/tracking/types/broadcast.types';
+} from '../types/broadcast.types';
 
 type CachedChannel = { channel: RealtimeChannel; lastUsedAt: number };
 

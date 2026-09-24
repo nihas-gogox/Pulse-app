@@ -1,6 +1,6 @@
 import type { TripRow } from "../../trips/services/trips.service";
-import type { TripCostEvent } from "@/features/finance/domain/tripCostEvent";
-import type { TripCommercialAdjustment } from "@/features/finance/domain/tripCommercialAdjustment";
+import type { TripCostEvent } from "../domain/tripCostEvent";
+import type { TripCommercialAdjustment } from "../domain/tripCommercialAdjustment";
 
 function roundCurrency(amount: number): number {
   return Math.round((Number(amount) || 0) * 100) / 100;

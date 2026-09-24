@@ -27,7 +27,7 @@ import { DecimalKeypad, PAY_KEYPAD_CELL_PAD, PAY_KEYPAD_INSET } from '@pulse/ui/
 import { BidVsTargetHint } from '@pulse/ui/components/mobile-input/BidVsTargetHint';
 import { resolveBidVsTarget } from '@pulse/ui/components/mobile-input/bidVsTarget';
 import { NumericDisplay } from '@pulse/ui/components/mobile-input/NumericDisplay';
-import type { NumericEntryPartyPreview } from '../../../../components/mobile-input/NumericEntryPartyBanner';
+import type { NumericEntryPartyPreview } from '@pulse/domain/components/mobile-input/NumericEntryPartyBanner.types';
 import { NumericEntryRecipientHero } from './NumericEntryRecipientHero';
 import {
   applyKeypadPress,
@@ -40,7 +40,7 @@ import { triggerFeedback } from '@pulse/ui/components/mobile-input/feedback';
 import { useInputPlatform } from '@pulse/ui/components/mobile-input/useInputPlatform';
 import { usePhysicalKeypadInput } from '@pulse/ui/components/mobile-input/usePhysicalKeypadInput';
 import type { KeypadKey, KeypadOptions } from '@pulse/ui/components/mobile-input/keypad';
-import type { SmartInputType } from '../../../../components/mobile-input/types';
+import type { SmartInputType } from '@pulse/domain/components/mobile-input/types';
 
 export interface FullscreenNumericEntryProps {
   visible: boolean;

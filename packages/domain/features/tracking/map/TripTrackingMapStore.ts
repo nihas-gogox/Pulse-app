@@ -1,5 +1,5 @@
 import { TRACKING_POSITION_STALE_MS } from '../constants';
-import type { TrackingPositionPayload } from '@/features/tracking/types/broadcast.types';
+import type { TrackingPositionPayload } from '../types/broadcast.types';
 
 export type TripMapPoint = {
   latitude: number;

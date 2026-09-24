@@ -36,7 +36,7 @@ import { runSingleflight } from '@pulse/core/lib/cache/singleflight';
 import { supabase } from '@pulse/core/lib/supabase';
 import { withTimeout } from '@pulse/core/lib/authEngine';
 import { fetchInboundProtocolSnapshot } from './inboundProtocol.util';
-import type { InboundPartnerDisplay } from '@/lib/globalSync/inboundProtocol.types';
+import type { InboundPartnerDisplay } from './inboundProtocol.types';
 import {
   REGISTRY_BOOTSTRAP_SALARY_LIMIT,
   REGISTRY_LOAD_MORE_SALARY_LIMIT,
@@ -61,7 +61,7 @@ import type {
   GlobalNetworkStatus,
   GlobalNotificationRow,
   GlobalSyncBootstrapStatus,
-} from '../../../../lib/globalSync/types';
+} from './types';
 import type { ClientOperationsRibbon } from './priorityEngine.util';
 import {
   buildClientRibbonFromTripMessage,

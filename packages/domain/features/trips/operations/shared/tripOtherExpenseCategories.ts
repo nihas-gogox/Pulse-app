@@ -1,5 +1,5 @@
-import type { TripOtherExpenseCategory } from "../../../../../../features/trips/operations/types";
-import type { TripCostCategory } from "@/features/finance/domain/tripCostEvent";
+import type { TripOtherExpenseCategory } from "../types";
+import type { TripCostCategory } from "../../../finance/domain/tripCostEvent";
 
 export type TripOtherExpenseOption = {
   value: TripOtherExpenseCategory;

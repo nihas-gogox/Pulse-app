@@ -1,11 +1,11 @@
 import { customerRepository } from '../repositories/customerRepository';
-import type { UpdateClientHubProfileInput } from '../../../../../lib/platform/types/client-hub-profile';
+import type { UpdateClientHubProfileInput } from '../types/client-hub-profile';
 import type {
   CreatePlatformCustomerInput,
   PlatformCustomer,
   UpdatePlatformCustomerInput,
   WorkspaceId,
-} from '../../../../../lib/platform/types/master-data';
+} from '../types/master-data';
 
 /** Platform customer access — Core (Clients) and Commerce (Consignees) use the same records. */
 export const CustomerService = {

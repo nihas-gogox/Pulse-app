@@ -1,4 +1,4 @@
-import type { OcrJobRow } from "@/features/ocr/types/ocr.types";
+import type { OcrJobRow } from "../../ocr/types/ocr.types";
 
 export type LrOcrFields = {
   lrNumber: string | null;

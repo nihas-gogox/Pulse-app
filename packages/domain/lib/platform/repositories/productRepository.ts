@@ -4,7 +4,7 @@ import type {
   PlatformProduct,
   UpdatePlatformProductInput,
   WorkspaceId,
-} from '../../../../../lib/platform/types/master-data';
+} from '../types/master-data';
 
 const PRODUCT_COLUMNS =
   'id,organization_id,sku,name,description,category,uom,unit_price,weight_kg,volume_m3,length_cm,width_cm,height_cm,hazmat,fragile,temperature_type,status,hsn_code,tax_rate,image_path,created_at,updated_at';

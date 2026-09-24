@@ -6,12 +6,12 @@
 import { DEFAULT_PAGE_SIZE, type PageOpts } from "@pulse/core/lib/pagination";
 import { syncDomainRows } from "@pulse/core/lib/cache/domainSync";
 import { mergeDeltaRows } from "@pulse/core/lib/cache/mergeDelta";
-import type { DeltaResponse } from "@/lib/cache/deltaTypes";
+import type { DeltaResponse } from "../../../lib/cache/deltaTypes";
 import { supabase } from "@pulse/core/lib/supabase";
 import { normalizeInfrastructureErrorMessage } from "@pulse/core/lib/supabaseHttp.util";
-import type { RatingRow } from "@/features/ratings";
+import type { RatingRow } from "../../ratings/types";
 import type { SalaryRequestRow } from "./salaryRequests.service";
-import type { LedgerRow } from "@/features/finance";
+import type { LedgerRow } from "../../finance/services/finance.service";
 import {
   validateDriverInviteCompensation,
 } from "../utils/driverInviteCompensation.util";

@@ -4,7 +4,7 @@ import { ChatReplyThreadStrip, type ReplyPreviewData } from "./ChatReplyPreview"
 import { ChatThreadMediaStrip } from "./ChatThreadMediaStrip";
 import type { ChatMediaBurstLeader } from "@pulse/domain/features/chat/utils/chatMediaBurst.util";
 import type { SlackMessageGroupMeta } from "@pulse/domain/features/chat/utils/slackMessageGroup.util";
-import type { ResolvedPartyAvatarIdentity } from "@/lib/entityIdentity";
+import type { ResolvedPartyAvatarIdentity } from "@pulse/domain/lib/entityIdentity.types";
 import { renderChatInlineMarkdown } from "../../utils/chatInlineMarkdown.util";
 import { useEffect, useRef } from "react";
 import {

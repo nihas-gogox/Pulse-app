@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { SaveFuelEntryInput, SaveTollEntryInput } from "../../../../../../features/trips/operations/types";
+import type { SaveFuelEntryInput, SaveTollEntryInput } from "../types";
 
 const OUTBOX_KEY = "trip_operations_outbox_v1";
 

@@ -4,7 +4,7 @@ import type {
   TripFuelEntry,
   TripOtherExpenseEntry,
   TripTollEntry,
-} from "../../../../../../features/trips/operations/types";
+} from "../types";
 import {
   canTransitionReimbursementState,
 } from "./reimbursementState";

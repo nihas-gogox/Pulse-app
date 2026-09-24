@@ -251,3 +251,41 @@ These files are imported by nothing, so neither app loads them. They would fail 
   - Files that hold only types (e.g. `lib/platform/types/*`, `features/finance/aggregation/types.ts`) move whole into `@pulse/domain`, with a shim.
   - For mixed files, the type declarations move into a `*.types.ts` file in `@pulse/domain`, and the original file re-exports them.
   - Do this as its own small step, still inside Phase 2, before Phase 3. This needs your approval.
+
+---
+
+## Phase 2 gate — after D17–D19 (2026-09-24)
+
+**D17 (on hold, nothing deleted):** `lib/tracking/useTrackingAppState.ts` is **not** zero-import. `lib/tracking/index.ts` re-exports it on line 2. That barrel is itself imported by nothing, but deleting the file would mean editing the barrel too, which is beyond what was approved. My earlier "imported by nothing" was wrong: the checker only said neither app reaches it. Decision needed: delete the file and its barrel line, or keep both.
+
+**D18:** accepted. No `AuthContext` change.
+
+**D19 (done):** `scripts/driver-extraction-d19-types.mjs` uses the TypeScript compiler API.
+- **17 types-only files** moved whole into `@pulse/domain`, each with a shim marked "D19 types".
+- **13 mixed files:** only the needed type declarations (plus the local types they depend on) moved into `packages/domain/**/*.types.ts`. Files from `services/` and `utils/` go into a sibling `types/` folder, because of the file-naming rule. The original files import back only the types they still use and re-export the ones they exported before, so their public surface is unchanged.
+- **3 barrels** (`features/finance/index.ts`, `features/ratings/index.ts`, `lib/suite/suiteProducts.ts`) stay put; their package consumers now point at the real source file.
+- **2 stale imports** (auth.service and ChatSlackMobileChrome types, reached via shims) now use package paths.
+- **120 package imports repointed** in total.
+- **Proof that no logic moved:** all 30 D19 files in `@pulse/domain` compile to **zero JavaScript**.
+- **1 skipped:** `InvoicePodPolicy` (`features/invoicing/utils/invoicePodPolicy.util.ts`) is built with `typeof` from a runtime array, so moving it would move logic. It stays as the **only** package → app import, and it's type-only, which D10 and the checker allow.
+- **First attempt failed the gate** (a syntax error from misplaced re-imports, unused type imports, and file-naming). I reverted it completely and fixed the script, and the second run passed.
+
+**Phase 2 gate:**
+
+| Check | Result |
+|---|---|
+| Files in packages | 500 (470 shared + 17 D19 moves + 13 D19 type files) |
+| Package → app imports | 1 (type-only, `InvoicePodPolicy`; approved skip) |
+| `check:driver-boundaries` | ✅ 0 breaks |
+| typecheck | ✅ same 26 errors as baseline |
+| unit tests | ✅ same 5 failures in the same 2 suites |
+| navigation-policy | ✅ 64/64 |
+| lint | ✅ same findings as baseline (deduped) |
+| `oms` typecheck / Vite build | ✅ 0 errors / builds |
+| Metro web export | ✅ 145 assets, 66 chunks |
+| tests reading shims | ✅ 0 |
+| clean `npm ci` | ✅ (done at 2c, identical to clean V1) |
+
+Not fixed, per instruction: the 52 clean-install baseline errors (undeclared `expo-asset`, and local-only typings).
+
+**Phase 3 not started.** It waits for explicit approval.

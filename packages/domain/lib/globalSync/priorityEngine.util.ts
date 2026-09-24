@@ -3,7 +3,7 @@ import type {
   ActiveTripSummary,
   GlobalAlertRow,
   GlobalNotificationRow,
-} from '../../../../lib/globalSync/types';
+} from './types';
 
 /** Visual band for the Operations Island (drives Moti + haptics). */
 export type OperationsIslandVisualKind = 'neutral' | 'warning' | 'critical' | 'success';

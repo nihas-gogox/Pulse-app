@@ -1,6 +1,6 @@
 import { Avatar } from "../../../components/Avatar";
 import type { AvatarParty } from "@pulse/domain/lib/avatarContext";
-import type { ResolvedPartyAvatarIdentity } from "@/lib/entityIdentity";
+import type { ResolvedPartyAvatarIdentity } from "@pulse/domain/lib/entityIdentity.types";
 
 export type ChatPartyAvatarProps = {
   identity: ResolvedPartyAvatarIdentity;

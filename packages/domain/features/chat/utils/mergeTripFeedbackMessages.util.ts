@@ -1,4 +1,4 @@
-import type { RatingRow } from "@/features/ratings/types";
+import type { RatingRow } from "../../ratings/types";
 import type { FeedbackRequestMetadata, TripMessageRow } from "../types/chat.types";
 import { parseFeedbackRequestMetadata } from "./feedbackRequestMeta";
 

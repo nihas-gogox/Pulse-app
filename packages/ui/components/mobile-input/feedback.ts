@@ -9,7 +9,7 @@
  */
 
 import { Platform } from 'react-native';
-import type { FeedbackEvent } from '../../../../components/mobile-input/types';
+import type { FeedbackEvent } from '@pulse/domain/components/mobile-input/types';
 
 // Lazily import expo-haptics so the web bundle doesn't include native modules
 let Haptics: typeof import('expo-haptics') | null = null;

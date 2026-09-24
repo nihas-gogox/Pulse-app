@@ -18,16 +18,8 @@ import {
 } from "@/lib/partyAvatarDisplay";
 import { resolveAvatarPublicUrl } from "@/lib/avatarUpload";
 import type { LinkedOrgDisplay } from "@/lib/useLinkedOrgProfileMap";
-
-export interface ResolvedPartyAvatarIdentity {
-  displayName: string;
-  entityType: PartyEntityType;
-  organizationImageUrl?: string | null;
-  organizationAvatarSeed?: string | null;
-  avatarUrl?: string | null;
-  avatarSeed?: string | null;
-  isIntegrated?: boolean;
-}
+import type { ResolvedPartyAvatarIdentity } from '@pulse/domain/lib/entityIdentity.types';
+export type { ResolvedPartyAvatarIdentity } from '@pulse/domain/lib/entityIdentity.types';
 
 /** Fields on `FinancialRowData` used to render ledger party identity. */
 export type FinancialRowPartyIdentityFields = {

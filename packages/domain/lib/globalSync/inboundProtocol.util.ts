@@ -1,5 +1,5 @@
 import { runSingleflight } from '@pulse/core/lib/cache/singleflight';
-import type { InboundPartnerDisplay, InboundProtocolInviteItem } from '@/lib/globalSync/inboundProtocol.types';
+import type { InboundPartnerDisplay, InboundProtocolInviteItem } from './inboundProtocol.types';
 import { getSignedAvatarUrl } from '../avatarUpload';
 import { resolveOrgAvatarUri } from '../../features/vehicles/utils/fleetAvatar.util';
 import { normalizePhoneForInviteeLookup } from '../phoneLookup';

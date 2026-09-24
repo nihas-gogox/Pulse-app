@@ -1,5 +1,5 @@
-import type { TripCostEvent } from "@/features/finance";
-import type { OperationalPaymentOwner, ReimbursementState } from "../../../../../../features/trips/operations/types";
+import type { TripCostEvent } from "../../../finance/domain/tripCostEvent";
+import type { OperationalPaymentOwner, ReimbursementState } from "../types";
 
 export function canEditTripCostEvent(event: TripCostEvent): boolean {
   if (event.postingState === "posted") return false;

@@ -26,6 +26,7 @@
  *   npm run check:driver-boundaries
  */
 import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -52,13 +53,24 @@ const PKG_CLASS = { core: 'SHARED_CORE', domain: 'SHARED_DOMAIN', ui: 'SHARED_UI
 const pkgOf = (f) => f.match(/^packages\/(core|domain|ui|features)\//)?.[1];
 const origOf = (f) => (pkgOf(f) ? f.slice(`packages/${pkgOf(f)}/`.length) : f);
 const clsOf = (f) => (pkgOf(f) ? PKG_CLASS[pkgOf(f)] : approved[f]?.cls ?? 'MAIN');
+// D19: types moved into @pulse/domain. Extracted `*.types.ts` files are listed in
+// packages/extraction-types.json. Whole types-only files leave a shim marked "D19 types".
+const d19Extracted = existsSync(path.join(ROOT, 'packages/extraction-types.json'))
+  ? JSON.parse(readFileSync(path.join(ROOT, 'packages/extraction-types.json'), 'utf8'))
+  : {};
+const isD19 = (f) => {
+  if (pkgOf(f) !== 'domain') return false;
+  if (d19Extracted[f]) return true;
+  const shim = path.join(ROOT, origOf(f));
+  return existsSync(shim) && readFileSync(shim, 'utf8').includes('(driver extraction, Phase 2, D19 types)');
+};
 const isRuntime = (kinds) => !(kinds.length === 1 && kinds[0] === 'type');
 
 const breaks = [];
 const deadWarnings = [];
 for (const f of Object.keys(G)) {
   const p = pkgOf(f);
-  if (p && !G[f].test && approved[origOf(f)]?.cls !== PKG_CLASS[p]) {
+  if (p && !G[f].test && approved[origOf(f)]?.cls !== PKG_CLASS[p] && !isD19(f)) {
     breaks.push([`wrong package (approved ${approved[origOf(f)]?.cls ?? 'unclassified'})`, f, `packages/${p}`]);
   }
 }
@@ -84,7 +96,7 @@ for (const [f, node] of Object.entries(G)) {
 }
 // 4. Files the driver now loads at runtime that were never classified.
 const unclassified = Object.entries(G)
-  .filter(([f, n]) => !n.test && n.inDriverRuntime && !approved[origOf(f)])
+  .filter(([f, n]) => !n.test && n.inDriverRuntime && !approved[origOf(f)] && !isD19(f))
   .map(([f]) => f);
 
 for (const [f, to] of deadWarnings) console.warn(`⚠️  dead code (reached by neither app) → driver-only: ${f} → ${to}`);

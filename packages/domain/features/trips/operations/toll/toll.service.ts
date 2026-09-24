@@ -8,7 +8,7 @@ import type {
   ReimbursementState,
   SaveTollEntryInput,
   TripTollEntry,
-} from "../../../../../../features/trips/operations/types";
+} from "../types";
 import {
   createVehicleOperationLedgerDraftFromSource,
   syncVehicleOperationLedgerDraftAmountFromSource,
@@ -17,7 +17,7 @@ import { appendTripOperationalTimelineEventSafe } from "../timeline/timelineEven
 import { buildExpenseEditApprovalReset } from "../shared/expenseEntryEdit.util";
 import { isDcoOperatingTrip } from "../../domain/tripDcoOperating";
 import { resolvePaymentOwnerForSave } from "../shared/operationsEntryOptions";
-import type { UpdateTollEntryInput } from "../../../../../../features/trips/operations/types";
+import type { UpdateTollEntryInput } from "../types";
 
 function toNullableText(value: string | null | undefined): string | null {
   const v = (value ?? "").trim();

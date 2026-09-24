@@ -8,7 +8,7 @@ import { ChatSlackDocumentAttachmentCompact } from "../shared/ChatSlackDocumentA
 import type { ConversationImagePreview } from "@pulse/domain/features/chat/utils/conversationImagePreview.util";
 import { ChatSlackMirrorToggle } from "../shared/ChatSlackMirrorToggle";
 import { SLACK_STREAM_TABS } from "@pulse/domain/features/chat/components/shared/chatSlackStreamTabs";
-import type { ResolvedPartyAvatarIdentity } from "@/lib/entityIdentity";
+import type { ResolvedPartyAvatarIdentity } from "@pulse/domain/lib/entityIdentity.types";
 import { CHAT_ACCENT } from "@pulse/domain/features/chat/chatTheme";
 import { LinearGradient } from "expo-linear-gradient";
 import LottieView from "lottie-react-native";

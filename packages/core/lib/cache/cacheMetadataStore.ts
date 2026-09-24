@@ -6,7 +6,7 @@ import type {
   DomainCacheMeta,
   SyncDecision,
   SyncPolicy,
-} from '@/lib/cache/deltaTypes';
+} from '@pulse/domain/lib/cache/deltaTypes';
 
 const DEFAULT_SCHEMA_VERSION = '1';
 

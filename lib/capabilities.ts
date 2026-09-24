@@ -1,17 +1,6 @@
-/**
- * Capability-based access for unified user role.
- * Aligned with pulse-unified-base src/lib/capabilities.ts.
- */
+import type { Capability } from '@pulse/domain/lib/capabilities.types';
+export type { Capability } from '@pulse/domain/lib/capabilities.types';
 
-export type Capability =
-  | "fleet_management"
-  | "dispatch"
-  | "dispatch_for_own_fleet"
-  | "marketplace_post"
-  | "marketplace_bid"
-  | "finance_view"
-  | "finance_manage"
-  | "team_manage";
 
 export const CAPABILITIES: Record<Capability, string> = {
   fleet_management: "Manage vehicles, drivers, maintenance",

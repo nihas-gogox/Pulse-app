@@ -12,7 +12,7 @@
  *   - Separate entry-time formatting from display formatting
  */
 
-import type { SmartInputType, NumericFormatOptions } from '../../../../components/mobile-input/types';
+import type { SmartInputType, NumericFormatOptions } from '@pulse/domain/components/mobile-input/types';
 
 const DEFAULT_LOCALE = 'en-IN';
 
