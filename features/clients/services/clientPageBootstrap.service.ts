@@ -12,6 +12,7 @@ import {
 } from "@/features/finance/services/finance.service";
 import type { RatingRow } from "@/features/ratings";
 import type { SupplierRow } from "@/features/suppliers/services/suppliers.service";
+import { viewerOwnedClientTrips } from "@/features/clients/utils/viewerClientTrips.util";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import { supabase } from "@/lib/supabase";
 
@@ -116,7 +117,11 @@ async function fetchClientPageBootstrapScoped(
 
   const seen = new Set<string>();
   const trips: TripRow[] = [];
-  for (const trip of [...((ownTripsRes.data ?? []) as TripRow[]), ...extra]) {
+  for (const trip of viewerOwnedClientTrips(
+    [...((ownTripsRes.data ?? []) as TripRow[]), ...extra],
+    orgId,
+    detail.client,
+  )) {
     if (!trip.id || seen.has(trip.id)) continue;
     seen.add(trip.id);
     trips.push(trip);
@@ -150,7 +155,10 @@ export async function fetchClientPageBootstrap(
   });
   if (!error) {
     const bundle = mapRpcBundle((data as Partial<ClientPageBootstrap> | null) ?? {});
-    if (bundle) return { error: null, missingRpc: false, bundle };
+    if (bundle) {
+      bundle.trips = viewerOwnedClientTrips(bundle.trips, orgId, bundle.client);
+      return { error: null, missingRpc: false, bundle };
+    }
   }
   if (error && !isMissingRpc(error)) {
     return { error: new Error(error.message), missingRpc: false, bundle: null };

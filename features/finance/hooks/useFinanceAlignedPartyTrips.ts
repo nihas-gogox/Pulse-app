@@ -19,6 +19,7 @@ export function useFinanceAlignedClientLedger(
       return {
         ready: false as const,
         trips: [] as TripRow[],
+        tripIds: [] as string[],
         tripCount: 0,
         billed: 0,
         received: 0,
@@ -27,8 +28,13 @@ export function useFinanceAlignedClientLedger(
         paidByTripId: {} as Record<string, number>,
       };
     }
-    const tripInputs = inputs.trip_inputs.filter((row) => row.client_id === clientId);
-    const unlinked = inputs.unlinked_payments.filter((row) => row.client_id === clientId);
+    const clientKey = clientId.trim().toLowerCase();
+    const tripInputs = inputs.trip_inputs.filter(
+      (row) => row.client_id.trim().toLowerCase() === clientKey,
+    );
+    const unlinked = inputs.unlinked_payments.filter(
+      (row) => row.client_id.trim().toLowerCase() === clientKey,
+    );
     const { rows } = aggregateCustomersFromRpc(
       [{ id: clientId, name: "" }],
       {
@@ -56,6 +62,7 @@ export function useFinanceAlignedClientLedger(
     return {
       ready: true as const,
       trips,
+      tripIds: tripInputs.map((row) => row.trip_id),
       tripCount: summary?.trips ?? tripInputs.length,
       billed: summary?.billed ?? 0,
       received: summary?.received ?? 0,

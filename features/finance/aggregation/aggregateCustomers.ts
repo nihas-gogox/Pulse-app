@@ -117,6 +117,10 @@ export function aggregateCustomers(
     billedByClientId[id] = 0;
     tripsByClientId[id] = [];
   }
+  // Trips whose client resolves to an id outside the loaded `clients` list (archived/soft-deleted
+  // client, cross-org id, RLS-filtered) or that can't be resolved to any client at all. Tracked so a
+  // row can still be synthesized for them below instead of the trip silently vanishing from every count.
+  const unresolvedDisplayNameById: Record<string, string> = {};
 
   // Single pass: trips -> billed, trip count, and per-trip list per client.
   // Priority:
@@ -147,10 +151,20 @@ export function aggregateCustomers(
         (nameKey ? clientIdByNameKey[nameKey] : undefined);
     }
 
-    if (clientId == null) continue;
+    // Trip's client couldn't be resolved to any known client id (no client_id match and no client_name
+    // match against a loaded client). Route into a synthetic bucket keyed by name rather than dropping
+    // the trip from every count with no visible trace.
+    if (clientId == null) {
+      clientId = nameKey ? `unlinked:${nameKey}` : 'unlinked:__unknown__';
+    }
 
-    // Trips can reference a client_id that's not present in the loaded clients list (e.g. cross-org trips).
-    // Ensure per-client buckets exist before incrementing/pushing.
+    // Trips can reference a client_id that's not present in the loaded clients list (e.g. cross-org
+    // trips, archived/soft-deleted clients, or the synthetic unlinked bucket above). Record a display
+    // name so a row can still be synthesized for it below. Ensure per-client buckets exist before
+    // incrementing/pushing.
+    if (!localClientIdSet.has(clientId) && !unresolvedDisplayNameById[clientId]) {
+      unresolvedDisplayNameById[clientId] = (t.client_name || '').trim() || 'Unknown Customer';
+    }
     if (!tripsByClientId[clientId]) tripsByClientId[clientId] = [];
 
     // 3) Only use supplier_rate when we are the supplier (linkedClient match). For trips we own (client_id/name
@@ -198,11 +212,8 @@ export function aggregateCustomers(
   let totalBilling = 0;
   let totalBalance = 0;
 
-  for (let i = 0; i < clients.length; i++) {
-    const c = clients[i];
-    const id = c.id;
-    const displayName = getClientDisplayName(c);
-    const nameKey = toNameKey(displayName);
+  /** Shared pending/received derivation, used both for loaded clients and synthesized unresolved rows. */
+  function computeClientPendingReceived(id: string, nameKey: string): { pending: number; received: number } {
     const fromLedgerId = ledgerByClientId[id];
     const fromLedgerName = ledgerByPartyName[nameKey];
 
@@ -278,6 +289,17 @@ export function aggregateCustomers(
       ? Math.max(0, billed - pending)
       : ledgerReceived;
 
+    return { pending, received };
+  }
+
+  for (let i = 0; i < clients.length; i++) {
+    const c = clients[i];
+    const id = c.id;
+    const displayName = getClientDisplayName(c);
+    const nameKey = toNameKey(displayName);
+    const billed = billedByClientId[id] ?? 0;
+    const { pending, received } = computeClientPendingReceived(id, nameKey);
+
     totalBilling += billed;
     totalBalance += pending;
 
@@ -293,6 +315,28 @@ export function aggregateCustomers(
       linked_organization_id: c.linked_organization_id ?? undefined,
       contactPercent: c.contact_percent ?? undefined,
       contactPerson: (c.contact_person ?? '').trim() || undefined,
+    });
+  }
+
+  // Trips whose client id fell outside the loaded `clients` list (or couldn't be resolved to a
+  // client id at all) — synthesized here so their revenue/trip-count still shows up somewhere,
+  // instead of being counted internally but never emitted as a row.
+  for (const [id, displayName] of Object.entries(unresolvedDisplayNameById)) {
+    const nameKey = toNameKey(displayName);
+    const billed = billedByClientId[id] ?? 0;
+    const { pending, received } = computeClientPendingReceived(id, nameKey);
+
+    totalBilling += billed;
+    totalBalance += pending;
+
+    rows.push({
+      id,
+      name: displayName,
+      subline: 'UNLINKED',
+      trips: tripCount[id] ?? 0,
+      received,
+      pending,
+      billed,
     });
   }
 

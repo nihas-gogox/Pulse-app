@@ -40,13 +40,42 @@ describe('aggregateSuppliers', () => {
     expect(rows[1].subline).toBe('NON_INTEGRATED');
   });
 
-  it('ignores trips that cannot be matched to any known supplier by id or name', () => {
+  it('surfaces a trip that cannot be matched to any known supplier as its own row instead of dropping it', () => {
     const trips: TripForSupplier[] = [
       { id: 'trip-1', supplier_id: 'unknown', supplier_name: 'Unknown Co', supplier_rate: 999 } as TripForSupplier,
     ];
     const { rows, totals } = aggregateSuppliers([supplier], trips, []);
+    expect(rows).toHaveLength(2);
     expect(rows[0].payables).toBe(0);
-    expect(totals.totalIn).toBe(0);
+    const unlinkedRow = rows.find((r) => r.name === 'Unknown Co');
+    expect(unlinkedRow).toBeDefined();
+    expect(unlinkedRow?.subline).toBe('UNLINKED');
+    expect(unlinkedRow?.trips).toBe(1);
+    expect(unlinkedRow?.payables).toBe(999);
+    // Totals must include the unresolved trip too, not just the known supplier.
+    expect(totals.totalIn).toBe(999);
+  });
+
+  it('groups multiple unresolved trips with the same supplier_name into one row', () => {
+    const trips: TripForSupplier[] = [
+      { id: 'trip-a', supplier_id: null, supplier_name: 'Repeat Carrier', supplier_rate: 100 } as TripForSupplier,
+      { id: 'trip-b', supplier_id: null, supplier_name: 'Repeat Carrier', supplier_rate: 200 } as TripForSupplier,
+    ];
+    const { rows } = aggregateSuppliers([supplier], trips, []);
+    const grouped = rows.find((r) => r.name === 'Repeat Carrier');
+    expect(grouped).toBeDefined();
+    expect(grouped?.trips).toBe(2);
+    expect(grouped?.payables).toBe(300);
+  });
+
+  it('surfaces a trip with no supplier_id and no name match against any loaded supplier', () => {
+    const trips: TripForSupplier[] = [
+      { id: 'trip-1', supplier_id: null, supplier_name: null, supplier_rate: 750 } as unknown as TripForSupplier,
+    ];
+    const { rows } = aggregateSuppliers([supplier], trips, []);
+    const unlinkedRow = rows.find((r) => r.name === 'Unknown Supplier');
+    expect(unlinkedRow).toBeDefined();
+    expect(unlinkedRow?.payables).toBe(750);
   });
 
   it('does not fold DCO settlement into a normal supplier row', () => {

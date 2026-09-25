@@ -64,6 +64,10 @@ export function aggregateSuppliers(
   const normalizedIdToRawId: Record<string, string> = {};
   const supplierIdByLinkedOrgId = buildUniqueLinkedOrgIdMap(suppliers);
   const tripPartyByRef: Record<string, { supplier_id?: string | null; driver_id?: string | null }> = {};
+  // Trips whose supplier couldn't be resolved to any loaded supplier (no id/name match) —
+  // tracked so a row can still be synthesized for them below instead of the payable
+  // silently vanishing from every count.
+  const unresolvedDisplayNameById: Record<string, string> = {};
 
   for (let i = 0; i < suppliers.length; i++) {
     const s = suppliers[i];
@@ -90,11 +94,18 @@ export function aggregateSuppliers(
     const tripSupplierIdNorm = normId(t.supplier_id);
     let sid: string | null =
       (tripSupplierIdNorm && normalizedIdToRawId[tripSupplierIdNorm]) ?? null;
-    if (!sid && t.supplier_name) {
-      const nameKey = toNameKey(t.supplier_name);
-      sid = nameKey ? (supplierIdByNameKey[nameKey] ?? null) : null;
+    const nameKey = t.supplier_name ? toNameKey(t.supplier_name) : '';
+    if (!sid && nameKey) {
+      sid = supplierIdByNameKey[nameKey] ?? null;
     }
-    if (!sid) continue;
+    if (!sid) {
+      // No id match and no name match against any loaded supplier — route into a
+      // synthetic bucket keyed by name rather than dropping the trip from every count.
+      sid = nameKey ? `unlinked:${nameKey}` : 'unlinked:__unknown__';
+    }
+    if (!supplierIds.has(sid) && !unresolvedDisplayNameById[sid]) {
+      unresolvedDisplayNameById[sid] = (t.supplier_name || '').trim() || 'Unknown Supplier';
+    }
     dueFromTrips[sid] = (dueFromTrips[sid] ?? 0) + rate;
     sourced[sid] = (sourced[sid] ?? 0) + 1;
     const tripIdRef = normId((t as { id?: string | null }).id);
@@ -190,6 +201,27 @@ export function aggregateSuppliers(
       is_integrated: s.supplier_type === 'integrated',
       linked_organization_id: s.linked_organization_id ?? undefined,
       contactPerson: (s.contact_person ?? '').trim() || undefined,
+    });
+  }
+
+  // Trips whose supplier couldn't be resolved to any loaded supplier — synthesized here so
+  // their payables still show up somewhere, instead of being computed and then never emitted.
+  for (const [id, displayName] of Object.entries(unresolvedDisplayNameById)) {
+    const due = dueFromTrips[id] ?? 0;
+    const paid = paidFromLedger[id] ?? 0;
+    const unsettled = Math.max(0, due - paid);
+    totalPayables += due;
+    totalUnsettled += unsettled;
+    rows.push({
+      id,
+      name: displayName,
+      subline: 'UNLINKED',
+      trips: sourced[id] ?? 0,
+      sourced: sourced[id] ?? 0,
+      due: unsettled,
+      payables: due,
+      paid,
+      sales: due,
     });
   }
 
