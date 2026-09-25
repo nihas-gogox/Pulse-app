@@ -12,7 +12,21 @@ export type DocCategory =
   | "driver_identity"
   | "lr"
   | "eway"
-  | "invoice";
+  | "invoice"
+  | "trip_details";
+
+export type TripDetailsSlot = "lr" | "invoice" | "memo";
+
+export const TRIP_DETAILS_SLOTS: readonly {
+  id: TripDetailsSlot;
+  label: string;
+}[] = [
+  { id: "lr", label: "LR Document" },
+  { id: "invoice", label: "Invoice" },
+  { id: "memo", label: "Memo" },
+];
+
+export const TRIP_DETAILS_TYPE_HINT = "LR · INVOICE · MEMO";
 
 export interface TripDocFile {
   id: string;
@@ -20,6 +34,8 @@ export interface TripDocFile {
   type: string;
   storagePath: string;
   documentId?: string;
+  /** Which Trip Details field this file belongs to. */
+  slotType?: TripDetailsSlot;
 }
 
 export interface TripDocItem {
@@ -134,6 +150,12 @@ export function isLrVaultDoc(
   return doc?.id === "lr" || doc?.category === "lr";
 }
 
+export function isTripDetailsVaultDoc(
+  doc: Pick<TripDocItem, "category" | "id"> | null | undefined,
+): boolean {
+  return doc?.id === "trip-details" || doc?.category === "trip_details";
+}
+
 export function isDriverPodVaultDoc(
   doc: Pick<TripDocItem, "id" | "category"> | null | undefined,
 ): boolean {
@@ -172,6 +194,9 @@ export function canAddMoreTripDocs(
     doc.docSource === "compliance" ||
     doc.id === "driver-documents"
   ) {
+    return true;
+  }
+  if (doc.category === "trip_details" || doc.id === "trip-details") {
     return true;
   }
   return (

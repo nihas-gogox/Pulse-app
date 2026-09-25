@@ -127,7 +127,7 @@ import type { ReassignCompletedMeta } from "../../reassign/reassign.types";
 
 export type { ReassignCompletedMeta };
 import type { TripDetailTab } from "../TripDetailFinanceView";
-import { isPdfTripDoc, type TripDocItem } from "../tripDocTypes";
+import { isPdfTripDoc, TRIP_DETAILS_TYPE_HINT, type TripDetailsSlot, type TripDocFile, type TripDocItem } from "../tripDocTypes";
 import {
   isNarrowWebViewport,
   shouldFetchTripSubcontractsOnDetail,
@@ -1196,10 +1196,47 @@ export function useTripDetail({
       }));
 
     return [
-      buildSlotCard(
-        tripDocuments.filter((d) => d.document_type === "lr"),
-        { id: "lr", label: "LR Document", pendingType: "PDF", category: "lr" },
-      ),
+      (() => {
+        const lrSlot = buildSlotCard(
+          tripDocuments.filter((d) => d.document_type === "lr"),
+          { id: "lr", label: "LR Document", pendingType: "PDF", category: "lr" },
+        );
+        const invoiceSlot = buildSlotCard(
+          tripDocuments.filter((d) => d.document_type === "invoice"),
+          { id: "invoice", label: "Invoice", pendingType: "PDF", category: "invoice" },
+        );
+        const memoSlot = buildSlotCard(
+          tripDocuments.filter((d) => d.document_type === "memo"),
+          { id: "memo", label: "Memo", pendingType: "PDF", category: "trip" },
+        );
+        const tag = (card: TripDocItem, slotType: TripDetailsSlot): TripDocFile[] =>
+          (card.files ?? []).map((file) => ({ ...file, slotType }));
+        const files = [
+          ...tag(lrSlot, "lr"),
+          ...tag(invoiceSlot, "invoice"),
+          ...tag(memoSlot, "memo"),
+        ];
+        const onFile = [
+          lrSlot.status !== "Pending" ? "LR" : null,
+          invoiceSlot.status !== "Pending" ? "INVOICE" : null,
+          memoSlot.status !== "Pending" ? "MEMO" : null,
+        ].filter((label): label is string => !!label);
+        return {
+          id: "trip-details",
+          label: "Trip Details",
+          type: onFile.join(" · ") || TRIP_DETAILS_TYPE_HINT,
+          status: files.length > 0 ? ("Uploaded" as const) : ("Pending" as const),
+          storagePath: lrSlot.storagePath ?? files[0]?.storagePath,
+          documentId: lrSlot.documentId,
+          category: "trip_details" as const,
+          files: files.length > 0 ? files : undefined,
+          documentNumber: lrSlot.documentNumber,
+          documentDate: lrSlot.documentDate,
+          invoiceNumber: lrSlot.invoiceNumber,
+          uploadedAt:
+            lrSlot.uploadedAt ?? invoiceSlot.uploadedAt ?? memoSlot.uploadedAt ?? null,
+        };
+      })(),
       buildSlotCard(
         tripDocuments.filter((d) => d.document_type === "eway_bill"),
         {
@@ -1207,24 +1244,6 @@ export function useTripDetail({
           label: "Eway Bill",
           pendingType: "PDF",
           category: "eway",
-        },
-      ),
-      buildSlotCard(
-        tripDocuments.filter((d) => d.document_type === "manifest"),
-        {
-          id: "manifest",
-          label: "Trip Manifest",
-          pendingType: "PDF",
-          category: "trip",
-        },
-      ),
-      buildSlotCard(
-        tripDocuments.filter((d) => d.document_type === "invoice"),
-        {
-          id: "invoice",
-          label: "Invoice",
-          pendingType: "PDF",
-          category: "invoice",
         },
       ),
       {

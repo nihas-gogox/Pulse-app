@@ -16,7 +16,7 @@ import {
   shouldLoadTripDocumentsForViewer,
   shouldSkipExpenseTabAutoSelect,
 } from "@/features/trips/components/trip-detail/completedTripInitialLoad.util";
-import { canAddMoreTripDocs, canMutateTripVaultDoc, formatLrVaultDateLabel, formatLrVaultNumberLabel, formatVaultDocDate, isDriverIdentityVaultDoc, isEwayBillVaultDoc, isLrVaultDoc, isPdfTripDoc, type TripDocItem, VAULT_DOC_LIMIT_HINT, VAULT_DOC_MAX_BYTES, VAULT_DOC_MAX_MB, VAULT_DOC_PICKER_TYPES, vaultDocDateToIso, vaultDocHasPreviewableFile, vaultPickerRejectionMessage } from "@/features/trips/components/trip-detail/tripDocTypes";
+import { canAddMoreTripDocs, canMutateTripVaultDoc, formatLrVaultDateLabel, formatLrVaultNumberLabel, formatVaultDocDate, isDriverIdentityVaultDoc, isEwayBillVaultDoc, isLrVaultDoc, isPdfTripDoc, isTripDetailsVaultDoc, TRIP_DETAILS_SLOTS, TRIP_DETAILS_TYPE_HINT, type TripDetailsSlot, type TripDocItem, VAULT_DOC_LIMIT_HINT, VAULT_DOC_MAX_BYTES, VAULT_DOC_MAX_MB, VAULT_DOC_PICKER_TYPES, vaultDocDateToIso, vaultDocHasPreviewableFile, vaultPickerRejectionMessage } from "@/features/trips/components/trip-detail/tripDocTypes";
 import { CompactValidTillCalendar, EwayBillLrStrip, buildEwayBillStripRows } from "@/features/trips/components/trip-detail/EwayBillVaultTab";
 import {
   ewayDocHasPreviewableFile,
@@ -1308,6 +1308,7 @@ export default function TripDetailScreen({
   const [lrOcrReading, setLrOcrReading] = useState(false);
   const lrOcrAttemptedRef = useRef<string | null>(null);
   const [addDocChooserVisible, setAddDocChooserVisible] = useState(false);
+  const [tripDetailsVisible, setTripDetailsVisible] = useState(false);
   const [vehicleDocChooserVisible, setVehicleDocChooserVisible] = useState(false);
   const [driverDocChooserVisible, setDriverDocChooserVisible] = useState(false);
   const [vaultDeleteTarget, setVaultDeleteTarget] = useState<{
@@ -1334,7 +1335,8 @@ export default function TripDetailScreen({
     (pendingVaultUpload ? 1 : 0) + (pendingVaultUpload?.extraFiles?.length ?? 0);
 
   const lrVaultSlot = detail.computedTripDocs.find(
-    (doc) => doc.id === "lr" || doc.category === "lr",
+    (doc) =>
+      isTripDetailsVaultDoc(doc) || doc.id === "lr" || doc.category === "lr",
   );
   const lrDocId = lrVaultSlot?.documentId ?? null;
   const lrStoragePath = lrVaultSlot?.storagePath ?? null;
@@ -1987,13 +1989,16 @@ export default function TripDetailScreen({
           lr: "lr",
           eway: "eway_bill",
           invoice: "invoice",
+          trip_details: "memo",
         };
 
         // Preview + confirm before any network upload (prevents accidental saves).
         const nextDocType =
           doc.id === "invoice"
             ? "invoice"
-            : CATEGORY_TO_DOC_TYPE[doc.category ?? ""] ?? "manifest";
+            : doc.id === "memo"
+              ? "memo"
+              : CATEGORY_TO_DOC_TYPE[doc.category ?? ""] ?? "manifest";
         if (nextDocType === "lr") {
           fillPendingLrFields(
             doc.documentNumber,
@@ -2237,10 +2242,42 @@ export default function TripDetailScreen({
     [pickDriverIdentityDocument],
   );
 
+  const toggleTripDetails = useCallback(() => {
+    if (uploadingDocId || pendingVaultUpload) return;
+    setTripDetailsVisible((open) => !open);
+  }, [uploadingDocId, pendingVaultUpload]);
+
+  const openTripDetails = useCallback(() => {
+    if (uploadingDocId || pendingVaultUpload) return;
+    setTripDetailsVisible(true);
+  }, [uploadingDocId, pendingVaultUpload]);
+
+  const uploadTripDetailsSlot = useCallback(
+    (slot: TripDetailsSlot) => {
+      if (slot === "lr") {
+        void handleLRUpload();
+        return;
+      }
+      void handleVaultUpload({
+        id: slot,
+        label: slot === "invoice" ? "Invoice" : "Memo",
+        type: "PDF",
+        status: "Pending",
+        category: slot === "invoice" ? "invoice" : "trip_details",
+      });
+    },
+    [handleLRUpload, handleVaultUpload],
+  );
+
   const startAddMoreForDoc = useCallback(
     (doc: (typeof detail.computedTripDocs)[number]) => {
-      if (doc.category === "lr" || doc.id === "lr" || doc.id.startsWith("lr-")) {
-        void handleLRUpload();
+      if (
+        isTripDetailsVaultDoc(doc) ||
+        doc.category === "lr" ||
+        doc.id === "lr" ||
+        doc.id.startsWith("lr-")
+      ) {
+        toggleTripDetails();
         return;
       }
       if (doc.id === "vehicle-documents" || doc.category === "vehicle") {
@@ -2253,7 +2290,7 @@ export default function TripDetailScreen({
       }
       void handleVaultUpload(doc);
     },
-    [handleLRUpload, handleVaultUpload, openVehicleDocChooser, openDriverDocChooser],
+    [handleVaultUpload, openVehicleDocChooser, openDriverDocChooser, toggleTripDetails],
   );
 
   const openAddDocumentChooser = useCallback(() => {
@@ -2262,10 +2299,10 @@ export default function TripDetailScreen({
   }, [uploadingDocId, pendingVaultUpload]);
 
   const chooseAddDocumentType = useCallback(
-    (kind: "lr" | "manifest" | "pod" | "vehicle" | "invoice" | "driver") => {
+    (kind: "trip" | "pod" | "vehicle" | "driver") => {
       setAddDocChooserVisible(false);
-      if (kind === "lr") {
-        void handleLRUpload();
+      if (kind === "trip") {
+        openTripDetails();
         return;
       }
       if (kind === "vehicle") {
@@ -2276,25 +2313,15 @@ export default function TripDetailScreen({
         openDriverDocChooser();
         return;
       }
-      if (kind === "invoice") {
-        void handleVaultUpload({
-          id: "invoice",
-          label: "Invoice",
-          type: "PDF",
-          status: "Pending",
-          category: "invoice",
-        });
-        return;
-      }
       void handleVaultUpload({
-        id: kind,
-        label: kind === "pod" ? "Driver POD" : "Trip Manifest",
-        type: kind === "pod" ? "JPG" : "PDF",
+        id: "pod",
+        label: "Driver POD",
+        type: "JPG",
         status: "Pending",
-        category: kind === "pod" ? "driver" : "trip",
+        category: "driver",
       });
     },
-    [handleLRUpload, handleVaultUpload, openVehicleDocChooser, openDriverDocChooser],
+    [handleVaultUpload, openVehicleDocChooser, openDriverDocChooser, openTripDetails],
   );
 
   const manifestJourneyPings = useMemo(() => {
@@ -2443,6 +2470,45 @@ export default function TripDetailScreen({
       return true;
     },
     [openVaultChatPreview],
+  );
+
+  const previewTripDetailsSlot = useCallback(
+    (slot: TripDetailsSlot) => {
+      const card = detail.computedTripDocs.find(isTripDetailsVaultDoc);
+      const files = (card?.files ?? []).filter(
+        (file) => file.slotType === slot && !!file.storagePath?.trim(),
+      );
+      if (files.length === 0) return;
+      const label =
+        TRIP_DETAILS_SLOTS.find((item) => item.id === slot)?.label ?? slot;
+      if (files.length > 1) {
+        detail.setSelectedDoc({
+          id: `trip-details-${slot}`,
+          label,
+          type: "FILES",
+          status: "Uploaded",
+          category: slot === "invoice" ? "invoice" : slot === "lr" ? "lr" : "trip_details",
+          files,
+          storagePath: files[0].storagePath,
+          documentId: files[0].documentId,
+        });
+        return;
+      }
+      const file = files[0];
+      void openVaultDocLikeChat(
+        {
+          id: file.id,
+          label,
+          type: file.type,
+          status: "Uploaded",
+          storagePath: file.storagePath,
+          documentId: file.documentId,
+          category: slot === "invoice" ? "invoice" : slot === "lr" ? "lr" : "trip_details",
+        },
+        file.storagePath,
+      );
+    },
+    [detail, openVaultDocLikeChat],
   );
 
   // Spinner only when there is no list/cache seed and no trip yet.
@@ -3584,6 +3650,66 @@ export default function TripDetailScreen({
       tripCompleted,
     });
 
+  const tripDetailsCard = vaultDocs.find(isTripDetailsVaultDoc);
+  const tripDetailsFields = (
+    <View style={styles.tripDetailsFields}>
+      {TRIP_DETAILS_SLOTS.map((slot) => {
+        const files = (tripDetailsCard?.files ?? []).filter(
+          (file) => file.slotType === slot.id && !!file.storagePath?.trim(),
+        );
+        const onFile = files.length > 0;
+        const canUpload = canUploadTripDocs && !uploadingDocId;
+        return (
+          <View key={slot.id} style={styles.tripDetailsRow}>
+            <View style={styles.tripDetailsCopy}>
+              <Text style={styles.addDocTypeBtnText}>{slot.label}</Text>
+              <Text style={styles.addDocTypeBtnMeta}>
+                {onFile
+                  ? files.length > 1
+                    ? `${files.length} files on file`
+                    : "On file"
+                  : "Not uploaded"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.tripDetailsIconBtn}
+              onPress={() => uploadTripDetailsSlot(slot.id)}
+              disabled={!canUpload}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Upload ${slot.label}`}
+            >
+              <Feather
+                name="upload"
+                size={16}
+                color={canUpload ? Theme.textPrimary : Theme.textMuted}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.tripDetailsIconBtn}
+              onPress={() => previewTripDetailsSlot(slot.id)}
+              disabled={!onFile}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !onFile }}
+              accessibilityLabel={
+                onFile
+                  ? `Preview ${slot.label}`
+                  : `${slot.label} preview unavailable`
+              }
+            >
+              <Feather
+                name="eye"
+                size={16}
+                color={onFile ? Theme.textPrimary : Theme.textMuted}
+              />
+            </TouchableOpacity>
+          </View>
+        );
+      })}
+    </View>
+  );
+
   const openDriverDetails = () => {
     if (!trip.driver_id) return;
     router.push(`/driver/${trip.driver_id}` as never);
@@ -3636,6 +3762,10 @@ export default function TripDetailScreen({
   const handleVaultCardPress = (
     doc: (typeof detail.computedTripDocs)[number],
   ) => {
+    if (isTripDetailsVaultDoc(doc)) {
+      toggleTripDetails();
+      return;
+    }
     if (!vaultDocHasPreviewableFile(doc)) return;
     if (doc.id === "vehicle-documents" || doc.id === "driver-documents") {
       detail.setSelectedDoc(doc);
@@ -4379,6 +4509,7 @@ export default function TripDetailScreen({
                 canUploadEwayBill={canUploadTripDocs}
                 canEditEwayBill={canUploadTripDocs}
                 onSaveEwayBill={saveEwayBillFields}
+                tripDetailsPanel={tripDetailsVisible ? tripDetailsFields : null}
                 tripIdLabel={mobileTripIdLabel}
                 createdAtLabel={mobilePlacedOnLabel}
               />
@@ -5620,10 +5751,11 @@ export default function TripDetailScreen({
                           ).length
                         : 0;
                       const isLrDoc = isLrVaultDoc(doc);
-                      const lrNumber = isLrDoc
+                      const isTripDetailsDoc = isTripDetailsVaultDoc(doc);
+                      const lrNumber = isLrDoc || isTripDetailsDoc
                         ? formatLrVaultNumberLabel(doc.documentNumber)
                         : "";
-                      const lrDate = isLrDoc
+                      const lrDate = isLrDoc || isTripDetailsDoc
                         ? formatLrVaultDateLabel(doc.documentDate)
                         : null;
                       const statusLabel = isVehicleDoc
@@ -5637,6 +5769,8 @@ export default function TripDetailScreen({
                             .join(" · ") || VEHICLE_COMPLIANCE_TYPE_HINT
                         : isDriverIdentityDoc
                           ? driverTypeSummary || DRIVER_IDENTITY_TYPE_HINT
+                        : isTripDetailsDoc
+                          ? doc.type
                         : isLrDoc && !isPending
                           ? lrNumber || "Uploaded"
                           : doc.documentNumber?.trim()
@@ -5654,27 +5788,31 @@ export default function TripDetailScreen({
                         doc.docSource !== "vehicle" &&
                         doc.docSource !== "compliance";
                       return (
-                        <View key={doc.id} style={neoStyles.vaultCard}>
-                          {isLrDoc && !isPending && (lrNumber || lrDate) ? (
-                            <View style={neoStyles.vaultLrCorner}>
-                              {lrNumber ? (
-                                <Text
-                                  style={neoStyles.vaultLrNumber}
-                                  numberOfLines={1}
-                                >
-                                  {lrNumber}
-                                </Text>
-                              ) : null}
-                              {lrDate ? (
-                                <Text
-                                  style={neoStyles.vaultLrDate}
-                                  numberOfLines={1}
-                                >
-                                  {lrDate}
-                                </Text>
-                              ) : null}
-                            </View>
-                          ) : null}
+                        <View
+                          key={doc.id}
+                          style={[
+                            neoStyles.vaultCard,
+                            isTripDetailsDoc &&
+                              tripDetailsVisible &&
+                              neoStyles.vaultCardExpanded,
+                          ]}
+                        >
+                          <TouchableOpacity
+                            activeOpacity={isTripDetailsDoc ? 0.9 : 1}
+                            disabled={!isTripDetailsDoc || isUploadingThis}
+                            onPress={
+                              isTripDetailsDoc ? toggleTripDetails : undefined
+                            }
+                            style={neoStyles.vaultCardHeader}
+                            accessibilityRole={isTripDetailsDoc ? "button" : undefined}
+                            accessibilityLabel={
+                              isTripDetailsDoc
+                                ? tripDetailsVisible
+                                  ? "Collapse Trip Details"
+                                  : "Open Trip Details"
+                                : undefined
+                            }
+                          >
                           {showUploadedThumb && uploadedPreviewPath ? (
                             <View style={neoStyles.vaultThumb}>
                               <ChatDocumentThreadPreview
@@ -5694,10 +5832,16 @@ export default function TripDetailScreen({
                             {doc.label}
                           </Text>
                           <Text style={neoStyles.vaultSub} numberOfLines={1}>
-                            {isLrDoc && !isPending && lrNumber
+                            {isTripDetailsDoc
+                              ? doc.type
+                              : isLrDoc && !isPending && lrNumber
                               ? "Uploaded"
                               : statusLabel}
                           </Text>
+                          </TouchableOpacity>
+                          {isTripDetailsDoc && tripDetailsVisible ? (
+                            tripDetailsFields
+                          ) : (
                           <View style={neoStyles.vaultBtnRow}>
                             <TouchableOpacity
                               onPress={() => handleVaultCardPress(doc)}
@@ -5707,10 +5851,12 @@ export default function TripDetailScreen({
                                 !previewReady && neoStyles.vaultBtnPreviewIdle,
                               ]}
                               activeOpacity={0.85}
-                              disabled={isUploadingThis || !previewReady}
-                              accessibilityState={{ disabled: !previewReady }}
+                              disabled={isUploadingThis || (!previewReady && !isTripDetailsDoc)}
+                              accessibilityState={{ disabled: !previewReady && !isTripDetailsDoc }}
                               accessibilityLabel={
-                                previewReady
+                                isTripDetailsDoc
+                                  ? `Open ${doc.label}`
+                                  : previewReady
                                   ? `Preview ${doc.label}`
                                   : `${doc.label} preview unavailable — no document on file`
                               }
@@ -5766,11 +5912,12 @@ export default function TripDetailScreen({
                                     neoStyles.vaultBtnTextUpload,
                                   ]}
                                 >
-                                  Add
-                                </Text>
+                                Add
+                              </Text>
                               </TouchableOpacity>
                             ) : null}
                           </View>
+                          )}
                         </View>
                       );
                     })}
@@ -6386,6 +6533,7 @@ export default function TripDetailScreen({
                             d.category === "driver" ||
                             d.category === "vehicle" ||
                             d.category === "invoice" ||
+                            d.category === "trip_details" ||
                             d.category === "driver_identity");
                         return {
                           id: d.id,
@@ -6394,13 +6542,15 @@ export default function TripDetailScreen({
                             (d.files?.length ?? 0) > 1
                               ? `${d.files?.length} files`
                               : d.type,
-                          subtitle: isLrVaultDoc(d)
+                          subtitle: isLrVaultDoc(d) || isTripDetailsVaultDoc(d)
                             ? formatLrVaultNumberLabel(d.documentNumber) ??
                               undefined
                             : undefined,
                           status:
                             d.status === "Verified" ? "Uploaded" : d.status,
-                          onView: isUploaded
+                          onView: isTripDetailsVaultDoc(d)
+                            ? () => openTripDetails()
+                            : isUploaded
                             ? () => detail.setSelectedDoc(d)
                             : canUploadThis
                               ? () => startAddMoreForDoc(d)
@@ -7466,9 +7616,7 @@ export default function TripDetailScreen({
             <View style={{ padding: 12, gap: 8 }}>
               {(
                 [
-                  { kind: "lr" as const, label: "LR Document" },
-                  { kind: "manifest" as const, label: "Trip Manifest" },
-                  { kind: "invoice" as const, label: "Invoice" },
+                  { kind: "trip" as const, label: "Trip Details" },
                   { kind: "vehicle" as const, label: "Vehicle Document" },
                   { kind: "driver" as const, label: "Driver Details" },
                   { kind: "pod" as const, label: "Driver POD" },
@@ -7487,7 +7635,11 @@ export default function TripDetailScreen({
                     <Text style={[styles.addDocTypeBtnText, { flex: 0 }]}>
                       {item.label}
                     </Text>
-                    {item.kind === "vehicle" ? (
+                    {item.kind === "trip" ? (
+                      <Text style={styles.addDocTypeBtnMeta}>
+                        {TRIP_DETAILS_TYPE_HINT}
+                      </Text>
+                    ) : item.kind === "vehicle" ? (
                       <Text style={styles.addDocTypeBtnMeta}>
                         {VEHICLE_COMPLIANCE_TYPE_HINT}
                       </Text>

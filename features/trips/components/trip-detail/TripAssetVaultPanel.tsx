@@ -10,6 +10,7 @@ import {
   formatLrVaultNumberLabel,
   isEwayBillVaultDoc,
   isLrVaultDoc,
+  isTripDetailsVaultDoc,
   type TripDocItem,
   vaultDocHasPreviewableFile,
 } from '@/features/trips/components/trip-detail/tripDocTypes';
@@ -136,13 +137,15 @@ export function TripAssetVaultPanel({
                   <Text style={[styles.statusText, palette.chipText]} numberOfLines={1}>
                     {!isPending && isLrVaultDoc(doc)
                       ? formatLrVaultNumberLabel(doc.documentNumber) || doc.status
+                      : isTripDetailsVaultDoc(doc)
+                      ? doc.type
                       : !isPending && (doc.files?.length ?? 0) > 1
-                      ? doc.id === 'vehicle-documents' || doc.id === 'driver-documents'
+                      ? doc.id === 'vehicle-documents' || doc.id === 'driver-documents' || doc.id === 'trip-details'
                         ? doc.type
                         : `${doc.files?.length} files`
                       : doc.documentNumber?.trim()
                         ? doc.documentNumber.trim()
-                        : doc.id === 'vehicle-documents' || doc.id === 'driver-documents'
+                        : doc.id === 'vehicle-documents' || doc.id === 'driver-documents' || doc.id === 'trip-details'
                           ? doc.type
                           : doc.status}
                   </Text>
@@ -162,11 +165,13 @@ export function TripAssetVaultPanel({
                   ]}
                   onPress={() => onCardPress(doc)}
                   activeOpacity={0.88}
-                  disabled={isUploading || !previewReady}
+                  disabled={isUploading || (!previewReady && !isTripDetailsVaultDoc(doc))}
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: !previewReady }}
+                  accessibilityState={{ disabled: !previewReady && !isTripDetailsVaultDoc(doc) }}
                   accessibilityLabel={
-                    previewReady
+                    isTripDetailsVaultDoc(doc)
+                      ? `Open ${doc.label}`
+                      : previewReady
                       ? `Preview ${doc.label}`
                       : `${doc.label} preview unavailable — no document on file`
                   }

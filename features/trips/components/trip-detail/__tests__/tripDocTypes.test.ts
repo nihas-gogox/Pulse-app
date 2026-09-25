@@ -110,8 +110,11 @@ describe("canAddMoreTripDocs", () => {
     ).toBe(true);
   });
 
-  it("allows invoice and driver identity vault slots", () => {
+  it("allows invoice, memo, and driver identity vault slots", () => {
     expect(canAddMoreTripDocs({ category: "invoice", id: "invoice" })).toBe(
+      true,
+    );
+    expect(canAddMoreTripDocs({ category: "trip_details", id: "trip-details" })).toBe(
       true,
     );
     expect(canAddMoreTripDocs({ category: "driver_identity" })).toBe(true);

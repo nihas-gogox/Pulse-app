@@ -25,6 +25,7 @@ export const DOC_TYPE_LABEL: Record<string, string> = {
   eway_bill: "E-way Bill",
   pod: "POD",
   manifest: "Trip Manifest",
+  memo: "Memo",
   loading_slip: "Loading Slip",
   insurance: "Insurance",
   rc: "RC",

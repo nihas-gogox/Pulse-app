@@ -4,7 +4,7 @@
  */
 import { LoadingIndicator } from "@/components/LoadingIndicator";
 import Theme from "@/constants/Theme";
-import { canMutateTripVaultDoc, formatLrVaultDateLabel, formatLrVaultNumberLabel, isEwayBillVaultDoc, isLrVaultDoc, type TripDocItem, VAULT_DOC_LIMIT_HINT, vaultDocHasPreviewableFile } from "@/features/trips/components/trip-detail/tripDocTypes";
+import { canMutateTripVaultDoc, formatLrVaultDateLabel, formatLrVaultNumberLabel, isEwayBillVaultDoc, isLrVaultDoc, isTripDetailsVaultDoc, type TripDocItem, VAULT_DOC_LIMIT_HINT, vaultDocHasPreviewableFile } from "@/features/trips/components/trip-detail/tripDocTypes";
 import {
   EwayBillLrStrip,
   type EwayBillStripRow,
@@ -17,7 +17,7 @@ import { VEHICLE_COMPLIANCE_TYPE_HINT } from "@/features/vehicles/utils/vehicleD
 import { DRIVER_IDENTITY_TYPE_HINT } from "@/features/drivers/utils/driverIdentityDocuments.util";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import Feather from "@expo/vector-icons/Feather";
-import { createElement, memo, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { createElement, memo, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Image,
   Platform,
@@ -49,6 +49,7 @@ type Props = {
   canUploadEwayBill?: boolean;
   canEditEwayBill?: boolean;
   onSaveEwayBill?: (values: EwayFieldValues[]) => Promise<boolean>;
+  tripDetailsPanel?: ReactNode;
   tripIdLabel: string;
   createdAtLabel: string;
 };
@@ -207,6 +208,7 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
   canUploadEwayBill,
   canEditEwayBill,
   onSaveEwayBill,
+  tripDetailsPanel = null,
   tripIdLabel,
   createdAtLabel,
 }: Props) {
@@ -319,10 +321,11 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
             });
             const showPreviewBtn = vaultDocHasPreviewableFile(doc);
             const showAddMore = canUploadThis && !!onAddMore;
-            const lrNumber = isLrVaultDoc(doc)
+            const showLrMeta = isLrVaultDoc(doc);
+            const lrNumber = showLrMeta
               ? formatLrVaultNumberLabel(doc.documentNumber)
               : null;
-            const lrDate = isLrVaultDoc(doc)
+            const lrDate = showLrMeta
               ? formatLrVaultDateLabel(doc.documentDate)
               : null;
 
@@ -330,16 +333,18 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
               <View key={doc.id} style={styles.card}>
                 <TouchableOpacity
                   onPress={() => {
-                    if (showPreviewBtn) onCardPress(doc);
+                    if (isTripDetailsVaultDoc(doc) || showPreviewBtn) onCardPress(doc);
                   }}
                   activeOpacity={0.88}
-                  disabled={isUploading || !showPreviewBtn}
+                  disabled={isUploading || (!showPreviewBtn && !isTripDetailsVaultDoc(doc))}
                   accessibilityRole="button"
                   accessibilityState={{
-                    disabled: isUploading || !showPreviewBtn,
+                    disabled: isUploading || (!showPreviewBtn && !isTripDetailsVaultDoc(doc)),
                   }}
                   accessibilityLabel={
-                    showPreviewBtn
+                    isTripDetailsVaultDoc(doc)
+                      ? `Open ${doc.label}`
+                      : showPreviewBtn
                       ? `Preview ${doc.label}`
                       : `${doc.label} preview unavailable — no document on file`
                   }
@@ -400,6 +405,8 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
                                 : doc.files?.length
                                   ? doc.files.map((file) => file.label).join(" · ")
                                   : doc.type
+                            : doc.id === "trip-details"
+                              ? doc.type
                             : doc.documentNumber?.trim()
                                 ? `No. ${doc.documentNumber.trim()}`
                                 : (doc.files?.length ?? 0) > 1
@@ -426,7 +433,7 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
                     </View>
                   </View>
                 </TouchableOpacity>
-                {showAddMore ? (
+                {showAddMore && !(isTripDetailsVaultDoc(doc) && tripDetailsPanel) ? (
                   <TouchableOpacity
                     onPress={() => onAddMore(doc)}
                     style={styles.addMoreBtn}
@@ -439,11 +446,14 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
                     <Text style={styles.addMoreText}>Add</Text>
                   </TouchableOpacity>
                 ) : null}
+                {isTripDetailsVaultDoc(doc) && tripDetailsPanel ? (
+                  <View style={styles.tripDetailsPanel}>{tripDetailsPanel}</View>
+                ) : null}
               </View>
             );
           })
         )}
-        {cardDocs.some((doc) => isLrVaultDoc(doc)) ? (
+        {cardDocs.some((doc) => isLrVaultDoc(doc) || isTripDetailsVaultDoc(doc)) ? (
           <View style={styles.ewayWrap}>
             <EwayBillLrStrip
               rows={ewayStripRows}
@@ -534,6 +544,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#EEEEEE",
+  },
+  tripDetailsPanel: {
+    marginTop: 10,
   },
   addMoreBtn: {
     marginTop: 10,

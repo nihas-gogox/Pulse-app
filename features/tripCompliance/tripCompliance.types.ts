@@ -165,6 +165,7 @@ export const COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES: readonly string[] = [
   "pod",
   "loading_slip",
   "manifest",
+  "memo",
 ];
 
 /** Vehicle checklist — RC, insurance, FC, permit, pollution, tax. */
