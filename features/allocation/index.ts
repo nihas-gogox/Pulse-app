@@ -25,6 +25,7 @@ export {
 export {
   getIndentAllocationWizardSteps,
   indentAllocationStepSubtitle,
+  indentAllocationStepBlockReason,
   isIndentAllocationStepComplete,
   type IndentAllocationStepId,
   type IndentWizardStep,

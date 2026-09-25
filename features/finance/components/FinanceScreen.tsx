@@ -376,6 +376,12 @@ export function FinanceScreen() {
     () => allTripsForLedger.filter(tripMatchesFinanceDate),
     [allTripsForLedger, tripMatchesFinanceDate],
   );
+  const financeFilteredTripsForSupplierAgg = useMemo(() => {
+    const byId = new Map(
+      financeFilteredTripsWhereOrgIsSupplier.map((t) => [t.id, t]),
+    );
+    return financeFilteredAllTripsForLedger.map((t) => byId.get(t.id) ?? t);
+  }, [financeFilteredAllTripsForLedger, financeFilteredTripsWhereOrgIsSupplier]);
 
   const financeTripIdsForAdjustments = useMemo(() => {
     const ids = new Set<string>();
@@ -939,7 +945,7 @@ export function FinanceScreen() {
     if (financeSubTab === "suppliers") {
       const { rows } = aggregateSuppliers(
         supplierRows,
-        financeFilteredAllTripsForLedger,
+        financeFilteredTripsForSupplierAgg,
         ledgerRows,
         financeFilteredTripsWhereOrgIsClient,
         tripPartyMap,

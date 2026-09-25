@@ -2184,6 +2184,9 @@ export interface UpdateTripAssignmentData {
 export interface UpdateTripSupplierData {
   supplier_id?: string | null;
   supplier_rate?: number;
+  /** Denormalized label so lists/detail/finance do not show "Awaiting data". */
+  supplier_name?: string | null;
+  trip_payout_mode?: "market" | "asset" | null;
 }
 
 /** Optional audit context for Private Book vs Shared Network (who last assigned). */
@@ -2368,6 +2371,13 @@ export async function updateTripSupplier(
   if (data.supplier_rate !== undefined) {
     const n = Number(data.supplier_rate ?? 0);
     updates.supplier_rate = Number.isFinite(n) ? n : 0;
+  }
+  if (data.supplier_name !== undefined) {
+    const label = String(data.supplier_name ?? "").trim();
+    updates.supplier_name = label || null;
+  }
+  if (data.trip_payout_mode !== undefined) {
+    updates.trip_payout_mode = data.trip_payout_mode;
   }
   const { data: row, error } = await supabase()
     .from("trips")

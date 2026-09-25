@@ -26,7 +26,7 @@ describe("completed trip initial load contract", () => {
     expect(shouldAutoRunHistoricalLrOcr("trip", completed)).toBe(false);
     expect(shouldFetchHistoricalPartyRatings(completed)).toBe(false);
     expect(shouldFetchManifestRefAssetInsights(completed)).toBe(false);
-    expect(shouldFetchTripSubcontractsOnDetail(completed)).toBe(false);
+    expect(shouldFetchTripSubcontractsOnDetail(completed)).toBe(true);
     expect(shouldFlushTripOutboxOnDetail(completed)).toBe(false);
     expect(
       shouldBackfillPostedExpensesToLedger({ isDriverViewer: false, trip: completed }),

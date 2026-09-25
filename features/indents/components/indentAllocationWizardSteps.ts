@@ -120,3 +120,59 @@ export function isIndentAllocationStepComplete(
       return false;
   }
 }
+
+/** Why Convert / Continue cannot proceed. Null when the step is complete. */
+export function indentAllocationStepBlockReason(
+  step: IndentAllocationStepId,
+  state: {
+    assignDriverId: string | null;
+    assignVehicleId: string | null | undefined;
+    subcontractSupplierId: string | null;
+    subcontractRate: string;
+    aggregateDriverTrackingName: string;
+    aggregateDriverPhone: string;
+    assignVehicleRegistration: string;
+    tripDetailsReady: boolean;
+    aggregatePhoneInTrip: boolean;
+    aggregatePhoneLookupLoading: boolean;
+    aggregatePhoneMatches: readonly { user_id: string }[];
+    aggregatePhoneSelectedUserId: string | null;
+    staffHandshakeAssignLater: boolean;
+  },
+): string | null {
+  if (isIndentAllocationStepComplete(step, state)) return null;
+  switch (step) {
+    case "fleet":
+      if (!state.assignDriverId) return "Select a driver from your fleet.";
+      return "Select a vehicle from your fleet.";
+    case "partner":
+      return "Select the partner for this trip.";
+    case "rates":
+      return "Enter the rate you will pay this partner.";
+    case "driverName":
+      return "Enter the driver name.";
+    case "driverPhone": {
+      const last10 = state.aggregateDriverPhone.replace(/\D/g, "").slice(-10);
+      if (last10.length < 10) return "Enter a 10-digit driver phone number.";
+      if (state.aggregatePhoneLookupLoading) {
+        return "Still checking this phone number. Wait a moment, then try again.";
+      }
+      if (state.aggregatePhoneInTrip) {
+        return "This driver is already assigned to another open trip.";
+      }
+      if (
+        state.aggregatePhoneMatches.length > 1 &&
+        !state.aggregatePhoneSelectedUserId
+      ) {
+        return "More than one driver matches this phone. Pick the right one.";
+      }
+      return "Enter a valid driver phone number.";
+    }
+    case "vehicleReg":
+      return "Enter a complete vehicle registration number.";
+    case "commodity":
+      return "Set a valid vehicle arrival date before converting.";
+    default:
+      return "This step is not finished.";
+  }
+}
