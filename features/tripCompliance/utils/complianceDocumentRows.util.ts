@@ -179,7 +179,7 @@ export function requiredRowNextAction(row: ComplianceDocRow): string {
     return "Preview then Approve or Decline.";
   }
   if (row.status === "rejected") return "Replace the file, then Approve.";
-  return "This file is verified.";
+  return "Verified — preview or replace if needed.";
 }
 
 export function complianceProgress(rows: ComplianceDocRow[]): { verified: number; total: number } {

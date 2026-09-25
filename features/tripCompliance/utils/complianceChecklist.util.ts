@@ -1,5 +1,6 @@
 import {
   COMPLIANCE_DRIVER_DOCUMENT_TYPES,
+  COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES,
   COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
   REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
   REQUIRED_DRIVER_DOCUMENT_TYPES,
@@ -220,6 +221,34 @@ export function ensureComplianceChecklist(
     vehicleDocuments: summary?.vehicleDocuments ?? [],
     driverDocuments: summary?.driverDocuments ?? [],
   });
+}
+
+const TRIP_SUMMARY_DOCUMENT_TYPES = [
+  ...REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
+  ...COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES,
+] as const;
+
+/**
+ * Summary-card fraction: documents on file ÷ every document in the group.
+ * Completion (green) stays on the group tone, which counts required types only.
+ */
+export function complianceGroupOnFileCount(
+  group: ComplianceChecklistGroup,
+  tripDocuments: ComplianceDocumentRow[] = [],
+): { onFile: number; total: number } {
+  if (group.key === "trip") {
+    const onFileTypes = new Set(
+      tripDocuments.filter((doc) => isTripVaultDocumentOnFile(doc)).map((doc) => doc.document_type),
+    );
+    return {
+      onFile: TRIP_SUMMARY_DOCUMENT_TYPES.filter((type) => onFileTypes.has(type)).length,
+      total: TRIP_SUMMARY_DOCUMENT_TYPES.length,
+    };
+  }
+  return {
+    onFile: group.slots.filter((slot) => slot.verified).length,
+    total: group.slots.length,
+  };
 }
 
 /** Compact Verified / Pending label for table Trip/Vehicle/Driver columns. */

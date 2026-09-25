@@ -199,6 +199,7 @@ Newest on top. Add one line every time `V1` (or prod) changes.
 
 | Date | What happened to V1 | V1 commit |
 |---|---|---|
+| 2026-09-25 | Praveen compliance-flow + Sneha compliance-ui merged on separate branches, ready for V1. Full story in [CHANGELOG.md](../CHANGELOG.md) | pending |
 | 2026-09-24 | **Correction:** gogopulse.com runs `Vasanthgogox/Pulse-app` `V1` (`997064af`), not GOGOPulse. Found via Abitha Transport "Network Loads 27" issue (15-card route-dedup sample in `997064af`) | `149fba7d` |
 | 2026-09-24 | Workflow doc committed to V1 | `149fba7d` |
 | 2026-09-24 | Checked prod DB migrations: Vasanth's 4 new ones NOT applied; 1 ad-hoc migration on prod not in git; 3 V1 migrations missing on both DBs (see section 10) | `a8f87e08` |

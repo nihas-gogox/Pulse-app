@@ -4,6 +4,7 @@ import {
   buildComplianceChecklist,
   checklistGroupStatusLabel,
   checklistTone,
+  complianceGroupOnFileCount,
   ensureComplianceChecklist,
   isEntityDocumentSlotVerified,
   listExpiredRequiredVehicleDocTypes,
@@ -155,6 +156,76 @@ describe("buildComplianceChecklist", () => {
     expect(checklist.verified).toBe(7);
     expect(checklist.tone).toBe("success");
     expect(checklist.groups.every((group) => group.tone === "success")).toBe(true);
+  });
+});
+
+describe("complianceGroupOnFileCount", () => {
+  const empty = () =>
+    buildComplianceChecklist({ tripDocuments: [], vehicleDocuments: [], driverDocuments: [] });
+
+  it("uses the full document list as the denominator", () => {
+    const checklist = empty();
+    expect(complianceGroupOnFileCount(checklist.groups[0])).toEqual({ onFile: 0, total: 5 });
+    expect(complianceGroupOnFileCount(checklist.groups[1])).toEqual({ onFile: 0, total: 6 });
+    expect(complianceGroupOnFileCount(checklist.groups[2])).toEqual({ onFile: 0, total: 2 });
+    expect(checklist.groups.every((group) => group.tone !== "success")).toBe(true);
+  });
+
+  it("turns a group green only when every required document is on file", () => {
+    const tripRequired = ["lr", "eway_bill", "invoice"].map((type) => tripDoc(type));
+    const tripOptional = tripDoc("pod");
+    const vehicleRequired = ["rc", "insurance", "fitness"].map((doc_type) =>
+      entityDoc({
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type,
+        status: "verified",
+        expiry_date: doc_type === "rc" ? null : "2027-01-01",
+      }),
+    );
+    const vehicleOptionalOnly = ["permit", "pollution", "road_tax"].map((doc_type) =>
+      entityDoc({
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type,
+        status: "verified",
+        expiry_date: null,
+      }),
+    );
+    const requiredTrip = buildComplianceChecklist({
+      tripDocuments: [...tripRequired, tripOptional],
+      vehicleDocuments: vehicleRequired,
+      driverDocuments: [
+        entityDoc({ entity_type: "driver", entity_id: "d1", doc_type: "license", status: "verified" }),
+      ],
+    });
+    expect(complianceGroupOnFileCount(requiredTrip.groups[0], [...tripRequired, tripOptional])).toEqual({
+      onFile: 4,
+      total: 5,
+    });
+    expect(requiredTrip.groups[0].tone).toBe("success");
+    expect(complianceGroupOnFileCount(requiredTrip.groups[1])).toEqual({ onFile: 3, total: 6 });
+    expect(requiredTrip.groups[1].tone).toBe("success");
+    expect(complianceGroupOnFileCount(requiredTrip.groups[2])).toEqual({ onFile: 1, total: 2 });
+    expect(requiredTrip.groups[2].tone).toBe("success");
+
+    const optionalTripDocs = ["pod", "memo"].map((type) => tripDoc(type));
+    const optionalOnly = buildComplianceChecklist({
+      tripDocuments: optionalTripDocs,
+      vehicleDocuments: vehicleOptionalOnly,
+      driverDocuments: [
+        entityDoc({ entity_type: "driver", entity_id: "d1", doc_type: "aadhaar", status: "verified" }),
+      ],
+    });
+    expect(complianceGroupOnFileCount(optionalOnly.groups[0], optionalTripDocs)).toEqual({
+      onFile: 2,
+      total: 5,
+    });
+    expect(optionalOnly.groups[0].tone).not.toBe("success");
+    expect(complianceGroupOnFileCount(optionalOnly.groups[1])).toEqual({ onFile: 3, total: 6 });
+    expect(optionalOnly.groups[1].tone).not.toBe("success");
+    expect(complianceGroupOnFileCount(optionalOnly.groups[2])).toEqual({ onFile: 1, total: 2 });
+    expect(optionalOnly.groups[2].tone).not.toBe("success");
   });
 });
 

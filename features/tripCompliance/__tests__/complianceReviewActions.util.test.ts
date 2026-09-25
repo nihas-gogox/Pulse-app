@@ -1,5 +1,6 @@
 import {
   canModerateComplianceRow,
+  complianceGroupDecisionActions,
   complianceReviewDecisionActions,
 } from "@/features/tripCompliance/utils/complianceReviewActions.util";
 import type { ComplianceDocRow } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
@@ -44,6 +45,32 @@ describe("complianceReviewDecisionActions", () => {
   it("hides Approve and Decline once a file is verified, and shows Approve on a rejected file", () => {
     expect(complianceReviewDecisionActions(row({ status: "verified" }))).toEqual({ canApprove: false, canDecline: false });
     expect(complianceReviewDecisionActions(row({ status: "rejected" }))).toEqual({ canApprove: true, canDecline: false });
+  });
+});
+
+describe("complianceGroupDecisionActions", () => {
+  it("stays hidden while any required doc is still missing", () => {
+    expect(
+      complianceGroupDecisionActions(
+        [row({ status: "pending", key: "rc", type: "rc" }), row({ status: "missing", key: "insurance", type: "insurance" })],
+        "trip",
+      ).ready,
+    ).toBe(false);
+  });
+
+  it("exposes Approve/Decline once every doc in the group is uploaded", () => {
+    const result = complianceGroupDecisionActions(
+      [
+        row({ status: "pending", key: "rc", type: "rc" }),
+        row({ status: "pending", key: "insurance", type: "insurance" }),
+        row({ status: "pending", key: "fitness", type: "fitness" }),
+      ],
+      "trip",
+    );
+    expect(result.ready).toBe(true);
+    expect(result.canApprove).toBe(true);
+    expect(result.canDecline).toBe(true);
+    expect(result.actionable).toHaveLength(3);
   });
 });
 
