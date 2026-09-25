@@ -98,6 +98,54 @@ UI checked manually by Nihas before merging to V1.
 
 ---
 
+## Full commit graph — V1
+
+Every commit on `V1` from Vasanth sir's baseline (`o` = baseline, not part of this range) up to `4f238a03`.
+Regenerate with:
+`git log --graph --format='%h %ad %an — %s' --date=short --boundary 80589762..V1`
+
+How to read it: the left line is `V1`. The middle line is Praveen's branch, which also pulled in the earlier squash `85e8a724`. The right line is Sneha's branch, which started from `85e8a724`.
+
+```
+* 4f238a03 2026-09-25 NihasCM — docs(changelog): record compliance merge into V1 (787312c1)
+*   787312c1 2026-09-25 NihasCM — merge(v0.0.01): bring sneha compliance-ui (85e8a724..ba9de198) onto praveen compliance
+|\
+| * ba9de198 2026-09-25 sneha — feat(compliance): add showAvatar prop to PartyChip for conditional avatar display
+| * 530ffb4d 2026-09-25 sneha — refactor(compliance): remove SummaryMetricCard and streamline ComplianceScreen layout
+| * 808db017 2026-09-24 sneha — feat(compliance): enhance compliance components and add new utility functions
+| * 2cd2710a 2026-09-23 sneha — feat(compliance): enhance compliance screen with summary metrics and UI improvements
+* |   c78a1190 2026-09-25 NihasCM — merge(v0.0.01): bring praveen compliance-flow (a8f87e08..1587f72d) onto V1
+|\ \
+| * | 1587f72d 2026-09-25 praveen-ggx — feat(compliance): implement trip compliance verification functionality
+| * | b01029b3 2026-09-25 praveen-ggx — fix(compliance): update compliance review actions and document handling
+| * | 2a896f2d 2026-09-25 praveen-ggx — refactor(compliance): remove loading slip and manifest from compliance document types
+| * | 55f372a7 2026-09-25 praveen-ggx — feat(trip-detail): enhance document handling and user interaction in trip panels
+| * | 9ddf0d83 2026-09-25 praveen-ggx — feat(trip-detail): add invoice number formatting and enhance trip document handling
+| * | cb2f6da7 2026-09-25 praveen-ggx — feat(trip-detail): enhance trip details modal and refactor trip details handling
+| * | e24be2e8 2026-09-25 praveen-ggx — feat(trip-details): add memo document type and enhance trip detail management
+| * | 0691dc33 2026-09-24 praveen-ggx — feat(compliance): update document approval logic and status handling
+| * | 7f2497c3 2026-09-24 praveen-ggx — feat(compliance): enhance compliance trip handling and document management
+| * | bcd2c05b 2026-09-24 praveen-ggx — feat(trip-detail): enhance e-way bill upload functionality and UI
+| * | dac9a84d 2026-09-24 praveen-ggx — feat(driver-documents): implement driver identity document handling in trip detail
+| * | 6699b4ad 2026-09-24 praveen-ggx — feat(compliance): enhance vehicle document expiry handling and user notifications
+| * | 4a7c11d5 2026-09-24 praveen-ggx — refactor(trip-detail): enhance document upload handling and user alerts
+| * | ccba1346 2026-09-23 praveen-ggx — refactor(compliance): enhance compliance trip handling and pagination
+| * | 36fc60dc 2026-09-23 praveen-ggx — merge(nihas): 85e8a724 v0.0.01 praveen compliance onto V1
+| |\|
+| | * 85e8a724 2026-09-23 NihasCM — merge(v0.0.01): bring praveen compliance-flow (80589762..4a400fbd) onto V1
+| * | 4a400fbd 2026-09-23 praveen-ggx — refactor(compliance): standardize import formatting and enhance code organization
+| * | f33abc40 2026-09-23 praveen-ggx — feat(compliance): enhance compliance document handling and UI improvements
+* | | 8c28bf9c 2026-09-25 NihasCM — docs(workflow): correct prod source to Vasanthgogox/Pulse-app V1
+* | | 149fba7d 2026-09-24 NihasCM — docs(workflow): add team git workflow, environments and changelog
+| |/
+|/|
+* | a8f87e08 2026-09-23 NihasCM — merge(v0.0.01): bring new-fix-adhi fixes (e49fb71f..06416244) onto V1
+|/
+o 80589762 2026-09-22 Vasanth — fix(infra): shared origin circuit + batch-query fail-fast for DB pressure
+```
+
+---
+
 ## Appendix — Adhi fixes detail (original `new-fix-adhi` changelog)
 
 DB request efficiency work: a Requests Moderator gateway, query-shape fixes,
