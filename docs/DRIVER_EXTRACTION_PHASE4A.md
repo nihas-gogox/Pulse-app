@@ -1,5 +1,7 @@
 # Driver Extraction — Phase 4A: web hand-off behind a kill switch
 
+> **Superseded in part (Phase 4D, `5788365d`):** the kill switch is gone. The hand-off is permanent on web and `build-ci.js` always ships `/driver`. Rows below about the flag, flag-off production and the Metro `cacheVersion` fix are history. Current state: `docs/DRIVER_EXTRACTION_STATUS.md`.
+
 Date: 2026-09-24 · Branch: `nihas/driver-app-extraction` · Approved decisions: route collision handled inside 4A; native hand-off on a separate flag, kept OFF.
 
 ## What changed

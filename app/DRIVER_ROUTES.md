@@ -1,7 +1,6 @@
-# Driver-related routes (why two “driver” folders)
+# Driver-related routes
 
-- **`app/(driver)/`** — **Driver app** (route group). When a user signs in with **role = driver**, the root index redirects to `/(driver)`. This folder contains the **driver-facing UI**: Radar, HUD, Logs, Fiscal, Pilot. The `(driver)` parentheses mean it does **not** add a path segment; the driver simply lands on the first screen of this layout.
-
-- **`app/driver/`** — **Dispatcher / fleet view**. Used when someone in the main app (e.g. Resources > Drivers) opens a driver’s detail. The URL is **`/driver/[id]`** (e.g. `/driver/abc-123`). This is **not** the driver’s own app; it’s the “view driver” screen for admins/dispatchers.
-
-So: one folder is “the app the driver uses,” the other is “the screen to view a driver by id.”
+- **Pulse Driver app** lives in **`apps/driver`** (its own Expo app, served at `/driver/*` on web). New driver work goes there.
+- **`app/(driver)/`, `app/driver-sign-in.tsx`, `app/driver-signup.tsx`, `app/onboarding/driver.tsx`, `app/driver-trip/`** — one-line shims re-exporting the `apps/driver` screens. They keep the old in-app driver flow working in the **native** main app (no native hand-off yet). On web, drivers are handed off to `/driver`. Don't add code here; they are removed once Pulse Driver ships natively (`docs/DRIVER_EXTRACTION_STATUS.md`).
+- **`app/fleet-driver/`** — dispatcher / fleet view of a driver (`/fleet-driver/[id]`, e.g. from Resources > Drivers).
+- **`app/driver/[id]*`** — legacy redirects from the old dispatcher URL `/driver/[id]` to `/fleet-driver/[id]` (on web, Netlify 301s these first).

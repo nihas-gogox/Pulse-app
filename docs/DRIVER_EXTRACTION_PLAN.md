@@ -2,6 +2,8 @@
 
 Branch: `nihas/driver-app-extraction` (from V1 `149fba7d`)
 
+> **Status 2026-09-25:** Phases 0–4D done (4C/4D on `nihas/driver-4c`, integrated onto prod V1 `3832fe2e`), web validated on preprod; prod not deployed; native not ready. Deviations: 4C kept the old driver routes (the main native app has no hand-off yet) and 4D ran before a production observation period. See `docs/DRIVER_EXTRACTION_STATUS.md`.
+
 ## Context
 The driver app lives inside the main Pulse Expo app as the `app/(driver)` route group. It is tangled with the main app in both directions: about 187 driver files, and about 30 main-app files that import driver code.
 

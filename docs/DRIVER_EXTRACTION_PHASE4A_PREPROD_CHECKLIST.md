@@ -1,5 +1,7 @@
 # Driver Extraction — Phase 4A preprod verification checklist
 
+> **Historical.** Deploy 1 and Deploy 2 passed; Deploy 3 (flag-off rollback) was formally skipped. Phase 4D (`5788365d`) removed the flag, so the flag steps (2.6, Deploy 3, 4.2) no longer apply. Final preprod validation of `5788365d`: `docs/DRIVER_EXTRACTION_STATUS.md`.
+
 For: the GX Pulse preprod site only. Code: `b77d7aa7` (Phase 4A). Prod (gogopulse.com) keeps the flag **unset** throughout.
 Run it in the order below. Fill in the Result column (PASS / FAIL + note) as you go; a FAIL stops the run.
 

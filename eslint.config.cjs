@@ -288,7 +288,7 @@ module.exports = [
   // platform extension can split them; each map stack throws at import time in
   // the other environment, so selection must be a lazy runtime require. Confined
   // to these loader files instead of inline disables at call sites.
-  // See lib/maps/mapEnvironment.ts for the full rationale.
+  // See packages/core/lib/maps/mapEnvironment.ts for the full rationale.
   {
     // packages/*/lib/maps, apps/driver/lib/maps: same loaders after the driver-extraction moves (Phase 2/3).
     files: ['lib/maps/*Implementation.ts', 'packages/*/lib/maps/*Implementation.ts', 'apps/driver/lib/maps/*Implementation.ts'],

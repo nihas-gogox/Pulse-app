@@ -53,13 +53,14 @@ Screen → useXQuery (lib/queries/) → XService (features/<domain>/services/) �
 - `lib/` — shared logic: `supabase.ts` (client singleton), `capabilities.ts` + `useCapabilities()` (ACL), `queries/` (TanStack Query hooks), `queryKeys.ts` (cache key factory), `routes.ts` (centralized route constants), `navigationPolicy/`, `database.types.ts`, `authEngine.ts`, `maps/`. **CI hard-caps root `lib/*.ts(x)` files at 60** — new domain-specific files go into `features/<domain>/`, not `lib/`.
 - `contexts/` — Auth/Organization/Language/Network/Wallet React contexts.
 - `constants/Theme.ts` — all UI colors must come from `Theme`, never hardcoded hex/rgba.
+- `apps/driver/` — the Pulse Driver app (own Expo app; web at `/driver`, built by `scripts/build-ci.js`). `packages/{core,domain,ui,features}` hold the code both apps share (`@pulse/*`). Many old paths under `lib/`, `features/`, `components/` are one-line shims (`// Moved to …`) — edit the target, not the shim. Boundaries: `npm run check:driver-boundaries`, `npm run check:driver-bundle`. Status: `docs/DRIVER_EXTRACTION_STATUS.md`.
 - `packages/platform/` — internal platform services (identity, command-store, timeline, gateway, runtime — staged "Phase 1A" rollout). Golden rule per its README: business code in `services/` calls `PlatformRuntime.executeCommand()`, never inserts Timeline/Command Store rows directly. `packages/pulse-sdk/` is a placeholder (README only, no code yet).
 - State: TanStack Query v5 owns all server state; React Context is for global UI state only.
 - Known fragile/complex areas called out in `docs/architecture.md`: `features/finance/hooks/useFinanceLedger.ts`, `features/trips/services/trips.service.ts` (large, cross-org visibility), `contexts/AuthContext.tsx` (multi-path session restore), realtime channel invalidation, `.native.tsx`/`.web.tsx` map split.
 
 ### Platform-specific files
 
-`.native.tsx` / `.web.tsx` suffix pairs are resolved automatically by Metro's platform extension resolution (e.g. `components/InvoicePdf.{native,web}.tsx`, `lib/mapLibreCompat.native.tsx`, `app/trip/[id]/index.web.tsx`). `lib/maps/*Implementation.ts` is the one sanctioned place for lazy runtime `require()` (Expo Go vs standalone builds share a bundle but throw on import if the other's map SDK isn't present — see `lib/maps/mapEnvironment.ts`).
+`.native.tsx` / `.web.tsx` suffix pairs are resolved automatically by Metro's platform extension resolution (e.g. `components/InvoicePdf.{native,web}.tsx`, `apps/driver/lib/mapLibreCompat.native.tsx`, `app/trip/[id]/index.web.tsx`). `packages/*/lib/maps/*Implementation.ts` is the one sanctioned place for lazy runtime `require()` (Expo Go vs standalone builds share a bundle but throw on import if the other's map SDK isn't present — see `packages/core/lib/maps/mapEnvironment.ts`).
 
 ### Circular imports
 

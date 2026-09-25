@@ -7,6 +7,11 @@ on:
       - '**/*.tsx'
       - 'eslint.config.cjs'
       - 'tsconfig.json'
+      # driver web build + Netlify rules (plain JS, would otherwise skip CI)
+      - 'metro.config.js'
+      - 'scripts/build-ci.js'
+      - 'scripts/driver-web-redirects.js'
+      - 'apps/driver/app.config.js'
 
 jobs:
   boundaries:
