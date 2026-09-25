@@ -82,66 +82,6 @@ function StageChip({
   );
 }
 
-function SummaryMetricCard({
-  label,
-  value,
-  tone,
-  compact = false,
-}: {
-  label: string;
-  value: string;
-  tone: "success" | "warning" | "danger" | "neutral";
-  compact?: boolean;
-}) {
-  const palette =
-    tone === "success"
-      ? {
-          bg: Theme.complianceStageSuccessBg,
-          border: Theme.complianceVerifiedPillBorder,
-          label: Theme.complianceStageSuccessFg,
-          value: Theme.textPrimaryDark,
-        }
-      : tone === "warning"
-        ? {
-            bg: Theme.complianceStagePendingBg,
-            border: Theme.complianceGroupWarningDot,
-            label: Theme.complianceStagePendingFg,
-            value: Theme.textPrimaryDark,
-          }
-        : tone === "danger"
-          ? {
-              bg: Theme.complianceStageDocsBg,
-              border: Theme.complianceGroupDangerDot,
-              label: Theme.complianceStageDocsFg,
-              value: Theme.textPrimaryDark,
-            }
-          : {
-              bg: Theme.cardWhite,
-              border: Theme.complianceCardBorder,
-              label: Theme.textSecondary,
-              value: Theme.textPrimaryDark,
-            };
-  return (
-    <View
-      style={[
-        styles.metricCard,
-        compact && styles.metricCardCompact,
-        { backgroundColor: palette.bg, borderColor: palette.border },
-      ]}
-    >
-      <Text style={[styles.metricLabel, { color: palette.label }]} numberOfLines={1}>
-        {label}
-      </Text>
-      <Text
-        style={[styles.metricValue, compact && styles.metricValueCompact, { color: palette.value }]}
-        numberOfLines={1}
-      >
-        {value}
-      </Text>
-    </View>
-  );
-}
-
 export default function ComplianceScreen() {
   const layout = useLayoutInsets();
   const { width } = useWindowDimensions();
@@ -173,7 +113,7 @@ export default function ComplianceScreen() {
 
   const contentTopInset = layout.isDesktopWeb ? Layout.desktopTopNavOffset : layout.top;
   const pagePad = Layout.screenPaddingHorizontal;
-  /** Responsive breakpoints for header / toolbar / metrics. */
+  /** Responsive breakpoints for header and toolbar. */
   const isNarrow = width < 560;
   const isCompact = width < 760;
   const stackToolbar = width < 980;
@@ -346,27 +286,6 @@ export default function ComplianceScreen() {
             ) : null}
           </View>
         </View>
-
-        <View style={[styles.metricRow, isNarrow && styles.metricRowStack, !isNarrow && isCompact && styles.metricRowWrap]}>
-          <SummaryMetricCard
-            label="Pending Docs"
-            value={`${counts.pending_for_docs} trip${counts.pending_for_docs === 1 ? "" : "s"}`}
-            tone="danger"
-            compact={isCompact}
-          />
-          <SummaryMetricCard
-            label="Compliance Pending"
-            value={`${counts.compliance_pending} trip${counts.compliance_pending === 1 ? "" : "s"}`}
-            tone="warning"
-            compact={isCompact}
-          />
-          <SummaryMetricCard
-            label="Verified"
-            value={`${counts.compliance_verified} trip${counts.compliance_verified === 1 ? "" : "s"}`}
-            tone="success"
-            compact={isCompact}
-          />
-        </View>
       </View>
 
       <View style={[styles.toolbarRow, stackToolbar && styles.toolbarStack]}>
@@ -391,34 +310,26 @@ export default function ComplianceScreen() {
           />
         </View>
         <View style={styles.filtersRow}>
-          <View style={styles.chipTray}>
-            <ScrollView
-              horizontal
-              nestedScrollEnabled
-              showsHorizontalScrollIndicator={false}
-              style={styles.chipScroll}
-              contentContainerStyle={[styles.chipScrollContent, isNarrow && styles.chipScrollContentNarrow]}
-            >
+          <View style={[styles.chipWrap, isNarrow && styles.chipWrapNarrow]}>
+            <StageChip
+              label="All"
+              count={counts.all}
+              countColor={COMPLIANCE_FILTER_COUNT_TONE.all}
+              active={stage === "all"}
+              onPress={() => setStage("all")}
+              compact={isNarrow}
+            />
+            {COMPLIANCE_STAGES.map((s) => (
               <StageChip
-                label="All"
-                count={counts.all}
-                countColor={COMPLIANCE_FILTER_COUNT_TONE.all}
-                active={stage === "all"}
-                onPress={() => setStage("all")}
+                key={s}
+                label={COMPLIANCE_STAGE_FILTER_LABEL[s]}
+                count={counts[s]}
+                countColor={COMPLIANCE_FILTER_COUNT_TONE[s]}
+                active={stage === s}
+                onPress={() => setStage(s)}
                 compact={isNarrow}
               />
-              {COMPLIANCE_STAGES.map((s) => (
-                <StageChip
-                  key={s}
-                  label={COMPLIANCE_STAGE_FILTER_LABEL[s]}
-                  count={counts[s]}
-                  countColor={COMPLIANCE_FILTER_COUNT_TONE[s]}
-                  active={stage === s}
-                  onPress={() => setStage(s)}
-                  compact={isNarrow}
-                />
-              ))}
-            </ScrollView>
+            ))}
           </View>
         </View>
       </View>
@@ -561,39 +472,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   headerActionsStart: { justifyContent: "flex-start" },
-  metricRow: { flexDirection: "row", gap: 10, alignItems: "stretch" },
-  metricRowWrap: { flexWrap: "wrap" },
-  metricRowStack: { flexDirection: "column" },
-  metricCard: {
-    flex: 1,
-    minWidth: 0,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 2,
-  },
-  metricCardCompact: {
-    minWidth: "30%",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  metricLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.35,
-    textTransform: "uppercase",
-  },
-  metricValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: -0.2,
-    lineHeight: 20,
-  },
-  metricValueCompact: {
-    fontSize: 14,
-    lineHeight: 18,
-  },
   searchRow: {
     flexShrink: 0,
     height: 36,
@@ -655,7 +533,7 @@ const styles = StyleSheet.create({
   toolbarRow: {
     width: "100%",
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 10,
   },
   toolbarStack: {
@@ -666,28 +544,16 @@ const styles = StyleSheet.create({
   filtersRow: {
     flex: 1,
     minWidth: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  chipTray: {
-    flex: 1,
-    minWidth: 0,
-    width: "100%",
-    ...(Platform.OS === "web" ? ({ overflow: "hidden" } as ViewStyle) : null),
-  },
-  chipScroll: {
-    flexGrow: 0,
-    flexShrink: 1,
     width: "100%",
   },
-  chipScrollContent: {
+  chipWrap: {
+    width: "100%",
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 8,
-    paddingRight: 2,
   },
-  chipScrollContentNarrow: {
+  chipWrapNarrow: {
     gap: 6,
   },
   chip: {
