@@ -83,6 +83,10 @@ export function normalizeTripDocumentType(type: string | null | undefined): stri
   return TRIP_DOC_TYPE_ALIASES[key] ?? key;
 }
 
+function vaultApprovalStatus(verifiedAt: string | null | undefined): "verified" | "pending" {
+  return verifiedAt?.trim() ? "verified" : "pending";
+}
+
 function extraDocType(fileName: string | undefined): string | null {
   const name = (fileName ?? "").toLowerCase();
   if (name.includes("permit")) return "permit";
@@ -108,10 +112,10 @@ export function vehicleVaultDocumentsToEntityDocs(
       entity_type: "vehicle",
       entity_id: vehicleId,
       doc_type: docType,
-      status: "active",
+      status: vaultApprovalStatus(slot?.verifiedAt),
       storage_path: path,
       expiry_date: slot?.expiryDate ?? null,
-      verified_at: slot?.uploadedAt ?? null,
+      verified_at: slot?.verifiedAt?.trim() || null,
       notes: null,
       created_at: slot?.uploadedAt ?? new Date(0).toISOString(),
       source: "vehicle-vault",
@@ -128,10 +132,10 @@ export function vehicleVaultDocumentsToEntityDocs(
       entity_type: "vehicle",
       entity_id: vehicleId,
       doc_type: docType,
-      status: "active",
+      status: vaultApprovalStatus(extra.verifiedAt),
       storage_path: path,
       expiry_date: extra.expiryDate ?? null,
-      verified_at: extra.uploadedAt ?? null,
+      verified_at: extra.verifiedAt?.trim() || null,
       notes: extra.fileName ?? null,
       created_at: extra.uploadedAt ?? new Date(0).toISOString(),
       source: "vehicle-vault",
@@ -147,6 +151,21 @@ export function mergeComplianceEntityDocs(
 ): ComplianceEntityDocument[] {
   const byType = new Map<string, ComplianceEntityDocument>();
   for (const doc of fallback) byType.set(doc.doc_type, doc);
-  for (const doc of preferred) byType.set(doc.doc_type, doc);
+  for (const doc of preferred) {
+    const existing = byType.get(doc.doc_type);
+    if (!existing) {
+      byType.set(doc.doc_type, doc);
+      continue;
+    }
+    // Keep the preferred file/source, but inherit expiry from the other side
+    // when preferred has none (common: vault upload with empty expiryDate +
+    // entity_documents row that already has the date).
+    const preferredExpiry = doc.expiry_date?.trim() || null;
+    const fallbackExpiry = existing.expiry_date?.trim() || null;
+    byType.set(doc.doc_type, {
+      ...doc,
+      expiry_date: preferredExpiry ?? fallbackExpiry,
+    });
+  }
   return Array.from(byType.values());
 }

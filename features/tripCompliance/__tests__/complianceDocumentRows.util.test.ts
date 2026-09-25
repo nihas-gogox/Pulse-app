@@ -31,7 +31,7 @@ function doc(overrides: Partial<ComplianceDocumentRow>): ComplianceDocumentRow {
 describe("deriveComplianceDocumentRows", () => {
   it("synthesizes required trip types plus other options", () => {
     const rows = deriveComplianceDocumentRows([]);
-    expect(rows.map((r) => r.type)).toEqual(["lr", "eway_bill", "invoice", "pod", "loading_slip", "manifest"]);
+    expect(rows.map((r) => r.type)).toEqual(["lr", "eway_bill", "invoice", "pod", "memo"]);
     expect(rows.filter((r) => r.required).map((r) => r.type)).toEqual(["lr", "eway_bill", "invoice"]);
     expect(rows.every((r) => r.status === "missing")).toBe(true);
   });
@@ -41,6 +41,23 @@ describe("deriveComplianceDocumentRows", () => {
     const lrRow = rows.find((r) => r.type === "lr");
     expect(lrRow?.status).toBe("verified");
     expect(lrRow?.doc?.status).toBe("verified");
+  });
+
+  it("ignores an e-way number row that has no uploaded file", () => {
+    const rows = deriveComplianceDocumentRows([
+      doc({
+        id: "eway-meta",
+        document_type: "eway_bill",
+        file_name: "eway-fields.json",
+        storage_path: "trip-1/eway_bill/fields.json",
+        status: "pending",
+      }),
+      doc({ id: "lr-file", document_type: "lr", status: "pending", file_name: "lr.pdf" }),
+      doc({ id: "inv-file", document_type: "invoice", status: "pending", file_name: "invoice.pdf" }),
+    ]);
+    expect(rows.find((r) => r.type === "eway_bill")?.status).toBe("missing");
+    expect(rows.find((r) => r.type === "lr")?.status).toBe("pending");
+    expect(rows.find((r) => r.type === "invoice")?.status).toBe("pending");
   });
 
   it("keeps POD as an other option, not a required trip doc", () => {
@@ -53,18 +70,18 @@ describe("deriveComplianceDocumentRows", () => {
 
   it("uses the latest file when several rows share a document type", () => {
     const rows = deriveComplianceDocumentRows([
-      doc({ id: "old", document_type: "loading_slip", status: "pending", uploaded_at: "2026-09-20T19:00:00.000Z" }),
+      doc({ id: "old", document_type: "memo", status: "pending", uploaded_at: "2026-09-20T19:00:00.000Z" }),
       doc({
         id: "new",
-        document_type: "loading_slip",
+        document_type: "memo",
         status: "verified",
         uploaded_at: "2026-09-20T19:27:01.000Z",
-        file_name: "slip.jpg",
+        file_name: "memo.pdf",
       }),
     ]);
-    const slip = rows.find((r) => r.type === "loading_slip");
-    expect(slip?.status).toBe("verified");
-    expect(slip?.doc?.id).toBe("new");
+    const memo = rows.find((r) => r.type === "memo");
+    expect(memo?.status).toBe("verified");
+    expect(memo?.doc?.id).toBe("new");
   });
 
   it("hides vehicle types that were uploaded against the trip", () => {
@@ -106,32 +123,109 @@ describe("deriveEntityComplianceRows", () => {
       doc_type: overrides.doc_type ?? "rc",
       status: overrides.status ?? "pending",
       storage_path: overrides.storage_path ?? "path",
-      expiry_date: overrides.expiry_date ?? "2027-01-01",
+      expiry_date: overrides.expiry_date === undefined ? "2027-01-01" : overrides.expiry_date,
       verified_at: overrides.verified_at ?? null,
       notes: overrides.notes ?? null,
       created_at: overrides.created_at ?? "2026-09-01",
     };
   }
 
-  it("lists vehicle RC/insurance/FC/permit/pollution/tax", () => {
+  it("lists vehicle RC/insurance/FC as required and permit/pollution/tax as optional", () => {
     const rows = deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, []);
     expect(rows.map((r) => r.type)).toEqual(["rc", "insurance", "fitness", "permit", "pollution", "road_tax"]);
-    expect(rows.every((r) => r.required && r.status === "missing")).toBe(true);
+    expect(rows.filter((r) => r.required).map((r) => r.type)).toEqual(["rc", "insurance", "fitness"]);
+    expect(rows.filter((r) => !r.required).map((r) => r.type)).toEqual(["permit", "pollution", "road_tax"]);
+    expect(rows.every((r) => r.status === "missing")).toBe(true);
   });
 
-  it("treats active unexpired entity docs as verified", () => {
+  it("keeps an uploaded license pending until it is approved", () => {
     const rows = deriveEntityComplianceRows(COMPLIANCE_DRIVER_DOCUMENT_TYPES, [
       entityDoc({ id: "d1", entity_type: "driver", entity_id: "dr1", doc_type: "license", status: "active" }),
     ]);
-    expect(rows.find((r) => r.type === "license")?.status).toBe("verified");
+    expect(rows.find((r) => r.type === "license")?.status).toBe("pending");
+    expect(rows.find((r) => r.type === "license")?.required).toBe(true);
     expect(rows.find((r) => r.type === "aadhaar")?.status).toBe("missing");
+    expect(rows.find((r) => r.type === "aadhaar")?.required).toBe(false);
+  });
+
+  it("keeps uploaded RC pending until it is approved", () => {
+    const rows = deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, [
+      entityDoc({
+        id: "rc-1",
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type: "rc",
+        status: "active",
+        expiry_date: null,
+      }),
+    ]);
+    expect(rows.find((r) => r.type === "rc")?.status).toBe("pending");
+  });
+
+  it("marks insurance without expiry as pending, not verified", () => {
+    const rows = deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, [
+      entityDoc({
+        id: "ins",
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type: "insurance",
+        status: "active",
+        expiry_date: null,
+      }),
+    ]);
+    expect(rows.find((r) => r.type === "insurance")?.status).toBe("pending");
+  });
+
+  it("marks past-expiry fitness as expired", () => {
+    const rows = deriveEntityComplianceRows(
+      COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
+      [
+        entityDoc({
+          id: "fc",
+          entity_type: "vehicle",
+          entity_id: "v1",
+          doc_type: "fitness",
+          status: "active",
+          expiry_date: "2020-01-01",
+        }),
+      ],
+      new Date("2026-09-01T00:00:00Z"),
+    );
+    expect(rows.find((r) => r.type === "fitness")?.status).toBe("expired");
+  });
+
+  it("prefers verified insurance with expiry over a newer pending row without expiry", () => {
+    const rows = deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, [
+      entityDoc({
+        id: "ins-old",
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type: "insurance",
+        status: "verified",
+        expiry_date: "2027-08-15",
+        created_at: "2026-09-24T06:00:00Z",
+      }),
+      entityDoc({
+        id: "ins-new",
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type: "insurance",
+        status: "pending",
+        expiry_date: null,
+        created_at: "2026-09-24T07:00:00Z",
+      }),
+    ]);
+    const insurance = rows.find((r) => r.type === "insurance");
+    expect(insurance?.entityDoc?.id).toBe("ins-old");
+    expect(insurance?.entityDoc?.expiry_date).toBe("2027-08-15");
+    expect(insurance?.status).toBe("verified");
   });
 });
 
 describe("requirementScopeLabel", () => {
-  it("labels hardcoded trip extras as Additional, not Optional", () => {
+  it("labels extras as Optional", () => {
     expect(requirementScopeLabel(true)).toBe("Required");
-    expect(requirementScopeLabel(false)).toBe("Additional");
+    expect(requirementScopeLabel(false)).toBe("Optional");
   });
 });
 

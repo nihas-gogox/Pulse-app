@@ -1,28 +1,28 @@
-import { supabase } from "@/lib/supabase";
 import type { DocumentRow } from "@/features/compliance/services/documents.service";
 import { getDocumentsForEntities } from "@/features/compliance/services/documents.service";
-import type { TripRow } from "@/features/trips/services/trips.service";
 import { interpretLedgerRowStructured } from "@/features/finance/ledger/ledgerEntryModel";
-import { buildComplianceChecklist } from "@/features/tripCompliance/utils/complianceChecklist.util";
 import {
-  mergeComplianceEntityDocs,
-  normalizeTripDocumentType,
-  normalizeVaultVehicleNumber,
-  vehicleVaultDocumentsToEntityDocs,
+    REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
+    type ComplianceDecision,
+    type ComplianceDocumentRow,
+    type ComplianceEntityDocument,
+    type ComplianceOutstandingSummary,
+    type CompliancePaymentSummary,
+    type ComplianceStage,
+    type ComplianceTripSummary,
+} from "@/features/tripCompliance/tripCompliance.types";
+import { buildComplianceChecklist, listExpiredRequiredVehicleDocTypes } from "@/features/tripCompliance/utils/complianceChecklist.util";
+import {
+    mergeComplianceEntityDocs,
+    normalizeTripDocumentType,
+    normalizeVaultVehicleNumber,
+    vehicleVaultDocumentsToEntityDocs,
 } from "@/features/tripCompliance/utils/complianceVaultDocuments.util";
 import { runWithConcurrencyLimit, tripPodIsReceived } from "@/features/trips/services/tripDocumentLrPod.service";
+import type { TripRow } from "@/features/trips/services/trips.service";
 import { getVehicleForTripViewer } from "@/features/vehicles/services/vehicles.service";
 import type { VehicleDocuments } from "@/features/vehicles/utils/vehicleDocuments.util";
-import {
-  REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
-  type ComplianceDecision,
-  type ComplianceDocumentRow,
-  type ComplianceEntityDocument,
-  type ComplianceOutstandingSummary,
-  type ComplianceStage,
-  type CompliancePaymentSummary,
-  type ComplianceTripSummary,
-} from "@/features/tripCompliance/tripCompliance.types";
+import { supabase } from "@/lib/supabase";
 
 /**
  * `trip_documents.status`/`verified_by`/`verified_at`/`rejection_reason` and
@@ -298,20 +298,52 @@ export function advanceFromTripReceipts(
  */
 export function deriveComplianceStage(input: {
   documentCount: number;
+  /** Required trip types still missing (LR / E-way / Invoice). Prefer over raw count. */
+  missingRequiredCount?: number;
+  /**
+   * Required vehicle docs (RC / Insurance / FC) that are on file but past
+   * expiry. Forces Pending Docs so Ops renews the vault before settlement.
+   */
+  hasExpiredRequiredVehicleDocs?: boolean;
   complianceVerifiedAt: string | null;
   advance: CompliancePaymentSummary | null;
   tripStatus: string;
   hardCopyReceived: boolean;
   balance: CompliancePaymentSummary | null;
 }): ComplianceStage {
+  const status = String(input.tripStatus ?? "")
+    .trim()
+    .toLowerCase();
+  const isDeliveredLike =
+    status === "delivered" || status === "completed" || status === "done";
+
   if (input.balance) return "payment_settled";
-  if (input.advance && input.tripStatus === "delivered") {
+  // Expired RC / Insurance / FC override payment-progress chips — Ops must renew.
+  if (input.hasExpiredRequiredVehicleDocs) return "pending_for_docs";
+  if (input.advance && isDeliveredLike) {
     return input.hardCopyReceived ? "balance_pending" : "hard_copy_pod_received";
   }
   if (input.advance) return "advance_payment_processed";
   if (input.complianceVerifiedAt) return "compliance_verified";
-  if (input.documentCount === 0) return "pending_for_docs";
+  const missingRequired =
+    input.missingRequiredCount ??
+    (input.documentCount === 0 ? REQUIRED_COMPLIANCE_DOCUMENT_TYPES.length : 0);
+  if (missingRequired > 0) return "pending_for_docs";
   return "compliance_pending";
+}
+
+/**
+ * Still missing required trip docs (LR / E-way / Invoice) and not yet verified.
+ * Stage chips use exclusive `summary.stage` counts — do not use this for filter
+ * totals (it overlaps payment-progress stages).
+ */
+export function tripNeedsPendingDocs(summary: {
+  complianceVerifiedAt: string | null;
+  documents: { document_type: string }[];
+}): boolean {
+  if (summary.complianceVerifiedAt) return false;
+  const present = new Set(summary.documents.map((d) => d.document_type));
+  return REQUIRED_COMPLIANCE_DOCUMENT_TYPES.some((type) => !present.has(type));
 }
 
 async function fetchEntityDocumentsForTrips(
@@ -547,7 +579,7 @@ export async function buildComplianceTripSummaries(
       (trip.owner_vehicle_id ? vaultVehicleDocs.get(trip.owner_vehicle_id) : undefined) ??
       vaultVehicleDocs.get(normalizeVaultVehicleNumber(trip.vehicle_display_number)) ??
       [];
-    const vehicleDocuments = mergeComplianceEntityDocs(vaultVehicle, entityVehicleDocs);
+    const vehicleDocuments = mergeComplianceEntityDocs(entityVehicleDocs, vaultVehicle);
     const entityDriverDocs = trip.driver_id
       ? (entityDocsById.get(trip.driver_id) ?? []).filter((d) => d.entity_type === "driver").map(toEntityDocument)
       : [];
@@ -565,9 +597,21 @@ export async function buildComplianceTripSummaries(
       rejected: documents.filter((d) => d.status === "rejected").length,
       pending: documents.filter((d) => d.status === "pending").length,
     };
+    const presentRequired = new Set(
+      documents
+        .map((d) => d.document_type)
+        .filter((type) => REQUIRED_COMPLIANCE_DOCUMENT_TYPES.includes(type)),
+    );
+    const missingRequiredCount = REQUIRED_COMPLIANCE_DOCUMENT_TYPES.filter(
+      (type) => !presentRequired.has(type),
+    ).length;
+    const hasExpiredRequiredVehicleDocs =
+      listExpiredRequiredVehicleDocTypes(vehicleDocuments).length > 0;
 
     const stage = deriveComplianceStage({
       documentCount: documentCounts.total,
+      missingRequiredCount,
+      hasExpiredRequiredVehicleDocs,
       complianceVerifiedAt: flags?.compliance_verified_at ?? null,
       advance,
       tripStatus: trip.status,

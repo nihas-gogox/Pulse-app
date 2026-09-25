@@ -2,11 +2,15 @@ import {
   COMPLIANCE_DRIVER_DOCUMENT_TYPES,
   COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
   REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
+  REQUIRED_DRIVER_DOCUMENT_TYPES,
+  REQUIRED_VEHICLE_DOCUMENT_TYPES,
+  documentRequiresExpiry,
   type ComplianceChecklist,
   type ComplianceChecklistGroup,
   type ComplianceChecklistTone,
   type ComplianceDocumentRow,
 } from "@/features/tripCompliance/tripCompliance.types";
+import { isEwayBillMetaPath } from "@/features/trips/services/ewayBillFields.util";
 
 export function checklistTone(verified: number, total: number): ComplianceChecklistTone {
   if (total > 0 && verified >= total) return "success";
@@ -14,26 +18,104 @@ export function checklistTone(verified: number, total: number): ComplianceCheckl
   return "warning";
 }
 
+export function isEntityDocumentExpired(
+  doc: { expiry_date?: string | null } | undefined,
+  now = new Date(),
+): boolean {
+  if (!doc?.expiry_date) return false;
+  const expiry = new Date(`${doc.expiry_date}T00:00:00Z`);
+  if (Number.isNaN(expiry.getTime())) return false;
+  return expiry.getTime() < Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+}
+
+/** True when expiry is within the next `withinDays` (inclusive), and not already expired. */
+export function isEntityDocumentExpiringSoon(
+  doc: { expiry_date?: string | null } | undefined,
+  now = new Date(),
+  withinDays = 30,
+): boolean {
+  if (!doc?.expiry_date || isEntityDocumentExpired(doc, now)) return false;
+  const expiry = new Date(`${doc.expiry_date}T00:00:00Z`);
+  if (Number.isNaN(expiry.getTime())) return false;
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const horizon = todayUtc + withinDays * 24 * 60 * 60 * 1000;
+  return expiry.getTime() <= horizon;
+}
+
+type EntityDocLike = {
+  doc_type: string;
+  status: string;
+  expiry_date?: string | null;
+  storage_path?: string | null;
+};
+
+function hasOnFileEntityDoc(doc: EntityDocLike | undefined): boolean {
+  if (!doc) return false;
+  if (doc.status === "rejected" || doc.status === "replaced") return false;
+  return Boolean(doc.storage_path) || doc.status === "verified" || doc.status === "active" || doc.status === "expired";
+}
+
+/**
+ * Required vehicle slots (RC / Insurance / FC) that are on file but past expiry.
+ * Used to force Pending Docs and surface expiry alerts on the Compliance queue.
+ */
+export function listExpiredRequiredVehicleDocTypes(
+  vehicleDocuments: EntityDocLike[],
+  now = new Date(),
+): string[] {
+  const byType = new Map<string, EntityDocLike>();
+  for (const doc of vehicleDocuments) {
+    if (!byType.has(doc.doc_type)) byType.set(doc.doc_type, doc);
+  }
+  const expired: string[] = [];
+  for (const type of REQUIRED_VEHICLE_DOCUMENT_TYPES) {
+    const doc = byType.get(type);
+    if (!hasOnFileEntityDoc(doc) || !doc) continue;
+    if (doc.status === "expired" || isEntityDocumentExpired(doc, now)) {
+      expired.push(type);
+    }
+  }
+  return expired;
+}
+
+export function listExpiringSoonRequiredVehicleDocTypes(
+  vehicleDocuments: EntityDocLike[],
+  now = new Date(),
+  withinDays = 30,
+): string[] {
+  const byType = new Map<string, EntityDocLike>();
+  for (const doc of vehicleDocuments) {
+    if (!byType.has(doc.doc_type)) byType.set(doc.doc_type, doc);
+  }
+  const soon: string[] = [];
+  for (const type of REQUIRED_VEHICLE_DOCUMENT_TYPES) {
+    const doc = byType.get(type);
+    if (!hasOnFileEntityDoc(doc) || !doc) continue;
+    if (isEntityDocumentExpiringSoon(doc, now, withinDays)) soon.push(type);
+  }
+  return soon;
+}
+
 export function isEntityDocumentSlotVerified(
   doc: { status: string; expiry_date?: string | null; storage_path?: string | null } | undefined,
   now = new Date(),
+  docType?: string | null,
 ): boolean {
   if (!doc) return false;
   if (doc.status === "expired" || doc.status === "rejected" || doc.status === "replaced") {
     return false;
   }
-  if (doc.expiry_date) {
-    const expiry = new Date(`${doc.expiry_date}T00:00:00Z`);
-    if (!Number.isNaN(expiry.getTime()) && expiry.getTime() < Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) {
-      return false;
-    }
+  if (docType && documentRequiresExpiry(docType) && !doc.expiry_date?.trim()) {
+    return false;
   }
+  if (isEntityDocumentExpired(doc, now)) return false;
   if (doc.storage_path) return true;
   return doc.status === "verified" || doc.status === "active";
 }
 
 export function isTripVaultDocumentOnFile(doc: ComplianceDocumentRow): boolean {
   if (!doc.document_type || doc.status === "rejected") return false;
+  if (isEwayBillMetaPath(doc.storage_path, doc.file_name)) return false;
   return Boolean(doc.storage_path) || doc.status === "verified";
 }
 
@@ -41,17 +123,21 @@ function buildGroup(
   key: ComplianceChecklistGroup["key"],
   label: ComplianceChecklistGroup["label"],
   types: readonly string[],
+  requiredTypes: readonly string[],
   verifiedTypes: Set<string>,
 ): ComplianceChecklistGroup {
+  const requiredSet = new Set(requiredTypes);
   const slots = types.map((type) => ({ type, verified: verifiedTypes.has(type) }));
-  const verified = slots.filter((slot) => slot.verified).length;
+  const requiredSlots = slots.filter((slot) => requiredSet.has(slot.type));
+  const verified = requiredSlots.filter((slot) => slot.verified).length;
+  const total = requiredSlots.length;
   return {
     key,
     label,
     slots,
     verified,
-    total: slots.length,
-    tone: checklistTone(verified, slots.length),
+    total,
+    tone: checklistTone(verified, total),
   };
 }
 
@@ -66,16 +152,32 @@ export function buildComplianceChecklist(input: {
     input.tripDocuments.filter((doc) => isTripVaultDocumentOnFile(doc)).map((doc) => doc.document_type as string),
   );
   const vehicleVerified = new Set(
-    input.vehicleDocuments.filter((doc) => isEntityDocumentSlotVerified(doc, now)).map((doc) => doc.doc_type),
+    input.vehicleDocuments
+      .filter((doc) => isEntityDocumentSlotVerified(doc, now, doc.doc_type))
+      .map((doc) => doc.doc_type),
   );
   const driverVerified = new Set(
-    input.driverDocuments.filter((doc) => isEntityDocumentSlotVerified(doc, now)).map((doc) => doc.doc_type),
+    input.driverDocuments
+      .filter((doc) => isEntityDocumentSlotVerified(doc, now, doc.doc_type))
+      .map((doc) => doc.doc_type),
   );
 
   const groups: ComplianceChecklist["groups"] = [
-    buildGroup("trip", "Trip", REQUIRED_COMPLIANCE_DOCUMENT_TYPES, tripVerified),
-    buildGroup("vehicle", "Vehicle", COMPLIANCE_VEHICLE_DOCUMENT_TYPES, vehicleVerified),
-    buildGroup("driver", "Driver", COMPLIANCE_DRIVER_DOCUMENT_TYPES, driverVerified),
+    buildGroup("trip", "Trip", REQUIRED_COMPLIANCE_DOCUMENT_TYPES, REQUIRED_COMPLIANCE_DOCUMENT_TYPES, tripVerified),
+    buildGroup(
+      "vehicle",
+      "Vehicle",
+      COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
+      REQUIRED_VEHICLE_DOCUMENT_TYPES,
+      vehicleVerified,
+    ),
+    buildGroup(
+      "driver",
+      "Driver",
+      COMPLIANCE_DRIVER_DOCUMENT_TYPES,
+      REQUIRED_DRIVER_DOCUMENT_TYPES,
+      driverVerified,
+    ),
   ];
 
   const verified = groups.reduce((sum, group) => sum + group.verified, 0);
@@ -96,7 +198,9 @@ export function isCurrentComplianceChecklist(checklist: ComplianceChecklist | nu
   return (
     checklist.groups[0]?.slots.length === REQUIRED_COMPLIANCE_DOCUMENT_TYPES.length &&
     checklist.groups[1]?.slots.length === COMPLIANCE_VEHICLE_DOCUMENT_TYPES.length &&
-    checklist.groups[2]?.slots.length === COMPLIANCE_DRIVER_DOCUMENT_TYPES.length
+    checklist.groups[2]?.slots.length === COMPLIANCE_DRIVER_DOCUMENT_TYPES.length &&
+    checklist.groups[1]?.total === REQUIRED_VEHICLE_DOCUMENT_TYPES.length &&
+    checklist.groups[2]?.total === REQUIRED_DRIVER_DOCUMENT_TYPES.length
   );
 }
 
@@ -116,4 +220,11 @@ export function ensureComplianceChecklist(
     vehicleDocuments: summary?.vehicleDocuments ?? [],
     driverDocuments: summary?.driverDocuments ?? [],
   });
+}
+
+/** Compact Verified / Pending label for table Trip/Vehicle/Driver columns. */
+export function checklistGroupStatusLabel(group: ComplianceChecklistGroup | undefined): string {
+  if (!group || group.total === 0) return "—";
+  if (group.verified >= group.total) return "Verified";
+  return "Pending";
 }

@@ -3,13 +3,13 @@
  * Granular invalidation: UPDATE → only the changed row's detail key.
  *                        INSERT/DELETE → the list key too.
  */
-import { useEffect } from 'react';
-import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { getTripLedgerEmbed, toLedgerRow, type LedgerRow } from '@/features/finance/services/finance.service';
 import { queryKeys } from '@/lib/queryKeys';
 import { subscribeSharedPostgresChanges } from '@/lib/realtimeRegistry';
 import { scheduleInvalidation } from '@/lib/platform/moderator';
-import { getTripLedgerEmbed, toLedgerRow, type LedgerRow } from '@/features/finance/services/finance.service';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 
 export function useRealtimeTripsInvalidation(organizationId: string | null) {
   const qc = useQueryClient();

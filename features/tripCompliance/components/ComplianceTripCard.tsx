@@ -3,11 +3,6 @@
  * (client head, horizontal route, party chips), plus docs checklist + Verify Docs.
  */
 import { PartyAvatar } from "@/components/PartyAvatar";
-import {
-  HUB_CARD_HEAD_AVATAR,
-  HUB_CARD_HEAD_LEFT_GAP,
-  HUB_CARD_PARTY_CHIP_AVATAR,
-} from "@/components/hub/hubGridCardLayout";
 import { HUB_MOBILE_TICKET_REF } from "@/components/hub/hubMobileTicketTokens";
 import { FinanceTxnTypography } from "@/constants/FinanceTxnTypography";
 import Theme from "@/constants/Theme";
@@ -32,8 +27,9 @@ import {
 import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
 import { formatIndianVehicleNumber } from "@/lib/format";
 import { Check, Eye } from "lucide-react-native";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   StyleSheet,
@@ -44,8 +40,11 @@ import {
 } from "react-native";
 
 const REF = HUB_MOBILE_TICKET_REF;
-const ROUTE_PIN_SIZE = 8;
-const CHIP_AVATAR = HUB_CARD_PARTY_CHIP_AVATAR;
+const ROUTE_PIN_SIZE = 6;
+/** Compact vs hub defaults — denser queue cards without dropping fields. */
+const HEAD_AVATAR = 32;
+const CHIP_AVATAR = 22;
+const HEAD_LEFT_GAP = 8;
 
 export type ComplianceTripCardProps = {
   summary: ComplianceTripSummary;
@@ -53,6 +52,8 @@ export type ComplianceTripCardProps = {
   onViewTrip: () => void;
   onOpenDetails?: () => void;
   onPay?: () => void;
+  /** When every required trip document is approved, Verify Docs marks the trip compliance verified. */
+  onMarkComplianceVerified?: () => Promise<void>;
   canManageFinance?: boolean;
 };
 
@@ -166,7 +167,7 @@ function ChecklistGroupTile({
         <Text style={[styles.groupLabel, { color: tone.fg }]} numberOfLines={1}>
           {group.label}
         </Text>
-        <Eye size={11} color={tone.fg} strokeWidth={2.2} />
+        <Eye size={10} color={tone.fg} strokeWidth={2.2} />
       </View>
       <View style={styles.groupDots}>
         {group.slots.map((slot) => (
@@ -202,33 +203,33 @@ export function ComplianceTripCard({
   onViewTrip,
   onOpenDetails,
   onPay,
+  onMarkComplianceVerified,
   canManageFinance = false,
 }: ComplianceTripCardProps) {
   const trip = summary.trip;
   const checklist = ensureComplianceChecklist(summary);
   const readiness = useMemo(() => deriveComplianceQueueReadiness(summary), [summary]);
   const required = readiness.requiredDocs;
-  const verifiedTripTypes = new Set(
-    summary.documents.filter((doc) => doc.status === "verified").map((doc) => doc.document_type),
-  );
-  const displayGroups = checklist.groups.map((group) => {
-    if (group.key !== "trip") return group;
-    const slots = group.slots.map((slot) => ({ ...slot, verified: verifiedTripTypes.has(slot.type) }));
-    return {
-      ...group,
-      slots,
-      verified: required.verified,
-      total: required.total,
-      tone: checklistTone(required.verified, required.total),
-    };
-  });
+  const tripGroup = checklist.groups.find((group) => group.key === "trip");
+  const tripOnFile = tripGroup?.verified ?? 0;
+  const tripTotal = tripGroup?.total ?? required.total;
   const verification = verificationStatusVisual(summary);
   const payment = paymentStatusVisual(summary);
   const showPaymentPill = shouldShowPaymentStatusPill(summary);
-  const requiredTone = groupToneVisual(checklistTone(required.verified, required.total));
+  /** Pending-docs cards already show status in the header — hide the duplicate footer pill + Verify Docs. */
+  const isPendingDocsCard = verification.kind === "pending_docs";
+  const showVerificationPill = !isPendingDocsCard;
+  const showVerifyDocsAction = !isPendingDocsCard;
+  const showPayAction = Boolean(canManageFinance && readiness.paymentReady && onPay);
+  const showCardFooter =
+    showVerificationPill || showPaymentPill || showVerifyDocsAction || showPayAction;
+  const requiredTone = groupToneVisual(checklistTone(tripOnFile, tripTotal));
   const tripId = complianceTripDisplayId(trip);
   const when = formatComplianceTimestamp(complianceEventAt(trip));
   const fullyVerified = Boolean(summary.complianceVerifiedAt);
+  const readyToMarkTrip =
+    readiness.requiredDocs.markVerifiedReady && !fullyVerified && Boolean(onMarkComplianceVerified);
+  const [markingTrip, setMarkingTrip] = useState(false);
   const payLabel = paymentReadinessLabel(readiness);
 
   const clientName = asLabel(trip.client_name);
@@ -252,6 +253,16 @@ export function ComplianceTripCard({
   const dest = trip.drop_location ?? "";
   const openDetails = onOpenDetails ?? onViewTrip;
 
+  const pressVerifyDocs = () => {
+    if (markingTrip) return;
+    if (!readyToMarkTrip || !onMarkComplianceVerified) {
+      onReviewDocuments("trip");
+      return;
+    }
+    setMarkingTrip(true);
+    void onMarkComplianceVerified().finally(() => setMarkingTrip(false));
+  };
+
   return (
     <View style={styles.cardWrap}>
       <View style={styles.card}>
@@ -267,7 +278,7 @@ export function ComplianceTripCard({
                 name={clientName}
                 initialsColorSeed={clientFb}
                 entityType="client"
-                size={HUB_CARD_HEAD_AVATAR}
+                size={HEAD_AVATAR}
               />
               <View style={styles.headText}>
                 <Text style={styles.brand} numberOfLines={1}>
@@ -279,9 +290,24 @@ export function ComplianceTripCard({
               </View>
             </View>
             <View style={styles.headMetaCol}>
-              <Text style={styles.headMeta} numberOfLines={1}>
-                {headStatusUpper}
-              </Text>
+              <View
+                style={[
+                  styles.headStatusPill,
+                  {
+                    backgroundColor: showPaymentPill ? payment.tone.bg : verification.tone.bg,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.headStatusPillText,
+                    { color: showPaymentPill ? payment.tone.fg : verification.tone.fg },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {headStatusUpper}
+                </Text>
+              </View>
               {showPaymentPill ? (
                 <Text style={styles.headMetaMuted} numberOfLines={1}>
                   {verification.label}
@@ -318,25 +344,50 @@ export function ComplianceTripCard({
           <View style={styles.checklistHeader}>
             <Text style={styles.checklistTitle}>REQUIRED DOCUMENTS</Text>
             <Text style={[styles.checklistProgress, { color: requiredTone.fg }]}>
-              {required.verified}/{required.total} verified
+              {tripOnFile}/{tripTotal} on file
             </Text>
           </View>
           <View style={styles.groupRow}>
-            {displayGroups.map((group) => (
+            {checklist.groups.map((group) => (
               <ChecklistGroupTile
                 key={group.key}
                 group={group}
-                countLabel={
-                  group.key === "trip"
-                    ? `${required.verified}/${required.total} Verified`
-                    : `${group.verified}/${group.total} On file`
-                }
+                countLabel={`${group.verified}/${group.total} On file`}
                 onPress={() => onReviewDocuments(group.key)}
               />
             ))}
           </View>
 
-          <View style={styles.blockerBox}>
+          {readiness.expiredVehicleDocs.length > 0 ? (
+            <View
+              style={styles.expiryAlertBox}
+              accessibilityRole="alert"
+              accessibilityLabel={`Expired vehicle documents: ${readiness.expiredVehicleDocs.join(", ")}`}
+            >
+              <Text style={styles.expiryAlertTitle}>Vehicle docs expired</Text>
+              <Text style={styles.expiryAlertBody}>
+                {readiness.expiredVehicleDocs.join(", ")} — renew and re-upload. Trip moved to Pending Docs.
+              </Text>
+            </View>
+          ) : readiness.expiringSoonVehicleDocs.length > 0 ? (
+            <View
+              style={styles.expiryWarnBox}
+              accessibilityRole="alert"
+              accessibilityLabel={`Vehicle documents expiring soon: ${readiness.expiringSoonVehicleDocs.join(", ")}`}
+            >
+              <Text style={styles.expiryWarnTitle}>Expiring soon</Text>
+              <Text style={styles.expiryWarnBody}>
+                {readiness.expiringSoonVehicleDocs.join(", ")} — renew before expiry.
+              </Text>
+            </View>
+          ) : null}
+
+          <View
+            style={[
+              styles.blockerBox,
+              readiness.paymentReady ? styles.blockerBoxReady : styles.blockerBoxBlocked,
+            ]}
+          >
             <Text
               style={[
                 styles.payLabel,
@@ -357,90 +408,109 @@ export function ComplianceTripCard({
           </View>
         </View>
 
-        <View style={styles.cardFooter}>
-          <View style={styles.pillRow}>
-            <View
-              style={[
-                styles.stagePill,
-                styles.stagePillWide,
-                { backgroundColor: verification.tone.bg },
-              ]}
-              accessibilityLabel={`Verification: ${verification.label}`}
-            >
-              {verification.kind === "verified" ? (
-                <Check size={10} color={verification.tone.fg} strokeWidth={2.6} />
-              ) : (
-                <View style={[styles.stageDot, { backgroundColor: verification.tone.fg }]} />
-              )}
-              <Text
-                style={[styles.stagePillText, { color: verification.tone.fg }]}
-                numberOfLines={1}
-              >
-                {verification.label}
-              </Text>
-            </View>
-            {showPaymentPill ? (
-              <View
-                style={[
-                  styles.stagePill,
-                  styles.stagePillWide,
-                  { backgroundColor: payment.tone.bg },
-                ]}
-                accessibilityLabel={`Payment: ${payment.label}`}
-              >
-                {summary.stage === "payment_settled" ? (
-                  <Check size={10} color={payment.tone.fg} strokeWidth={2.6} />
-                ) : (
-                  <View style={[styles.stageDot, { backgroundColor: payment.tone.fg }]} />
-                )}
-                <Text
-                  style={[styles.stagePillText, { color: payment.tone.fg }]}
-                  numberOfLines={1}
-                >
-                  {payment.label}
-                </Text>
+        {showCardFooter ? (
+          <View style={styles.cardFooter}>
+            {showVerificationPill || showPaymentPill ? (
+              <View style={styles.pillRow}>
+                {showVerificationPill ? (
+                  <View
+                    style={[
+                      styles.stagePill,
+                      styles.stagePillWide,
+                      { backgroundColor: verification.tone.bg },
+                    ]}
+                    accessibilityLabel={`Verification: ${verification.label}`}
+                  >
+                    {verification.kind === "verified" ? (
+                      <Check size={10} color={verification.tone.fg} strokeWidth={2.6} />
+                    ) : (
+                      <View style={[styles.stageDot, { backgroundColor: verification.tone.fg }]} />
+                    )}
+                    <Text
+                      style={[styles.stagePillText, { color: verification.tone.fg }]}
+                      numberOfLines={1}
+                    >
+                      {verification.label}
+                    </Text>
+                  </View>
+                ) : null}
+                {showPaymentPill ? (
+                  <View
+                    style={[
+                      styles.stagePill,
+                      styles.stagePillWide,
+                      { backgroundColor: payment.tone.bg },
+                    ]}
+                    accessibilityLabel={`Payment: ${payment.label}`}
+                  >
+                    {summary.stage === "payment_settled" ? (
+                      <Check size={10} color={payment.tone.fg} strokeWidth={2.6} />
+                    ) : (
+                      <View style={[styles.stageDot, { backgroundColor: payment.tone.fg }]} />
+                    )}
+                    <Text
+                      style={[styles.stagePillText, { color: payment.tone.fg }]}
+                      numberOfLines={1}
+                    >
+                      {payment.label}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : (
+              <View />
+            )}
+            {showVerifyDocsAction || showPayAction ? (
+              <View style={styles.footerActions}>
+                {showVerifyDocsAction ? (
+                  fullyVerified ? (
+                    <TouchableOpacity
+                      style={styles.verifiedBtn}
+                      onPress={pressVerifyDocs}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Documents verified"
+                    >
+                      <Check
+                        size={12}
+                        color={Theme.complianceVerifiedPillFg}
+                        strokeWidth={2.4}
+                      />
+                      <Text style={styles.verifiedBtnText}>Verified</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.verifyBtn}
+                      onPress={pressVerifyDocs}
+                      disabled={markingTrip}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Verify documents"
+                    >
+                      {markingTrip ? (
+                        <ActivityIndicator size="small" color={Theme.buttonPrimaryText} />
+                      ) : (
+                        <Check size={12} color={Theme.buttonPrimaryText} strokeWidth={2.4} />
+                      )}
+                      <Text style={styles.verifyBtnText}>
+                        {markingTrip ? "Verifying…" : "Verify Docs"}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                ) : null}
+                {showPayAction ? (
+                  <TouchableOpacity
+                    style={styles.verifyBtn}
+                    onPress={onPay}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.verifyBtnText}>Pay</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             ) : null}
           </View>
-          <View style={styles.footerActions}>
-            {fullyVerified ? (
-              <TouchableOpacity
-                style={styles.verifiedBtn}
-                onPress={() => onReviewDocuments("trip")}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel="Documents verified"
-              >
-                <Check
-                  size={12}
-                  color={Theme.complianceVerifiedPillFg}
-                  strokeWidth={2.4}
-                />
-                <Text style={styles.verifiedBtnText}>Verified</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.verifyBtn}
-                onPress={() => onReviewDocuments("trip")}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel="Verify documents"
-              >
-                <Check size={12} color={Theme.buttonPrimaryText} strokeWidth={2.4} />
-                <Text style={styles.verifyBtnText}>Verify Docs</Text>
-              </TouchableOpacity>
-            )}
-            {canManageFinance && readiness.paymentReady && onPay ? (
-              <TouchableOpacity
-                style={styles.verifyBtn}
-                onPress={onPay}
-                accessibilityRole="button"
-              >
-                <Text style={styles.verifyBtnText}>Pay</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </View>
+        ) : null}
       </View>
     </View>
   );
@@ -452,27 +522,27 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Theme.cardWhite,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Theme.borderLight,
     overflow: "hidden",
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 8px rgba(15, 23, 42, 0.05)",
+        boxShadow: "0 1px 4px rgba(15, 23, 42, 0.04)",
       } as ViewStyle,
       default: {
         shadowColor: "#0f172a",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
         elevation: 1,
       },
     }),
   },
   body: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   bodyPressed: {
     opacity: 0.98,
@@ -481,56 +551,61 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 10,
-    marginBottom: 14,
+    gap: 8,
+    marginBottom: 8,
   },
   headLeft: {
     flex: 1,
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: HUB_CARD_HEAD_LEFT_GAP,
+    gap: HEAD_LEFT_GAP,
   },
   headText: {
     flex: 1,
     minWidth: 0,
-    minHeight: HUB_CARD_HEAD_AVATAR,
+    minHeight: HEAD_AVATAR,
     justifyContent: "center",
-    gap: 2,
+    gap: 1,
   },
   brand: {
     ...FinanceTxnTypography.partyTitle,
     fontSize: 12,
     lineHeight: 15,
     letterSpacing: -0.1,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   partnerSubline: {
     fontSize: 10,
-    lineHeight: 13,
+    lineHeight: 12,
     fontWeight: "600",
     color: REF.accent,
     letterSpacing: 0.2,
   },
   headMetaCol: {
     flexShrink: 0,
-    maxWidth: "42%",
+    maxWidth: "46%",
     alignItems: "flex-end",
-    gap: 3,
-    paddingTop: 1,
+    gap: 2,
+    paddingTop: 0,
   },
-  headMeta: {
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: "500",
-    color: REF.muted,
+  headStatusPill: {
+    maxWidth: "100%",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  headStatusPillText: {
+    fontSize: 9,
+    lineHeight: 11,
+    fontWeight: "700",
     textAlign: "right",
     textTransform: "uppercase",
-    letterSpacing: 0.25,
+    letterSpacing: 0.2,
   },
   headMetaMuted: {
     fontSize: 9,
-    lineHeight: 12,
+    lineHeight: 11,
     fontWeight: "400",
     color: REF.muted,
     textAlign: "right",
@@ -538,7 +613,7 @@ const styles = StyleSheet.create({
   route: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 4,
+    gap: 2,
     width: "100%",
     maxWidth: "100%",
     overflow: "hidden",
@@ -556,7 +631,7 @@ const styles = StyleSheet.create({
   legRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 6,
+    gap: 5,
     minWidth: 0,
   },
   legRowEnd: {
@@ -578,7 +653,7 @@ const styles = StyleSheet.create({
     width: ROUTE_PIN_SIZE,
     height: ROUTE_PIN_SIZE,
     borderRadius: ROUTE_PIN_SIZE / 2,
-    marginTop: 2,
+    marginTop: 3,
     flexShrink: 0,
   },
   routePinOrigin: {
@@ -588,20 +663,20 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.positive,
   },
   legCity: {
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "700",
     color: REF.ink,
     letterSpacing: -0.1,
-    lineHeight: 15,
+    lineHeight: 14,
     textTransform: "uppercase",
     width: "100%",
   },
   legState: {
-    marginTop: 1,
+    marginTop: 0,
     fontSize: 9,
     fontWeight: "400",
     color: REF.muted,
-    lineHeight: 12,
+    lineHeight: 11,
     width: "100%",
   },
   legStatePlaceholder: {
@@ -611,29 +686,29 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   routeMid: {
-    width: 24,
-    paddingTop: 2,
+    width: 18,
+    paddingTop: 1,
     alignItems: "center",
     justifyContent: "flex-start",
     flexShrink: 0,
   },
   routeArrow: {
-    fontSize: 16,
-    fontWeight: "300",
+    fontSize: 13,
+    fontWeight: "400",
     color: REF.muted,
-    lineHeight: 18,
+    lineHeight: 15,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: REF.hairline,
-    marginTop: 12,
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: 8,
   },
   partyRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 8,
     minHeight: CHIP_AVATAR,
   },
   chip: {
@@ -641,7 +716,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   chipEnd: {
     justifyContent: "flex-end",
@@ -655,8 +730,8 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   chipName: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 10,
+    lineHeight: 13,
     fontWeight: "600",
     color: REF.ink,
     letterSpacing: -0.1,
@@ -665,9 +740,9 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   complianceBody: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    gap: 8,
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    gap: 6,
   },
   checklistHeader: {
     flexDirection: "row",
@@ -679,7 +754,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "700",
     color: REF.muted,
-    letterSpacing: 0.4,
+    letterSpacing: 0.35,
   },
   checklistProgress: {
     fontSize: 9,
@@ -687,27 +762,25 @@ const styles = StyleSheet.create({
   },
   groupRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+    flexWrap: "nowrap",
+    gap: 6,
   },
   groupTile: {
-    width: "48%",
-    flexGrow: 1,
-    flexBasis: "47%",
-    maxWidth: "100%",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    gap: 5,
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    gap: 3,
   },
   groupHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 3,
+    gap: 2,
   },
   groupLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
     flex: 1,
     minWidth: 0,
@@ -716,30 +789,88 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    gap: 3,
+    gap: 2,
   },
   groupDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   groupCount: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "700",
   },
-  blockerBox: {
+  expiryAlertBox: {
     gap: 2,
-    paddingTop: 4,
-    paddingHorizontal: 10,
-    paddingBottom: 8,
-    borderRadius: 10,
-    backgroundColor: Theme.compliancePageBg,
+    paddingTop: 6,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+    borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: REF.hairline,
+    borderLeftWidth: 3,
+    backgroundColor: Theme.complianceDocNeedBg,
+    borderColor: Theme.complianceDocNeedBg,
+    borderLeftColor: Theme.teslaRed,
+  },
+  expiryAlertTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Theme.teslaRed,
+    lineHeight: 14,
+  },
+  expiryAlertBody: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Theme.textSecondary,
+    lineHeight: 13,
+  },
+  expiryWarnBox: {
+    gap: 2,
+    paddingTop: 6,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
+    backgroundColor: Theme.complianceStagePendingBg,
+    borderColor: Theme.complianceStagePendingBg,
+    borderLeftColor: Theme.complianceStagePendingFg,
+  },
+  expiryWarnTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Theme.complianceStagePendingFg,
+    lineHeight: 14,
+  },
+  expiryWarnBody: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Theme.textSecondary,
+    lineHeight: 13,
+  },
+  blockerBox: {
+    gap: 1,
+    paddingTop: 6,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
+  },
+  blockerBoxBlocked: {
+    backgroundColor: Theme.complianceStageDocsBg,
+    borderColor: Theme.complianceStageDocsBg,
+    borderLeftColor: Theme.complianceStageDocsFg,
+  },
+  blockerBoxReady: {
+    backgroundColor: Theme.complianceStageSuccessBg,
+    borderColor: Theme.complianceStageSuccessBg,
+    borderLeftColor: Theme.complianceStageSuccessFg,
   },
   payLabel: {
     fontSize: 11,
     fontWeight: "800",
+    lineHeight: 14,
   },
   payReady: {
     color: Theme.complianceStageSuccessFg,
@@ -750,17 +881,17 @@ const styles = StyleSheet.create({
   blockerLine: {
     fontSize: 10,
     color: Theme.textMuted,
-    lineHeight: 14,
+    lineHeight: 13,
   },
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 8,
     flexWrap: "wrap",
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 12,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: REF.hairline,
   },
@@ -769,15 +900,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexDirection: "row",
     alignItems: "stretch",
-    gap: 8,
+    gap: 6,
   },
   stagePill: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 999,
     flexShrink: 1,
     minWidth: 0,
@@ -786,24 +917,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   stageDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   stagePillText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
     flexShrink: 1,
   },
   footerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     flexShrink: 0,
   },
   verifyBtn: {
-    minHeight: 36,
-    paddingHorizontal: 14,
+    minHeight: 32,
+    paddingHorizontal: 12,
     borderRadius: Theme.buttonPrimaryRadius,
     backgroundColor: Theme.buttonPrimary,
     borderWidth: Theme.buttonPrimaryBorderWidth,
@@ -814,13 +945,13 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   verifyBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     color: Theme.buttonPrimaryText,
   },
   verifiedBtn: {
-    minHeight: 36,
-    paddingHorizontal: 12,
+    minHeight: 32,
+    paddingHorizontal: 10,
     borderRadius: 999,
     backgroundColor: Theme.complianceVerifiedPillBg,
     borderWidth: 1,
@@ -831,7 +962,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   verifiedBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     color: Theme.complianceVerifiedPillFg,
   },

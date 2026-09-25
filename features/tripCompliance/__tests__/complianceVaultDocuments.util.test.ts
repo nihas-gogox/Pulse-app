@@ -20,6 +20,21 @@ describe("vehicleVaultDocumentsToEntityDocs", () => {
     expect(rows.map((row) => row.doc_type).sort()).toEqual(["insurance", "permit", "rc"]);
     expect(rows.every((row) => row.source === "vehicle-vault")).toBe(true);
     expect(rows.find((row) => row.doc_type === "rc")?.storage_path).toBe("org/v1/rc.pdf");
+    expect(rows.find((row) => row.doc_type === "rc")?.status).toBe("pending");
+  });
+
+  it("keeps an uploaded RC pending until Compliance approval is stored", () => {
+    const pending = vehicleVaultDocumentsToEntityDocs("v1", {
+      rc: { url: "org/v1/rc.pdf", expiryDate: "", uploadedAt: "2026-09-24" },
+    });
+    expect(pending[0]?.status).toBe("pending");
+    expect(pending[0]?.verified_at).toBeNull();
+
+    const approved = vehicleVaultDocumentsToEntityDocs("v1", {
+      rc: { url: "org/v1/rc.pdf", expiryDate: "", uploadedAt: "2026-09-24", verifiedAt: "2026-09-24T12:00:00Z" },
+    });
+    expect(approved[0]?.status).toBe("verified");
+    expect(approved[0]?.verified_at).toBe("2026-09-24T12:00:00Z");
   });
 
   it("returns nothing when the vault JSON is empty", () => {
@@ -106,7 +121,7 @@ describe("normalizeVaultVehicleNumber", () => {
 });
 
 describe("mergeComplianceEntityDocs", () => {
-  it("lets vault files win over entity_documents of the same type", () => {
+  it("lets preferred (first arg) win over fallback of the same type", () => {
     const vault: ComplianceEntityDocument[] = [
       {
         id: "vault-rc",
@@ -138,5 +153,42 @@ describe("mergeComplianceEntityDocs", () => {
       },
     ];
     expect(mergeComplianceEntityDocs(vault, entity)[0]?.id).toBe("vault-rc");
+  });
+
+  it("inherits expiry from fallback when preferred has none", () => {
+    const entity: ComplianceEntityDocument[] = [
+      {
+        id: "entity-ins",
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type: "insurance",
+        status: "verified",
+        storage_path: "entity/ins.pdf",
+        expiry_date: "2027-08-15",
+        verified_at: null,
+        notes: null,
+        created_at: "2026-09-24",
+        source: "entity",
+      },
+    ];
+    const vault: ComplianceEntityDocument[] = [
+      {
+        id: "vault-ins",
+        entity_type: "vehicle",
+        entity_id: "v1",
+        doc_type: "insurance",
+        status: "active",
+        storage_path: "vault/ins.pdf",
+        expiry_date: "",
+        verified_at: null,
+        notes: null,
+        created_at: "2026-09-01",
+        source: "vehicle-vault",
+      },
+    ];
+    // Production: preferred = entity, fallback = vault
+    const merged = mergeComplianceEntityDocs(entity, vault);
+    expect(merged[0]?.id).toBe("entity-ins");
+    expect(merged[0]?.expiry_date).toBe("2027-08-15");
   });
 });

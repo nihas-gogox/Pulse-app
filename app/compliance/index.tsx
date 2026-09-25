@@ -14,14 +14,17 @@ import { ComplianceTripsTable } from "@/features/tripCompliance/components/Compl
 import { useComplianceProductEnabled } from "@/features/tripCompliance/hooks/useComplianceProductEnabled";
 import {
   COMPLIANCE_QUEUE_PAGE_SIZE,
+  useComplianceListPagination,
   useComplianceStageFilter,
   useComplianceTripsQuery,
+  useComplianceTripQuery,
   useInvalidateComplianceTrips,
 } from "@/features/tripCompliance/hooks/useComplianceTripsQuery";
-import { postCompliancePayment, type ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import { postCompliancePayment, markTripComplianceVerified, type ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import { COMPLIANCE_STAGE_FILTER_LABEL, COMPLIANCE_STAGES, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import { COMPLIANCE_FILTER_COUNT_TONE, matchesComplianceTripSearch } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
+import { formatMarkComplianceVerifiedError } from "@/features/tripCompliance/utils/complianceMarkVerifiedError.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { useLayoutInsets } from "@/lib/layoutInsets";
 import { ROUTES } from "@/lib/routes";
@@ -78,9 +81,36 @@ export default function ComplianceScreen() {
   const orgCtx = useOptionalOrganization();
   const currentOrganization = orgCtx?.currentOrganization ?? null;
 
-  const { data, isLoading, isError, error, isFetching, refetch } = useComplianceTripsQuery(0);
-  const { stage, setStage, filtered, counts } = useComplianceStageFilter(data?.summaries);
+  const {
+    summaries,
+    pipelineTripCount,
+    isLoading,
+    isError,
+    error,
+    isFetching,
+    refetch,
+  } = useComplianceTripsQuery();
+  const { stage, setStage, filtered, counts } = useComplianceStageFilter(summaries);
   const invalidate = useInvalidateComplianceTrips();
+  const markTripVerified = useCallback(
+    async (tripId: string) => {
+      if (!canMarkVerified) {
+        alertMessage("Can't verify", "You don't have permission to mark this trip compliance verified.");
+        return;
+      }
+      if (!user?.uid) {
+        alertMessage("Can't verify", "Sign in again, then try Verify Docs.");
+        return;
+      }
+      const { error } = await markTripComplianceVerified({ tripId, actorId: user.uid });
+      if (error) {
+        alertMessage("Couldn't verify compliance", formatMarkComplianceVerifiedError(error.message));
+        return;
+      }
+      invalidate(tripId);
+    },
+    [canMarkVerified, invalidate, user?.uid],
+  );
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const [search, setSearch] = useState("");
   const [pay, setPay] = useState<{ summary: ComplianceTripSummary; category: ComplianceLedgerCategory } | null>(null);
@@ -91,9 +121,27 @@ export default function ComplianceScreen() {
     scope: "trip" | "vehicle" | "driver";
   } | null>(null);
 
+  const searched = useMemo(
+    () => filtered.filter((summary) => matchesComplianceTripSearch(summary, search)),
+    [filtered, search],
+  );
+  const {
+    page,
+    setPage,
+    pageItems: visible,
+    pageCount,
+    total: filteredTotal,
+    hasPrev,
+    hasNext,
+    pageSize,
+  } = useComplianceListPagination(searched, {
+    pageSize: COMPLIANCE_QUEUE_PAGE_SIZE,
+    resetKey: `${stage}|${search.trim()}`,
+  });
+
   const contentTopInset = layout.isDesktopWeb ? Layout.desktopTopNavOffset : layout.top;
   const pagePad = Layout.screenPaddingHorizontal;
-  const gridGap = Layout.spacingMedium;
+  const gridGap = Math.min(Layout.spacingMedium, 12);
   const compactToolbar = width < 760;
   const columns = width >= 1100 ? 3 : width >= 760 ? 2 : 1;
   const usableWidth = Math.max(280, width - pagePad * 2);
@@ -129,15 +177,12 @@ export default function ComplianceScreen() {
     [router],
   );
 
-  const visible = useMemo(
-    () => filtered.filter((summary) => matchesComplianceTripSearch(summary, search)),
-    [filtered, search],
+  const reviewingSummaryFromList = useMemo(
+    () => (review ? summaries.find((s) => s.trip.id === review.tripId) ?? null : null),
+    [review, summaries],
   );
-
-  const reviewingSummary = useMemo(
-    () => (review ? (data?.summaries ?? []).find((s) => s.trip.id === review.tripId) : null),
-    [review, data?.summaries],
-  );
+  const freshReview = useComplianceTripQuery(review?.tripId);
+  const reviewingSummary = freshReview.data ?? reviewingSummaryFromList;
 
   if (orgCtx === undefined || accessLoading || productsLoading) {
     return <ChromeBelowTopNavLoadingScreen variant="preparing" />;
@@ -177,12 +222,15 @@ export default function ComplianceScreen() {
               <View style={styles.activeBadge}>
                 <View style={styles.activeDot} />
                 <Text style={styles.activeBadgeText}>
-                  {counts.all} trips on this page
+                  {counts.all} trips · Loading→Completed
                 </Text>
               </View>
               <Text style={styles.subtitle} numberOfLines={2}>
-                Showing the first {COMPLIANCE_QUEUE_PAGE_SIZE} trips
-                {data?.hasMore ? " — more exist in this organization." : "."} Stage counts apply to this page only.
+                Same trip source as Trip Operations. Stage totals cover the full
+                queue ({pipelineTripCount} trips)
+                {filteredTotal > pageSize
+                  ? ` — showing ${page * pageSize + 1}–${Math.min((page + 1) * pageSize, filteredTotal)} of ${filteredTotal}.`
+                  : "."}
               </Text>
             </View>
           </View>
@@ -274,11 +322,11 @@ export default function ComplianceScreen() {
         </View>
       </View>
 
-      {isFetching && data ? (
+      {isFetching && summaries.length > 0 ? (
         <Text style={styles.stale}>Updating queue…</Text>
       ) : null}
 
-      {isLoading && !data ? (
+      {isLoading && summaries.length === 0 ? (
         <Text style={styles.message}>Loading required trip, document, and payment data…</Text>
       ) : isError ? (
         <View>
@@ -287,22 +335,23 @@ export default function ComplianceScreen() {
             <Text style={styles.reportBtnText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      ) : visible.length === 0 ? (
+      ) : filteredTotal === 0 ? (
         <Text style={styles.message}>
           {search.trim()
-            ? "No trips on this page match your search."
-            : data?.summaries?.length
-              ? "No trips in this stage on this page."
-              : "No trips in this queue page."}
+            ? "No trips match your search."
+            : summaries.length
+              ? "No trips in this stage."
+              : "No Loading→Completed trips in the Compliance queue yet."}
         </Text>
       ) : viewMode === "table" ? (
         <ComplianceTripsTable
           summaries={visible}
           onOpenTrip={openTrip}
           onOpenDetails={openDetails}
-          onReview={(tripId, documentKey) => setReview({ tripId, documentKey, scope: "trip" })}
+          onReview={(tripId, documentKey, scope = "trip") => setReview({ tripId, documentKey, scope })}
+          onMarkComplianceVerified={markTripVerified}
           onPay={(tripId) => {
-            const summary = visible.find((s) => s.trip.id === tripId);
+            const summary = visible.find((s) => s.trip.id === tripId) ?? summaries.find((s) => s.trip.id === tripId);
             if (summary) openPay(summary);
           }}
           canManageFinance={canManageFinance}
@@ -317,12 +366,39 @@ export default function ComplianceScreen() {
                 onViewTrip={() => openTrip(summary.trip.id)}
                 onOpenDetails={() => openDetails(summary.trip.id)}
                 onPay={() => openPay(summary)}
+                onMarkComplianceVerified={() => markTripVerified(summary.trip.id)}
                 canManageFinance={canManageFinance}
               />
             </View>
           ))}
         </View>
       )}
+
+      {filteredTotal > pageSize ? (
+        <View style={styles.pagerRow}>
+          <TouchableOpacity
+            style={[styles.pagerBtn, !hasPrev && styles.pagerBtnDisabled]}
+            disabled={!hasPrev}
+            onPress={() => setPage((p) => Math.max(0, p - 1))}
+            accessibilityRole="button"
+            accessibilityLabel="Previous page"
+          >
+            <Text style={[styles.pagerBtnText, !hasPrev && styles.pagerBtnTextDisabled]}>Previous</Text>
+          </TouchableOpacity>
+          <Text style={styles.pagerMeta}>
+            Page {page + 1} of {pageCount}
+          </Text>
+          <TouchableOpacity
+            style={[styles.pagerBtn, !hasNext && styles.pagerBtnDisabled]}
+            disabled={!hasNext}
+            onPress={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+            accessibilityRole="button"
+            accessibilityLabel="Next page"
+          >
+            <Text style={[styles.pagerBtnText, !hasNext && styles.pagerBtnTextDisabled]}>Next</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {reviewingSummary ? (
         <ComplianceDocumentReviewSheet
@@ -386,7 +462,7 @@ export default function ComplianceScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Theme.compliancePageBg },
-  content: { paddingTop: Layout.spacingMedium, gap: Layout.spacingLarge },
+  content: { paddingTop: Layout.spacingMedium, gap: Layout.spacingMedium },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: Theme.compliancePageBg },
   header: { gap: Layout.spacingSmall },
   headerTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
@@ -507,4 +583,25 @@ const styles = StyleSheet.create({
   cardGrid: { flexDirection: "row", flexWrap: "wrap", alignItems: "stretch" },
   message: { fontSize: 14, color: Theme.textMuted, textAlign: "center", paddingVertical: 28, lineHeight: 20 },
   stale: { fontSize: 12, color: Theme.textMuted },
+  pagerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    paddingVertical: 8,
+  },
+  pagerBtn: {
+    minHeight: Layout.minTouchTargetSize,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: Theme.cardWhite,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pagerBtnDisabled: { opacity: 0.45 },
+  pagerBtnText: { fontSize: 13, fontWeight: "700", color: Theme.textPrimary },
+  pagerBtnTextDisabled: { color: Theme.textMuted },
+  pagerMeta: { fontSize: 12, fontWeight: "600", color: Theme.textMuted },
 });

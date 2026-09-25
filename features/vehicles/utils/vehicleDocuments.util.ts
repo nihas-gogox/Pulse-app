@@ -3,6 +3,8 @@ export interface DocumentWithExpiry {
   url: string;
   expiryDate: string;
   uploadedAt?: string;
+  /** Set only when someone approves this file in Compliance. Upload alone does not set it. */
+  verifiedAt?: string | null;
 }
 
 export type VehicleComplianceDocType = "rc" | "insurance" | "fitness" | "pollution";

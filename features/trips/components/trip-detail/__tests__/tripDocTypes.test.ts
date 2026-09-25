@@ -3,6 +3,7 @@ import {
   canMutateTripVaultDoc,
   formatLrVaultDateLabel,
   formatLrVaultNumberLabel,
+  formatInvoiceVaultNumberLabel,
   formatVaultDocDate,
   isDriverPodVaultDoc,
   isPdfTripDoc,
@@ -109,6 +110,20 @@ describe("canAddMoreTripDocs", () => {
       canAddMoreTripDocs({ docSource: "vehicle", category: "vehicle" }),
     ).toBe(true);
   });
+
+  it("allows invoice, memo, and driver identity vault slots", () => {
+    expect(canAddMoreTripDocs({ category: "invoice", id: "invoice" })).toBe(
+      true,
+    );
+    expect(canAddMoreTripDocs({ category: "trip_details", id: "trip-details" })).toBe(
+      true,
+    );
+    expect(canAddMoreTripDocs({ category: "driver_identity" })).toBe(true);
+    expect(canAddMoreTripDocs({ id: "driver-documents" })).toBe(true);
+    expect(
+      canAddMoreTripDocs({ docSource: "compliance", id: "driver-documents" }),
+    ).toBe(true);
+  });
 });
 
 describe("vaultDocHasPreviewableFile", () => {
@@ -180,6 +195,13 @@ describe("vaultDocDateToIso", () => {
     expect(vaultDocDateToIso("04-Sep-26")).toBe("2026-09-04");
     expect(vaultDocDateToIso("28-08-2026")).toBe("2026-08-28");
     expect(vaultDocDateToIso("2026-09-03")).toBe("2026-09-03");
+  });
+});
+
+describe("formatInvoiceVaultNumberLabel", () => {
+  it("shows the invoice number on the invoice bar", () => {
+    expect(formatInvoiceVaultNumberLabel("45821")).toBe("Invoice No. 45821");
+    expect(formatInvoiceVaultNumberLabel("")).toBeNull();
   });
 });
 

@@ -1,6 +1,10 @@
 import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import { deriveComplianceDocumentRows, labelForDocType } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import {
+  listExpiredRequiredVehicleDocTypes,
+  listExpiringSoonRequiredVehicleDocTypes,
+} from "@/features/tripCompliance/utils/complianceChecklist.util";
+import {
   evaluateCompliancePaymentGuard,
   type ComplianceLedgerCategory,
 } from "@/features/tripCompliance/utils/compliancePaymentGuard.util";
@@ -60,6 +64,8 @@ export type ComplianceQueueReadiness = {
   missingRequired: string[];
   rejected: string[];
   pendingVerification: string[];
+  expiredVehicleDocs: string[];
+  expiringSoonVehicleDocs: string[];
   complianceVerificationIncomplete: boolean;
   requiredDocsVerified: boolean;
   advance: CompliancePaymentLane;
@@ -91,6 +97,12 @@ export function deriveComplianceQueueReadiness(summary: ComplianceTripSummary): 
   const pendingVerification = requiredDocs.pendingLabels;
   const requiredDocsVerified = requiredDocs.markVerifiedReady;
   const complianceVerificationIncomplete = !summary.complianceVerifiedAt;
+  const expiredVehicleDocs = listExpiredRequiredVehicleDocTypes(summary.vehicleDocuments ?? []).map(
+    (type) => labelForDocType(type),
+  );
+  const expiringSoonVehicleDocs = listExpiringSoonRequiredVehicleDocTypes(
+    summary.vehicleDocuments ?? [],
+  ).map((type) => labelForDocType(type));
 
   const bucket = {
     advance: summary.advance ? [summary.advance] : [],
@@ -104,6 +116,12 @@ export function deriveComplianceQueueReadiness(summary: ComplianceTripSummary): 
     advance = lane("compliance_advance", "posted", `Advance posted ₹${summary.advance.amount.toLocaleString("en-IN")}`);
   } else if (!advanceGuard.ok) {
     advance = lane("compliance_advance", "blocked", advanceGuard.reason ?? "Advance is blocked.");
+  } else if (expiredVehicleDocs.length > 0) {
+    advance = lane(
+      "compliance_advance",
+      "blocked",
+      `Expired vehicle document${expiredVehicleDocs.length === 1 ? "" : "s"}: ${expiredVehicleDocs.join(", ")}.`,
+    );
   } else if (complianceVerificationIncomplete) {
     advance = lane("compliance_advance", "blocked", "Compliance verification not completed.");
   } else {
@@ -115,6 +133,12 @@ export function deriveComplianceQueueReadiness(summary: ComplianceTripSummary): 
     balance = lane("compliance_balance", "posted", `Balance posted ₹${summary.balance.amount.toLocaleString("en-IN")}`);
   } else if (!balanceGuard.ok) {
     balance = lane("compliance_balance", "blocked", balanceGuard.reason ?? "Balance is blocked.");
+  } else if (expiredVehicleDocs.length > 0) {
+    balance = lane(
+      "compliance_balance",
+      "blocked",
+      `Expired vehicle document${expiredVehicleDocs.length === 1 ? "" : "s"}: ${expiredVehicleDocs.join(", ")}.`,
+    );
   } else if (!summary.hardCopyPod.received) {
     balance = lane("compliance_balance", "blocked", "Hard-copy POD has not been marked received.");
   } else {
@@ -125,6 +149,14 @@ export function deriveComplianceQueueReadiness(summary: ComplianceTripSummary): 
     advance.status === "ready" ? "compliance_advance" : balance.status === "ready" ? "compliance_balance" : null;
 
   const blockerLines: string[] = [];
+  if (expiredVehicleDocs.length) {
+    blockerLines.push(
+      `Expired: ${expiredVehicleDocs.join(", ")} — renew and re-upload`,
+    );
+  }
+  if (expiringSoonVehicleDocs.length) {
+    blockerLines.push(`Expiring soon: ${expiringSoonVehicleDocs.join(", ")}`);
+  }
   if (missingRequired.length) blockerLines.push(`Missing: ${missingRequired.join(", ")}`);
   if (rejected.length) blockerLines.push(`Rejected: ${rejected.join(", ")}`);
   if (pendingVerification.length) blockerLines.push(`Pending verification: ${pendingVerification.join(", ")}`);
@@ -136,7 +168,9 @@ export function deriveComplianceQueueReadiness(summary: ComplianceTripSummary): 
 
   const uniqueLines = [...new Set(blockerLines)];
   let nextAction = requiredDocs.nextAction;
-  if (requiredDocs.markVerifiedReady && complianceVerificationIncomplete) {
+  if (expiredVehicleDocs[0]) {
+    nextAction = `Replace expired ${expiredVehicleDocs[0]}`;
+  } else if (requiredDocs.markVerifiedReady && complianceVerificationIncomplete) {
     nextAction = "Mark Compliance Verified";
   } else if (readyCategory === "compliance_advance") {
     nextAction = "Post advance payment";
@@ -155,6 +189,8 @@ export function deriveComplianceQueueReadiness(summary: ComplianceTripSummary): 
     missingRequired,
     rejected,
     pendingVerification,
+    expiredVehicleDocs,
+    expiringSoonVehicleDocs,
     complianceVerificationIncomplete,
     requiredDocsVerified,
     advance,

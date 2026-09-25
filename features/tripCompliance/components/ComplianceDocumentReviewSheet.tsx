@@ -9,11 +9,17 @@ import Theme from "@/constants/Theme";
 import {
   rejectDocument,
   replaceComplianceDocument,
+  updateEntityDocumentExpiry,
   uploadComplianceDocument,
   verifyDocument,
 } from "@/features/compliance/services/documents.service";
 import { getVehicleById } from "@/features/vehicles/services/vehicles.service";
-import { uploadAndSaveVehicleDocument } from "@/features/vehicles/services/vehicleDocuments.service";
+import {
+  markVehicleDocumentVerified,
+  resolveVehicleDocumentsWriteTarget,
+  updateVehicleDocumentExpiry,
+  uploadAndSaveVehicleDocument,
+} from "@/features/vehicles/services/vehicleDocuments.service";
 import type { VehicleComplianceDocType } from "@/features/vehicles/utils/vehicleDocuments.util";
 import { describeStopProofDocument, type StopProofDocumentSummary } from "@/features/driver/job-card/deliveryProof";
 import { ComplianceDocumentPreviewModal } from "@/features/tripCompliance/components/ComplianceDocumentPreviewModal";
@@ -32,13 +38,13 @@ import {
 } from "@/features/tripCompliance/utils/complianceTripDocumentFormat.util";
 import {
   approveComplianceWithException,
-  markTripComplianceVerified,
   setTripDocumentVerification,
 } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import { canApproveComplianceWithException, canMarkComplianceVerified } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import {
   COMPLIANCE_DRIVER_DOCUMENT_TYPES,
   COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
+  documentRequiresExpiry,
   type ComplianceChecklistGroup,
   type ComplianceDocumentRow,
   type ComplianceEntityDocument,
@@ -59,7 +65,6 @@ import {
 } from "@/features/tripCompliance/utils/complianceReviewActions.util";
 import { classifyPreviewFailure } from "@/features/tripCompliance/utils/compliancePreviewFailure.util";
 import { buildComplianceDocumentActivity, type ComplianceActorDetail, type ComplianceDocumentActivityEntry } from "@/features/tripCompliance/utils/complianceDocumentActivity.util";
-import { formatMarkComplianceVerifiedError } from "@/features/tripCompliance/utils/complianceMarkVerifiedError.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { HUB_MOBILE_TICKET_REF } from "@/components/hub/hubMobileTicketTokens";
@@ -94,6 +99,60 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
+/** Expiry shown on the list row (YYYY-MM-DD or ISO) with year so Ops can see validity. */
+function formatExpiryDate(iso: string | null | undefined): string | null {
+  const raw = iso?.trim();
+  if (!raw) return null;
+  try {
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+      ? new Date(`${raw}T00:00:00Z`)
+      : new Date(raw);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  } catch {
+    return null;
+  }
+}
+
+function documentUploadedLabel(row: {
+  doc?: { uploaded_at?: string | null; file_name?: string | null; uploaded_by?: string | null } | null;
+  entityDoc?: { created_at?: string | null } | null;
+}): string {
+  const uploaded = row.doc?.uploaded_at
+    ? `Uploaded ${formatDate(row.doc.uploaded_at)}`
+    : row.entityDoc?.created_at
+      ? `Uploaded ${formatDate(row.entityDoc.created_at)}`
+      : "Not uploaded";
+  const filePart = row.doc?.file_name
+    ? ` · ${row.doc.file_name}`
+    : row.doc?.uploaded_by
+      ? ` · ${row.doc.uploaded_by.slice(0, 8)}`
+      : "";
+  return `${uploaded}${filePart}`;
+}
+
+/** Dedicated expiry line for vehicle/driver entity docs — always visible when on file. */
+function documentExpiryLabel(row: {
+  status: string;
+  type: string;
+  entityDoc?: { expiry_date?: string | null; storage_path?: string | null } | null;
+}): string | null {
+  if (!row.entityDoc?.storage_path && row.status === "missing") return null;
+  const expiryLabel = formatExpiryDate(row.entityDoc?.expiry_date ?? null);
+  if (expiryLabel) {
+    return row.status === "expired" ? `Expired ${expiryLabel}` : `Expires ${expiryLabel}`;
+  }
+  if (row.type === "insurance" || row.type === "fitness" || row.type === "license") {
+    return "Expiry not set";
+  }
+  return null;
+}
+
 const VAULT_VEHICLE_TYPES = new Set(["rc", "insurance", "fitness", "pollution"]);
 
 export type ComplianceReviewScope = ComplianceChecklistGroup["key"];
@@ -103,7 +162,7 @@ const SCOPE_COPY: Record<
   { title: string; section: string; hint: string }
 > = {
   trip: {
-    title: "Compliance Review",
+    title: "Trip documents",
     section: "LR, E-WAY BILL, INVOICE",
     hint: "Upload or select LR, e-way bill, invoice, or another trip document.",
   },
@@ -183,8 +242,10 @@ export function ComplianceDocumentReviewSheet({
   const [uploadingMissing, setUploadingMissing] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [retryType, setRetryType] = useState<string | null>(null);
-  const [markingVerified, setMarkingVerified] = useState(false);
-  const [markVerifiedError, setMarkVerifiedError] = useState<string | null>(null);
+  const [expiryPrompt, setExpiryPrompt] = useState<{
+    docType: string;
+    resolve: (value: string | null) => void;
+  } | null>(null);
   const [exceptionPanelOpen, setExceptionPanelOpen] = useState(false);
   const [exceptionComment, setExceptionComment] = useState("");
   const [approvingException, setApprovingException] = useState(false);
@@ -218,7 +279,7 @@ export function ComplianceDocumentReviewSheet({
   const canModerateSelected =
     scope === "trip"
       ? Boolean(selected?.doc)
-      : selected?.entityDoc?.source !== "vehicle-vault" && selected?.entityDoc?.source !== "driver-kyc";
+      : Boolean(selected?.entityDoc) && selected?.entityDoc?.source !== "driver-kyc";
   const copy = SCOPE_COPY[scope];
   const entityId = scope === "vehicle" ? vehicleId : scope === "driver" ? driverId : tripId;
   const entityAssigned = scope === "trip" || Boolean(entityId);
@@ -239,6 +300,12 @@ export function ComplianceDocumentReviewSheet({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, tripId, scope]);
+
+  const promptExpiryDate = useCallback((docType: string) => {
+    return new Promise<string | null>((resolve) => {
+      setExpiryPrompt({ docType, resolve });
+    });
+  }, []);
 
   const stopProofForRow = useCallback((row: ComplianceDocRow | null) => {
     if (!row) return null;
@@ -302,6 +369,8 @@ export function ComplianceDocumentReviewSheet({
             source: scope === "trip" ? "trip" : row.entityDoc?.source,
             sourceEntityDocumentId: row.doc?.source_entity_document_id,
             organizationId,
+            entityId: row.entityDoc?.entity_id ?? entityId,
+            docType: row.type,
           }),
           resolveComplianceActorDetails(activity.map((entry) => entry.actorId), organizationId),
         ]);
@@ -328,7 +397,7 @@ export function ComplianceDocumentReviewSheet({
         setViewingKey(null);
       }
     },
-    [scope, stopProofForRow, canViewDocuments, organizationId],
+    [scope, stopProofForRow, canViewDocuments, organizationId, entityId],
   );
 
   const selectedStopProof = stopProofForRow(selected);
@@ -338,41 +407,104 @@ export function ComplianceDocumentReviewSheet({
       if (!actorId || !row) return;
       setBusy(true);
       setBusyRowKey(row.key);
-      if (scope === "trip") {
-        if (!row.doc) {
-          setBusy(false);
-          setBusyRowKey(null);
-          return;
+      try {
+        let expiryDate = row.entityDoc?.expiry_date?.trim() ?? "";
+        if (documentRequiresExpiry(row.type) && !expiryDate) {
+          const entered = await promptExpiryDate(row.type);
+          if (!entered) return;
+          const trimmed = entered.trim();
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+            alertMessage("Invalid expiry date", "Use YYYY-MM-DD (for example 2027-03-15).");
+            return;
+          }
+          expiryDate = trimmed;
         }
-        const { error } = await setTripDocumentVerification({
-          document: row.doc,
-          organizationId,
-          actorId,
-          status: "verified",
-        });
+
+        if (scope === "trip") {
+          if (!row.doc) return;
+          const { error } = await setTripDocumentVerification({
+            document: row.doc,
+            organizationId,
+            actorId,
+            status: "verified",
+          });
+          if (error) {
+            alertMessage("Couldn't approve document", error.message);
+            return;
+          }
+        } else if (
+          row.entityDoc?.source === "vehicle-vault" &&
+          scope === "vehicle" &&
+          vehicleId
+        ) {
+          if (documentRequiresExpiry(row.type)) {
+            const { error } = await updateVehicleDocumentExpiry(
+              organizationId,
+              vehicleId,
+              row.type as VehicleComplianceDocType,
+              expiryDate,
+              null,
+            );
+            if (error) {
+              // Cross-org vault write may fail — fall back to entity_documents expiry+verify when possible.
+              const resolved = await resolveVehicleDocumentsWriteTarget(vehicleId, [organizationId]);
+              if (!resolved) {
+                alertMessage(
+                  "Couldn't approve document",
+                  error.message ||
+                    "Could not save the expiry date on this vehicle. Re-upload with an expiry date, then Approve.",
+                );
+                return;
+              }
+              const retry = await updateVehicleDocumentExpiry(
+                resolved.orgId,
+                vehicleId,
+                row.type as VehicleComplianceDocType,
+                expiryDate,
+                resolved.documents,
+              );
+              if (retry.error) {
+                alertMessage("Couldn't approve document", retry.error.message);
+                return;
+              }
+            }
+          }
+          const marked = await markVehicleDocumentVerified(organizationId, vehicleId, row.type);
+          if (marked.error) {
+            alertMessage("Couldn't approve document", marked.error.message);
+            return;
+          }
+        } else if (row.entityDoc?.source === "driver-kyc") {
+          alertMessage(
+            "Couldn't approve document",
+            "Update this driver document from Trip Operations / Driver KYC, then refresh Compliance.",
+          );
+          return;
+        } else {
+          if (!row.entityDoc?.id) {
+            alertMessage("Couldn't approve document", "Document record is missing. Re-upload, then try again.");
+            return;
+          }
+          if (documentRequiresExpiry(row.type) && expiryDate) {
+            const { error: expiryError } = await updateEntityDocumentExpiry(row.entityDoc.id, expiryDate);
+            if (expiryError) {
+              alertMessage("Couldn't approve document", expiryError.message);
+              return;
+            }
+          }
+          const { error } = await verifyDocument(row.entityDoc.id, actorId);
+          if (error) {
+            alertMessage("Couldn't approve document", error.message);
+            return;
+          }
+        }
+        onChanged();
+      } finally {
         setBusy(false);
         setBusyRowKey(null);
-        if (error) {
-          alertMessage("Couldn't approve document", error.message);
-          return;
-        }
-      } else {
-        if (!row.entityDoc || row.entityDoc.source === "vehicle-vault" || row.entityDoc.source === "driver-kyc") {
-          setBusy(false);
-          setBusyRowKey(null);
-          return;
-        }
-        const { error } = await verifyDocument(row.entityDoc.id, actorId);
-        setBusy(false);
-        setBusyRowKey(null);
-        if (error) {
-          alertMessage("Couldn't approve document", error.message);
-          return;
-        }
       }
-      onChanged();
     },
-    [actorId, organizationId, onChanged, scope],
+    [actorId, organizationId, onChanged, scope, vehicleId, promptExpiryDate],
   );
 
   const handleRejectSubmit = useCallback(
@@ -403,9 +535,20 @@ export function ComplianceDocumentReviewSheet({
           return;
         }
       } else {
-        if (!row.entityDoc || row.entityDoc.source === "vehicle-vault" || row.entityDoc.source === "driver-kyc") {
+        if (!row.entityDoc || row.entityDoc.source === "driver-kyc") {
           setBusy(false);
           setBusyRowKey(null);
+          return;
+        }
+        if (row.entityDoc.source === "vehicle-vault") {
+          setBusy(false);
+          setBusyRowKey(null);
+          setRejectVisible(false);
+          setRejectTarget(null);
+          alertMessage(
+            "Couldn't decline document",
+            "Replace this file from the vehicle vault, or upload a new copy in Compliance.",
+          );
           return;
         }
         const { error } = await rejectDocument(row.entityDoc.id, values.reason);
@@ -423,27 +566,6 @@ export function ComplianceDocumentReviewSheet({
     [rejectTarget, selected, actorId, organizationId, onChanged, scope],
   );
 
-  const handleMarkVerified = useCallback(async () => {
-    if (!actorId) {
-      const message = "Your session is missing an actor id. Sign in again, then retry.";
-      setMarkVerifiedError(message);
-      alertMessage("Couldn't mark compliance verified", message);
-      return;
-    }
-    if (!tripVerifyCheck.ok) return;
-    setMarkVerifiedError(null);
-    setMarkingVerified(true);
-    const { error } = await markTripComplianceVerified({ tripId, actorId });
-    setMarkingVerified(false);
-    if (error) {
-      const message = formatMarkComplianceVerifiedError(error.message);
-      setMarkVerifiedError(message);
-      alertMessage("Couldn't mark compliance verified", message);
-      return;
-    }
-    onChanged();
-  }, [actorId, tripVerifyCheck.ok, tripId, onChanged]);
-
   const handleApproveWithException = useCallback(async () => {
     if (!exceptionComment.trim()) return;
     setExceptionError(null);
@@ -459,6 +581,25 @@ export function ComplianceDocumentReviewSheet({
     setExceptionComment("");
     onChanged();
   }, [exceptionComment, tripId, onChanged]);
+
+  const resolveExpiryForUpload = useCallback(
+    async (type: string): Promise<string | null> => {
+      const existing = rows.find((row) => row.type === type)?.entityDoc?.expiry_date?.trim() ?? "";
+      if (existing && /^\d{4}-\d{2}-\d{2}$/.test(existing)) return existing;
+      // Insurance, FC, and DL need an expiry. RC does not.
+      const needsExpiry = documentRequiresExpiry(type);
+      if (!needsExpiry) return existing || null;
+      const entered = await promptExpiryDate(type);
+      if (!entered) return documentRequiresExpiry(type) ? null : existing || null;
+      const trimmed = entered.trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        alertMessage("Invalid expiry date", "Use YYYY-MM-DD (for example 2027-03-15).");
+        return documentRequiresExpiry(type) ? null : existing || null;
+      }
+      return trimmed;
+    },
+    [promptExpiryDate, rows],
+  );
 
   const handleAddMissing = useCallback(
     async (type: string) => {
@@ -494,6 +635,13 @@ export function ComplianceDocumentReviewSheet({
           byteLength: arrayBuffer.byteLength,
         });
         if (!format.ok) throw new Error(format.reason);
+
+        let expiryDate: string | null = null;
+        if (scope === "vehicle" || scope === "driver") {
+          expiryDate = await resolveExpiryForUpload(type);
+          if (documentRequiresExpiry(type) && !expiryDate) return;
+        }
+
         if (scope === "trip") {
           const { error } = await uploadTripDocument(
             tripId,
@@ -505,24 +653,72 @@ export function ComplianceDocumentReviewSheet({
           );
           if (error) throw error;
         } else if (scope === "vehicle" && VAULT_VEHICLE_TYPES.has(type) && vehicleId) {
-          const { vehicle, error: vehicleError } = await getVehicleById(organizationId, vehicleId);
-          if (vehicleError) throw vehicleError;
-          const expiry =
-            rows.find((row) => row.type === type)?.entityDoc?.expiry_date ??
-            new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-          const { error } = await uploadAndSaveVehicleDocument(
-            organizationId,
-            vehicleId,
-            type as VehicleComplianceDocType,
-            {
-              arrayBuffer,
-              fileName,
-              mimeType: format.mimeType,
-            },
-            expiry,
-            vehicle?.documents ?? null,
-          );
-          if (error) throw error;
+          // Prefer the vehicle vault (vehicles.documents) when this org owns the
+          // truck. Cross-org / RLS-blocked vault writes fall back to
+          // entity_documents so Compliance can still collect mandatory RC/FC/etc.
+          const owned = await getVehicleById(organizationId, vehicleId);
+          if (owned.error) throw owned.error;
+
+          let savedToVault = false;
+          if (owned.vehicle) {
+            const { error: vaultError } = await uploadAndSaveVehicleDocument(
+              organizationId,
+              vehicleId,
+              type as VehicleComplianceDocType,
+              {
+                arrayBuffer,
+                fileName,
+                mimeType: format.mimeType,
+              },
+              expiryDate ?? "",
+              owned.vehicle.documents ?? null,
+            );
+            savedToVault = !vaultError;
+          } else {
+            // Vehicle may live on a supplier-linked org — resolve owning org then retry vault write.
+            const resolved = await resolveVehicleDocumentsWriteTarget(vehicleId, [organizationId]);
+            if (resolved) {
+              const { error: vaultError } = await uploadAndSaveVehicleDocument(
+                resolved.orgId,
+                vehicleId,
+                type as VehicleComplianceDocType,
+                {
+                  arrayBuffer,
+                  fileName,
+                  mimeType: format.mimeType,
+                },
+                expiryDate ?? "",
+                resolved.documents,
+              );
+              savedToVault = !vaultError;
+            }
+          }
+
+          if (!savedToVault) {
+            const existing = rows.find((row) => row.type === type)?.entityDoc;
+            if (existing?.source === "driver-kyc") {
+              throw new Error("Replace this file from Trip Operations Asset Vault.");
+            }
+            const upload = {
+              orgId: organizationId,
+              entityType: "vehicle" as const,
+              entityId: vehicleId,
+              docType: type,
+              file: {
+                arrayBuffer,
+                mimeType: format.mimeType,
+                fileName,
+              },
+              uploadedBy: actorId,
+              expiryDate: expiryDate || null,
+            };
+            const canReplaceEntity =
+              Boolean(existing?.id) && (existing?.source === "entity" || !existing?.source);
+            const { error } = canReplaceEntity
+              ? await replaceComplianceDocument({ existingDocId: existing!.id, upload })
+              : await uploadComplianceDocument(upload);
+            if (error) throw error;
+          }
         } else {
           const existing = rows.find((row) => row.type === type)?.entityDoc;
           if (existing?.source === "vehicle-vault" || existing?.source === "driver-kyc") {
@@ -539,6 +735,7 @@ export function ComplianceDocumentReviewSheet({
               fileName,
             },
             uploadedBy: actorId,
+            expiryDate: expiryDate || null,
           };
           const { error } = existing?.id
             ? await replaceComplianceDocument({ existingDocId: existing.id, upload })
@@ -561,10 +758,22 @@ export function ComplianceDocumentReviewSheet({
         setUploadingMissing(false);
       }
     },
-    [tripId, actorId, onChanged, scope, entityAssigned, entityId, organizationId, rows, unassignedMessage, vehicleId, uploadingMissing],
+    [
+      tripId,
+      actorId,
+      onChanged,
+      scope,
+      entityAssigned,
+      entityId,
+      organizationId,
+      rows,
+      unassignedMessage,
+      vehicleId,
+      uploadingMissing,
+      resolveExpiryForUpload,
+    ],
   );
 
-  const uploadedAt = selected?.doc?.uploaded_at ?? selected?.entityDoc?.created_at ?? null;
   const verifiedAt = selected?.doc?.verified_at ?? selected?.entityDoc?.verified_at ?? null;
   const rejectionReason = selected?.doc?.rejection_reason ?? selected?.entityDoc?.notes ?? null;
   const statusMeta = selected ? COMPLIANCE_STATUS_META[selected.status] : null;
@@ -574,6 +783,7 @@ export function ComplianceDocumentReviewSheet({
     const decisions = complianceReviewDecisionActions(row);
     const canModerate = canVerify && canModerateComplianceRow(row, scope);
     const rowBusy = busy && busyRowKey === row.key;
+    const expiryLine = documentExpiryLabel(row);
     const uploadLabel =
       uploadingMissing && retryType === row.type
         ? "Uploading…"
@@ -605,16 +815,7 @@ export function ComplianceDocumentReviewSheet({
                 </Text>
               </View>
               <Text style={styles.docMetaLine} numberOfLines={1}>
-                {row.doc?.uploaded_at
-                  ? `Uploaded ${formatDate(row.doc.uploaded_at)}`
-                  : row.entityDoc?.created_at
-                    ? `Uploaded ${formatDate(row.entityDoc.created_at)}`
-                    : "Not uploaded"}
-                {row.doc?.file_name
-                  ? ` · ${row.doc.file_name}`
-                  : row.doc?.uploaded_by
-                    ? ` · ${row.doc.uploaded_by.slice(0, 8)}`
-                    : ""}
+                {documentUploadedLabel(row)}
               </Text>
               {row.status === "rejected" && (row.doc?.rejection_reason || row.entityDoc?.notes) ? (
                 <Text style={styles.rejectReasonText} numberOfLines={2}>
@@ -628,8 +829,40 @@ export function ComplianceDocumentReviewSheet({
             </View>
           </TouchableOpacity>
           <View style={styles.docActions}>
-            <ComplianceStatusChip status={row.status} label={meta.label} compact />
+            <View style={styles.docStatusRow}>
+              {expiryLine ? (
+                <Text
+                  style={[
+                    styles.docExpiryBesideStatus,
+                    row.status === "expired" || expiryLine === "Expiry not set"
+                      ? styles.docExpiryLineWarn
+                      : null,
+                  ]}
+                  numberOfLines={1}
+                  accessibilityLabel={expiryLine}
+                >
+                  {expiryLine}
+                </Text>
+              ) : null}
+              <ComplianceStatusChip status={row.status} label={meta.label} compact />
+            </View>
             <View style={styles.docActionBtns}>
+              {actorId ? (
+                <TouchableOpacity
+                  disabled={uploadingMissing}
+                  onPress={() => handleAddMissing(row.type)}
+                  style={styles.eyeBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${uploadLabel} ${labelForDocType(row.type)}`}
+                >
+                  {uploadingMissing && retryType === row.type ? (
+                    <ActivityIndicator size="small" color={Theme.primary} />
+                  ) : (
+                    <Upload size={15} color={Theme.primary} strokeWidth={2.2} />
+                  )}
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 onPress={() => void openRowPreview(row)}
                 disabled={viewingKey != null || !canViewDocuments}
@@ -652,18 +885,6 @@ export function ComplianceDocumentReviewSheet({
                   />
                 )}
               </TouchableOpacity>
-              {canVerify && entityAssigned ? (
-                <TouchableOpacity
-                  disabled={uploadingMissing}
-                  onPress={() => handleAddMissing(row.type)}
-                  style={styles.addBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${uploadLabel} ${labelForDocType(row.type)}`}
-                >
-                  <Upload size={12} color={Theme.buttonPrimaryText} strokeWidth={2.4} />
-                  <Text style={styles.addBtnText}>{uploadLabel}</Text>
-                </TouchableOpacity>
-              ) : null}
             </View>
           </View>
         </View>
@@ -906,39 +1127,24 @@ export function ComplianceDocumentReviewSheet({
                   <Text style={styles.verifiedBannerText}>Compliance Verified ✓</Text>
                 </View>
               ) : null}
-              {scope === "trip" && canMarkVerified && !summary?.complianceVerifiedAt ? (
+              {scope === "trip" && canMarkVerified && !summary?.complianceVerifiedAt && !tripVerifyCheck.ok ? (
                 <View style={styles.footerActionsBlock}>
-                  {!tripVerifyCheck.ok ? (
-                    <Text style={styles.rejectReasonText}>
-                      {[
-                        readiness?.requiredDocs.missingLabels.length
-                          ? `Missing: ${readiness.requiredDocs.missingLabels.join(", ")}`
-                          : null,
-                        readiness?.requiredDocs.pendingLabels.length
-                          ? `Pending: ${readiness.requiredDocs.pendingLabels.join(", ")}`
-                          : null,
-                        readiness?.requiredDocs.rejectedLabels.length
-                          ? `Rejected: ${readiness.requiredDocs.rejectedLabels.join(", ")}`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </Text>
-                  ) : null}
-                  {markVerifiedError ? (
-                    <Text style={styles.rejectReasonText}>{markVerifiedError}</Text>
-                  ) : null}
-                  {tripVerifyCheck.ok ? (
-                    <TouchableOpacity
-                      style={styles.primaryCta}
-                      disabled={markingVerified}
-                      onPress={() => void handleMarkVerified()}
-                    >
-                      <Text style={styles.primaryCtaText}>
-                        {markingVerified ? "Marking verified…" : "Mark Compliance Verified"}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : !exceptionPanelOpen ? (
+                  <Text style={styles.rejectReasonText}>
+                    {[
+                      readiness?.requiredDocs.missingLabels.length
+                        ? `Missing: ${readiness.requiredDocs.missingLabels.join(", ")}`
+                        : null,
+                      readiness?.requiredDocs.pendingLabels.length
+                        ? `Pending: ${readiness.requiredDocs.pendingLabels.join(", ")}`
+                        : null,
+                      readiness?.requiredDocs.rejectedLabels.length
+                        ? `Rejected: ${readiness.requiredDocs.rejectedLabels.join(", ")}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </Text>
+                  {!exceptionPanelOpen ? (
                     <TouchableOpacity
                       style={[styles.primaryCta, !exceptionCheck.ok && styles.primaryCtaDisabled]}
                       disabled={!exceptionCheck.ok}
@@ -1040,12 +1246,27 @@ export function ComplianceDocumentReviewSheet({
               </View>
               <Text style={styles.docTitle}>{labelForDocType(selected.type)}</Text>
               <Text style={styles.docMeta}>
-                {uploadedAt ? `Uploaded ${formatDate(uploadedAt)}` : "Not uploaded"}
-                {selected.doc?.uploaded_by ? ` · ${selected.doc.uploaded_by.slice(0, 8)}` : ""}
+                {documentUploadedLabel(selected)}
                 {" · "}
                 {statusMeta?.label ?? selected.status}
                 {selected.status === "verified" && verifiedAt ? ` ${formatDate(verifiedAt)}` : ""}
               </Text>
+              {(() => {
+                const expiryLine = documentExpiryLabel(selected);
+                if (!expiryLine) return null;
+                return (
+                  <Text
+                    style={[
+                      styles.docExpiryLine,
+                      selected.status === "expired" || expiryLine === "Expiry not set"
+                        ? styles.docExpiryLineWarn
+                        : null,
+                    ]}
+                  >
+                    {expiryLine}
+                  </Text>
+                );
+              })()}
               {selected.status === "rejected" && rejectionReason ? (
                 <Text style={styles.rejectReasonText}>Reason: {rejectionReason}</Text>
               ) : null}
@@ -1061,7 +1282,9 @@ export function ComplianceDocumentReviewSheet({
                           <Text style={styles.approveBtnText}>{busy ? "Approving…" : "Approve"}</Text>
                         </TouchableOpacity>
                       ) : null}
-                      {selected.status !== "rejected" ? (
+                      {selected.status !== "rejected" &&
+                      selected.status !== "verified" &&
+                      selected.entityDoc?.source !== "vehicle-vault" ? (
                         <TouchableOpacity
                           style={styles.rejectBtn}
                           onPress={() => {
@@ -1091,6 +1314,27 @@ export function ComplianceDocumentReviewSheet({
           setRejectTarget(null);
         }}
         onSubmit={handleRejectSubmit}
+      />
+      <ComplianceInputModal
+        visible={expiryPrompt != null}
+        title={`Expiry date — ${expiryPrompt ? labelForDocType(expiryPrompt.docType) : "Document"}`}
+        fields={[
+          {
+            key: "expiry",
+            label: "Expiry date (YYYY-MM-DD)",
+            placeholder: "2027-03-15",
+            required: true,
+          },
+        ]}
+        confirmLabel="Continue"
+        onCancel={() => {
+          expiryPrompt?.resolve(null);
+          setExpiryPrompt(null);
+        }}
+        onSubmit={(values) => {
+          expiryPrompt?.resolve(values.expiry ?? null);
+          setExpiryPrompt(null);
+        }}
       />
       <ComplianceDocumentPreviewModal
         visible={lightbox != null}
@@ -1374,7 +1618,23 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     alignItems: "flex-end",
     gap: 8,
-    maxWidth: "46%",
+    maxWidth: "52%",
+  },
+  docStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+    gap: 6,
+    maxWidth: "100%",
+  },
+  docExpiryBesideStatus: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Theme.textPrimary,
+    flexShrink: 1,
+    minWidth: 0,
+    textAlign: "right",
   },
   docActionBtns: {
     flexDirection: "row",
@@ -1497,6 +1757,16 @@ const styles = StyleSheet.create({
   docMeta: { fontSize: 12, color: Theme.textMuted, marginTop: 2 },
   rejectReasonText: { fontSize: 12, color: Theme.teslaRed, lineHeight: 16 },
   docMetaLine: { fontSize: 11, color: Theme.textMuted, lineHeight: 15 },
+  docExpiryLine: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Theme.textPrimary,
+    lineHeight: 16,
+    marginTop: 1,
+  },
+  docExpiryLineWarn: {
+    color: Theme.complianceStageDocsFg,
+  },
   actionsRow: { flexDirection: "row", gap: 10, marginTop: 8 },
   approveBtn: {
     flex: 1,

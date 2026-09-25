@@ -10,6 +10,8 @@ import {
   formatLrVaultNumberLabel,
   isEwayBillVaultDoc,
   isLrVaultDoc,
+  isTripDetailsVaultDoc,
+  isDriverPodVaultDoc,
   type TripDocItem,
   vaultDocHasPreviewableFile,
 } from '@/features/trips/components/trip-detail/tripDocTypes';
@@ -57,8 +59,11 @@ type Props = {
   uploadingDocId: string | null;
   vehicleId: string | null;
   onCardPress: (doc: TripDocItem) => void;
+  onAddPress?: (doc: TripDocItem) => void;
   ewayStripRows?: EwayBillStripRow[];
   onViewEwayBill?: (rowId: string) => void;
+  onUploadEwayBill?: (rowId: string) => void;
+  canUploadEwayBill?: boolean;
   canEditEwayBill?: boolean;
   onSaveEwayBill?: (values: EwayFieldValues[]) => Promise<boolean>;
 };
@@ -69,8 +74,11 @@ export function TripAssetVaultPanel({
   uploadingDocId,
   vehicleId: _vehicleId,
   onCardPress,
+  onAddPress,
   ewayStripRows = [],
   onViewEwayBill,
+  onUploadEwayBill,
+  canUploadEwayBill,
   canEditEwayBill,
   onSaveEwayBill,
 }: Props) {
@@ -100,23 +108,13 @@ export function TripAssetVaultPanel({
           const palette = toneStyles(tone);
           const isUploading = uploadingDocId === doc.id;
           const isPending = doc.status === 'Pending';
-          const isVehicleDoc = doc.id === 'vehicle-documents';
-          const showUploadPrimary = isPending && canUploadTripDocs && !isVehicleDoc;
-          const previewDisabled =
-            isVehicleDoc && !vaultDocHasPreviewableFile(doc);
-          const actionLabel = isPending
-            ? isVehicleDoc
-              ? 'Preview'
-              : canUploadTripDocs
-                ? 'Upload'
-                : 'Pending'
-            : 'View';
-          const actionIcon = showUploadPrimary
-            ? 'upload'
-            : isPending && !isVehicleDoc
-              ? 'external-link'
-              : 'eye';
-          const showPrimaryAction = showUploadPrimary;
+          const previewReady = vaultDocHasPreviewableFile(doc);
+          const showAddBtn = Boolean(canUploadTripDocs && onAddPress);
+          const opensDialog =
+            isTripDetailsVaultDoc(doc) ||
+            doc.id === "vehicle-documents" ||
+            doc.id === "driver-documents" ||
+            isDriverPodVaultDoc(doc);
 
           return (
             <MotiView
@@ -145,67 +143,91 @@ export function TripAssetVaultPanel({
                   <Text style={[styles.statusText, palette.chipText]} numberOfLines={1}>
                     {!isPending && isLrVaultDoc(doc)
                       ? formatLrVaultNumberLabel(doc.documentNumber) || doc.status
+                      : isTripDetailsVaultDoc(doc)
+                      ? doc.status
                       : !isPending && (doc.files?.length ?? 0) > 1
-                      ? doc.id === 'vehicle-documents'
+                      ? doc.id === 'vehicle-documents' || doc.id === 'driver-documents' || doc.id === 'trip-details'
                         ? doc.type
                         : `${doc.files?.length} files`
                       : doc.documentNumber?.trim()
                         ? doc.documentNumber.trim()
-                        : doc.id === 'vehicle-documents'
+                        : doc.id === 'vehicle-documents' || doc.id === 'driver-documents' || doc.id === 'trip-details'
                           ? doc.type
                           : doc.status}
                   </Text>
                 </View>
               </View>
 
-              <Text style={styles.cardTitle} numberOfLines={2}>
-                {doc.label}
-              </Text>
-
               <TouchableOpacity
-                style={[
-                  styles.actionBtn,
-                  showPrimaryAction && styles.actionBtnPrimary,
-                  previewDisabled && styles.actionBtnDisabled,
-                ]}
+                activeOpacity={opensDialog ? 0.88 : 1}
+                disabled={isUploading || !opensDialog}
                 onPress={() => onCardPress(doc)}
-                activeOpacity={0.88}
-                disabled={isUploading || previewDisabled}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: previewDisabled }}
-                accessibilityLabel={
-                  previewDisabled
-                    ? `${doc.label} preview unavailable — no document on file`
-                    : `${actionLabel} ${doc.label}`
-                }
+                accessibilityRole={opensDialog ? "button" : undefined}
+                accessibilityLabel={opensDialog ? `Open ${doc.label}` : undefined}
               >
-                {isUploading ? (
-                  <LoadingIndicator size="small" color={Theme.textMuted} />
-                ) : (
-                  <>
-                    <Feather
-                      name={actionIcon}
-                      size={12}
-                      color={
-                        previewDisabled
-                          ? Theme.textMuted
-                          : showPrimaryAction
-                            ? Theme.brandBlueInk
-                            : Theme.textMuted
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.actionText,
-                        showPrimaryAction && styles.actionTextPrimary,
-                        previewDisabled && styles.actionTextDisabled,
-                      ]}
-                    >
-                      {actionLabel}
-                    </Text>
-                  </>
-                )}
+                <Text style={styles.cardTitle} numberOfLines={2}>
+                  {doc.label}
+                </Text>
               </TouchableOpacity>
+
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.actionBtn,
+                    styles.actionBtnFlex,
+                    previewReady ? styles.actionBtnPreview : styles.actionBtnPreviewIdle,
+                  ]}
+                  onPress={() => onCardPress(doc)}
+                  activeOpacity={0.88}
+                  disabled={isUploading || (!previewReady && !opensDialog)}
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    disabled: !previewReady && !opensDialog,
+                  }}
+                  accessibilityLabel={
+                    opensDialog
+                      ? `Open ${doc.label}`
+                      : previewReady
+                      ? `Preview ${doc.label}`
+                      : `${doc.label} preview unavailable — no document on file`
+                  }
+                >
+                  {isUploading ? (
+                    <LoadingIndicator
+                      size="small"
+                      color={previewReady ? Theme.buttonDarkText : Theme.textMuted}
+                    />
+                  ) : (
+                    <>
+                      <Feather
+                        name="eye"
+                        size={12}
+                        color={previewReady ? Theme.buttonDarkText : Theme.textMuted}
+                      />
+                      <Text
+                        style={
+                          previewReady ? styles.actionTextPreview : styles.actionTextPreviewIdle
+                        }
+                      >
+                        Preview
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                {showAddBtn ? (
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.actionBtnPrimary, styles.actionBtnFlex]}
+                    onPress={() => onAddPress?.(doc)}
+                    activeOpacity={0.88}
+                    disabled={isUploading}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${doc.label}`}
+                  >
+                    <Feather name="plus" size={12} color={Theme.brandBlueInk} />
+                    <Text style={styles.actionTextPrimary}>Add</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </MotiView>
           );
         })}
@@ -214,6 +236,8 @@ export function TripAssetVaultPanel({
         <EwayBillLrStrip
           rows={ewayStripRows}
           onView={onViewEwayBill ?? (() => undefined)}
+          onUpload={onUploadEwayBill}
+          canUpload={canUploadEwayBill}
           canEdit={canEditEwayBill}
           onSave={onSaveEwayBill}
         />
@@ -400,10 +424,14 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     minHeight: 32,
   },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    width: '100%',
+  },
   actionBtn: {
-    alignSelf: 'stretch',
     borderRadius: 10,
-    backgroundColor: Theme.surface,
     borderWidth: 1,
     borderColor: Theme.borderLight,
     paddingHorizontal: 10,
@@ -414,22 +442,34 @@ const styles = StyleSheet.create({
     gap: 6,
     minHeight: 34,
   },
+  actionBtnFlex: {
+    flex: 1,
+  },
+  actionBtnPreview: {
+    backgroundColor: Theme.buttonDark,
+    borderColor: Theme.buttonDark,
+  },
+  actionBtnPreviewIdle: {
+    backgroundColor: Theme.surface,
+    borderColor: Theme.borderLight,
+  },
   actionBtnPrimary: {
     backgroundColor: Theme.brandBlueWashSubtle,
     borderColor: Theme.brandBlueRing,
   },
-  actionText: {
+  actionTextPreview: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Theme.buttonDarkText,
+  },
+  actionTextPreviewIdle: {
     fontSize: 11,
     fontWeight: '700',
     color: Theme.textMuted,
   },
   actionTextPrimary: {
+    fontSize: 11,
+    fontWeight: '700',
     color: Theme.brandBlueInk,
-  },
-  actionBtnDisabled: {
-    opacity: 0.55,
-  },
-  actionTextDisabled: {
-    color: Theme.textMuted,
   },
 });

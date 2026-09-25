@@ -59,6 +59,56 @@ describe("deriveComplianceQueueReadiness", () => {
     expect(readiness.readyCategory).toBe("compliance_advance");
   });
 
+  it("alerts and blocks payment when RC or insurance is expired", () => {
+    const readiness = deriveComplianceQueueReadiness(
+      summaryFixture({
+        complianceVerifiedAt: "2026-09-01",
+        documents: ["lr", "eway_bill", "invoice"].map((type) => ({
+          id: type,
+          trip_id: "trip-1",
+          document_type: type,
+          file_name: `${type}.pdf`,
+          storage_path: type,
+          uploaded_at: "2026-09-01",
+          status: "verified" as const,
+          verified_by: "u1",
+          verified_at: "2026-09-01",
+          rejection_reason: null,
+        })),
+        vehicleDocuments: [
+          {
+            id: "v-rc",
+            entity_type: "vehicle",
+            entity_id: "v1",
+            doc_type: "rc",
+            status: "active",
+            storage_path: "org/v1/rc.pdf",
+            expiry_date: "2020-01-01",
+            verified_at: null,
+            notes: null,
+            created_at: "2026-01-01",
+          },
+          {
+            id: "v-ins",
+            entity_type: "vehicle",
+            entity_id: "v1",
+            doc_type: "insurance",
+            status: "active",
+            storage_path: "org/v1/insurance.pdf",
+            expiry_date: "2020-06-01",
+            verified_at: null,
+            notes: null,
+            created_at: "2026-01-01",
+          },
+        ],
+      }),
+    );
+    expect(readiness.expiredVehicleDocs).toEqual(["RC", "Insurance"]);
+    expect(readiness.paymentReady).toBe(false);
+    expect(readiness.nextAction).toBe("Replace expired RC");
+    expect(readiness.blockerLines.some((line) => line.includes("Expired: RC, Insurance"))).toBe(true);
+  });
+
   it("does not treat on-file pending docs as verified", () => {
     const readiness = deriveComplianceQueueReadiness(
       summaryFixture({
