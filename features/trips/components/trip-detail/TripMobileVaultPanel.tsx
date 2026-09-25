@@ -4,7 +4,7 @@
  */
 import { LoadingIndicator } from "@/components/LoadingIndicator";
 import Theme from "@/constants/Theme";
-import { canMutateTripVaultDoc, formatInvoiceVaultNumberLabel, formatLrVaultDateLabel, formatLrVaultNumberLabel, isEwayBillVaultDoc, isLrVaultDoc, isTripDetailsVaultDoc, type TripDocItem, VAULT_DOC_LIMIT_HINT, vaultDocHasPreviewableFile } from "@/features/trips/components/trip-detail/tripDocTypes";
+import { canMutateTripVaultDoc, formatLrVaultDateLabel, formatLrVaultNumberLabel, isDriverPodVaultDoc, isEwayBillVaultDoc, isLrVaultDoc, isTripDetailsVaultDoc, type TripDocItem, VAULT_DOC_LIMIT_HINT, vaultDocHasPreviewableFile } from "@/features/trips/components/trip-detail/tripDocTypes";
 import {
   EwayBillLrStrip,
   type EwayBillStripRow,
@@ -327,20 +327,25 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
               ? formatLrVaultDateLabel(doc.documentDate)
               : null;
 
+            const opensDialog =
+              isTripDetailsVaultDoc(doc) ||
+              doc.id === "vehicle-documents" ||
+              doc.id === "driver-documents" ||
+              isDriverPodVaultDoc(doc);
             return (
               <View key={doc.id} style={styles.card}>
                 <TouchableOpacity
                   onPress={() => {
-                    if (isTripDetailsVaultDoc(doc) || showPreviewBtn) onCardPress(doc);
+                    if (opensDialog || showPreviewBtn) onCardPress(doc);
                   }}
                   activeOpacity={0.88}
-                  disabled={isUploading || (!showPreviewBtn && !isTripDetailsVaultDoc(doc))}
+                  disabled={isUploading || (!showPreviewBtn && !opensDialog)}
                   accessibilityRole="button"
                   accessibilityState={{
-                    disabled: isUploading || (!showPreviewBtn && !isTripDetailsVaultDoc(doc)),
+                    disabled: isUploading || (!showPreviewBtn && !opensDialog),
                   }}
                   accessibilityLabel={
-                    isTripDetailsVaultDoc(doc)
+                    opensDialog
                       ? `Open ${doc.label}`
                       : showPreviewBtn
                       ? `Preview ${doc.label}`
@@ -404,7 +409,7 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
                                   ? doc.files.map((file) => file.label).join(" · ")
                                   : doc.type
                             : doc.id === "trip-details"
-                              ? formatInvoiceVaultNumberLabel(doc.invoiceNumber) || doc.type
+                              ? doc.status
                             : doc.documentNumber?.trim()
                                 ? `No. ${doc.documentNumber.trim()}`
                                 : (doc.files?.length ?? 0) > 1

@@ -7,11 +7,11 @@ import {
   type EwayFieldValues,
 } from '@/features/trips/components/trip-detail/EwayBillVaultTab';
 import {
-  formatInvoiceVaultNumberLabel,
   formatLrVaultNumberLabel,
   isEwayBillVaultDoc,
   isLrVaultDoc,
   isTripDetailsVaultDoc,
+  isDriverPodVaultDoc,
   type TripDocItem,
   vaultDocHasPreviewableFile,
 } from '@/features/trips/components/trip-detail/tripDocTypes';
@@ -110,6 +110,11 @@ export function TripAssetVaultPanel({
           const isPending = doc.status === 'Pending';
           const previewReady = vaultDocHasPreviewableFile(doc);
           const showAddBtn = Boolean(canUploadTripDocs && onAddPress);
+          const opensDialog =
+            isTripDetailsVaultDoc(doc) ||
+            doc.id === "vehicle-documents" ||
+            doc.id === "driver-documents" ||
+            isDriverPodVaultDoc(doc);
 
           return (
             <MotiView
@@ -139,7 +144,7 @@ export function TripAssetVaultPanel({
                     {!isPending && isLrVaultDoc(doc)
                       ? formatLrVaultNumberLabel(doc.documentNumber) || doc.status
                       : isTripDetailsVaultDoc(doc)
-                      ? formatInvoiceVaultNumberLabel(doc.invoiceNumber) || doc.type
+                      ? doc.status
                       : !isPending && (doc.files?.length ?? 0) > 1
                       ? doc.id === 'vehicle-documents' || doc.id === 'driver-documents' || doc.id === 'trip-details'
                         ? doc.type
@@ -153,9 +158,17 @@ export function TripAssetVaultPanel({
                 </View>
               </View>
 
-              <Text style={styles.cardTitle} numberOfLines={2}>
-                {doc.label}
-              </Text>
+              <TouchableOpacity
+                activeOpacity={opensDialog ? 0.88 : 1}
+                disabled={isUploading || !opensDialog}
+                onPress={() => onCardPress(doc)}
+                accessibilityRole={opensDialog ? "button" : undefined}
+                accessibilityLabel={opensDialog ? `Open ${doc.label}` : undefined}
+              >
+                <Text style={styles.cardTitle} numberOfLines={2}>
+                  {doc.label}
+                </Text>
+              </TouchableOpacity>
 
               <View style={styles.actionRow}>
                 <TouchableOpacity
@@ -166,11 +179,13 @@ export function TripAssetVaultPanel({
                   ]}
                   onPress={() => onCardPress(doc)}
                   activeOpacity={0.88}
-                  disabled={isUploading || (!previewReady && !isTripDetailsVaultDoc(doc))}
+                  disabled={isUploading || (!previewReady && !opensDialog)}
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: !previewReady && !isTripDetailsVaultDoc(doc) }}
+                  accessibilityState={{
+                    disabled: !previewReady && !opensDialog,
+                  }}
                   accessibilityLabel={
-                    isTripDetailsVaultDoc(doc)
+                    opensDialog
                       ? `Open ${doc.label}`
                       : previewReady
                       ? `Preview ${doc.label}`
