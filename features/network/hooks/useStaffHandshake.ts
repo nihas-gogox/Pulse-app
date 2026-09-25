@@ -7,11 +7,15 @@
 import { upsertTripSubcontract } from "@/features/finance/services/tripSubcontracts.service";
 import { acceptAwardedQuote } from "@/features/indents/services/accept-awarded-quote.service";
 import {
+  createMoverAssetTrip,
   createTripFromAssignedIndent,
 } from "@/features/indents/services/indentConversionService";
 import { getAcceptedDirectQuoteForIndent } from "@/features/indents/services/direct-quotes.service";
 import { updateIndent, type DirectQuoteRow, type IndentRow } from "@/features/indents";
-import { resolveIndentDeployQuoteWithFreshQuote } from "@/features/indents/utils/resolveIndentDeployQuote.util";
+import {
+  resolveIndentDeployQuote,
+  resolveIndentDeployQuoteWithFreshQuote,
+} from "@/features/indents/utils/resolveIndentDeployQuote.util";
 import {
   isDeployTripDetailsReady,
   parseTonsInputToWeightKg,
@@ -21,7 +25,6 @@ import {
   seedDeployWeightTonsFromIndent,
 } from "@/features/indents/utils/indentDeployTripDetails.util";
 import { isValidIsoDateString } from "@/lib/dateIso.util";
-import { setInitialTripForDetail } from "@/features/trips/initialTripForDetail";
 import {
   assignAggregateTripDriverByPhone,
   getDriverAvailabilityByPhoneGlobal,
@@ -35,6 +38,7 @@ import { lookupDriversByPhoneVariants } from "@/features/trips/utils/driverPhone
 import { updateDirectQuoteAssignment } from "@/features/indents";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import { useInvalidateIndents, useInvalidateTrips } from "@/lib/queries";
+import { ROUTES } from "@/lib/routes";
 import { queryKeys } from "@/lib/queryKeys";
 import { validatePhone } from "@/lib/phoneValidation";
 import { formatIndianVehicleNumber } from "@/lib/format";
@@ -89,16 +93,21 @@ async function createDeployTripFromAward(
   myQuotes: DirectQuoteRow[],
   assignment: DeployTripAssignment,
 ): Promise<{ error: Error | null; trip: TripRow | null }> {
-  const { quote: freshQuote } = await getAcceptedDirectQuoteForIndent(
-    orgId,
-    load.id,
-  );
-  const resolution = resolveIndentDeployQuoteWithFreshQuote(
-    load,
-    orgId,
-    myQuotes,
-    freshQuote,
-  );
+  const cachedResolution = resolveIndentDeployQuote(load, orgId, myQuotes);
+  let resolution =
+    cachedResolution?.mode === "direct_quote" ? cachedResolution : null;
+  if (!resolution) {
+    const { quote: freshQuote } = await getAcceptedDirectQuoteForIndent(
+      orgId,
+      load.id,
+    );
+    resolution = resolveIndentDeployQuoteWithFreshQuote(
+      load,
+      orgId,
+      myQuotes,
+      freshQuote,
+    );
+  }
   if (!resolution) {
     return {
       error: new Error("No accepted quote found for this load."),
@@ -129,6 +138,7 @@ export interface StaffHandshakeResult {
   state: {
     isOpen: boolean;
     currentLoad: IndentRow | null;
+    closingToList: boolean;
     isDeploying: boolean;
     showOtp: boolean;
     // form fields (read-only for modal display):
@@ -219,6 +229,7 @@ export function useStaffHandshake({
   // FSM-style open/close state
   const [currentLoad, setCurrentLoad] = useState<IndentRow | null>(null);
   const [isDeploying, setIsDeploying] = useState(false);
+  const [closingToList, setClosingToList] = useState(false);
 
   // Form fields
   const [useAdHocDriver, setUseAdHocDriver] = useState(false);
@@ -307,42 +318,15 @@ export function useStaffHandshake({
       setAggregatePhoneNotFound(false);
       setAggregatePhoneInTrip(false);
 
-      lookupDriversByPhoneVariants(trimmed).then(async ({ matches, error }) => {
+      lookupDriversByPhoneVariants(trimmed).then(({ matches, error }) => {
         if (aggregatePhoneLookupGenRef.current !== gen) return;
         setAggregatePhoneLookupLoading(false);
         setAggregatePhoneMatches(matches);
+        setAggregatePhoneInTrip(false);
 
         const foundName = matches[0]?.full_name?.trim() || null;
         setAggregatePhoneName(foundName);
         setAggregatePhoneNotFound(!error && matches.length === 0);
-
-        if (!orgId) {
-          if (
-            matches.length === 1 &&
-            !aggregateDriverNameManualRef.current
-          ) {
-            applyAggregatePhoneMatch(matches[0]);
-          }
-          return;
-        }
-
-        const { result } = await getDriverAvailabilityByPhoneGlobal(last10, {
-          anyOpenTripBlocks: true,
-          requireAuthoritativeRpc: true,
-        });
-        if (aggregatePhoneLookupGenRef.current !== gen) return;
-
-        const busy = result.isBusy;
-        setAggregatePhoneInTrip(busy);
-
-        if (busy) {
-          setAggregatePhoneSelectedUserId(null);
-          setAggregatePhoneName(null);
-          if (!aggregateDriverNameManualRef.current) {
-            setAggregateDriverTrackingName("");
-          }
-          return;
-        }
 
         if (matches.length === 1 && !aggregateDriverNameManualRef.current) {
           applyAggregatePhoneMatch(matches[0]);
@@ -353,7 +337,7 @@ export function useStaffHandshake({
       if (aggregatePhoneLookupTimeoutRef.current)
         clearTimeout(aggregatePhoneLookupTimeoutRef.current);
     };
-  }, [aggregateDriverPhone, orgId, applyAggregatePhoneMatch]);
+  }, [aggregateDriverPhone, applyAggregatePhoneMatch]);
 
   // Computed readiness flags
   const rosterReady =
@@ -424,6 +408,17 @@ export function useStaffHandshake({
     setCurrentLoad(null);
     resetForm();
   }, [resetForm]);
+
+  /** Deploy finished — leave the wizard. Do not keep the claim-code step open. */
+  const leaveToTripList = useCallback(() => {
+    setClosingToList(true);
+    setIsDeploying(false);
+    setDeployOtpCode(null);
+    setDeployOtpExpiresAt(null);
+    setDeployTripIdForOtp(null);
+    setCurrentLoad(null);
+    router.replace(ROUTES.TABS.TRIPS);
+  }, [router]);
 
   const backFromOtp = useCallback(() => {
     if (deployOtpCode) {
@@ -509,8 +504,21 @@ export function useStaffHandshake({
        * Non-fatal: the trip exists and is assigned, so a failure here is
        * surfaced and the assigner can set pay from the trip screen.
        */
+      /**
+       * Quote conversion already creates the mover's asset trip. Assigned-indent
+       * conversion does not. The driver's pay belongs on the mover's trip.
+       * The shipper trip is the market payable (supplier_rate), not driver pay.
+       */
+      let payTripId = trip.id;
+      if (trip.organization_id && trip.organization_id !== orgId) {
+        const mover = await createMoverAssetTrip(load.id, {
+          driverId: assignDriverId,
+          vehicleId: assignVehicleId,
+        });
+        if (!mover.error && mover.trip) payTripId = mover.trip.id;
+      }
       const { error: payErr } = await stampTripDriverPayFromTerms(
-        trip.id,
+        payTripId,
         assignDriverId,
         orgId,
       );
@@ -521,22 +529,9 @@ export function useStaffHandshake({
         );
       }
       await updateIndent(load.id, { status: "completed" });
-      setCurrentLoad(null);
-      setAssignDriverId(null);
-      setAssignVehicleId(undefined);
-      setAssignVehicleRegistration("");
-      setUseAdHocDriver(false);
       onSuccess("Voyage authorized — trip created.");
       refreshAfterDeploy(orgId);
-      const isShipper = load.organization_id === orgId;
-      if (isShipper) {
-        router.push("/(tabs)/trips" as import("expo-router").Href);
-      } else if (trip?.id) {
-        setInitialTripForDetail(trip);
-        router.push(
-          `/trip/${trip.id}?entryContext=supplier` as import("expo-router").Href,
-        );
-      }
+      leaveToTripList();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error.";
       Alert.alert("Could not deploy", msg);
@@ -558,7 +553,7 @@ export function useStaffHandshake({
     tripDetailsReady,
     refreshAfterDeploy,
     onSuccess,
-    router,
+    leaveToTripList,
   ]);
 
   const deployAdHoc = useCallback(async () => {
@@ -730,16 +725,17 @@ export function useStaffHandshake({
       };
 
       if (deferHandshakeAssignment || !phoneTrimmed || phoneErr) {
-        await saveSubcontract();
-        await updateIndent(load.id, { status: "completed" });
+        await Promise.all([
+          saveSubcontract(),
+          updateIndent(load.id, { status: "completed" }),
+        ]);
         refreshAfterDeploy(orgId);
-        setCurrentLoad(null);
-        setIsDeploying(false);
         onSuccess(
           deferHandshakeAssignment
             ? "Trip created — add driver and vehicle on trip detail when ready."
             : "Trip created (OTP not generated)",
         );
+        leaveToTripList();
         return;
       }
       const { error: availabilityError, result: availability } =
@@ -752,19 +748,16 @@ export function useStaffHandshake({
         throw availabilityError;
       }
       if (availability.isBusy) {
-        await saveSubcontract();
-        await updateIndent(load.id, { status: "completed" });
+        await Promise.all([
+          saveSubcontract(),
+          updateIndent(load.id, { status: "completed" }),
+        ]);
         refreshAfterDeploy(orgId);
-        setCurrentLoad(null);
-        setIsDeploying(false);
         Alert.alert(
           "Trip created",
           `Driver is already assigned to ${availability.ongoingTripLabel ?? "another ongoing trip"}.\n\nComplete or unassign that trip before assigning this one.`,
         );
-        setInitialTripForDetail(trip);
-        router.push(
-          `/trip/${trip.id}?entryContext=supplier` as import("expo-router").Href,
-        );
+        leaveToTripList();
         return;
       }
 
@@ -779,19 +772,16 @@ export function useStaffHandshake({
           nameTrimmed,
         );
       if (assignAggErr) {
-        await saveSubcontract();
-        await updateIndent(load.id, { status: "completed" });
+        await Promise.all([
+          saveSubcontract(),
+          updateIndent(load.id, { status: "completed" }),
+        ]);
         refreshAfterDeploy(orgId);
-        setCurrentLoad(null);
-        setIsDeploying(false);
         Alert.alert(
           "Trip created",
           `Driver could not be assigned. ${humanizeTripIdInRpcError(assignAggErr.message, trip)}\n\nAssign driver from trip detail to generate OTP.`,
         );
-        setInitialTripForDetail(trip);
-        router.push(
-          `/trip/${trip.id}?entryContext=supplier` as import("expo-router").Href,
-        );
+        leaveToTripList();
         return;
       }
 
@@ -801,42 +791,22 @@ export function useStaffHandshake({
       // here so the dispatcher isn't shown a code that will never be
       // consumed and looks like a pending step that doesn't actually apply.
       if (!driverLinked) {
-        const {
-          error: otpErr,
-          code,
-          expires_at,
-        } = await generateTripOtp(trip.id);
+        const { error: otpErr, code } = await generateTripOtp(trip.id);
         if (otpErr || !code) {
-          await saveSubcontract();
-          await updateIndent(load.id, { status: "completed" });
-          refreshAfterDeploy(orgId);
-          setCurrentLoad(null);
-          setIsDeploying(false);
           Alert.alert(
             "Trip created",
             "OTP could not be generated. Get OTP from the trip detail screen.",
           );
-          setInitialTripForDetail(trip);
-          router.push(
-            `/trip/${trip.id}?entryContext=supplier` as import("expo-router").Href,
-          );
-          return;
         }
-
-        setDeployOtpCode(code);
-        setDeployOtpExpiresAt(expires_at ?? null);
-        setDeployTripIdForOtp(trip.id);
       }
 
-      await saveSubcontract();
-
-      await updateIndent(load.id, { status: "completed" });
+      await Promise.all([
+        saveSubcontract(),
+        updateIndent(load.id, { status: "completed" }),
+      ]);
       refreshAfterDeploy(orgId);
-      if (driverLinked) {
-        setCurrentLoad(null);
-        setIsDeploying(false);
-      }
       onSuccess(driverLinked ? "Trip created" : "OTP generated");
+      leaveToTripList();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error.";
       Alert.alert("Could not deploy", msg);
@@ -864,13 +834,14 @@ export function useStaffHandshake({
     queryClient,
     refreshAfterDeploy,
     onSuccess,
-    router,
+    leaveToTripList,
   ]);
 
   return {
     state: {
       isOpen: currentLoad !== null,
       currentLoad,
+      closingToList,
       isDeploying,
       showOtp: deployOtpCode !== null,
       useAdHocDriver,

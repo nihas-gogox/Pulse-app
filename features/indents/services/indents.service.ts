@@ -675,11 +675,15 @@ async function prepareIndentForSupplierViewer(
 /** Fetch a single indent by id (for detail screen). */
 export async function getIndentById(
   indentId: string,
+  options?: { includeActiveTrip?: boolean },
 ): Promise<{ error: Error | null; indent: IndentRow | null }> {
+  const includeActiveTrip = options?.includeActiveTrip !== false;
   const { data, error } = await supabase()
     .from("indents")
     .select(
-      "*, active_trip:trips!trips_indent_id_fkey(trip_operational_code, trip_number, trip_code)",
+      includeActiveTrip
+        ? "*, active_trip:trips!trips_indent_id_fkey(trip_operational_code, trip_number, trip_code)"
+        : "*",
     )
     .eq("id", indentId)
     .maybeSingle();
@@ -709,7 +713,16 @@ export async function getVisibleIndentById(
   const raw = (indentIdOrDisplayId ?? "").trim();
   if (!raw) return { error: null, indent: null };
 
-  const direct = await getIndentById(raw);
+  const cached = options?.marketIndentsHint
+    ? findIndentInMarketList(options.marketIndentsHint, raw)
+    : null;
+  // The list the user just left already has this indent. Return it before
+  // the owner read (which embeds trips) and before the full market scan.
+  if (cached) {
+    return { error: null, indent: cached };
+  }
+
+  const direct = await getIndentById(raw, { includeActiveTrip: false });
   if (direct.error) return direct;
   if (direct.indent) {
     const prepared = await prepareIndentForSupplierViewer(direct.indent, orgId);
@@ -717,18 +730,6 @@ export async function getVisibleIndentById(
   }
 
   if (!orgId) return { error: null, indent: null };
-
-  const cached = options?.marketIndentsHint
-    ? findIndentInMarketList(options.marketIndentsHint, raw)
-    : null;
-  // Only trust the hint when it carries `weight`. The market RPCs gained that
-  // column after release, so a persisted pre-upgrade Find Work list (6h maxAge,
-  // no cache buster) yields rows with weight === undefined. Accepting one would
-  // skip the RPC and leave the deploy Tons field blank for the whole cache
-  // lifetime. Falling through costs one RPC call on a cold-shape cache.
-  if (cached && cached.weight != null) {
-    return { error: null, indent: cached };
-  }
 
   const { error: marketErr, indents } =
     await getMarketIndentsForOrganization(orgId);

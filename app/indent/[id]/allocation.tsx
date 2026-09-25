@@ -10,7 +10,8 @@ export default function IndentAllocationRoute() {
     typeof params.id === "string" ? params.id : (params.id?.[0] ?? "");
   const focusRaw =
     typeof params.focus === "string" ? params.focus : params.focus?.[0];
-  const initialFocus = focusRaw === "vehicle" ? "vehicle" : "driver";
+  const initialFocus =
+    focusRaw === "vehicle" || focusRaw === "driver" ? focusRaw : undefined;
 
   if (!indentId) {
     return <CenteredLoadingView message="Missing indent" />;

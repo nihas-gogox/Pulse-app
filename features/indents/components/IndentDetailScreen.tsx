@@ -38,6 +38,7 @@ import {
 import {
   clearInitialIndentForDetail,
   getInitialIndentForDetail,
+  setInitialIndentForDetail,
 } from "@/features/indents/initialIndentForDetail";
 import {
     indentReviewHubLayout,
@@ -777,6 +778,7 @@ export function IndentDetailScreen({
       router.push(ROUTES.tripAssignment(linkedTrip.id, "vehicle") as never);
       return;
     }
+    setInitialIndentForDetail(indent);
     router.push(ROUTES.indentAllocation(indent.id) as never);
   }, [indent, linkedTrip, router]);
 

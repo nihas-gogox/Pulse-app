@@ -61,6 +61,10 @@ import { fetchClientPageBootstrap } from "@/features/clients/services/clientPage
 import { useFinanceAlignedClientLedger } from "@/features/finance/hooks/useFinanceAlignedPartyTrips";
 import { computeClientPaidSeed } from "@/features/clients/utils/clientPaidSeed.util";
 import {
+  ledgerClientTripRows,
+  viewerOwnedClientTrips,
+} from "@/features/clients/utils/viewerClientTrips.util";
+import {
   clearInitialClientForDetail,
   getInitialClientForDetail,
 } from "@/features/clients/initialClientForDetail";
@@ -461,7 +465,7 @@ export default function ClientDetailScreen({
       setOrgTrips(bundle.trips);
       setOrganizationClients(bundle.clients);
       setAllOrgTransactions(bundle.transactions);
-      if (!financeAligned.ready) setTrips(bundle.trips);
+      setTrips(viewerOwnedClientTrips(bundle.trips, orgId, bundle.client));
       setSuppliers(bundle.suppliers);
       setDrivers(bundle.drivers);
       setClientRatingAvg(averageScore(bundle.ratings ?? []));
@@ -527,11 +531,6 @@ export default function ClientDetailScreen({
     setPartnerOrgNamesByOrgId({});
     setPartnerOrgBrandingByOrgId({});
   }, [clientId]);
-
-  useEffect(() => {
-    if (!financeAligned.ready) return;
-    setTrips(financeAligned.trips);
-  }, [financeAligned.ready, financeAligned.trips]);
 
   const supplierDisplayById = useMemo(() => {
     const m = new Map<string, string>();
@@ -1274,13 +1273,26 @@ export default function ClientDetailScreen({
     () => ({ customFrom: tripCustomFrom, customTo: tripCustomTo }),
     [tripCustomFrom, tripCustomTo],
   );
-  const tripsForMissionTable = useMemo(
-    () =>
-      (financeAligned.ready ? financeAligned.trips : trips).filter((t) =>
-        ledgerDayMatchesPeriod(tripDayIso(t), tripDatePeriod, tripDateOpts),
-      ),
-    [financeAligned.ready, financeAligned.trips, trips, tripDatePeriod, tripDateOpts],
-  );
+  const tripsForMissionTable = useMemo(() => {
+    const orgId = currentOrganization?.id ?? "";
+    const owned =
+      client && orgId ? viewerOwnedClientTrips(trips, orgId, client) : trips;
+    const source = financeAligned.ready
+      ? ledgerClientTripRows(owned, financeAligned.trips, financeAligned.tripIds)
+      : owned;
+    return source.filter((t) =>
+      ledgerDayMatchesPeriod(tripDayIso(t), tripDatePeriod, tripDateOpts),
+    );
+  }, [
+    client,
+    currentOrganization?.id,
+    financeAligned.ready,
+    financeAligned.trips,
+    financeAligned.tripIds,
+    trips,
+    tripDatePeriod,
+    tripDateOpts,
+  ]);
 
   const missionRows = useMemo(() => {
     const norm = (id: string | null | undefined) =>

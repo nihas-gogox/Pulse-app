@@ -8,6 +8,10 @@
  * PostgREST as strings (Postgres `numeric`); every field here is coerced to
  * number before returning.
  */
+import {
+  mergeCommerceProductSales,
+  suppressCommercePlanFreight,
+} from "@/features/finance/aggregation/commerceSelfFulfillment";
 import { supabase } from "@/lib/supabase";
 
 function n(v: unknown): number {
@@ -130,6 +134,98 @@ export async function getDcoLedgerAggregation(
   }));
 }
 
+/** Shipper trips created from a commerce execution plan, any status. */
+async function fetchCommercePlanTripIds(orgId: string): Promise<string[]> {
+  const { data: tripRows, error: tripError } = await supabase()
+    .from("trips")
+    .select("id, indent_id")
+    .eq("organization_id", orgId)
+    .is("deleted_at", null)
+    .not("indent_id", "is", null);
+  if (tripError || !tripRows?.length) return [];
+  const indentIds = [
+    ...new Set(
+      tripRows
+        .map((trip) => trip.indent_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const { data: indents, error: indentError } = await supabase()
+    .from("indents")
+    .select("id")
+    .in("id", indentIds)
+    .not("execution_plan_id", "is", null);
+  if (indentError || !indents?.length) return [];
+  const planIndents = new Set(indents.map((indent) => indent.id));
+  return tripRows
+    .filter((trip) => trip.indent_id && planIndents.has(trip.indent_id))
+    .map((trip) => trip.id);
+}
+
+async function fetchCommerceFulfillmentOrders(orgId: string) {
+  const { data: tripRows, error: tripError } = await supabase()
+    .from("trips")
+    .select("id, indent_id, status")
+    .eq("organization_id", orgId)
+    .is("deleted_at", null)
+    .not("indent_id", "is", null)
+    .in("status", ["completed", "Completed"]);
+  if (tripError || !tripRows?.length) return [];
+
+  const indentIds = [
+    ...new Set(
+      tripRows
+        .map((trip) => trip.indent_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const { data: indents, error: indentError } = await supabase()
+    .from("indents")
+    .select("id, execution_plan_id")
+    .in("id", indentIds)
+    .not("execution_plan_id", "is", null);
+  if (indentError || !indents?.length) return [];
+
+  const planByIndent = new Map(
+    indents
+      .filter((indent) => indent.execution_plan_id)
+      .map((indent) => [indent.id, indent.execution_plan_id as string]),
+  );
+  const planIds = [...new Set(planByIndent.values())];
+  if (planIds.length === 0) return [];
+
+  const { data: orders, error: orderError } = await supabase()
+    .from("sales_orders")
+    .select("id, customer_id, total_amount, execution_plan_id, status")
+    .eq("organization_id", orgId)
+    .in("execution_plan_id", planIds)
+    .is("deleted_at", null)
+    .in("status", ["Planned", "Pending Consolidation", "Fulfilled"]);
+  if (orderError || !orders?.length) return [];
+
+  const tripByPlan = new Map<string, string>();
+  for (const trip of tripRows) {
+    if (!trip.indent_id) continue;
+    const planId = planByIndent.get(trip.indent_id);
+    if (planId) tripByPlan.set(planId, trip.id);
+  }
+
+  return orders.flatMap((order) => {
+    const tripId = order.execution_plan_id
+      ? tripByPlan.get(order.execution_plan_id)
+      : undefined;
+    if (!tripId || !order.customer_id) return [];
+    return [
+      {
+        orderId: order.id,
+        customerId: order.customer_id,
+        tripId,
+        amount: n(order.total_amount),
+      },
+    ];
+  });
+}
+
 export async function getCustomerLedgerInputs(
   orgId: string,
   applyAdjustments: boolean,
@@ -145,7 +241,7 @@ export async function getCustomerLedgerInputs(
     ledger_only_parties?: Record<string, unknown>[];
     client_ledger_totals?: Record<string, unknown>[];
   };
-  return {
+  const freightInputs: CustomerLedgerInputs = {
     trip_inputs: (raw.trip_inputs ?? []).map((t) => ({
       client_id: String(t.client_id),
       trip_id: String(t.trip_id),
@@ -168,4 +264,12 @@ export async function getCustomerLedgerInputs(
       pending: n(c.pending),
     })),
   };
+  const [commerceTripIds, commerceOrders] = await Promise.all([
+    fetchCommercePlanTripIds(orgId),
+    fetchCommerceFulfillmentOrders(orgId),
+  ]);
+  return mergeCommerceProductSales(
+    suppressCommercePlanFreight(freightInputs, commerceTripIds),
+    commerceOrders,
+  );
 }

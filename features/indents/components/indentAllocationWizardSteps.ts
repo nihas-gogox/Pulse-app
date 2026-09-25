@@ -1,7 +1,5 @@
 import { isIndianVehiclePlateComplete } from "@/lib/indianVehicleInput.util";
 
-export type IndentAssetStep = "driver" | "vehicle" | "commodity";
-
 export type IndentAggregateStep =
   | "partner"
   | "rates"
@@ -10,19 +8,21 @@ export type IndentAggregateStep =
   | "vehicleReg"
   | "commodity";
 
-export type IndentAllocationStepId = IndentAssetStep | IndentAggregateStep;
+export type IndentAllocationStepId = "source" | "fleet" | IndentAggregateStep;
 
 export type IndentWizardStep = { id: IndentAllocationStepId; label: string };
 
+/**
+ * Indent deploy steps — same shape as create-trip source then allocation.
+ * Source is Asset vs Aggregate; fleet is grouped driver + vehicle (assign later is a switch).
+ */
 export function getIndentAllocationWizardSteps(opts: {
   aggregate: boolean;
   assignLater: boolean;
 }): IndentWizardStep[] {
+  const steps: IndentWizardStep[] = [{ id: "source", label: "Source" }];
   if (opts.aggregate) {
-    const steps: IndentWizardStep[] = [
-      { id: "partner", label: "Partner" },
-      { id: "rates", label: "Rates" },
-    ];
+    steps.push({ id: "partner", label: "Partner" }, { id: "rates", label: "Rates" });
     if (!opts.assignLater) {
       steps.push(
         { id: "driverPhone", label: "Phone" },
@@ -30,50 +30,37 @@ export function getIndentAllocationWizardSteps(opts: {
         { id: "vehicleReg", label: "Vehicle" },
       );
     }
-    steps.push({ id: "commodity", label: "Date" });
+    steps.push({ id: "commodity", label: "Confirm" });
     return steps;
   }
-  if (opts.assignLater) {
-    return [{ id: "commodity", label: "Date" }];
-  }
-  return [
-    { id: "driver", label: "Driver" },
-    { id: "vehicle", label: "Vehicle" },
-    { id: "commodity", label: "Date" },
-  ];
+  steps.push({ id: "fleet", label: "Fleet" });
+  steps.push({ id: "commodity", label: "Confirm" });
+  return steps;
 }
 
 export function indentAllocationStepSubtitle(
   step: IndentAllocationStepId,
   aggregate: boolean,
 ): string {
-  if (aggregate) {
-    switch (step) {
-      case "partner":
-        return "Step 1 · Select transport partner (supplier)";
-      case "rates":
-        return "Step 2 · Partner rate and advance";
-      case "driverPhone":
-        return "Step 3 · Driver mobile — we’ll suggest a name if they’re on Pulse";
-      case "driverName":
-        return "Step 4 · Driver name for tracking";
-      case "vehicleReg":
-        return "Step 5 · Vehicle number (e.g. TN 18 D 2522 or TN 17 AS 2202)";
-      case "commodity":
-        return "Final · Confirm allocation and vehicle arrival date";
-      default:
-        return "Aggregate deploy";
-    }
-  }
   switch (step) {
-    case "driver":
-      return "Step 1 · Choose from your fleet";
-    case "vehicle":
-      return "Step 2 · Choose fleet vehicle";
+    case "source":
+      return "Step 1 · How will this move";
+    case "fleet":
+      return "Assign vehicle and driver, or choose Assign later";
+    case "partner":
+      return "Select transport partner (supplier)";
+    case "rates":
+      return "Partner rate and advance";
+    case "driverPhone":
+      return "Driver mobile — we’ll suggest a name if they’re on Pulse";
+    case "driverName":
+      return "Driver name for tracking";
+    case "vehicleReg":
+      return "Vehicle number (e.g. TN 18 D 2522 or TN 17 AS 2202)";
     case "commodity":
-      return "Final · Confirm allocation and vehicle arrival date";
+      return "Confirm allocation and vehicle arrival date";
     default:
-      return "Asset deploy";
+      return aggregate ? "Aggregate deploy" : "Asset deploy";
   }
 }
 
@@ -96,10 +83,11 @@ export function isIndentAllocationStepComplete(
   },
 ): boolean {
   switch (step) {
-    case "driver":
-      return !!state.assignDriverId;
-    case "vehicle":
-      return typeof state.assignVehicleId === "string";
+    case "source":
+      return true;
+    case "fleet":
+      if (state.staffHandshakeAssignLater) return true;
+      return !!state.assignDriverId && typeof state.assignVehicleId === "string";
     case "partner": {
       const sid = (state.subcontractSupplierId ?? "").trim();
       return sid.length > 0;

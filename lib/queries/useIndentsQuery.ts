@@ -7,7 +7,12 @@
  * service modules are **dynamic-imported inside queryFns**. The first call
  * incurs one extra microtask; the module is cached after that.
  */
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import {
   INDENTS_CACHE_DOMAIN,
   getIndentsByOrganization,
@@ -16,6 +21,7 @@ import {
 } from '@/features/indents/services/indents.service';
 import type { DirectQuoteRow } from '@/features/indents/services/direct-quotes.service';
 import type { IndentRow } from '@/features/indents/services/indents.service';
+import { getInitialIndentForDetail } from '@/features/indents/initialIndentForDetail';
 import { findIndentInMarketList } from '@/features/indents/utils/findIndentInList.util';
 import { fetchEntityListWithFallback } from '@/lib/queries/fetchEntityListWithFallback';
 import { clearDomainCacheMeta } from '@/lib/cache/cacheMetadataStore';
@@ -33,6 +39,29 @@ const loadIndentsService = () =>
 const loadDirectQuotesService = () =>
   import('@/features/indents/services/direct-quotes.service');
 const loadBidsService = () => import('@/features/network/services/bids.service');
+
+/** Indent rows already on screen (market, org list, paged lists). */
+function cachedIndentLists(qc: QueryClient, orgId: string): IndentRow[] {
+  const rows: IndentRow[] = [];
+  const entries = qc.getQueriesData({ queryKey: ['q', 'indents', orgId] });
+  for (const [, data] of entries) {
+    if (Array.isArray(data)) {
+      rows.push(...(data as IndentRow[]));
+      continue;
+    }
+    if (
+      data &&
+      typeof data === 'object' &&
+      'pages' in data &&
+      Array.isArray((data as { pages: unknown }).pages)
+    ) {
+      for (const page of (data as { pages: unknown[] }).pages) {
+        if (Array.isArray(page)) rows.push(...(page as IndentRow[]));
+      }
+    }
+  }
+  return rows;
+}
 
 /** Full list. Use for Load Board, Create Indent when list is small. */
 export function useIndentsQuery(orgId: string | null) {
@@ -194,11 +223,13 @@ export function useVisibleIndentQuery(
     queryKey: queryKeys.indents.visible(orgId ?? '', indentId ?? ''),
     queryFn: async () => {
       const { getVisibleIndentById } = await loadIndentsService();
-      const hint = qc.getQueryData<IndentRow[]>(
-        queryKeys.indents.market(orgId ?? ''),
-      );
+      const seeded = getInitialIndentForDetail(indentId!);
+      const hint = [
+        ...(seeded ? [seeded] : []),
+        ...cachedIndentLists(qc, orgId ?? ''),
+      ];
       const res = await getVisibleIndentById(orgId, indentId!, {
-        marketIndentsHint: hint ?? undefined,
+        marketIndentsHint: hint,
       });
       if (res.error) throw res.error;
       if (!res.indent) throw new Error('Indent not found');
@@ -208,16 +239,11 @@ export function useVisibleIndentQuery(
     staleTime: STALE.moderate,
     placeholderData: () => {
       if (!orgId || !indentId) return undefined;
-      const hint = qc.getQueryData<IndentRow[]>(
-        queryKeys.indents.market(orgId),
-      );
-      if (!hint?.length) return undefined;
-      const row = findIndentInMarketList(hint, indentId);
-      // Skip placeholders that predate `weight` in the market RPCs: consumers
-      // seed their form once from the first row they see, so a weight-less
-      // placeholder would stick even after the real fetch resolves.
-      if (!row || row.weight == null) return undefined;
-      return row;
+      const seeded = getInitialIndentForDetail(indentId);
+      if (seeded) return seeded;
+      const hint = cachedIndentLists(qc, orgId);
+      if (!hint.length) return undefined;
+      return findIndentInMarketList(hint, indentId) ?? undefined;
     },
   });
 }

@@ -47,6 +47,7 @@ import {
     type IndentRow,
 } from "@/features/indents";
 import { confirmDialog } from "@/lib/confirmDialog";
+import { setInitialIndentForDetail } from "@/features/indents/initialIndentForDetail";
 import { shareDraftIndent } from "@/features/indents/services/indents.service";
 import { resolveMarketIndentShipperLabel } from "@/features/indents/utils/indentPartyDisplay.util";
 import { indentCanBroadcastToPulseNetwork } from "@/features/network/utils/indentBroadcastEligibility.util";
@@ -982,6 +983,7 @@ export function LoadCenterView({
 
   const openIndentAllocation = useCallback(
     (load: IndentRow) => {
+      setInitialIndentForDetail(load);
       router.push(ROUTES.indentAllocation(load.id) as import("expo-router").Href);
     },
     [router],

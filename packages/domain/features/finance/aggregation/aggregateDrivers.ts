@@ -67,11 +67,18 @@ export function aggregateDrivers(
     tripCountByDriver[id] = 0;
   }
 
+  // Trips whose driver_id isn't in the loaded `drivers` list (e.g. removed/reassigned driver) —
+  // tracked so a row can still be synthesized for them below instead of the commission being
+  // computed into dueFromTrips and then never read by the row-building loop, which only reads
+  // dueFromTrips for ids already in `drivers`.
+  const unresolvedDriverIds = new Set<string>();
+
   for (let i = 0; i < trips.length; i++) {
     const t = trips[i];
     if (!t.driver_id) continue;
     // DCO settlement is dco_payee / contact_type=dco — never Finance → Drivers.
     if (isDcoOperatingTrip(t)) continue;
+    if (!driverIds.has(t.driver_id)) unresolvedDriverIds.add(t.driver_id);
     const offer = offers[t.driver_id] ?? null;
     const commission = computeDriverCommissionForTrip(t, offer);
     dueFromTrips[t.driver_id] = (dueFromTrips[t.driver_id] ?? 0) + commission;
@@ -140,6 +147,27 @@ export function aggregateDrivers(
       left_at: leftAt ?? undefined,
       profileImageUrl: rawAvatar || undefined,
       avatarSeed: rawSeed || undefined,
+    });
+  }
+
+  // Trips whose driver_id fell outside the loaded `drivers` list — synthesized here so their
+  // commission still shows up somewhere, instead of being computed and never emitted.
+  for (const id of unresolvedDriverIds) {
+    const due = dueFromTrips[id] ?? 0;
+    const paid = paidFromLedger[id] ?? 0;
+    const pending = Math.max(0, due - paid);
+    totalIn += paid + pending;
+    totalOut += pending;
+    rows.push({
+      id,
+      name: 'Unknown Driver',
+      subline: 'UNLINKED',
+      status: 'offline',
+      trips: tripCountByDriver[id] ?? 0,
+      paid,
+      pending,
+      due,
+      is_integrated: false,
     });
   }
 

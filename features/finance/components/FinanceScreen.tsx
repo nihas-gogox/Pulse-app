@@ -1094,10 +1094,12 @@ export function FinanceScreen() {
       subTab: FinanceSubTab,
     ) => {
       // aggregateCustomers.ts synthesizes `ledger-party-*` ids for parties that only appear in the
-      // ledger (no row in `clients`). That id isn't a real client id, so routing to /client/[id]
+      // ledger (no row in `clients`), and `unlinked:*` ids for trips whose client couldn't be
+      // resolved to any client id at all. Neither is a real client id, so routing to /client/[id]
       // sends it to a backend RPC expecting a UUID, which fails and renders "Client not found."
       // Fall through to the in-memory overlay below instead, which matches by name/ledger data only.
-      const isLedgerOnlyCustomer = data.id.startsWith("ledger-party-");
+      const isLedgerOnlyCustomer =
+        data.id.startsWith("ledger-party-") || data.id.startsWith("unlinked:");
       if (entityType === "CLIENT" && subTab === "customers" && !isLedgerOnlyCustomer) {
         // Stash the already-loaded ClientRow for Client Detail's first paint —
         // seed only, ClientDetailScreen still fetches the authoritative bundle.
