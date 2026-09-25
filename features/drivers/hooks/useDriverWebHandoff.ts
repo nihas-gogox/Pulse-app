@@ -1,16 +1,16 @@
 /**
- * Phase 4A web hand-off: when EXPO_PUBLIC_DRIVER_APP_EXTRACTION_ENABLED is on, drivers
- * (and the old driver entry pages) leave the main app for the Pulse Driver web app at
- * /driver. No-op on native and when the flag is off. Rules: driverAppHandoff.util.ts.
+ * Web hand-off (driver extraction Phase 4A, permanent since 4D): drivers (and the old
+ * driver entry pages) leave the main app for the Pulse Driver web app at /driver.
+ * No-op on native. Rules: driverAppHandoff.util.ts.
  */
 import { useOptionalAuth } from '@/contexts/AuthContext';
 import {
   driverAppPathFor,
-  isDriverWebHandoffEnabled,
   shouldHandOffToDriverApp,
 } from '@/features/drivers/utils/driverAppHandoff.util';
 import { usePathname } from 'expo-router';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 
 export function useDriverWebHandoff(): void {
   const pathname = usePathname();
@@ -20,7 +20,7 @@ export function useDriverWebHandoff(): void {
   const signedOut = auth?.status === 'unauthenticated';
 
   useEffect(() => {
-    const enabled = isDriverWebHandoffEnabled();
+    const enabled = Platform.OS === 'web';
     if (!shouldHandOffToDriverApp({ enabled, pathname, sessionAttached, isDriver, signedOut })) return;
     if (typeof window === 'undefined') return;
     window.location.replace(driverAppPathFor(pathname, window.location.search));

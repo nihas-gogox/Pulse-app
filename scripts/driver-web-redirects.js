@@ -1,7 +1,7 @@
 /**
  * Netlify rules for the Pulse Driver web app at /driver (driver extraction Phase 4A).
- * Written to dist/_redirects and appended to dist/_headers by scripts/build-ci.js, ONLY
- * when EXPO_PUBLIC_DRIVER_APP_EXTRACTION_ENABLED=true (preprod). Netlify applies
+ * Written to dist/_redirects and appended to dist/_headers by scripts/build-ci.js on every
+ * build (Phase 4D; before that only with the web kill switch on). Netlify applies
  * _redirects before netlify.toml, so these win over the main app's `/*` catch-all.
  *
  * Route collision: `/driver/<uuid>` was the dispatcher driver-detail URL (now

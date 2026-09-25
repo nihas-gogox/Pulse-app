@@ -34,7 +34,7 @@ import { useComplianceProductEnabled } from '@/features/tripCompliance/hooks/use
 import { DEFAULT_DRIVER_ROUTE, ROUTES } from '@/lib/routes';
 import { useMemberAccess } from '@/lib/useMemberAccess';
 import { useMemberCapabilities } from '@/lib/useMemberCapabilities';
-import { driverAppPathFor, isDriverWebHandoffEnabled } from '@/features/drivers/utils/driverAppHandoff.util';
+import { driverAppPathFor } from '@/features/drivers/utils/driverAppHandoff.util';
 import {
   finalizeSuiteNavigationIntent,
   isSuiteExternalAppPath,
@@ -195,8 +195,8 @@ function IndexBoot({
       }
       consumeFreshSignInLanding();
       if (!claimIndexBootRedirect(uid)) return;
-      // Phase 4A kill switch (web only): drivers use the Pulse Driver web app at /driver.
-      if (isDriverWebHandoffEnabled() && typeof window !== 'undefined') {
+      // Web: drivers use the Pulse Driver web app at /driver (Phase 4A, permanent since 4D).
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
         logRouteDecision('handoff_driver_app', { uid, pathname });
         window.location.replace(driverAppPathFor('/'));
         return;

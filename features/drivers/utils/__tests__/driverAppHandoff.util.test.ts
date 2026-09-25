@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { Platform } from 'react-native';
 import { driverRootSegments } from '../../../../scripts/driver-web-redirects';
 import {
   DRIVER_APP_ROOT_SEGMENTS,
@@ -8,34 +7,11 @@ import {
   driverAppPathFor,
   isDriverOnlyLegacyPath,
   isDriverNativeHandoffEnabled,
-  isDriverWebHandoffEnabled,
-  isDriverWebHandoffFlagOn,
   shouldHandOffToDriverApp,
 } from '../driverAppHandoff.util';
 
-const FLAG = 'EXPO_PUBLIC_DRIVER_APP_EXTRACTION_ENABLED';
-
-describe('driver web hand-off (Phase 4A)', () => {
-  const saved = process.env[FLAG];
-  afterEach(() => {
-    if (saved === undefined) delete process.env[FLAG];
-    else process.env[FLAG] = saved;
-  });
-
-  it('kill switch is off unless exactly "true"', () => {
-    delete process.env[FLAG];
-    expect(isDriverWebHandoffFlagOn()).toBe(false);
-    process.env[FLAG] = 'false';
-    expect(isDriverWebHandoffFlagOn()).toBe(false);
-    process.env[FLAG] = '1';
-    expect(isDriverWebHandoffFlagOn()).toBe(false);
-    process.env[FLAG] = 'true';
-    expect(isDriverWebHandoffFlagOn()).toBe(true);
-  });
-
-  it('is web only; native hand-off stays off', () => {
-    process.env[FLAG] = 'true';
-    expect(isDriverWebHandoffEnabled()).toBe(Platform.OS === 'web');
+describe('driver web hand-off (Phase 4A, permanent since 4D)', () => {
+  it('native hand-off stays off', () => {
     expect(isDriverNativeHandoffEnabled()).toBe(false);
   });
 

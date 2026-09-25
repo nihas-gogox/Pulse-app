@@ -1,26 +1,15 @@
 /**
- * Main app → Pulse Driver web hand-off (driver extraction Phase 4A).
- *
- * Kill switch: EXPO_PUBLIC_DRIVER_APP_EXTRACTION_ENABLED ('true' = on). Main app only —
- * apps/driver never reads it. OFF (unset, the production default) keeps the old in-app
- * driver flow, which is the rollback path.
+ * Main app → Pulse Driver web hand-off (driver extraction Phase 4A; permanent since 4D —
+ * the web kill switch is gone, rollback = republish the previous deploy).
  *
  * WEB ONLY. Native hand-off has its own flag, EXPO_PUBLIC_DRIVER_APP_NATIVE_HANDOFF_ENABLED,
- * which is reserved and not implemented: it stays OFF until the Pulse Driver store listing
- * exists and native validation is unblocked (docs/DRIVER_EXTRACTION_PHASE3_5.md).
+ * which is reserved and not implemented: native keeps the old in-app driver flow until the
+ * Pulse Driver store listing exists and native validation is unblocked
+ * (docs/DRIVER_EXTRACTION_PHASE3_5.md).
  */
-import { Platform } from 'react-native';
 
 /** Where the Pulse Driver web app is served on this origin (netlify: dist/driver). */
 export const DRIVER_APP_BASE_PATH = '/driver';
-
-export function isDriverWebHandoffFlagOn(): boolean {
-  return process.env.EXPO_PUBLIC_DRIVER_APP_EXTRACTION_ENABLED === 'true';
-}
-
-export function isDriverWebHandoffEnabled(): boolean {
-  return Platform.OS === 'web' && isDriverWebHandoffFlagOn();
-}
 
 /** Native hand-off is not implemented; always the old in-app flow (see header). */
 export function isDriverNativeHandoffEnabled(): boolean {
@@ -86,6 +75,7 @@ export function driverAppPathFor(pathname: string, search = ''): string {
 }
 
 export type DriverHandoffInput = {
+  /** True on web (the only platform with a hand-off). */
   enabled: boolean;
   pathname: string;
   sessionAttached: boolean;
@@ -95,7 +85,7 @@ export type DriverHandoffInput = {
 };
 
 /**
- * Hand off when the flag is on and either a signed-in driver is anywhere in the main app,
+ * Hand off on web when either a signed-in driver is anywhere in the main app,
  * anyone opens an old driver entry page, or (4B) a confirmed signed-out visitor opens an
  * old driver-only URL. Signed-in non-drivers keep the main app's behavior. Never from a
  * path already under /driver: if the main app is serving it, the /driver rewrite is
