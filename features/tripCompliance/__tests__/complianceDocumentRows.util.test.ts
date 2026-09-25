@@ -31,7 +31,7 @@ function doc(overrides: Partial<ComplianceDocumentRow>): ComplianceDocumentRow {
 describe("deriveComplianceDocumentRows", () => {
   it("synthesizes required trip types plus other options", () => {
     const rows = deriveComplianceDocumentRows([]);
-    expect(rows.map((r) => r.type)).toEqual(["lr", "eway_bill", "invoice", "pod", "loading_slip", "manifest", "memo"]);
+    expect(rows.map((r) => r.type)).toEqual(["lr", "eway_bill", "invoice", "pod", "memo"]);
     expect(rows.filter((r) => r.required).map((r) => r.type)).toEqual(["lr", "eway_bill", "invoice"]);
     expect(rows.every((r) => r.status === "missing")).toBe(true);
   });
@@ -70,18 +70,18 @@ describe("deriveComplianceDocumentRows", () => {
 
   it("uses the latest file when several rows share a document type", () => {
     const rows = deriveComplianceDocumentRows([
-      doc({ id: "old", document_type: "loading_slip", status: "pending", uploaded_at: "2026-09-20T19:00:00.000Z" }),
+      doc({ id: "old", document_type: "memo", status: "pending", uploaded_at: "2026-09-20T19:00:00.000Z" }),
       doc({
         id: "new",
-        document_type: "loading_slip",
+        document_type: "memo",
         status: "verified",
         uploaded_at: "2026-09-20T19:27:01.000Z",
-        file_name: "slip.jpg",
+        file_name: "memo.pdf",
       }),
     ]);
-    const slip = rows.find((r) => r.type === "loading_slip");
-    expect(slip?.status).toBe("verified");
-    expect(slip?.doc?.id).toBe("new");
+    const memo = rows.find((r) => r.type === "memo");
+    expect(memo?.status).toBe("verified");
+    expect(memo?.doc?.id).toBe("new");
   });
 
   it("hides vehicle types that were uploaded against the trip", () => {

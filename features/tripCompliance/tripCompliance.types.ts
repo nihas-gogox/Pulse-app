@@ -163,8 +163,6 @@ export const REQUIRED_COMPLIANCE_DOCUMENT_TYPES: readonly string[] = [
 /** Extra trip-doc types the review sheet can add — not required to mark verified. */
 export const COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES: readonly string[] = [
   "pod",
-  "loading_slip",
-  "manifest",
   "memo",
 ];
 
