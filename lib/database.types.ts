@@ -4704,6 +4704,7 @@ export type Database = {
         Row: {
           assigned_supplier_id: string | null
           assigned_supplier_rate: number | null
+          award_revoked_at: string | null
           circulation_target: string | null
           client_id: string | null
           client_name: string
@@ -4741,6 +4742,7 @@ export type Database = {
         Insert: {
           assigned_supplier_id?: string | null
           assigned_supplier_rate?: number | null
+          award_revoked_at?: string | null
           circulation_target?: string | null
           client_id?: string | null
           client_name: string
@@ -4778,6 +4780,7 @@ export type Database = {
         Update: {
           assigned_supplier_id?: string | null
           assigned_supplier_rate?: number | null
+          award_revoked_at?: string | null
           circulation_target?: string | null
           client_id?: string | null
           client_name?: string
@@ -14696,6 +14699,7 @@ export type Database = {
         }
       }
       award_market_bid: { Args: { p_bid_id: string }; Returns: Json }
+      revoke_indent_award: { Args: { p_indent_id: string }; Returns: Json }
       backfill_trip_room_operational_batch: {
         Args: { p_limit?: number }
         Returns: number

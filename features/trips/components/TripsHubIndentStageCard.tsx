@@ -12,6 +12,7 @@ import {
   indentHubLifecycleStatus,
   indentHubLoadSpecLine,
   indentHubSourceTags,
+  indentHasAwardRevokedTag,
 } from "@/features/trips/utils/indentHubCardPresentation";
 import type { ReactNode } from "react";
 
@@ -58,7 +59,12 @@ export function TripsHubIndentStageCard({
   clientOrganizationAvatarSeed?: string | null;
 }) {
   const stageLabel = indentHubLifecycleStatus(indent.status, bidCount);
-  const originTags = indentHubSourceTags(indent.circulation_target);
+  const originTags = [
+    ...indentHubSourceTags(indent.circulation_target),
+    ...(indentHasAwardRevokedTag(indent.status, indent.award_revoked_at)
+      ? ["AWARD REVOKED"]
+      : []),
+  ];
 
   return (
     <TripsHubMobileTripCard
