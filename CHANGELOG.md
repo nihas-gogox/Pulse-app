@@ -14,7 +14,7 @@ Vasanth sir V1  80589762
    │                                        │
    │        Sneha compliance-ui ────────────┴─► v0.0.01-v1-sneha-compliance-ui-merge-20260925-1553
    │                                              │
-   └──────────────────────────────────────────────┴─► V1 (next)
+   └──────────────────────────────────────────────┴─► V1 787312c1
 ```
 
 ---
@@ -84,11 +84,11 @@ Two of Sneha's checklist tests were updated from 6 to 5 trip documents (loading 
 No migrations.
 
 Checked: compliance tests pass (238), navigation policy tests pass (64), lint clean on compliance files.
-The UI is being verified manually on preprod before merging to V1.
+UI checked manually by Nihas before merging to V1.
 
 ## 5. → V1
 
-Step 4 merges into Nihas's `V1` (preprod). Then Vasanth sir merges it to prod (`Vasanthgogox/Pulse-app` `V1`).
+**2026-09-25:** step 4 fast-forwarded into Nihas's `V1` at `787312c1` and pushed (deploys to GX Pulse preprod). Next: Vasanth sir merges it to prod (`Vasanthgogox/Pulse-app` `V1`).
 
 ### Known open items before prod
 - Type check has 29 errors repo-wide. Most were already on V1; 2 come from Praveen's code (`useComplianceTripsQuery.ts` duplicate key, `tripComplianceRead.service.ts` null argument).
