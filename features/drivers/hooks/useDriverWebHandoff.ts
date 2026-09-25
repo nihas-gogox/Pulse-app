@@ -17,11 +17,12 @@ export function useDriverWebHandoff(): void {
   const auth = useOptionalAuth();
   const sessionAttached = Boolean(auth?.sessionAttached);
   const isDriver = auth?.profile?.role === 'driver';
+  const signedOut = auth?.status === 'unauthenticated';
 
   useEffect(() => {
     const enabled = isDriverWebHandoffEnabled();
-    if (!shouldHandOffToDriverApp({ enabled, pathname, sessionAttached, isDriver })) return;
+    if (!shouldHandOffToDriverApp({ enabled, pathname, sessionAttached, isDriver, signedOut })) return;
     if (typeof window === 'undefined') return;
     window.location.replace(driverAppPathFor(pathname, window.location.search));
-  }, [pathname, sessionAttached, isDriver]);
+  }, [pathname, sessionAttached, isDriver, signedOut]);
 }

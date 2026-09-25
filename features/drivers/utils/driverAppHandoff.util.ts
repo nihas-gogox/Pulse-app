@@ -40,6 +40,26 @@ export const DRIVER_APP_ROOT_SEGMENTS: ReadonlySet<string> = new Set([
   'trip-history', 'wallet', 'trip', 'language-settings',
 ]);
 
+/**
+ * Root segments the main app ALSO serves (dispatcher chat, notifications, profile tab,
+ * trip detail, language modal). Phase 4B: never handed off for signed-out visitors —
+ * only a signed-in driver leaves these for /driver.
+ */
+export const MAIN_APP_SHARED_SEGMENTS: ReadonlySet<string> = new Set([
+  'chat', 'notifications', 'profile', 'trip', 'language-settings',
+]);
+
+/**
+ * Phase 4B: old driver browser URL that only the driver app serves (docs/
+ * DRIVER_EXTRACTION_INVENTORY.md "Driver route URLs"): a driver-group root segment the
+ * main app does not also serve, or /driver-trip/<id>.
+ */
+export function isDriverOnlyLegacyPath(pathname: string): boolean {
+  if (pathname.startsWith('/driver-trip/')) return true;
+  const seg = pathname.split('/').filter((s) => s && !/^\(.*\)$/.test(s))[0] ?? '';
+  return DRIVER_APP_ROOT_SEGMENTS.has(seg) && !MAIN_APP_SHARED_SEGMENTS.has(seg);
+}
+
 /** Old in-app driver entry pages that anyone (signed in or not) may open. */
 const PUBLIC_ENTRY_RENAMES: Readonly<Record<string, string>> = {
   '/driver-sign-in': '/sign-in',
@@ -70,15 +90,20 @@ export type DriverHandoffInput = {
   pathname: string;
   sessionAttached: boolean;
   isDriver: boolean;
+  /** Auth restore finished with no session (status 'unauthenticated'); false while restoring. */
+  signedOut?: boolean;
 };
 
 /**
  * Hand off when the flag is on and either a signed-in driver is anywhere in the main app,
- * or anyone opens an old driver entry page. Never from a path already under /driver: if
- * the main app is serving it, the /driver rewrite is missing and a redirect would loop.
+ * anyone opens an old driver entry page, or (4B) a confirmed signed-out visitor opens an
+ * old driver-only URL. Signed-in non-drivers keep the main app's behavior. Never from a
+ * path already under /driver: if the main app is serving it, the /driver rewrite is
+ * missing and a redirect would loop.
  */
 export function shouldHandOffToDriverApp(input: DriverHandoffInput): boolean {
   if (!input.enabled || isUnderDriverApp(input.pathname)) return false;
   if (isPublicDriverEntryPath(input.pathname)) return true;
+  if (input.signedOut && isDriverOnlyLegacyPath(input.pathname)) return true;
   return input.sessionAttached && input.isDriver;
 }
