@@ -304,7 +304,15 @@ export function formatLrVaultNumberLabel(number?: string | null): string | null 
   return /^lr\s*no\.?/i.test(trimmed) ? trimmed : `LR No. ${trimmed}`;
 }
 
-/** LR date shown on the vault card, e.g. `LR date 03-Sep-26`. */
+/** Invoice number shown on the Invoice bar, e.g. `Invoice No. 45821`. */
+export function formatInvoiceVaultNumberLabel(number?: string | null): string | null {
+  const trimmed = (number ?? "").trim();
+  if (!trimmed) return null;
+  const parsed = parseLrFieldValues(trimmed);
+  const value = parsed.invoice || parsed.lrNumber;
+  if (!value) return null;
+  return /^invoice\s*no\.?/i.test(value) ? value : `Invoice No. ${value}`;
+}
 export function formatLrVaultDateLabel(value?: string | null): string | null {
   const raw = (value ?? "").trim();
   if (!raw) return null;

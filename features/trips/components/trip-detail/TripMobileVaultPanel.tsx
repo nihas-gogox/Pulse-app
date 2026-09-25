@@ -4,7 +4,7 @@
  */
 import { LoadingIndicator } from "@/components/LoadingIndicator";
 import Theme from "@/constants/Theme";
-import { canMutateTripVaultDoc, formatLrVaultDateLabel, formatLrVaultNumberLabel, isEwayBillVaultDoc, isLrVaultDoc, isTripDetailsVaultDoc, type TripDocItem, VAULT_DOC_LIMIT_HINT, vaultDocHasPreviewableFile } from "@/features/trips/components/trip-detail/tripDocTypes";
+import { canMutateTripVaultDoc, formatInvoiceVaultNumberLabel, formatLrVaultDateLabel, formatLrVaultNumberLabel, isEwayBillVaultDoc, isLrVaultDoc, isTripDetailsVaultDoc, type TripDocItem, VAULT_DOC_LIMIT_HINT, vaultDocHasPreviewableFile } from "@/features/trips/components/trip-detail/tripDocTypes";
 import {
   EwayBillLrStrip,
   type EwayBillStripRow,
@@ -404,7 +404,7 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
                                   ? doc.files.map((file) => file.label).join(" · ")
                                   : doc.type
                             : doc.id === "trip-details"
-                              ? doc.type
+                              ? formatInvoiceVaultNumberLabel(doc.invoiceNumber) || doc.type
                             : doc.documentNumber?.trim()
                                 ? `No. ${doc.documentNumber.trim()}`
                                 : (doc.files?.length ?? 0) > 1

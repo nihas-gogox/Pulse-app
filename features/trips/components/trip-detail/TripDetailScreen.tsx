@@ -16,7 +16,7 @@ import {
   shouldLoadTripDocumentsForViewer,
   shouldSkipExpenseTabAutoSelect,
 } from "@/features/trips/components/trip-detail/completedTripInitialLoad.util";
-import { canAddMoreTripDocs, canMutateTripVaultDoc, formatLrVaultDateLabel, formatLrVaultNumberLabel, formatVaultDocDate, isDriverIdentityVaultDoc, isEwayBillVaultDoc, isLrVaultDoc, isPdfTripDoc, isTripDetailsVaultDoc, TRIP_DETAILS_SLOTS, TRIP_DETAILS_TYPE_HINT, type TripDetailsSlot, type TripDocItem, VAULT_DOC_LIMIT_HINT, VAULT_DOC_MAX_BYTES, VAULT_DOC_MAX_MB, VAULT_DOC_PICKER_TYPES, vaultDocDateToIso, vaultDocHasPreviewableFile, vaultPickerRejectionMessage } from "@/features/trips/components/trip-detail/tripDocTypes";
+import { canAddMoreTripDocs, canMutateTripVaultDoc, formatInvoiceVaultNumberLabel, formatLrVaultDateLabel, formatLrVaultNumberLabel, formatVaultDocDate, isDriverIdentityVaultDoc, isEwayBillVaultDoc, isLrVaultDoc, isPdfTripDoc, isTripDetailsVaultDoc, TRIP_DETAILS_SLOTS, TRIP_DETAILS_TYPE_HINT, type TripDetailsSlot, type TripDocItem, VAULT_DOC_LIMIT_HINT, VAULT_DOC_MAX_BYTES, VAULT_DOC_MAX_MB, VAULT_DOC_PICKER_TYPES, vaultDocDateToIso, vaultDocHasPreviewableFile, vaultPickerRejectionMessage } from "@/features/trips/components/trip-detail/tripDocTypes";
 import { CompactValidTillCalendar, EwayBillLrStrip, buildEwayBillStripRows } from "@/features/trips/components/trip-detail/EwayBillVaultTab";
 import {
   ewayDocHasPreviewableFile,
@@ -1618,6 +1618,16 @@ export default function TripDetailScreen({
                   invoice: pendingLrInvoice,
                 })
               : "";
+          const invoicePayload =
+            pending.docType === "invoice"
+              ? lrVaultSlot?.invoiceNumber?.trim() || ""
+              : "";
+          const storedNumber =
+            pending.docType === "lr"
+              ? lrPayload || undefined
+              : pending.docType === "invoice"
+                ? invoicePayload || undefined
+                : undefined;
           const { doc, error } = await tripDocumentsService.uploadTripDocument(
             tripIdForUpload,
             uploaderId,
@@ -1627,7 +1637,7 @@ export default function TripDetailScreen({
               mimeType: file.mimeType,
             },
             pending.docType,
-            pending.docType === "lr" ? lrPayload || undefined : undefined,
+            storedNumber,
           );
           if (error) {
             showAppAlert(
@@ -1649,9 +1659,13 @@ export default function TripDetailScreen({
               await tripDocumentsService.updateTripDocumentNumber(doc.id, lrPayload);
               doc.document_number = lrPayload;
             }
+            if (invoicePayload && !doc.document_number?.trim()) {
+              await tripDocumentsService.updateTripDocumentNumber(doc.id, invoicePayload);
+              doc.document_number = invoicePayload;
+            }
             detail.upsertTripDocument({
               ...doc,
-              document_number: lrPayload || doc.document_number,
+              document_number: lrPayload || invoicePayload || doc.document_number,
             });
           }
           if (
@@ -1713,6 +1727,7 @@ export default function TripDetailScreen({
     pendingLrNumber,
     pendingLrDate,
     pendingLrInvoice,
+    lrVaultSlot?.invoiceNumber,
     resetPendingLrFields,
     detail.trip?.id,
     detail.trip?.organization_id,
@@ -3654,16 +3669,33 @@ export default function TripDetailScreen({
         );
         const onFile = files.length > 0;
         const canUpload = canUploadTripDocs && !uploadingDocId;
+        const lrMeta =
+          slot.id === "lr"
+            ? [
+                formatLrVaultNumberLabel(tripDetailsCard?.documentNumber),
+                formatLrVaultDateLabel(tripDetailsCard?.documentDate),
+              ].filter((line): line is string => !!line)
+            : [];
+        const invoiceMeta =
+          slot.id === "invoice"
+            ? formatInvoiceVaultNumberLabel(tripDetailsCard?.invoiceNumber)
+            : null;
+        const meta =
+          lrMeta.length > 0
+            ? lrMeta.join(" · ")
+            : invoiceMeta
+              ? invoiceMeta
+              : onFile
+                ? files.length > 1
+                  ? `${files.length} files on file`
+                  : "On file"
+                : "Not uploaded";
         return (
           <View key={slot.id} style={styles.tripDetailsRow}>
             <View style={styles.tripDetailsCopy}>
               <Text style={styles.addDocTypeBtnText}>{slot.label}</Text>
-              <Text style={styles.addDocTypeBtnMeta}>
-                {onFile
-                  ? files.length > 1
-                    ? `${files.length} files on file`
-                    : "On file"
-                  : "Not uploaded"}
+              <Text style={styles.addDocTypeBtnMeta} numberOfLines={2}>
+                {meta}
               </Text>
             </View>
             <TouchableOpacity
@@ -5811,9 +5843,10 @@ export default function TripDetailScreen({
                           <Text style={neoStyles.vaultTitle} numberOfLines={2}>
                             {doc.label}
                           </Text>
-                          <Text style={neoStyles.vaultSub} numberOfLines={1}>
+                          <Text style={neoStyles.vaultSub} numberOfLines={2}>
                             {isTripDetailsDoc
-                              ? doc.type
+                              ? formatInvoiceVaultNumberLabel(doc.invoiceNumber) ||
+                                doc.type
                               : isLrDoc && !isPending && lrNumber
                               ? "Uploaded"
                               : statusLabel}

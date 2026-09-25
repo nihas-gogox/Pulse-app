@@ -3,6 +3,7 @@ import {
   canMutateTripVaultDoc,
   formatLrVaultDateLabel,
   formatLrVaultNumberLabel,
+  formatInvoiceVaultNumberLabel,
   formatVaultDocDate,
   isDriverPodVaultDoc,
   isPdfTripDoc,
@@ -194,6 +195,13 @@ describe("vaultDocDateToIso", () => {
     expect(vaultDocDateToIso("04-Sep-26")).toBe("2026-09-04");
     expect(vaultDocDateToIso("28-08-2026")).toBe("2026-08-28");
     expect(vaultDocDateToIso("2026-09-03")).toBe("2026-09-03");
+  });
+});
+
+describe("formatInvoiceVaultNumberLabel", () => {
+  it("shows the invoice number on the invoice bar", () => {
+    expect(formatInvoiceVaultNumberLabel("45821")).toBe("Invoice No. 45821");
+    expect(formatInvoiceVaultNumberLabel("")).toBeNull();
   });
 });
 

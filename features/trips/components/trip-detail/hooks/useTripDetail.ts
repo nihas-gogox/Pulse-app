@@ -1232,7 +1232,10 @@ export function useTripDetail({
           files: files.length > 0 ? files : undefined,
           documentNumber: lrSlot.documentNumber,
           documentDate: lrSlot.documentDate,
-          invoiceNumber: lrSlot.invoiceNumber,
+          invoiceNumber:
+            invoiceSlot.invoiceNumber ||
+            invoiceSlot.documentNumber ||
+            lrSlot.invoiceNumber,
           uploadedAt:
             lrSlot.uploadedAt ?? invoiceSlot.uploadedAt ?? memoSlot.uploadedAt ?? null,
         };

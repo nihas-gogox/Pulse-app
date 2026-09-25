@@ -1,5 +1,5 @@
 import { OcrQuotaExceededError, PulseScanEngine } from "@/features/ocr";
-import { parseLrFieldsFromOcrJob } from "@/features/trips/services/lrDocumentOcr.util";
+import { parseLrFieldValues, parseLrFieldsFromOcrJob, serializeLrFieldValues } from "@/features/trips/services/lrDocumentOcr.util";
 import { updateTripDocumentNumber } from "@/features/trips/services/tripDocuments.service";
 
 export async function extractLrFieldsFromUploadedDocument(input: {
@@ -26,13 +26,22 @@ export async function extractLrFieldsFromUploadedDocument(input: {
       createdBy: input.createdBy,
     });
     const fields = parseLrFieldsFromOcrJob(job);
-    const existing = input.existingDocumentNumber?.trim() || null;
-    if (fields.lrNumber && !existing) {
-      await updateTripDocumentNumber(input.tripDocumentId, fields.lrNumber);
+    const existing = parseLrFieldValues(input.existingDocumentNumber);
+    const lrNumber = existing.lrNumber || fields.lrNumber || "";
+    const date = existing.date || fields.lrDate || "";
+    if (lrNumber || date) {
+      await updateTripDocumentNumber(
+        input.tripDocumentId,
+        serializeLrFieldValues({
+          lrNumber,
+          date,
+          invoice: existing.invoice,
+        }),
+      );
     }
     return {
-      ...fields,
-      lrNumber: existing ?? fields.lrNumber,
+      lrNumber: lrNumber || null,
+      lrDate: date || null,
     };
   } catch (error) {
     if (error instanceof OcrQuotaExceededError) {

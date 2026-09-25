@@ -7,6 +7,7 @@ import {
   type EwayFieldValues,
 } from '@/features/trips/components/trip-detail/EwayBillVaultTab';
 import {
+  formatInvoiceVaultNumberLabel,
   formatLrVaultNumberLabel,
   isEwayBillVaultDoc,
   isLrVaultDoc,
@@ -138,7 +139,7 @@ export function TripAssetVaultPanel({
                     {!isPending && isLrVaultDoc(doc)
                       ? formatLrVaultNumberLabel(doc.documentNumber) || doc.status
                       : isTripDetailsVaultDoc(doc)
-                      ? doc.type
+                      ? formatInvoiceVaultNumberLabel(doc.invoiceNumber) || doc.type
                       : !isPending && (doc.files?.length ?? 0) > 1
                       ? doc.id === 'vehicle-documents' || doc.id === 'driver-documents' || doc.id === 'trip-details'
                         ? doc.type
