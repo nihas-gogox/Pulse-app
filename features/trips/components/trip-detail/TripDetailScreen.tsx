@@ -2242,11 +2242,6 @@ export default function TripDetailScreen({
     [pickDriverIdentityDocument],
   );
 
-  const toggleTripDetails = useCallback(() => {
-    if (uploadingDocId || pendingVaultUpload) return;
-    setTripDetailsVisible((open) => !open);
-  }, [uploadingDocId, pendingVaultUpload]);
-
   const openTripDetails = useCallback(() => {
     if (uploadingDocId || pendingVaultUpload) return;
     setTripDetailsVisible(true);
@@ -2277,7 +2272,7 @@ export default function TripDetailScreen({
         doc.id === "lr" ||
         doc.id.startsWith("lr-")
       ) {
-        toggleTripDetails();
+        openTripDetails();
         return;
       }
       if (doc.id === "vehicle-documents" || doc.category === "vehicle") {
@@ -2290,7 +2285,7 @@ export default function TripDetailScreen({
       }
       void handleVaultUpload(doc);
     },
-    [handleVaultUpload, openVehicleDocChooser, openDriverDocChooser, toggleTripDetails],
+    [handleVaultUpload, openVehicleDocChooser, openDriverDocChooser, openTripDetails],
   );
 
   const openAddDocumentChooser = useCallback(() => {
@@ -3763,7 +3758,7 @@ export default function TripDetailScreen({
     doc: (typeof detail.computedTripDocs)[number],
   ) => {
     if (isTripDetailsVaultDoc(doc)) {
-      toggleTripDetails();
+      openTripDetails();
       return;
     }
     if (!vaultDocHasPreviewableFile(doc)) return;
@@ -4509,7 +4504,6 @@ export default function TripDetailScreen({
                 canUploadEwayBill={canUploadTripDocs}
                 canEditEwayBill={canUploadTripDocs}
                 onSaveEwayBill={saveEwayBillFields}
-                tripDetailsPanel={tripDetailsVisible ? tripDetailsFields : null}
                 tripIdLabel={mobileTripIdLabel}
                 createdAtLabel={mobilePlacedOnLabel}
               />
@@ -5788,29 +5782,15 @@ export default function TripDetailScreen({
                         doc.docSource !== "vehicle" &&
                         doc.docSource !== "compliance";
                       return (
-                        <View
-                          key={doc.id}
-                          style={[
-                            neoStyles.vaultCard,
-                            isTripDetailsDoc &&
-                              tripDetailsVisible &&
-                              neoStyles.vaultCardExpanded,
-                          ]}
-                        >
+                        <View key={doc.id} style={neoStyles.vaultCard}>
                           <TouchableOpacity
                             activeOpacity={isTripDetailsDoc ? 0.9 : 1}
                             disabled={!isTripDetailsDoc || isUploadingThis}
-                            onPress={
-                              isTripDetailsDoc ? toggleTripDetails : undefined
-                            }
+                            onPress={isTripDetailsDoc ? openTripDetails : undefined}
                             style={neoStyles.vaultCardHeader}
                             accessibilityRole={isTripDetailsDoc ? "button" : undefined}
                             accessibilityLabel={
-                              isTripDetailsDoc
-                                ? tripDetailsVisible
-                                  ? "Collapse Trip Details"
-                                  : "Open Trip Details"
-                                : undefined
+                              isTripDetailsDoc ? "Open Trip Details" : undefined
                             }
                           >
                           {showUploadedThumb && uploadedPreviewPath ? (
@@ -5839,9 +5819,6 @@ export default function TripDetailScreen({
                               : statusLabel}
                           </Text>
                           </TouchableOpacity>
-                          {isTripDetailsDoc && tripDetailsVisible ? (
-                            tripDetailsFields
-                          ) : (
                           <View style={neoStyles.vaultBtnRow}>
                             <TouchableOpacity
                               onPress={() => handleVaultCardPress(doc)}
@@ -5917,7 +5894,6 @@ export default function TripDetailScreen({
                               </TouchableOpacity>
                             ) : null}
                           </View>
-                          )}
                         </View>
                       );
                     })}
@@ -7575,6 +7551,37 @@ export default function TripDetailScreen({
                   <Text style={styles.docModalFooterBtnText}>Save to vault</Text>
                 )}
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={tripDetailsVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setTripDetailsVisible(false)}
+      >
+        <View style={styles.docModalBackdrop}>
+          <View style={styles.tripDetailsDialog}>
+            <View style={styles.docModalHeader}>
+              <View style={styles.docModalTitleBlock}>
+                <Text style={styles.docModalTitle}>Trip Details</Text>
+                <Text style={styles.docModalSubtitle}>
+                  LR Document, Invoice, and Memo
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setTripDetailsVisible(false)}
+                style={styles.docModalCloseIcon}
+                activeOpacity={0.8}
+                accessibilityLabel="Close Trip Details"
+              >
+                <FontAwesome name="times" size={18} color={Theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.tripDetailsDialogBody}>
+              {tripDetailsFields}
             </View>
           </View>
         </View>

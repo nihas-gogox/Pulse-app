@@ -17,7 +17,7 @@ import { VEHICLE_COMPLIANCE_TYPE_HINT } from "@/features/vehicles/utils/vehicleD
 import { DRIVER_IDENTITY_TYPE_HINT } from "@/features/drivers/utils/driverIdentityDocuments.util";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import Feather from "@expo/vector-icons/Feather";
-import { createElement, memo, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { createElement, memo, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   Image,
   Platform,
@@ -49,7 +49,6 @@ type Props = {
   canUploadEwayBill?: boolean;
   canEditEwayBill?: boolean;
   onSaveEwayBill?: (values: EwayFieldValues[]) => Promise<boolean>;
-  tripDetailsPanel?: ReactNode;
   tripIdLabel: string;
   createdAtLabel: string;
 };
@@ -208,7 +207,6 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
   canUploadEwayBill,
   canEditEwayBill,
   onSaveEwayBill,
-  tripDetailsPanel = null,
   tripIdLabel,
   createdAtLabel,
 }: Props) {
@@ -433,7 +431,7 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
                     </View>
                   </View>
                 </TouchableOpacity>
-                {showAddMore && !(isTripDetailsVaultDoc(doc) && tripDetailsPanel) ? (
+                {showAddMore ? (
                   <TouchableOpacity
                     onPress={() => onAddMore(doc)}
                     style={styles.addMoreBtn}
@@ -445,9 +443,6 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
                     <FontAwesome name="plus" size={12} color={LINK} />
                     <Text style={styles.addMoreText}>Add</Text>
                   </TouchableOpacity>
-                ) : null}
-                {isTripDetailsVaultDoc(doc) && tripDetailsPanel ? (
-                  <View style={styles.tripDetailsPanel}>{tripDetailsPanel}</View>
                 ) : null}
               </View>
             );
@@ -544,9 +539,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#EEEEEE",
-  },
-  tripDetailsPanel: {
-    marginTop: 10,
   },
   addMoreBtn: {
     marginTop: 10,

@@ -6787,9 +6787,22 @@ export const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#64748b",
   },
+  tripDetailsDialog: {
+    width: "100%",
+    maxWidth: 440,
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+  },
+  tripDetailsDialogBody: {
+    paddingHorizontal: 14,
+    paddingTop: 4,
+    paddingBottom: 14,
+  },
   tripDetailsFields: {
     width: "100%",
-    marginTop: 12,
     gap: 8,
   },
   tripDetailsCopy: {
