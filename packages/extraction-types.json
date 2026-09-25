@@ -1,0 +1,90 @@
+{
+  "packages/domain/components/mobile-input/NumericEntryPartyBanner.types.ts": {
+    "from": "components/mobile-input/NumericEntryPartyBanner.tsx",
+    "types": [
+      "NumericEntryPartyPreview"
+    ]
+  },
+  "packages/domain/features/chat/contexts/IntegratedChatContext.types.ts": {
+    "from": "features/chat/contexts/IntegratedChatContext.tsx",
+    "types": [
+      "IntegratedChat",
+      "DirectMessage"
+    ]
+  },
+  "packages/domain/features/clients/types/clientContracts.types.ts": {
+    "from": "features/clients/services/clientContracts.service.ts",
+    "types": [
+      "ClientContract"
+    ]
+  },
+  "packages/domain/features/clients/types/clientWarehouses.types.ts": {
+    "from": "features/clients/services/clientWarehouses.service.ts",
+    "types": [
+      "ClientWarehouse"
+    ]
+  },
+  "packages/domain/features/indents/types/indents.types.ts": {
+    "from": "features/indents/services/indents.service.ts",
+    "types": [
+      "CirculationTarget"
+    ]
+  },
+  "packages/domain/features/tracking/types/broadcast.types.ts": {
+    "from": "features/tracking/types/broadcast.types.ts",
+    "types": [
+      "TrackingPositionPayload",
+      "TrackingBroadcastPayload",
+      "FleetPositionPayload",
+      "TrackingPingRequestPayload",
+      "TrackingReseedPayload",
+      "TrackingCheckpointPayload",
+      "TrackingSessionPayload",
+      "TrackingBroadcastEventName"
+    ]
+  },
+  "packages/domain/features/vehicles/types/vehicleDocuments.types.ts": {
+    "from": "features/vehicles/utils/vehicleDocuments.util.ts",
+    "types": [
+      "VehicleDocuments",
+      "VehicleExtraDocument",
+      "DocumentWithExpiry"
+    ]
+  },
+  "packages/domain/lib/capabilities.types.ts": {
+    "from": "lib/capabilities.ts",
+    "types": [
+      "Capability"
+    ]
+  },
+  "packages/domain/lib/entityIdentity.types.ts": {
+    "from": "lib/entityIdentity.ts",
+    "types": [
+      "ResolvedPartyAvatarIdentity"
+    ]
+  },
+  "packages/domain/lib/partyEntityAccent.types.ts": {
+    "from": "lib/partyEntityAccent.ts",
+    "types": [
+      "PartyEntityAccent"
+    ]
+  },
+  "packages/domain/lib/productRegistry.types.ts": {
+    "from": "lib/productRegistry.ts",
+    "types": [
+      "ProductId"
+    ]
+  },
+  "packages/domain/lib/suite/suiteProductModule.types.ts": {
+    "from": "lib/suite/suiteProductModule.ts",
+    "types": [
+      "SuiteProductId"
+    ]
+  },
+  "packages/domain/lib/useLinkedOrgProfileMap.types.ts": {
+    "from": "lib/useLinkedOrgProfileMap.ts",
+    "types": [
+      "LinkedOrgDisplay"
+    ]
+  }
+}

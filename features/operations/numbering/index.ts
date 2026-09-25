@@ -1,8 +1,2 @@
-export { allocateOperationalSequence } from "./allocateOperationalSequence";
-export { generateOperationalCode, type OperationalEntityType } from "./generateOperationalCode";
-export { reserveOperationalNumber } from "./operationalNumbering.service";
-export {
-  selectTripOperationalReference,
-  selectIndentOperationalReference,
-  selectTripIndentLineageLabel,
-} from "./sequenceSelectors";
+// Moved to packages/domain/features/operations/numbering/index.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../../packages/domain/features/operations/numbering/index';

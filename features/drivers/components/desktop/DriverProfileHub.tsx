@@ -79,7 +79,7 @@ export function DriverProfileHub({
             { alignSelf: "flex-start", marginTop: 12 },
           ]}
           onPress={() =>
-            router.push(`/driver/${driver.id}` as Parameters<typeof router.push>[0])
+            router.push(`/fleet-driver/${driver.id}` as Parameters<typeof router.push>[0])
           }
         >
           <Wallet size={14} color={Theme.textOnPrimary} />

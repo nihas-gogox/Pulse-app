@@ -10,6 +10,15 @@ const projectRoot = __dirname;
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(projectRoot);
 
+// Driver extraction Phase 4A kill switch: EXPO_PUBLIC_DRIVER_APP_EXTRACTION_ENABLED is
+// inlined at transform time, but Metro's transform cache does not key on EXPO_PUBLIC_*
+// values — with the persistent cache (Netlify) a flipped flag could ship the OLD value.
+// Folding it into cacheVersion invalidates the cache whenever the flag changes.
+config.cacheVersion = [
+  config.cacheVersion,
+  `driverAppExtraction=${process.env.EXPO_PUBLIC_DRIVER_APP_EXTRACTION_ENABLED ?? ''}`,
+].filter(Boolean).join('|');
+
 // ── Transform cache ───────────────────────────────────────────────────────────
 // Persistent FileStore speeds CI/production builds but in dev it often leaves
 // stale module IDs after HMR / graph changes → "Requiring unknown module 5xxx"

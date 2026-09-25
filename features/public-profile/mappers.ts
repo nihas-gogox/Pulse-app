@@ -344,7 +344,7 @@ export function driverToPublicEntity(d: DriverRow): PublicProfileEntity {
       : "On-duty driver. Trips, earnings, and settlements update in real time on your fleet dashboard.",
     metrics,
     facts,
-    fullDetailHref: `/driver/${d.id}`,
+    fullDetailHref: `/fleet-driver/${d.id}`,
     primaryCtaLabel: "Open Fleet Details",
     synergyHeadline: null,
     synergyBody: null,

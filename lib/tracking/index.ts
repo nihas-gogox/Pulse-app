@@ -1,5 +1,4 @@
 export { TrackingEngine } from './TrackingEngine';
-export { useTrackingAppState } from './useTrackingAppState';
 export { BACKGROUND_GPS_TASK } from './backgroundTasks';
 export type {
   GpsReading,

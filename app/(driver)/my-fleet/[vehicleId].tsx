@@ -1,14 +1,2 @@
-import { LazySuspenseInlineFallback } from '@/components/LazySuspenseFallback';
-import { lazy, Suspense } from 'react';
-
-const OwnerVehicleDetailScreen = lazy(
-  () => import('@/features/driver/components/OwnerVehicleDetailScreen'),
-);
-
-export default function MyFleetVehicleRoute() {
-  return (
-    <Suspense fallback={<LazySuspenseInlineFallback />}>
-      <OwnerVehicleDetailScreen />
-    </Suspense>
-  );
-}
+// Moved to apps/driver/app/(driver)/my-fleet/[vehicleId].tsx (driver extraction, Phase 3). Temporary shim — removed in Phase 4C/6.
+export { default } from '../../../apps/driver/app/(driver)/my-fleet/[vehicleId]';

@@ -1,20 +1,2 @@
-import { PartyAvatar } from "@/components/PartyAvatar";
-import type { ResolvedIdentity } from "../types";
-
-export function IdentityAvatar({
-  identity,
-  size = 24,
-}: {
-  identity: ResolvedIdentity;
-  size?: number;
-}) {
-  return (
-    <PartyAvatar
-      name={identity.displayName}
-      avatarUrl={identity.avatar}
-      avatarSeed={identity.avatarSeed}
-      entityType="client"
-      size={size}
-    />
-  );
-}
+// Moved to packages/features/features/identity/avatars/IdentityAvatar.tsx (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../../packages/features/features/identity/avatars/IdentityAvatar';

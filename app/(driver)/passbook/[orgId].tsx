@@ -1,12 +1,2 @@
-import { LazySuspenseInlineFallback } from '@/components/LazySuspenseFallback';
-import { lazy, Suspense } from 'react';
-
-const DriverPassbookScreen = lazy(() => import('@/features/drivers/screens/DriverPassbookDetailScreen'));
-
-export default function PassbookRoute() {
-  return (
-    <Suspense fallback={<LazySuspenseInlineFallback />}>
-      <DriverPassbookScreen />
-    </Suspense>
-  );
-}
+// Moved to apps/driver/app/(driver)/passbook/[orgId].tsx (driver extraction, Phase 3). Temporary shim — removed in Phase 4C/6.
+export { default } from '../../../apps/driver/app/(driver)/passbook/[orgId]';

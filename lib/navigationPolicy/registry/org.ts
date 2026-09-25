@@ -294,7 +294,7 @@ export const ORG_POLICIES: readonly PolicyRecord[] = [
   },
   {
     id: 'org.driver-entity',
-    pattern: '/driver/:id',
+    pattern: '/fleet-driver/:id',
     experience: 'org',
     priority: 80,
     grants: { anyOf: ['fleet_management'] },
@@ -303,7 +303,7 @@ export const ORG_POLICIES: readonly PolicyRecord[] = [
   },
   {
     id: 'org.driver-analytics',
-    pattern: '/driver/:id/analytics',
+    pattern: '/fleet-driver/:id/analytics',
     experience: 'org',
     priority: 90,
     grants: { anyOf: ['fleet_management'] },
@@ -312,6 +312,35 @@ export const ORG_POLICIES: readonly PolicyRecord[] = [
   },
   {
     id: 'org.driver-profile',
+    pattern: '/fleet-driver/:id/profile',
+    experience: 'org',
+    priority: 90,
+    grants: { anyOf: ['fleet_management'] },
+    onDeny: { type: 'path', path: '/resources' },
+    softDeny: true,
+  },
+  // Legacy dispatcher URLs (driver extraction Phase 4A): app/driver/[id]… now only
+  // redirect to /fleet-driver/… — same access as before.
+  {
+    id: 'org.driver-entity-legacy',
+    pattern: '/driver/:id',
+    experience: 'org',
+    priority: 80,
+    grants: { anyOf: ['fleet_management'] },
+    onDeny: { type: 'path', path: '/resources' },
+    softDeny: true,
+  },
+  {
+    id: 'org.driver-analytics-legacy',
+    pattern: '/driver/:id/analytics',
+    experience: 'org',
+    priority: 90,
+    grants: { anyOf: ['fleet_management'] },
+    onDeny: { type: 'path', path: '/resources' },
+    softDeny: true,
+  },
+  {
+    id: 'org.driver-profile-legacy',
     pattern: '/driver/:id/profile',
     experience: 'org',
     priority: 90,

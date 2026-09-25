@@ -1,6 +1,2 @@
-import { AppLoadingSplash } from '@/components/AppLoadingSplash';
-
-/** Default Expo Router `loading.tsx` export for any route segment. */
-export default function RouteLoadingScreen() {
-  return <AppLoadingSplash variant="preparing" />;
-}
+// Moved to packages/ui/components/RouteLoadingScreen.tsx (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export { default } from '../packages/ui/components/RouteLoadingScreen';

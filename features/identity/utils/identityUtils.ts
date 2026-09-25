@@ -1,5 +1,2 @@
-export function identitiesKey(userIds: string[]): string {
-  return [...new Set(userIds.map((id) => String(id).trim()).filter(Boolean))]
-    .sort()
-    .join(",");
-}
+// Moved to packages/domain/features/identity/utils/identityUtils.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../../packages/domain/features/identity/utils/identityUtils';

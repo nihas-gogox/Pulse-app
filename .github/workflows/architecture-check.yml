@@ -23,6 +23,34 @@ jobs:
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
 
+  driver-boundaries:
+    name: Driver extraction boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Node built-ins only, so no npm ci needed. See docs/DRIVER_EXTRACTION_PLAN.md.
+      - run: node scripts/check-driver-boundaries.mjs
+
+  driver-bundle-sources:
+    name: Driver bundle has no main-app code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      # Builds the Pulse Driver web bundle with source maps and fails if any source file
+      # is main-app code (catches edges the import-graph checker cannot see, Phase 3.5 F1).
+      - run: npm run check:driver-bundle
+        env:
+          CI: 'true'
+          NODE_OPTIONS: '--max-old-space-size=4096'
+
   circular-deps:
     name: Circular dependency check
     runs-on: ubuntu-latest

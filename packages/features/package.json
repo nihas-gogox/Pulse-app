@@ -1,0 +1,6 @@
+{
+  "name": "@pulse/features",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Shared business-facing presentation (plan D1). May depend on @pulse/core, @pulse/domain, @pulse/ui. Never on app/** or apps/**."
+}

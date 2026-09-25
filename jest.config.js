@@ -1,3 +1,34 @@
+// Driver extraction Phase 2 (docs/DRIVER_EXTRACTION_PLAN.md): files moved into
+// packages/{core,domain,ui,features} leave a re-export shim at their old path.
+// Map each old `@/…` path straight to the moved file, so `jest.mock('@/lib/x')`
+// mocks the same module instance that package code imports as `@pulse/core/lib/x`.
+const readMoves = (file) => {
+  try {
+    return require(file);
+  } catch {
+    return {};
+  }
+};
+// Phase 3: DRIVER_ONLY files moved into apps/driver (only old route files keep a shim).
+const extractionMoves = {
+  ...readMoves('./packages/extraction-moves.json'),
+  ...readMoves('./apps/driver/extraction-moves.json'),
+};
+const stripModuleExt = (p) => p.replace(/(\.(web|native|ios|android))?\.(tsx?|jsx?)$/, '');
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const extractionMapper = {};
+for (const [from, to] of Object.entries(extractionMoves)) {
+  const fromBase = stripModuleExt(from);
+  const toBase = stripModuleExt(to);
+  extractionMapper[`^@/${escapeRe(fromBase)}$`] = `<rootDir>/${toBase}`;
+  if (/\/index$/.test(fromBase)) {
+    extractionMapper[`^@/${escapeRe(fromBase.replace(/\/index$/, ''))}$`] = `<rootDir>/${toBase}`;
+  }
+}
+const pulsePackagesMapper = {
+  '^@pulse/(core|domain|ui|features)/(.*)$': '<rootDir>/packages/$1/$2',
+};
+
 /** @type {import('jest').Config} */
 module.exports = {
   projects: [
@@ -9,6 +40,8 @@ module.exports = {
         '^.+\\.tsx?$': ['ts-jest/legacy', { isolatedModules: true }],
       },
       moduleNameMapper: {
+        ...extractionMapper,
+        ...pulsePackagesMapper,
         '^@/(.*)$': '<rootDir>/$1',
       },
     },
@@ -54,6 +87,8 @@ module.exports = {
       ],
       setupFiles: ['./__mocks__/expo.ts'],
       moduleNameMapper: {
+        ...extractionMapper,
+        ...pulsePackagesMapper,
         '^@/(.*)$': '<rootDir>/$1',
         '@expo/vector-icons$': '<rootDir>/__mocks__/@expo/vector-icons.ts',
         '@react-native-async-storage/async-storage':

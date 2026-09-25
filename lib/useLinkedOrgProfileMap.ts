@@ -1,7 +1,7 @@
 import { useLinkedOrgDisplayMap } from "@/lib/queries/useLinkedOrgDisplayQuery";
 import { useMemo } from "react";
-
-export type LinkedOrgDisplay = { avatarUrl?: string; avatarSeed?: string };
+import type { LinkedOrgDisplay } from '@pulse/domain/lib/useLinkedOrgProfileMap.types';
+export type { LinkedOrgDisplay } from '@pulse/domain/lib/useLinkedOrgProfileMap.types';
 
 /**
  * Fetches display profiles (avatar URL + seed) for all linked org IDs found in

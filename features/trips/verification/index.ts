@@ -1,24 +1,2 @@
-export { OdometerEntryScreen } from "./OdometerEntryScreen";
-export { OdometerStartEndScreen } from "./OdometerStartEndScreen";
-export { OdometerPhotoCapture } from "./OdometerPhotoCapture";
-export { DistanceComparisonCard } from "./DistanceComparisonCard";
-export { VerificationStatusChip } from "./VerificationStatusChip";
-export { OdometerTimelineEvent } from "./OdometerTimelineEvent";
-export { TripVerificationSummary } from "./TripVerificationSummary";
-export { useGPSDistanceEstimate } from "./GPSDistanceHook";
-export {
-  useTripVerification,
-  useSaveTripVerification,
-  useSaveTripOdometerBoth,
-  useTripVerificationPhotos,
-} from "./queries/useTripVerification";
-export { useTripVerificationFlow } from "./hooks/useTripVerification";
-export { useTripVerificationSync } from "./hooks/useTripVerificationSync";
-export { flushVerificationOutbox } from "./offline/sync";
-export { listVerificationOutbox } from "./offline/outbox";
-export type {
-  DistanceSource,
-  OdometerVerificationState,
-  TripVerificationSnapshot,
-  VerificationSide,
-} from "./types";
+// Moved to packages/features/features/trips/verification/index.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../../packages/features/features/trips/verification/index';

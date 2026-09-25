@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "workspaces": [
     "packages/*",
-    "packages/platform/*"
+    "packages/platform/*",
+    "apps/*"
   ],
   "scripts": {
     "postinstall": "patch-package",
@@ -35,6 +36,8 @@
     "build:oms": "cd oms && npm ci --prefer-offline --legacy-peer-deps && npm run build && cp -r dist ../dist/oms",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "check:driver-view": "tsx scripts/check-driver-view-contract.ts",
+    "check:driver-boundaries": "node scripts/check-driver-boundaries.mjs",
+    "check:driver-bundle": "cd apps/driver && NODE_ENV=production npx expo export -p web --source-maps --output-dir dist && node ../../scripts/driver-extraction-bundle-sources.mjs dist/_expo/static/js/web",
     "typecheck": "cross-env NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit -p tsconfig.json",
     "typecheck:oms": "tsc --noEmit -p oms/tsconfig.app.json",
     "test:v2": "jest --selectProjects pulse-v2 --no-coverage",

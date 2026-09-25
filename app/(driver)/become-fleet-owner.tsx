@@ -1,14 +1,2 @@
-import { LazySuspenseInlineFallback } from '@/components/LazySuspenseFallback';
-import { lazy, Suspense } from 'react';
-
-const BecomeFleetOwnerScreen = lazy(
-  () => import('@/features/driver/components/BecomeFleetOwnerScreen'),
-);
-
-export default function BecomeFleetOwnerRoute() {
-  return (
-    <Suspense fallback={<LazySuspenseInlineFallback />}>
-      <BecomeFleetOwnerScreen />
-    </Suspense>
-  );
-}
+// Moved to apps/driver/app/(driver)/become-fleet-owner.tsx (driver extraction, Phase 3). Temporary shim — removed in Phase 4C/6.
+export { default } from '../../apps/driver/app/(driver)/become-fleet-owner';

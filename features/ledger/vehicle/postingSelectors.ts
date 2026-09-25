@@ -1,23 +1,2 @@
-import type { TripFuelEntry } from "@/features/trips/operations/types";
-
-export interface FuelPostingCandidate {
-  sourceType: "fuel";
-  sourceId: string;
-  amount: number;
-  tripId: string;
-  paymentOwner: TripFuelEntry["payment_owner"];
-  approvalState: TripFuelEntry["approval_state"];
-  ledgerState: TripFuelEntry["ledger_state"];
-}
-
-export function toFuelPostingCandidate(entry: TripFuelEntry): FuelPostingCandidate {
-  return {
-    sourceType: "fuel",
-    sourceId: entry.id,
-    amount: Math.max(0, Number(entry.amount_inr) || 0),
-    tripId: entry.trip_id,
-    paymentOwner: entry.payment_owner,
-    approvalState: entry.approval_state,
-    ledgerState: entry.ledger_state,
-  };
-}
+// Moved to packages/domain/features/ledger/vehicle/postingSelectors.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../../packages/domain/features/ledger/vehicle/postingSelectors';

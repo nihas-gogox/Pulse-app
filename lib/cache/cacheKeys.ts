@@ -1,11 +1,2 @@
-import type { CacheDomain } from '@/lib/cache/deltaTypes';
-
-const CACHE_PREFIX = 'pulse-cache-meta-v2';
-
-export function cacheMetaKey(domain: CacheDomain, orgId: string): string {
-  return `${CACHE_PREFIX}:${domain}:${orgId}`;
-}
-
-export function cacheSchemaVersionKey(domain: CacheDomain): string {
-  return `${CACHE_PREFIX}:schema:${domain}`;
-}
+// Moved to packages/core/lib/cache/cacheKeys.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../packages/core/lib/cache/cacheKeys';

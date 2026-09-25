@@ -7,15 +7,10 @@
  */
 import Theme from "@/constants/Theme";
 import type { PartyEntityType } from "@/lib/partyAvatarDisplay";
+import type { PartyEntityAccent } from '@pulse/domain/lib/partyEntityAccent.types';
+export type { PartyEntityAccent } from '@pulse/domain/lib/partyEntityAccent.types';
 
 export type PartyRoleLabel = "CLIENT" | "SUPPLIER" | "DRIVER" | "VEHICLE";
-
-export type PartyEntityAccent = {
-  ring: string;
-  glow: string;
-  glowCore: string;
-  tint: string;
-};
 
 const CLIENT_ACCENT: PartyEntityAccent = {
   ring: Theme.networkBadgeClientText,

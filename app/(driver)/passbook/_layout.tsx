@@ -1,10 +1,2 @@
-/**
- * Passbook segment layout — Stack so dynamic route passbook/[orgId] works when pushed from Requests.
- * Fixes "No route named passbook" by giving the passbook segment a proper layout.
- */
-import { routeStackScreenOptions } from '@/lib/routeStackOptions';
-import { Stack } from 'expo-router';
-
-export default function PassbookLayout() {
-  return <Stack screenOptions={routeStackScreenOptions} />;
-}
+// Moved to apps/driver/app/(driver)/passbook/_layout.tsx (driver extraction, Phase 3). Temporary shim — removed in Phase 4C/6.
+export { default } from '../../../apps/driver/app/(driver)/passbook/_layout';

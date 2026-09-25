@@ -20,7 +20,7 @@ describe("Invoice-side Log POD reuses Pulse POD hard-copy flow", () => {
   const lrSrc = readFileSync(
     join(
       __dirname,
-      "../../../../features/trips/services/tripDocumentLrPod.service.ts",
+      "../../../../packages/domain/features/trips/services/tripDocumentLrPod.service.ts",
     ),
     "utf8",
   );

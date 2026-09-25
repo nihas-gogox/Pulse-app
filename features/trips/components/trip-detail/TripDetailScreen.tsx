@@ -3296,7 +3296,7 @@ export default function TripDetailScreen({
 
   const openDriverDetails = () => {
     if (!trip.driver_id) return;
-    router.push(`/driver/${trip.driver_id}` as never);
+    router.push(`/fleet-driver/${trip.driver_id}` as never);
   };
 
   const openVehicleDetails = () => {

@@ -31,12 +31,6 @@ import {
 } from "@/lib/validation";
 
 export { findIndentInMarketList } from "@/features/indents/utils/findIndentInList.util";
-
-export type CirculationTarget =
-  | "marketplace"
-  | "integrated_supplier"
-  | "offline"
-  | "both";
 export type IndentAction = "draft" | "share";
 
 /** Input for creating an indent (UI → service). client_id only sent when valid UUID. */
@@ -782,6 +776,8 @@ export async function getBroadcastIndentTarget(
 
 /** Supplier-facing target rate (not load-giver client sales price). */
 import { resolveCommercialPricing } from "@/features/marketplace/domain/commercialPricing";
+import type { CirculationTarget } from '@pulse/domain/features/indents/types/indents.types';
+export type { CirculationTarget } from '@pulse/domain/features/indents/types/indents.types';
 
 export function resolveSupplierTargetDisplayRate(
   supplierTarget: number | null | undefined,

@@ -595,7 +595,7 @@ export function FinanceScreen() {
         if (contactType === "driver") {
           const driverId =
             partyId === "driver-salary" ? (data.contactId ?? partyId) : partyId;
-          if (driverId) router.push(`/driver/${driverId}` as const);
+          if (driverId) router.push(`/fleet-driver/${driverId}` as const);
         }
       }
     },

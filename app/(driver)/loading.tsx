@@ -1,1 +1,3 @@
-export { default } from '@/components/RouteLoadingScreen';
+// Moved to apps/driver/app/(driver)/loading.tsx (driver extraction, Phase 3). Temporary shim — removed in Phase 4C/6.
+export * from '../../apps/driver/app/(driver)/loading';
+export { default } from '../../apps/driver/app/(driver)/loading';

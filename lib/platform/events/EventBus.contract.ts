@@ -1,10 +1,2 @@
-import type { PlatformDomainEvent } from './types';
-
-/** Event bus contract — implementation in Phase 3. */
-export type EventBus = {
-  publish<TPayload>(event: PlatformDomainEvent<TPayload>): Promise<void>;
-  subscribe<TPayload>(
-    name: PlatformDomainEvent['name'],
-    handler: (event: PlatformDomainEvent<TPayload>) => void | Promise<void>,
-  ): () => void;
-};
+// Moved to packages/domain/lib/platform/events/EventBus.contract.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../../packages/domain/lib/platform/events/EventBus.contract';

@@ -110,6 +110,7 @@ import { OrgVerificationReminderProvider } from '@/features/organization/compone
 import { isFloatingChatHostRoute } from '@/lib/floatingChatHostRoute.util';
 import { GlobalSyncProvider } from '@/lib/globalSync/GlobalSyncContext';
 import { NavigationPolicyShadowHost } from '@/lib/navigationPolicy/NavigationPolicyShadowHost';
+import { useDriverWebHandoff } from '@/features/drivers/hooks/useDriverWebHandoff';
 
 markStartupPhase('js_parse_start');
 
@@ -533,6 +534,8 @@ function RootLayoutNav() {
   const auth = useOptionalAuth();
   const [rootNavigatorMounted, setRootNavigatorMounted] = useState(false);
   const isDriverRole = auth?.profile?.role === 'driver';
+  // Phase 4A kill switch (web only, off by default): hand drivers off to /driver.
+  useDriverWebHandoff();
   const isChatRoute =
     pathname === ROUTES.CHAT || pathname.startsWith('/chat');
   const isDispatcherChatRouteActive =

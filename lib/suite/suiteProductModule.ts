@@ -1,12 +1,6 @@
-/**
- * Product readiness — evaluated by each suite product module.
- *
- * `accessible` is platform state only (session, org, membership, permissions).
- * `setupComplete` is entirely product-owned (warehouses, catalog, etc.).
- */
+import type { SuiteProductId } from '@pulse/domain/lib/suite/suiteProductModule.types';
+export type { SuiteProductId } from '@pulse/domain/lib/suite/suiteProductModule.types';
 
-/** Suite products — shared Pulse Identity, separate apps (Zoho-style). */
-export type SuiteProductId = 'core' | 'pilot' | 'commerce' | 'invoice' | 'pod' | 'finance-pro';
 
 export type ProductReadiness = {
   accessible: boolean;

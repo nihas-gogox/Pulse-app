@@ -1,15 +1,3 @@
-/**
- * Border radius tokens — avoid one-off radii (10, 14, 34) in new code.
- */
-export const radius = {
-  none: 0,
-  sm: 6,
-  md: 10,
-  lg: 14,
-  xl: 18,
-  /** Cards, sheets, large panels */
-  '2xl': 24,
-  full: 9999,
-} as const;
-
-export default radius;
+// Moved to packages/core/design-system/radius.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../packages/core/design-system/radius';
+export { default } from '../packages/core/design-system/radius';

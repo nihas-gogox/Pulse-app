@@ -9,7 +9,7 @@ describe('create_execution_plan_with_graph order-claim contract', () => {
     'utf8',
   );
   const orchestrator = readFileSync(
-    join(repoRoot, 'lib/platform/orchestration/ExecutionOrchestrator.ts'),
+    join(repoRoot, 'packages/domain/lib/platform/orchestration/ExecutionOrchestrator.ts'),
     'utf8',
   );
 

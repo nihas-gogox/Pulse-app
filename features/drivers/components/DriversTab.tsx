@@ -362,7 +362,7 @@ export function DriversTab({
                   onPress={() =>
                     onRowSelect
                       ? onRowSelect(data, 'DRIVER', 'drivers')
-                      : router.push(`/driver/${data.id}`)
+                      : router.push(`/fleet-driver/${data.id}`)
                   }
                   activeOpacity={0.7}
                 >
@@ -418,7 +418,7 @@ export function DriversTab({
                 onPress={() =>
                   onRowSelect
                     ? onRowSelect(data, 'DRIVER', 'drivers')
-                    : router.push(`/driver/${data.id}`)
+                    : router.push(`/fleet-driver/${data.id}`)
                 }
                 activeOpacity={0.7}
               >

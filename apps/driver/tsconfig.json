@@ -1,0 +1,22 @@
+{
+  "extends": "expo/tsconfig.base.json",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@pulse/core/*": ["../../packages/core/*"],
+      "@pulse/domain/*": ["../../packages/domain/*"],
+      "@pulse/ui/*": ["../../packages/ui/*"],
+      "@pulse/features/*": ["../../packages/features/*"],
+      "@/*": ["../../*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "../../svg.d.ts",
+    "../../types/**/*.d.ts"
+  ],
+  "exclude": ["node_modules", "dist", "**/__tests__/**"]
+}

@@ -22,7 +22,7 @@ const mockMarkPublished = jest.fn();
 const mockFindIndentByExecutionPlanId = jest.fn();
 const mockCreateFromExecutionPlan = jest.fn();
 
-jest.mock('../../services/OrderService', () => ({
+jest.mock('@/lib/platform/services/OrderService', () => ({
   OrderService: {
     getForPublish: (...args: unknown[]) => mockGetForPublish(...args),
     markPlanned: (...args: unknown[]) => mockMarkPlanned(...args),
@@ -32,7 +32,7 @@ jest.mock('../../services/OrderService', () => ({
   },
 }));
 
-jest.mock('../../services/ExecutionPlanService', () => ({
+jest.mock('@/lib/platform/services/ExecutionPlanService', () => ({
   ExecutionPlanService: {
     findByClientPlanId: (...args: unknown[]) => mockFindByClientPlanId(...args),
     findById: (...args: unknown[]) => mockFindPlanById(...args),
@@ -41,13 +41,13 @@ jest.mock('../../services/ExecutionPlanService', () => ({
   },
 }));
 
-jest.mock('../../repositories/indentRepository', () => ({
+jest.mock('@/lib/platform/repositories/indentRepository', () => ({
   indentRepository: {
     findByExecutionPlanId: (...args: unknown[]) => mockFindIndentByExecutionPlanId(...args),
   },
 }));
 
-jest.mock('../../services/IndentService', () => ({
+jest.mock('@/lib/platform/services/IndentService', () => ({
   IndentService: {
     findBySalesOrderId: (...args: unknown[]) => mockFindBySalesOrderId(...args),
     findByExecutionPlanId: (...args: unknown[]) => mockFindIndentByExecutionPlanId(...args),
@@ -56,13 +56,13 @@ jest.mock('../../services/IndentService', () => ({
   },
 }));
 
-jest.mock('../../services/CustomerService', () => ({
+jest.mock('@/lib/platform/services/CustomerService', () => ({
   CustomerService: {
     findClientRecord: (...args: unknown[]) => mockFindClientRecord(...args),
   },
 }));
 
-jest.mock('../../services/WarehouseService', () => ({
+jest.mock('@/lib/platform/services/WarehouseService', () => ({
   WarehouseService: {
     findWarehouseRecordById: (...args: unknown[]) => mockFindWarehouseRecordById(...args),
   },

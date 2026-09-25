@@ -1,9 +1,2 @@
-import { useMemo } from 'react';
-
-import { density, type DensityTier } from '@/design-system';
-
-export function useOperationalDensity(tier: DensityTier = 'medium') {
-  return useMemo(() => density[tier], [tier]);
-}
-
-export type { DensityTier };
+// Moved to packages/ui/components/operational/useOperationalDensity.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../packages/ui/components/operational/useOperationalDensity';

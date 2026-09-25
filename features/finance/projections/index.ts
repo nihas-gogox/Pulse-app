@@ -1,5 +1,2 @@
-export { deriveOperationalCashflow } from "./deriveOperationalCashflow";
-export { deriveOperationalLedgerProjection } from "./deriveOperationalLedgerProjection";
-export { derivePendingReimbursements } from "./derivePendingReimbursements";
-export { deriveOperationalPayables } from "./deriveOperationalPayables";
-export { syncOperationalFinanceProjection } from "./syncOperationalFinanceProjection";
+// Moved to packages/domain/features/finance/projections/index.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../../packages/domain/features/finance/projections/index';

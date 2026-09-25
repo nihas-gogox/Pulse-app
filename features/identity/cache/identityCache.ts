@@ -1,17 +1,2 @@
-import type { ResolvedIdentity } from "../types";
-
-const memoryCache = new Map<string, ResolvedIdentity>();
-
-export function readIdentityFromCache(userId: string): ResolvedIdentity | null {
-  return memoryCache.get(userId) ?? null;
-}
-
-export function writeIdentityToCache(identity: ResolvedIdentity) {
-  memoryCache.set(identity.userId, identity);
-}
-
-export function writeManyIdentitiesToCache(identities: ResolvedIdentity[]) {
-  identities.forEach((identity) => {
-    memoryCache.set(identity.userId, identity);
-  });
-}
+// Moved to packages/domain/features/identity/cache/identityCache.ts (driver extraction, Phase 2). Temporary shim — removed in Phase 6.
+export * from '../../../packages/domain/features/identity/cache/identityCache';
