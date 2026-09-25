@@ -46,6 +46,8 @@ packages/pulse-v2/.env.v2
 # generated native folders
 /ios
 /android
+/apps/driver/android
+/apps/driver/ios
 
 # test coverage
 coverage/
