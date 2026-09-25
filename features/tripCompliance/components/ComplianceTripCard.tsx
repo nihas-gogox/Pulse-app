@@ -113,16 +113,20 @@ function PartyChip({
   entityType,
   avatarSeed,
   alignEnd,
+  showAvatar = true,
 }: {
   name: string;
   entityType: "vehicle" | "driver";
   avatarSeed: string;
   alignEnd?: boolean;
+  showAvatar?: boolean;
 }) {
   const label = formatPartyName(name);
   return (
     <View style={[styles.chip, alignEnd && styles.chipEnd]}>
-      <PartyAvatar name={label} initialsColorSeed={avatarSeed} entityType={entityType} size={CHIP_AVATAR} />
+      {showAvatar ? (
+        <PartyAvatar name={label} initialsColorSeed={avatarSeed} entityType={entityType} size={CHIP_AVATAR} />
+      ) : null}
       <View style={[styles.chipCopy, alignEnd && styles.chipCopyEnd]}>
         <Text style={[styles.chipName, alignEnd && styles.chipNameEnd]} numberOfLines={1}>
           {label}
@@ -324,7 +328,7 @@ export function ComplianceTripCard({
 
           <View style={styles.partyRow}>
             <PartyChip name={vehicleLabel} entityType="vehicle" avatarSeed={vehicleFb} />
-            <PartyChip name={driverLabel} entityType="driver" avatarSeed={driverFb} alignEnd />
+            <PartyChip name={driverLabel} entityType="driver" avatarSeed={driverFb} alignEnd showAvatar={false} />
           </View>
         </Pressable>
 
