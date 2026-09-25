@@ -16,6 +16,12 @@
   ],
   "patterns": [
     {
+      "match": "^features/driver/components/MarketLoadBidSheet\\.tsx$",
+      "cls": "SHARED_FEATURES",
+      "decision": "prod-integration-2026-09-25",
+      "why": "Approved by Nihas 2026-09-25 (Option 1a): used by main /find-loads (997064af) and the driver AvailableLoadDetailScreen; depends only on @pulse/*. Lives at packages/features/features/network/components/bidding/MarketLoadBidSheet.tsx"
+    },
+    {
       "match": "^contexts/AuthContext\\.tsx$",
       "cls": "SHARED_DOMAIN",
       "decision": "D11",

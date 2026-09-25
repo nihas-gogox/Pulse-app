@@ -12,7 +12,7 @@
  */
 import { ChromeBelowTopNavLoadingScreen } from "@/components/chromeLoadingScreens";
 import { PartyAvatar } from "@/components/PartyAvatar";
-import { MarketLoadBidSheet } from "@/features/driver/components/MarketLoadBidSheet";
+import { MarketLoadBidSheet } from "@pulse/features/features/network/components/bidding/MarketLoadBidSheet";
 import Layout from "@/constants/Layout";
 import Theme from "@/constants/Theme";
 import { useOptionalOrganization } from "@/contexts/OrganizationContext";

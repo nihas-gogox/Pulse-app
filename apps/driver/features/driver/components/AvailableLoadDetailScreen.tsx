@@ -12,7 +12,7 @@ import Theme from '@pulse/core/constants/Theme';
 import { useAuth } from '@pulse/domain/contexts/AuthContext';
 import { useDriverTheme, useDriverThemeColors } from '@pulse/ui/contexts/DriverThemeContext';
 import { DriverWorkOpportunityCard } from './DriverWorkOpportunityCard';
-import { MarketLoadBidSheet } from './MarketLoadBidSheet';
+import { MarketLoadBidSheet } from '@pulse/features/features/network/components/bidding/MarketLoadBidSheet';
 import { RazorpayTestPreviewSheet } from '@pulse/features/features/driver/components/RazorpayTestPreviewSheet';
 import {
   fleetOwnerLoadDisplayId,

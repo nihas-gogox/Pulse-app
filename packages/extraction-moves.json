@@ -192,6 +192,7 @@
   "features/chat/utils/thinImageMetadata.ts": "packages/domain/features/chat/utils/thinImageMetadata.ts",
   "features/clients/services/clients.service.ts": "packages/domain/features/clients/services/clients.service.ts",
   "features/connections/services/connectionRequests.service.ts": "packages/domain/features/connections/services/connectionRequests.service.ts",
+  "features/driver/components/MarketLoadBidSheet.tsx": "packages/features/features/network/components/bidding/MarketLoadBidSheet.tsx",
   "features/driver/components/RazorpayTestPreviewSheet.tsx": "packages/features/features/driver/components/RazorpayTestPreviewSheet.tsx",
   "features/driver/job-card/deliveryProof.ts": "packages/domain/features/driver/job-card/deliveryProof.ts",
   "features/driver/job-card/parts/RoutePlanMapPin.tsx": "packages/ui/features/driver/job-card/parts/RoutePlanMapPin.tsx",

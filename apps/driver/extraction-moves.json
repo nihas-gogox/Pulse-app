@@ -119,7 +119,6 @@
   "features/driver/components/DriverTripOperationsTab.tsx": "apps/driver/features/driver/components/DriverTripOperationsTab.tsx",
   "features/driver/components/DriverWorkOpportunityCard.tsx": "apps/driver/features/driver/components/DriverWorkOpportunityCard.tsx",
   "features/driver/components/MarketAwardsScreen.tsx": "apps/driver/features/driver/components/MarketAwardsScreen.tsx",
-  "features/driver/components/MarketLoadBidSheet.tsx": "apps/driver/features/driver/components/MarketLoadBidSheet.tsx",
   "features/driver/components/MissionCardLayout.tsx": "apps/driver/features/driver/components/MissionCardLayout.tsx",
   "features/driver/components/MyBidsScreen.tsx": "apps/driver/features/driver/components/MyBidsScreen.tsx",
   "features/driver/components/MyFleetScreen.tsx": "apps/driver/features/driver/components/MyFleetScreen.tsx",

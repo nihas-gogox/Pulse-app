@@ -2118,11 +2118,6 @@
     "rule": "S1",
     "why": "driver seed, no live main-app importer"
   },
-  "features/driver/components/MarketLoadBidSheet.tsx": {
-    "cls": "DRIVER_ONLY",
-    "rule": "S1",
-    "why": "driver seed, no live main-app importer"
-  },
   "features/driver/components/MissionCardLayout.tsx": {
     "cls": "DRIVER_ONLY",
     "rule": "S1",
@@ -3384,6 +3379,11 @@
     "cls": "SHARED_FEATURES",
     "rule": "F1",
     "why": "shared business UI (D1: @pulse/features)"
+  },
+  "features/network/components/bidding/MarketLoadBidSheet.tsx": {
+    "cls": "SHARED_FEATURES",
+    "rule": "F1",
+    "why": "shared business UI (D1: @pulse/features); was features/driver/components/MarketLoadBidSheet.tsx (DRIVER_ONLY, S1). Reclassified at prod integration 2026-09-25: main /find-loads (997064af) and the driver AvailableLoadDetailScreen both use it"
   },
   "features/network/components/desktop/networkDesktopHub.styles.ts": {
     "cls": "MAIN_ONLY",
