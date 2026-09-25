@@ -1,6 +1,6 @@
 # Git Workflow — how the team works on Pulse
 
-Owner: Nihas (gatekeeper of `V1`). Last updated: 2026-09-24 10:48 IST.
+Owner: Nihas (gatekeeper of `V1`). Last updated: 2026-09-24 (afternoon) IST.
 Claude uses this file too — keep "Current state", "Open questions" and "Changelog" up to date.
 
 ---
@@ -20,14 +20,15 @@ Claude uses this file too — keep "Current state", "Open questions" and "Change
 
 | Repo / branch | Deployed to | Database |
 |---|---|---|
-| **[GOGOPulse/Pulse-app](https://github.com/GOGOPulse/Pulse-app/tree/V1)** → `V1` (local remote: `gogopulse`) | Netlify → **gogopulse.com** (**PROD**) | **Prod DB** `nafxpivddesgsrthmosv` ([dashboard](https://supabase.com/dashboard/project/nafxpivddesgsrthmosv)) |
+| **[Vasanthgogox/Pulse-app](https://github.com/Vasanthgogox/Pulse-app/tree/V1)** → `V1` (local remote: `vasanth`) | Netlify → **gogopulse.com** (**PROD**) | **Prod DB** `nafxpivddesgsrthmosv` ([dashboard](https://supabase.com/dashboard/project/nafxpivddesgsrthmosv)) |
 | `nihas-gogox/Pulse-app` → `V1` (origin + Nihas local) | Netlify → **GX Pulse** URL (**preprod**) | **Preprod DB** `xbisiveavvbifbzyfhgy` |
-| `Vasanthgogox/Pulse-app` → `V1` | Not deployed anywhere | Vasanth's local `.env` has **prod DB creds only** |
+| [GOGOPulse/Pulse-app](https://github.com/GOGOPulse/Pulse-app/tree/V1) → `V1` (local remote: `gogopulse`) | unknown — not what gogopulse.com runs | unknown |
 | `praveen-ggx/Pulse-app`, `snehakumari-ship-it/Pulse-app` | Not deployed | unknown |
 
-⚠️ Anything Vasanth runs locally (including migrations / `db:push`) hits the **prod DB**.
+⚠️ Vasanth's local `.env` has **prod DB creds only** — anything he runs locally (including migrations / `db:push`) hits the **prod DB**.
+⚠️ Every push to `vasanth/V1` goes live on gogopulse.com.
 
-**Path to prod:** Nihas `V1` (preprod) → **Vasanth sir** pushes to `GOGOPulse/Pulse-app` `V1` → Netlify deploys gogopulse.com.
+**Path to prod:** Nihas `V1` (preprod) → **Vasanth sir** merges into `Vasanthgogox/Pulse-app` `V1` → Netlify deploys gogopulse.com.
 Nihas's local `.env`: PREPROD block active; PROD block present but commented out.
 
 ---
@@ -42,7 +43,7 @@ Nihas's local `.env`: PREPROD block active; PROD block present but commented out
 
 | Branch | Meaning | Who writes to it |
 |---|---|---|
-| `gogopulse/V1` | Exactly what is live right now (`GOGOPulse/Pulse-app` `V1` → gogopulse.com) | **Vasanth sir** only |
+| `vasanth/V1` | Exactly what is live right now (`Vasanthgogox/Pulse-app` `V1` → gogopulse.com) | **Vasanth sir** only |
 | `V1` | The next release — the team's shared baseline (deploys to GX Pulse preprod) | Nihas only |
 | `<person>/<task>` | One task, e.g. `praveen/compliance-flow` | That person |
 | `hotfix/<issue>` | Urgent live fix, e.g. `hotfix/login-crash` | Whoever fixes it (usually Nihas) |
@@ -106,13 +107,13 @@ Then tell the team: **"V1 updated, please pull."**
 
 ## 6. Hotfix — something is broken live
 
-1. Branch from **what's live** (`gogopulse/V1`), not our V1:
+1. Branch from **what's live** (`vasanth/V1`), not our V1:
    ```bash
-   git fetch gogopulse
-   git checkout -b hotfix/<issue> gogopulse/V1
+   git fetch vasanth
+   git checkout -b hotfix/<issue> vasanth/V1
    ```
 2. Fix **only** that bug. Test it. Push the branch to origin: `git push origin hotfix/<issue>`
-3. Ask **Vasanth sir** to merge `hotfix/<issue>` into `GOGOPulse/Pulse-app` `V1` → Netlify deploys gogopulse.com.
+3. Ask **Vasanth sir** to merge `hotfix/<issue>` into `Vasanthgogox/Pulse-app` `V1` → Netlify deploys gogopulse.com.
 4. **Immediately** bring the fix into our V1 (otherwise the next release brings the bug back):
    ```bash
    git checkout V1 && git merge --no-ff hotfix/<issue> && git push origin V1
@@ -145,7 +146,8 @@ Check this once a week and delete merged branches.
 
 ## 9. Current state (as of 2026-09-24)
 
-`V1` = `a8f87e08` = Vasanth's V1 up to `80589762448009f6a8b61d6a1a0d84998b037477` + Adhi fixes merged on top. Local `V1` = `origin/V1` (in sync). Deployed to GX Pulse preprod.
+`V1` = `149fba7d` = Vasanth's V1 up to `80589762448009f6a8b61d6a1a0d84998b037477` + Adhi fixes (`a8f87e08`) + this doc. Local `V1` = `origin/V1` (in sync). Deployed to GX Pulse preprod.
+**Live (gogopulse.com)** = `vasanth/V1` `997064af` — 1 commit ahead of our base, and missing Adhi fixes.
 All three branches below started from `a8f87e08`. **None merged yet.**
 
 | Branch | What's in it | Status / plan |
@@ -162,8 +164,11 @@ All three branches below started from `a8f87e08`. **None merged yet.**
 
 ## 10. Open questions — things we don't know yet
 
-- [x] ~~Which repo/branch is live?~~ → `GOGOPulse/Pulse-app` `V1` on Netlify (gogopulse.com, prod DB `nafxpivddesgsrthmosv`).
-- [x] ~~Who deploys to prod?~~ → Vasanth sir pushes to `GOGOPulse/Pulse-app` `V1`.
+- [x] ~~Which repo/branch is live?~~ → **`Vasanthgogox/Pulse-app` `V1`** on Netlify (gogopulse.com, prod DB `nafxpivddesgsrthmosv`). Corrected 2026-09-24 — earlier note said GOGOPulse, that was wrong.
+- [x] ~~Who deploys to prod?~~ → Vasanth sir, by pushing to his own `V1`.
+- [ ] **What is `GOGOPulse/Pulse-app` for?** It's at `80589762` (older than live). Mirror / future org repo / unused?
+- [ ] ⚠️ **Live code needs DB changes that aren't applied:** live = `vasanth/V1` `997064af`, which includes 4 migrations (`20270922165000`, `20270923135205`, `20270923194500`, `20270923201500`) **not on the prod DB**. Marketplace search features may be broken on gogopulse.com until they're applied.
+- [ ] **Network Loads column shows a 15-card, one-per-route sample** (Abitha Transport: column says 27, real open loads ≈373 across 107 routes). Intentional? Asked Vasanth 2026-09-24.
 - [ ] **Hotfix path:** Nihas can't push to prod repo — does every hotfix go through Vasanth sir? (section 6 assumes Nihas prepares the fix, Vasanth pushes it)
 - [x] ~~Were Vasanth's 4 new migrations pushed to prod?~~ → **No** (checked 2026-09-24). But see the next items.
 - [ ] ⚠️ **Same migration, two timestamps:** prod has `20260923135233_market_indents_show_open_loads_for_new_friends` (not in any git branch — applied directly on prod). `vasanth/V1` has the same-named file as `20270923135205_…`. After merging Vasanth, `db:push` would run it **again**. Ask Vasanth: rename the file to `20260923135233` or confirm it's safe to re-run.
@@ -194,8 +199,10 @@ Newest on top. Add one line every time `V1` (or prod) changes.
 
 | Date | What happened to V1 | V1 commit |
 |---|---|---|
+| 2026-09-24 | **Correction:** gogopulse.com runs `Vasanthgogox/Pulse-app` `V1` (`997064af`), not GOGOPulse. Found via Abitha Transport "Network Loads 27" issue (15-card route-dedup sample in `997064af`) | `149fba7d` |
+| 2026-09-24 | Workflow doc committed to V1 | `149fba7d` |
 | 2026-09-24 | Checked prod DB migrations: Vasanth's 4 new ones NOT applied; 1 ad-hoc migration on prod not in git; 3 V1 migrations missing on both DBs (see section 10) | `a8f87e08` |
-| 2026-09-24 | Checked prod code: `gogopulse/V1` = `80589762` (same as V1's starting point). Our V1 is 1 merge ahead (Adhi fixes — not live). Vasanth's `997064af` not live | `a8f87e08` |
+| 2026-09-24 | Checked GOGOPulse repo: `V1` = `80589762`. (Wrongly assumed this was live — corrected above) | `a8f87e08` |
 | 2026-09-24 | Doc created. Environments + team recorded. Vasanth pushed `997064af` (Marketplace search) to `vasanth/V1` — not merged into V1 yet | `a8f87e08` |
 | 2026-09-23 | Praveen compliance-flow squashed onto baseline → separate branch `v0.0.01-v1-post-praveen-compliance-merge-20260923-1839` (`85e8a724`). **Not** in V1 | `a8f87e08` |
 | 2026-09-23 | Adhi fixes (`new-fix-adhi` `e49fb71f..06416244`) merged onto V1 | `a8f87e08` |
