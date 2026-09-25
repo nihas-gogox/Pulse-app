@@ -14,6 +14,6 @@ export function complianceReviewDecisionActions(row: ComplianceDocRow): { canApp
   const vaultOnly = row.entityDoc?.source === "vehicle-vault";
   return {
     canApprove: row.status !== "verified",
-    canDecline: !vaultOnly && row.status !== "rejected",
+    canDecline: !vaultOnly && row.status !== "rejected" && row.status !== "verified",
   };
 }

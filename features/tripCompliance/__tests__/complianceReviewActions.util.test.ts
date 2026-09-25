@@ -41,8 +41,8 @@ describe("complianceReviewDecisionActions", () => {
     expect(complianceReviewDecisionActions(row({ status: "pending" }))).toEqual({ canApprove: true, canDecline: true });
   });
 
-  it("shows Decline on a verified file and Approve on a rejected file", () => {
-    expect(complianceReviewDecisionActions(row({ status: "verified" }))).toEqual({ canApprove: false, canDecline: true });
+  it("hides Approve and Decline once a file is verified, and shows Approve on a rejected file", () => {
+    expect(complianceReviewDecisionActions(row({ status: "verified" }))).toEqual({ canApprove: false, canDecline: false });
     expect(complianceReviewDecisionActions(row({ status: "rejected" }))).toEqual({ canApprove: true, canDecline: false });
   });
 });

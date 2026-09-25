@@ -38,7 +38,6 @@ import {
 } from "@/features/tripCompliance/utils/complianceTripDocumentFormat.util";
 import {
   approveComplianceWithException,
-  markTripComplianceVerified,
   setTripDocumentVerification,
 } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import { canApproveComplianceWithException, canMarkComplianceVerified } from "@/features/tripCompliance/services/tripComplianceRead.service";
@@ -66,7 +65,6 @@ import {
 } from "@/features/tripCompliance/utils/complianceReviewActions.util";
 import { classifyPreviewFailure } from "@/features/tripCompliance/utils/compliancePreviewFailure.util";
 import { buildComplianceDocumentActivity, type ComplianceActorDetail, type ComplianceDocumentActivityEntry } from "@/features/tripCompliance/utils/complianceDocumentActivity.util";
-import { formatMarkComplianceVerifiedError } from "@/features/tripCompliance/utils/complianceMarkVerifiedError.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { HUB_MOBILE_TICKET_REF } from "@/components/hub/hubMobileTicketTokens";
@@ -248,8 +246,6 @@ export function ComplianceDocumentReviewSheet({
     docType: string;
     resolve: (value: string | null) => void;
   } | null>(null);
-  const [markingVerified, setMarkingVerified] = useState(false);
-  const [markVerifiedError, setMarkVerifiedError] = useState<string | null>(null);
   const [exceptionPanelOpen, setExceptionPanelOpen] = useState(false);
   const [exceptionComment, setExceptionComment] = useState("");
   const [approvingException, setApprovingException] = useState(false);
@@ -569,27 +565,6 @@ export function ComplianceDocumentReviewSheet({
     },
     [rejectTarget, selected, actorId, organizationId, onChanged, scope],
   );
-
-  const handleMarkVerified = useCallback(async () => {
-    if (!actorId) {
-      const message = "Your session is missing an actor id. Sign in again, then retry.";
-      setMarkVerifiedError(message);
-      alertMessage("Couldn't mark compliance verified", message);
-      return;
-    }
-    if (!tripVerifyCheck.ok) return;
-    setMarkVerifiedError(null);
-    setMarkingVerified(true);
-    const { error } = await markTripComplianceVerified({ tripId, actorId });
-    setMarkingVerified(false);
-    if (error) {
-      const message = formatMarkComplianceVerifiedError(error.message);
-      setMarkVerifiedError(message);
-      alertMessage("Couldn't mark compliance verified", message);
-      return;
-    }
-    onChanged();
-  }, [actorId, tripVerifyCheck.ok, tripId, onChanged]);
 
   const handleApproveWithException = useCallback(async () => {
     if (!exceptionComment.trim()) return;
@@ -1153,39 +1128,24 @@ export function ComplianceDocumentReviewSheet({
                   <Text style={styles.verifiedBannerText}>Compliance Verified ✓</Text>
                 </View>
               ) : null}
-              {scope === "trip" && canMarkVerified && !summary?.complianceVerifiedAt ? (
+              {scope === "trip" && canMarkVerified && !summary?.complianceVerifiedAt && !tripVerifyCheck.ok ? (
                 <View style={styles.footerActionsBlock}>
-                  {!tripVerifyCheck.ok ? (
-                    <Text style={styles.rejectReasonText}>
-                      {[
-                        readiness?.requiredDocs.missingLabels.length
-                          ? `Missing: ${readiness.requiredDocs.missingLabels.join(", ")}`
-                          : null,
-                        readiness?.requiredDocs.pendingLabels.length
-                          ? `Pending: ${readiness.requiredDocs.pendingLabels.join(", ")}`
-                          : null,
-                        readiness?.requiredDocs.rejectedLabels.length
-                          ? `Rejected: ${readiness.requiredDocs.rejectedLabels.join(", ")}`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </Text>
-                  ) : null}
-                  {markVerifiedError ? (
-                    <Text style={styles.rejectReasonText}>{markVerifiedError}</Text>
-                  ) : null}
-                  {tripVerifyCheck.ok ? (
-                    <TouchableOpacity
-                      style={styles.primaryCta}
-                      disabled={markingVerified}
-                      onPress={() => void handleMarkVerified()}
-                    >
-                      <Text style={styles.primaryCtaText}>
-                        {markingVerified ? "Marking verified…" : "Mark Compliance Verified"}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : !exceptionPanelOpen ? (
+                  <Text style={styles.rejectReasonText}>
+                    {[
+                      readiness?.requiredDocs.missingLabels.length
+                        ? `Missing: ${readiness.requiredDocs.missingLabels.join(", ")}`
+                        : null,
+                      readiness?.requiredDocs.pendingLabels.length
+                        ? `Pending: ${readiness.requiredDocs.pendingLabels.join(", ")}`
+                        : null,
+                      readiness?.requiredDocs.rejectedLabels.length
+                        ? `Rejected: ${readiness.requiredDocs.rejectedLabels.join(", ")}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </Text>
+                  {!exceptionPanelOpen ? (
                     <TouchableOpacity
                       style={[styles.primaryCta, !exceptionCheck.ok && styles.primaryCtaDisabled]}
                       disabled={!exceptionCheck.ok}
@@ -1323,7 +1283,9 @@ export function ComplianceDocumentReviewSheet({
                           <Text style={styles.approveBtnText}>{busy ? "Approving…" : "Approve"}</Text>
                         </TouchableOpacity>
                       ) : null}
-                      {selected.status !== "rejected" && selected.entityDoc?.source !== "vehicle-vault" ? (
+                      {selected.status !== "rejected" &&
+                      selected.status !== "verified" &&
+                      selected.entityDoc?.source !== "vehicle-vault" ? (
                         <TouchableOpacity
                           style={styles.rejectBtn}
                           onPress={() => {
