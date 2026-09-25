@@ -2904,10 +2904,12 @@ export const neoStyles = StyleSheet.create({
     lineHeight: 16,
   },
   vaultCard: {
+    width: "31.5%",
+    maxWidth: "31.5%",
     flexGrow: 0,
-    flexShrink: 1,
-    flexBasis: "31.8%",
+    flexShrink: 0,
     minWidth: 0,
+    minHeight: 176,
     backgroundColor: "#fff",
     borderRadius: 14,
     padding: 12,
@@ -2919,6 +2921,10 @@ export const neoStyles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 8,
     position: "relative",
+  },
+  vaultCardHalf: {
+    width: "48%",
+    maxWidth: "48%",
   },
   vaultCardExpanded: {
     flexBasis: "100%",
@@ -3001,6 +3007,8 @@ export const neoStyles = StyleSheet.create({
   },
   vaultBtnFlex: {
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
     marginTop: 0,
     justifyContent: "center",
   },

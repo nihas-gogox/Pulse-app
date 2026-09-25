@@ -147,7 +147,7 @@ function documentExpiryLabel(row: {
   if (expiryLabel) {
     return row.status === "expired" ? `Expired ${expiryLabel}` : `Expires ${expiryLabel}`;
   }
-  if (row.type === "rc" || row.type === "insurance" || row.type === "fitness" || row.type === "license") {
+  if (row.type === "insurance" || row.type === "fitness" || row.type === "license") {
     return "Expiry not set";
   }
   return null;
@@ -586,9 +586,8 @@ export function ComplianceDocumentReviewSheet({
     async (type: string): Promise<string | null> => {
       const existing = rows.find((row) => row.type === type)?.entityDoc?.expiry_date?.trim() ?? "";
       if (existing && /^\d{4}-\d{2}-\d{2}$/.test(existing)) return existing;
-      // Always collect expiry for RC / Insurance / FC / DL so the list can show it.
-      const needsExpiry =
-        documentRequiresExpiry(type) || type === "rc" || type === "insurance" || type === "fitness";
+      // Insurance, FC, and DL need an expiry. RC does not.
+      const needsExpiry = documentRequiresExpiry(type);
       if (!needsExpiry) return existing || null;
       const entered = await promptExpiryDate(type);
       if (!entered) return documentRequiresExpiry(type) ? null : existing || null;

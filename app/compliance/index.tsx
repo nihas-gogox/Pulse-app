@@ -20,10 +20,11 @@ import {
   useComplianceTripQuery,
   useInvalidateComplianceTrips,
 } from "@/features/tripCompliance/hooks/useComplianceTripsQuery";
-import { postCompliancePayment, type ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import { postCompliancePayment, markTripComplianceVerified, type ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import { COMPLIANCE_STAGE_FILTER_LABEL, COMPLIANCE_STAGES, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import { COMPLIANCE_FILTER_COUNT_TONE, matchesComplianceTripSearch } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
+import { formatMarkComplianceVerifiedError } from "@/features/tripCompliance/utils/complianceMarkVerifiedError.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { useLayoutInsets } from "@/lib/layoutInsets";
 import { ROUTES } from "@/lib/routes";
@@ -91,6 +92,25 @@ export default function ComplianceScreen() {
   } = useComplianceTripsQuery();
   const { stage, setStage, filtered, counts } = useComplianceStageFilter(summaries);
   const invalidate = useInvalidateComplianceTrips();
+  const markTripVerified = useCallback(
+    async (tripId: string) => {
+      if (!canMarkVerified) {
+        alertMessage("Can't verify", "You don't have permission to mark this trip compliance verified.");
+        return;
+      }
+      if (!user?.uid) {
+        alertMessage("Can't verify", "Sign in again, then try Verify Docs.");
+        return;
+      }
+      const { error } = await markTripComplianceVerified({ tripId, actorId: user.uid });
+      if (error) {
+        alertMessage("Couldn't verify compliance", formatMarkComplianceVerifiedError(error.message));
+        return;
+      }
+      invalidate(tripId);
+    },
+    [canMarkVerified, invalidate, user?.uid],
+  );
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const [search, setSearch] = useState("");
   const [pay, setPay] = useState<{ summary: ComplianceTripSummary; category: ComplianceLedgerCategory } | null>(null);
@@ -329,6 +349,7 @@ export default function ComplianceScreen() {
           onOpenTrip={openTrip}
           onOpenDetails={openDetails}
           onReview={(tripId, documentKey, scope = "trip") => setReview({ tripId, documentKey, scope })}
+          onMarkComplianceVerified={markTripVerified}
           onPay={(tripId) => {
             const summary = visible.find((s) => s.trip.id === tripId) ?? summaries.find((s) => s.trip.id === tripId);
             if (summary) openPay(summary);
@@ -345,6 +366,7 @@ export default function ComplianceScreen() {
                 onViewTrip={() => openTrip(summary.trip.id)}
                 onOpenDetails={() => openDetails(summary.trip.id)}
                 onPay={() => openPay(summary)}
+                onMarkComplianceVerified={() => markTripVerified(summary.trip.id)}
                 canManageFinance={canManageFinance}
               />
             </View>

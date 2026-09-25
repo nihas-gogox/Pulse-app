@@ -235,6 +235,7 @@ import { TripDetailTrackingHub } from "./TripDetailTrackingHub";
 import { TripMobileDetail } from "./TripMobileDetail";
 import { TripMobileFinancePanel } from "./TripMobileFinancePanel";
 import { TripMobileVaultPanel } from "./TripMobileVaultPanel";
+import { TripVaultCardGrid } from "./TripVaultCardGrid";
 import { TripStageControlPanel } from "./TripStageControlPanel";
 import { ManifestRefAssetCard } from "./ManifestRefAssetCard";
 import { useManifestRefAssetInsights } from "./hooks/useManifestRefAssetInsights";
@@ -293,10 +294,6 @@ import {
   resolveTripSupplierDisplayName,
   splitLocationPrimarySecondary,
 } from "./tripDetail.helpers";
-import {
-  shouldShowManifestHeroDriverParty,
-  type AggregateTripKindPillContext,
-} from "@/features/drivers/utils/driverUtils.util";
 import {
   buildAssetProvisionCostBreakdownLines,
   driverOfferFromDriverRow,
@@ -2445,24 +2442,6 @@ export default function TripDetailScreen({
       return true;
     },
     [detail.trip?.id, detail.currentUserId, detail.loadTripDocuments],
-  );
-
-  const manifestHeroPartyContext = useMemo<AggregateTripKindPillContext>(
-    () => ({
-      viewerOrganizationId: currentOrganization?.id ?? null,
-      supplierLinkedOrganizationId: detail.partnerOrgId ?? null,
-    }),
-    [currentOrganization?.id, detail.partnerOrgId],
-  );
-  const showManifestHeroDriver = useMemo(
-    () =>
-      detail.trip
-        ? shouldShowManifestHeroDriverParty(
-            detail.trip,
-            manifestHeroPartyContext,
-          )
-        : false,
-    [detail.trip, manifestHeroPartyContext],
   );
 
   const { open: openVaultChatPreview, node: vaultChatPreviewNode } =
@@ -4758,42 +4737,19 @@ export default function TripDetailScreen({
                     <View style={neoStyles.swapIcon}>
                       <FontAwesome name="exchange" size={11} color="#64748b" />
                     </View>
-                    {showManifestHeroDriver ? (
-                      <NeoManifestHeroBridgePartyEnd
-                        roleLabel="DRIVER"
-                        partyName={allocatedDriverName}
-                        partyPhone={detail.driverPhone}
-                        entityType="driver"
-                        avatarSize={MANIFEST_HERO_AVATAR_DESKTOP}
-                        avatarUrl={detail.driverAvatarUri}
-                        avatarSeed={trip.driver_id}
-                        vehicleLabel={allocatedVehicleLabel}
-                        vehicleId={trip.vehicle_id}
-                        styles={neoStyles}
-                        partyStyles={manifestHeroBridgePartyStyles}
-                      />
-                    ) : (
-                      <NeoManifestHeroBridgePartyEnd
-                        roleLabel="SUPPLIER"
-                        partyName={supplierName}
-                        entityType="supplier"
-                        avatarSize={MANIFEST_HERO_AVATAR_DESKTOP}
-                        avatarUrl={detail.supplierPartyAvatarFields?.avatarUrl}
-                        avatarSeed={
-                          detail.supplierPartyAvatarFields?.avatarSeed
-                        }
-                        organizationImageUrl={
-                          detail.supplierPartyAvatarFields?.organizationImageUrl
-                        }
-                        organizationAvatarSeed={
-                          detail.supplierPartyAvatarFields
-                            ?.organizationAvatarSeed
-                        }
-                        isIntegrated={supplierPartyIntegrated}
-                        styles={neoStyles}
-                        partyStyles={manifestHeroBridgePartyStyles}
-                      />
-                    )}
+                    <NeoManifestHeroBridgePartyEnd
+                      roleLabel="DRIVER"
+                      partyName={allocatedDriverName}
+                      partyPhone={detail.driverPhone}
+                      entityType="driver"
+                      avatarSize={MANIFEST_HERO_AVATAR_DESKTOP}
+                      avatarUrl={detail.driverAvatarUri}
+                      avatarSeed={trip.driver_id}
+                      vehicleLabel={allocatedVehicleLabel}
+                      vehicleId={trip.vehicle_id}
+                      styles={neoStyles}
+                      partyStyles={manifestHeroBridgePartyStyles}
+                    />
                   </View>
 
                   <View style={neoStyles.routeHeroRow}>
@@ -5926,246 +5882,21 @@ export default function TripDetailScreen({
                         {VAULT_DOC_LIMIT_HINT}
                       </Text>
                     ) : null}
-                    <View style={neoStyles.vaultGrid}>
-                    {vaultCardDocs.map((doc) => {
-                      const isUploadingThis = uploadingDocId === doc.id;
-                      const isPending = doc.status === "Pending";
-                      const isVehicleDoc = doc.id === "vehicle-documents";
-                      const isDriverIdentityDoc = isDriverIdentityVaultDoc(doc);
-                      const isDriverPodDoc = isDriverPodVaultDoc(doc);
-                      const canUploadThis = canUploadThisVaultDoc(doc);
-                      // Same chrome on every trip card: Preview + Add (when allowed).
-                      const showAddBtn = canUploadThis;
-                      const fileCount = doc.files?.length ?? 0;
-                      const vehicleTypeSummary = isVehicleDoc
-                        ? vehicleComplianceOnFileSummary(detail.vehicleDocs)
-                        : "";
-                      const driverTypeSummary = isDriverIdentityDoc
-                        ? driverIdentityOnFileSummary(detail.driverIdentityDocs)
-                        : "";
-                      const extraCount = isVehicleDoc
-                        ? (detail.vehicleDocs?.extras ?? []).filter((extra) =>
-                            extra.url?.trim(),
-                          ).length
-                        : 0;
-                      const isLrDoc = isLrVaultDoc(doc);
-                      const isTripDetailsDoc = isTripDetailsVaultDoc(doc);
-                      const lrNumber = isLrDoc || isTripDetailsDoc
-                        ? formatLrVaultNumberLabel(doc.documentNumber)
-                        : "";
-                      const lrDate = isLrDoc || isTripDetailsDoc
-                        ? formatLrVaultDateLabel(doc.documentDate)
-                        : null;
-                      const statusLabel = isVehicleDoc
-                        ? [
-                            vehicleTypeSummary,
-                            extraCount > 0
-                              ? `${extraCount} extra`
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ") || VEHICLE_COMPLIANCE_TYPE_HINT
-                        : isDriverIdentityDoc
-                          ? driverTypeSummary || DRIVER_IDENTITY_TYPE_HINT
-                        : isTripDetailsDoc
-                          ? doc.type
-                        : isLrDoc && !isPending
-                          ? lrNumber || "Uploaded"
-                          : doc.documentNumber?.trim()
-                              ? doc.documentNumber.trim()
-                              : !isPending && fileCount > 1
-                                ? `${fileCount} files`
-                                : doc.status;
-                      // Preview always visible; dark when a file is on file, muted when empty.
-                      const previewReady = vaultDocHasPreviewableFile(doc);
-                      const uploadedPreviewPath = vaultPreviewStoragePath(doc);
-                      const showUploadedThumb =
-                        previewReady &&
-                        !!uploadedPreviewPath &&
-                        !isPdfTripDoc(doc) &&
-                        doc.docSource !== "vehicle" &&
-                        doc.docSource !== "compliance";
-                      return (
-                        <View key={doc.id} style={neoStyles.vaultCard}>
-                          <TouchableOpacity
-                            activeOpacity={
-                              isTripDetailsDoc ||
-                              isVehicleDoc ||
-                              isDriverIdentityDoc ||
-                              isDriverPodDoc
-                                ? 0.9
-                                : 1
-                            }
-                            disabled={
-                              isUploadingThis ||
-                              !(
-                                isTripDetailsDoc ||
-                                isVehicleDoc ||
-                                isDriverIdentityDoc ||
-                                isDriverPodDoc
-                              )
-                            }
-                            onPress={
-                              isTripDetailsDoc
-                                ? openTripDetails
-                                : isVehicleDoc
-                                  ? openVehicleDocChooser
-                                  : isDriverIdentityDoc
-                                    ? openDriverDocChooser
-                                    : isDriverPodDoc
-                                      ? openDriverPod
-                                      : undefined
-                            }
-                            style={neoStyles.vaultCardHeader}
-                            accessibilityRole={
-                              isTripDetailsDoc ||
-                              isVehicleDoc ||
-                              isDriverIdentityDoc ||
-                              isDriverPodDoc
-                                ? "button"
-                                : undefined
-                            }
-                            accessibilityLabel={
-                              isTripDetailsDoc ||
-                              isVehicleDoc ||
-                              isDriverIdentityDoc ||
-                              isDriverPodDoc
-                                ? `Open ${doc.label}`
-                                : undefined
-                            }
-                          >
-                          {showUploadedThumb && uploadedPreviewPath ? (
-                            <View style={neoStyles.vaultThumb}>
-                              <ChatDocumentThreadPreview
-                                storagePath={uploadedPreviewPath}
-                                maxWidth={168}
-                                maxHeight={96}
-                              />
-                            </View>
-                          ) : (
-                            <Feather
-                              name={!previewReady ? "upload-cloud" : "file-text"}
-                              size={34}
-                              color={!previewReady ? "#cbd5e1" : "#94a3b8"}
-                            />
-                          )}
-                          <Text style={neoStyles.vaultTitle} numberOfLines={2}>
-                            {doc.label}
-                          </Text>
-                          <Text style={neoStyles.vaultSub} numberOfLines={2}>
-                            {isTripDetailsDoc
-                              ? doc.status
-                              : isLrDoc && !isPending && lrNumber
-                              ? "Uploaded"
-                              : statusLabel}
-                          </Text>
-                          </TouchableOpacity>
-                          <View style={neoStyles.vaultBtnRow}>
-                            <TouchableOpacity
-                              onPress={() => handleVaultCardPress(doc)}
-                              style={[
-                                neoStyles.vaultBtn,
-                                neoStyles.vaultBtnFlex,
-                                !previewReady && neoStyles.vaultBtnPreviewIdle,
-                              ]}
-                              activeOpacity={0.85}
-                              disabled={
-                                isUploadingThis ||
-                                (!previewReady &&
-                                  !isTripDetailsDoc &&
-                                  !isVehicleDoc &&
-                                  !isDriverIdentityDoc &&
-                                  !isDriverPodDoc)
-                              }
-                              accessibilityState={{
-                                disabled:
-                                  !previewReady &&
-                                  !isTripDetailsDoc &&
-                                  !isVehicleDoc &&
-                                  !isDriverIdentityDoc &&
-                                  !isDriverPodDoc,
-                              }}
-                              accessibilityLabel={
-                                isTripDetailsDoc ||
-                                isVehicleDoc ||
-                                isDriverIdentityDoc ||
-                                isDriverPodDoc
-                                  ? `Open ${doc.label}`
-                                  : previewReady
-                                  ? `Preview ${doc.label}`
-                                  : `${doc.label} preview unavailable — no document on file`
-                              }
-                            >
-                              {isUploadingThis ? (
-                                <LoadingIndicator
-                                  size="small"
-                                  color={previewReady ? "#fff" : Theme.textMuted}
-                                />
-                              ) : (
-                                <>
-                                  <Feather
-                                    name="eye"
-                                    size={12}
-                                    color={
-                                      previewReady
-                                        ? Theme.buttonDarkText
-                                        : Theme.textMuted
-                                    }
-                                  />
-                                  <Text
-                                    style={[
-                                      neoStyles.vaultBtnText,
-                                      !previewReady &&
-                                        neoStyles.vaultBtnTextDisabled,
-                                    ]}
-                                  >
-                                    Preview
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-                            {showAddBtn ? (
-                              <TouchableOpacity
-                                onPress={() => startAddMoreForDoc(doc)}
-                                style={[
-                                  neoStyles.vaultBtn,
-                                  neoStyles.vaultBtnUpload,
-                                  neoStyles.vaultBtnFlex,
-                                ]}
-                                activeOpacity={0.85}
-                                disabled={isUploadingThis}
-                                accessibilityLabel={`Add ${doc.label}`}
-                              >
-                                <Feather
-                                  name="plus"
-                                  size={12}
-                                  color={Theme.buttonPrimaryText}
-                                />
-                                <Text
-                                  style={[
-                                    neoStyles.vaultBtnText,
-                                    neoStyles.vaultBtnTextUpload,
-                                  ]}
-                                >
-                                Add
-                              </Text>
-                              </TouchableOpacity>
-                            ) : null}
-                          </View>
-                        </View>
-                      );
-                    })}
-                    <View style={neoStyles.vaultEwayWrap}>
-                      <EwayBillLrStrip
-                        rows={ewayStripRows}
-                        onView={openEwayBillPreview}
-                        onUpload={openEwayBillUpload}
-                        canUpload={canUploadTripDocs}
-                        canEdit={canUploadTripDocs}
-                        onSave={saveEwayBillFields}
-                      />
-                    </View>
-                  </View>
+                    <TripVaultCardGrid
+                      docs={vaultCardDocs}
+                      uploadingDocId={uploadingDocId}
+                      canUpload={canUploadThisVaultDoc}
+                      vehicleSummary={vehicleComplianceOnFileSummary(detail.vehicleDocs)}
+                      driverSummary={driverIdentityOnFileSummary(detail.driverIdentityDocs)}
+                      onOpen={handleVaultCardPress}
+                      onAdd={startAddMoreForDoc}
+                      ewayStripRows={ewayStripRows}
+                      onViewEwayBill={openEwayBillPreview}
+                      onUploadEwayBill={openEwayBillUpload}
+                      canUploadEwayBill={canUploadTripDocs}
+                      canEditEwayBill={canUploadTripDocs}
+                      onSaveEwayBill={saveEwayBillFields}
+                    />
                   </View>
                 )}
               </View>

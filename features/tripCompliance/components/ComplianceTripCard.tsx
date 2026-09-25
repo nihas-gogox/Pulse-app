@@ -27,8 +27,9 @@ import {
 import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
 import { formatIndianVehicleNumber } from "@/lib/format";
 import { Check, Eye } from "lucide-react-native";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   StyleSheet,
@@ -51,6 +52,8 @@ export type ComplianceTripCardProps = {
   onViewTrip: () => void;
   onOpenDetails?: () => void;
   onPay?: () => void;
+  /** When every required trip document is approved, Verify Docs marks the trip compliance verified. */
+  onMarkComplianceVerified?: () => Promise<void>;
   canManageFinance?: boolean;
 };
 
@@ -200,6 +203,7 @@ export function ComplianceTripCard({
   onViewTrip,
   onOpenDetails,
   onPay,
+  onMarkComplianceVerified,
   canManageFinance = false,
 }: ComplianceTripCardProps) {
   const trip = summary.trip;
@@ -223,6 +227,9 @@ export function ComplianceTripCard({
   const tripId = complianceTripDisplayId(trip);
   const when = formatComplianceTimestamp(complianceEventAt(trip));
   const fullyVerified = Boolean(summary.complianceVerifiedAt);
+  const readyToMarkTrip =
+    readiness.requiredDocs.markVerifiedReady && !fullyVerified && Boolean(onMarkComplianceVerified);
+  const [markingTrip, setMarkingTrip] = useState(false);
   const payLabel = paymentReadinessLabel(readiness);
 
   const clientName = asLabel(trip.client_name);
@@ -245,6 +252,16 @@ export function ComplianceTripCard({
   const origin = trip.pickup_area ?? "";
   const dest = trip.drop_location ?? "";
   const openDetails = onOpenDetails ?? onViewTrip;
+
+  const pressVerifyDocs = () => {
+    if (markingTrip) return;
+    if (!readyToMarkTrip || !onMarkComplianceVerified) {
+      onReviewDocuments("trip");
+      return;
+    }
+    setMarkingTrip(true);
+    void onMarkComplianceVerified().finally(() => setMarkingTrip(false));
+  };
 
   return (
     <View style={styles.cardWrap}>
@@ -449,7 +466,7 @@ export function ComplianceTripCard({
                   fullyVerified ? (
                     <TouchableOpacity
                       style={styles.verifiedBtn}
-                      onPress={() => onReviewDocuments("trip")}
+                      onPress={pressVerifyDocs}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       accessibilityRole="button"
                       accessibilityLabel="Documents verified"
@@ -464,13 +481,20 @@ export function ComplianceTripCard({
                   ) : (
                     <TouchableOpacity
                       style={styles.verifyBtn}
-                      onPress={() => onReviewDocuments("trip")}
+                      onPress={pressVerifyDocs}
+                      disabled={markingTrip}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       accessibilityRole="button"
                       accessibilityLabel="Verify documents"
                     >
-                      <Check size={12} color={Theme.buttonPrimaryText} strokeWidth={2.4} />
-                      <Text style={styles.verifyBtnText}>Verify Docs</Text>
+                      {markingTrip ? (
+                        <ActivityIndicator size="small" color={Theme.buttonPrimaryText} />
+                      ) : (
+                        <Check size={12} color={Theme.buttonPrimaryText} strokeWidth={2.4} />
+                      )}
+                      <Text style={styles.verifyBtnText}>
+                        {markingTrip ? "Verifying…" : "Verify Docs"}
+                      </Text>
                     </TouchableOpacity>
                   )
                 ) : null}

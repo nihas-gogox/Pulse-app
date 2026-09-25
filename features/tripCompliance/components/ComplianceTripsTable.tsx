@@ -38,6 +38,8 @@ export type ComplianceTripsTableProps = {
   onOpenDetails?: (tripId: string) => void;
   /** Opens the review sheet; documentKey null opens straight to the document list. */
   onReview: (tripId: string, documentKey: string | null, scope?: "trip" | "vehicle" | "driver") => void;
+  /** When required trip documents are approved, Verify Docs marks the trip compliance verified. */
+  onMarkComplianceVerified?: (tripId: string) => Promise<void>;
   onPay?: (tripId: string) => void;
   canManageFinance?: boolean;
 };
@@ -115,6 +117,7 @@ function TripRowContent({
   onOpenTrip,
   onOpenDetails,
   onReview,
+  onMarkComplianceVerified,
   onPay,
   canManageFinance = false,
 }: {
@@ -122,10 +125,12 @@ function TripRowContent({
   onOpenTrip: (tripId: string) => void;
   onOpenDetails?: (tripId: string) => void;
   onReview: (tripId: string, documentKey: string | null, scope?: "trip" | "vehicle" | "driver") => void;
+  onMarkComplianceVerified?: (tripId: string) => Promise<void>;
   onPay?: (tripId: string) => void;
   canManageFinance?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [markingTrip, setMarkingTrip] = useState(false);
   const rows = useMemo(() => deriveComplianceDocumentRows(summary.documents), [summary.documents]);
   const vehicleRows = useMemo(
     () =>
@@ -222,8 +227,23 @@ function TripRowContent({
           {summary.balance ? `₹${summary.balance.amount.toLocaleString("en-IN")}` : "—"}
         </Text>
         <View style={styles.colAction}>
-          <TouchableOpacity onPress={() => onReview(summary.trip.id, null)}>
-            <Text style={styles.actionLink}>Verify Docs</Text>
+          <TouchableOpacity
+            disabled={markingTrip}
+            onPress={() => {
+              if (markingTrip) return;
+              const ready =
+                readiness.requiredDocs.markVerifiedReady &&
+                !summary.complianceVerifiedAt &&
+                Boolean(onMarkComplianceVerified);
+              if (!ready || !onMarkComplianceVerified) {
+                onReview(summary.trip.id, null);
+                return;
+              }
+              setMarkingTrip(true);
+              void onMarkComplianceVerified(summary.trip.id).finally(() => setMarkingTrip(false));
+            }}
+          >
+            <Text style={styles.actionLink}>{markingTrip ? "Verifying…" : "Verify Docs"}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => onOpenTrip(summary.trip.id)}>
             <Text style={[styles.actionLink, styles.viewTripLink]}>View Trip</Text>
@@ -280,6 +300,7 @@ export function ComplianceTripsTable({
   onOpenTrip,
   onOpenDetails,
   onReview,
+  onMarkComplianceVerified,
   onPay,
   canManageFinance,
 }: ComplianceTripsTableProps) {
@@ -328,6 +349,7 @@ export function ComplianceTripsTable({
             onOpenTrip={onOpenTrip}
             onOpenDetails={onOpenDetails}
             onReview={onReview}
+            onMarkComplianceVerified={onMarkComplianceVerified}
             onPay={onPay}
             canManageFinance={canManageFinance}
           />

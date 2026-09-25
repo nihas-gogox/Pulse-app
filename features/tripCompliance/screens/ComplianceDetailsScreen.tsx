@@ -13,16 +13,17 @@ import {
   useComplianceTripQuery,
   useInvalidateComplianceTrips,
 } from "@/features/tripCompliance/hooks/useComplianceTripsQuery";
-import { postCompliancePayment, type ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import { postCompliancePayment, markTripComplianceVerified, type ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import { COMPLIANCE_STAGE_LABEL, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
+import { formatMarkComplianceVerifiedError } from "@/features/tripCompliance/utils/complianceMarkVerifiedError.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { useLayoutInsets } from "@/lib/layoutInsets";
 import { ROUTES } from "@/lib/routes";
 import { useMemberAccess } from "@/lib/useMemberAccess";
 import { useRouter } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
@@ -40,6 +41,23 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
   const currentOrganization = orgCtx?.currentOrganization ?? null;
   const { data: summary, isLoading, isError, error, refetch, isFetching } = useComplianceTripQuery(tripId);
   const invalidate = useInvalidateComplianceTrips();
+  const markTripVerified = useCallback(async () => {
+    if (!canMarkVerified) {
+      alertMessage("Can't verify", "You don't have permission to mark this trip compliance verified.");
+      return;
+    }
+    if (!user?.uid) {
+      alertMessage("Can't verify", "Sign in again, then try Verify Docs.");
+      return;
+    }
+    const { error: markError } = await markTripComplianceVerified({ tripId, actorId: user.uid });
+    if (markError) {
+      alertMessage("Couldn't verify compliance", formatMarkComplianceVerifiedError(markError.message));
+      return;
+    }
+    invalidate(tripId);
+    void refetch();
+  }, [canMarkVerified, invalidate, refetch, tripId, user?.uid]);
   const [review, setReview] = useState<{
     open: boolean;
     scope: "trip" | "vehicle" | "driver";
@@ -97,6 +115,7 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
           }
           setPay({ summary, category: readiness.readyCategory });
         }}
+        onMarkComplianceVerified={markTripVerified}
         canManageFinance={canManageFinance}
       />
 
