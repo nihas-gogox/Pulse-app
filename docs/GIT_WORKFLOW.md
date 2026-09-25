@@ -199,6 +199,7 @@ Newest on top. Add one line every time `V1` (or prod) changes.
 
 | Date | What happened to V1 | V1 commit |
 |---|---|---|
+| 2026-09-25 | Deleted merge branches `…-20260923-1839`, `…-20260925-1530`, `…-20260925-1553` (local + origin). All commits are in V1; see CHANGELOG.md | `787312c1` |
 | 2026-09-25 | Praveen compliance-flow + Sneha compliance-ui merged on separate branches, then fast-forwarded into V1. Full story in [CHANGELOG.md](../CHANGELOG.md) | `787312c1` |
 | 2026-09-24 | **Correction:** gogopulse.com runs `Vasanthgogox/Pulse-app` `V1` (`997064af`), not GOGOPulse. Found via Abitha Transport "Network Loads 27" issue (15-card route-dedup sample in `997064af`) | `149fba7d` |
 | 2026-09-24 | Workflow doc committed to V1 | `149fba7d` |

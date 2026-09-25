@@ -10,9 +10,9 @@ Vasanth sir V1  80589762
    │                                  │
    │                                  ├─ + docs ──► V1 8c28bf9c
    │                                  │
-   │        Praveen compliance-flow ──┴─► v0.0.01-v1-praveen-compliance-e2e-20260925-1530  c78a1190
+   │        Praveen compliance-flow ──┴─► v0.0.01-v1-praveen-compliance-e2e-20260925-1530  c78a1190  (deleted)
    │                                        │
-   │        Sneha compliance-ui ────────────┴─► v0.0.01-v1-sneha-compliance-ui-merge-20260925-1553
+   │        Sneha compliance-ui ────────────┴─► v0.0.01-v1-sneha-compliance-ui-merge-20260925-1553  787312c1  (deleted)
    │                                              │
    └──────────────────────────────────────────────┴─► V1 787312c1
 ```
@@ -47,8 +47,8 @@ Also on V1 after this: `149fba7d` and `8c28bf9c` (team git workflow doc only, no
 
 ## 3. Praveen — compliance flow
 
-**Branch:** `v0.0.01-v1-praveen-compliance-e2e-20260925-1530`, from V1 `8c28bf9c` + `praveen/compliance-flow` @ `1587f72d` (merge `c78a1190`, no conflicts).
-It supersedes the earlier squash branch `v0.0.01-v1-post-praveen-compliance-merge-20260923-1839` (`85e8a724`).
+**Branch:** `v0.0.01-v1-praveen-compliance-e2e-20260925-1530`, from V1 `8c28bf9c` + `praveen/compliance-flow` @ `1587f72d` (merge `c78a1190`, no conflicts). *Branch deleted 2026-09-25; commits are in V1.*
+It supersedes the earlier squash branch `v0.0.01-v1-post-praveen-compliance-merge-20260923-1839` (`85e8a724`). That commit reached V1 through Praveen's `36fc60dc`, so the branch was a duplicate and has been deleted.
 
 What it adds:
 - One-tap **Verify Docs** on the compliance card and table: marks the trip compliance-verified once all required docs are approved.
@@ -63,7 +63,7 @@ Checked: compliance/trips/drivers tests pass (560); tested end to end on preprod
 
 ## 4. Sneha — compliance UI
 
-**Branch:** `v0.0.01-v1-sneha-compliance-ui-merge-20260925-1553`, from step 3 + `sneha/compliance-ui` @ `ba9de198`.
+**Branch:** `v0.0.01-v1-sneha-compliance-ui-merge-20260925-1553`, from step 3 + `sneha/compliance-ui` @ `ba9de198`. *Branch deleted 2026-09-25; commits are in V1.*
 Sneha branched from `85e8a724`, so 7 files conflicted with Praveen's newer work. **Resolved by decision, not automatically:**
 
 | Area | Kept |
@@ -95,6 +95,18 @@ UI checked manually by Nihas before merging to V1.
 - Lint errors in `TripDetailScreen.tsx` (unused imports/vars) from Praveen's code.
 - Apply the memo migration on the **prod DB** before Praveen's code goes live.
 - The review sheet no longer shows a document's expiry date or upload file name (dropped with Sneha's UI). Expiry is still prompted on upload and enforced by the card alerts.
+
+### Branch cleanup (2026-09-25)
+
+After the merge into V1, these merge branches were deleted locally and on origin. Every commit in them is in `V1`, so nothing was lost:
+
+| Branch | Tip | Reached V1 via |
+|---|---|---|
+| `v0.0.01-v1-post-praveen-compliance-merge-20260923-1839` | `85e8a724` | Praveen's `36fc60dc` |
+| `v0.0.01-v1-praveen-compliance-e2e-20260925-1530` | `c78a1190` | fast-forward to `787312c1` |
+| `v0.0.01-v1-sneha-compliance-ui-merge-20260925-1553` | `787312c1` | fast-forward |
+
+To look at one again: `git log <tip>` (the commits are still in V1).
 
 ---
 
