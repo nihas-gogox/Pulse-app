@@ -14824,6 +14824,14 @@ export type Database = {
         }
         Returns: Json
       }
+      settle_marketplace_fee_as_cash: {
+        Args: { p_bid_id: string }
+        Returns: Json
+      }
+      settle_marketplace_fee_as_cash_for_indent: {
+        Args: { p_indent_id: string }
+        Returns: Json
+      }
       confirm_to_accounting_books: {
         Args: { p_message_id: string; p_org_id: string }
         Returns: Json

@@ -1057,6 +1057,46 @@ export function useTripDetail({
     return null;
   }, [tripSubcontracts, trip]);
 
+  const viewerSubcontract = useMemo(() => {
+    if (!trip) return null;
+    return tripSubcontracts.find((row) => row.trip_id === trip.id) ?? null;
+  }, [tripSubcontracts, trip]);
+
+  useEffect(() => {
+    if (!trip || !currentOrganization?.id || !viewerSubcontract?.supplier_id) {
+      return;
+    }
+    const isOwner = trip.organization_id === currentOrganization.id;
+    const ownSupplierId = String(trip.supplier_id ?? "").trim();
+    if (isOwner && ownSupplierId && !isMissingSupplierLabel(partnerName)) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { supplier } = await getSupplierById(
+        currentOrganization.id,
+        viewerSubcontract.supplier_id,
+      );
+      const name = supplier ? pickSupplierDisplayName(supplier) : null;
+      if (cancelled || isMissingSupplierLabel(name)) return;
+      setPartnerName(name);
+      setSupplierPartyRes({
+        name,
+        integrated: supplier ? isIntegratedSupplierRow(supplier) : false,
+        orgId: supplier ? nStr(supplier.linked_organization_id) : null,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    trip?.id,
+    trip?.organization_id,
+    trip?.supplier_id,
+    currentOrganization?.id,
+    viewerSubcontract?.supplier_id,
+  ]);
+
   // ── Finance totals ────────────────────────────────────────────────────────
   const paidToDriver = useMemo(
     () =>

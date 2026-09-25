@@ -25,6 +25,7 @@ import {
   seedDeployWeightTonsFromIndent,
 } from "@/features/indents/utils/indentDeployTripDetails.util";
 import { isValidIsoDateString } from "@/lib/dateIso.util";
+import { showAppAlert } from "@/lib/appAlert";
 import {
   assignAggregateTripDriverByPhone,
   getDriverAvailabilityByPhoneGlobal,
@@ -33,20 +34,18 @@ import {
   updateTripSupplier,
 } from "@/features/trips/services/trips.service";
 import { generateTripOtp } from "@/features/trips/services/tripOtp.service";
+import { getSupplierById } from "@/features/suppliers/services/suppliers.service";
 import type { ExistingDriverMatch } from "@/features/drivers/services/drivers.service";
 import { lookupDriversByPhoneVariants } from "@/features/trips/utils/driverPhoneLookup.util";
 import { updateDirectQuoteAssignment } from "@/features/indents";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import { useInvalidateIndents, useInvalidateTrips } from "@/lib/queries";
-import { ROUTES } from "@/lib/routes";
 import { queryKeys } from "@/lib/queryKeys";
 import { validatePhone } from "@/lib/phoneValidation";
 import { formatIndianVehicleNumber } from "@/lib/format";
 import { isIndianVehiclePlateComplete } from "@/lib/indianVehicleInput.util";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert } from "react-native";
 import React from "react";
 
 interface UseStaffHandshakeParams {
@@ -87,6 +86,17 @@ type DeployTripAssignment = {
   vehicleDisplayNumber?: string | null;
 };
 
+function formatDeployTripError(message: string | null | undefined): string {
+  const raw = (message ?? "").trim() || "Unknown error.";
+  if (/fee_payment_pending/i.test(raw)) {
+    return "Pay the Marketplace platform fee on this screen (cash until online checkout is live), then convert again.";
+  }
+  if (/approved supplier/i.test(raw)) {
+    return "This award should convert without a Network supplier link. Marketplace winners are not added to the shipper network; Network loads already only go to existing suppliers. Try convert again after refresh.";
+  }
+  return raw;
+}
+
 async function createDeployTripFromAward(
   load: IndentRow,
   orgId: string,
@@ -115,6 +125,12 @@ async function createDeployTripFromAward(
     };
   }
 
+  // Marketplace fee settlement happens inside create_trip_from_assigned_indent's own
+  // transaction (atomic with trip creation) — a separate client-side settle call here was
+  // redundant with that, and a real correctness risk: settling the fee in its own round
+  // trip, then failing to create the trip for an unrelated reason, would leave the org
+  // charged with no trip. The direct_quote path (Network-only, never has a market award)
+  // never needed this call at all.
   if (resolution.mode === "direct_quote") {
     const { error: assignErr } = await updateDirectQuoteAssignment(
       resolution.quote.id,
@@ -210,7 +226,6 @@ export function useStaffHandshake({
   myQuotes,
   onSuccess,
 }: UseStaffHandshakeParams): StaffHandshakeResult {
-  const router = useRouter();
   const invalidateTrips = useInvalidateTrips();
   const invalidateIndents = useInvalidateIndents();
   const queryClient = useQueryClient();
@@ -221,6 +236,9 @@ export function useStaffHandshake({
       invalidateIndents(deployOrgId, { bustPartnerSupplierMarket: true });
       queryClient.invalidateQueries({
         queryKey: [...queryKeys.indents.finite(deployOrgId), "my-direct-quotes"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["q", "trips", "subcontracts"],
       });
     },
     [invalidateTrips, invalidateIndents, queryClient],
@@ -409,16 +427,24 @@ export function useStaffHandshake({
     resetForm();
   }, [resetForm]);
 
-  /** Deploy finished — leave the wizard. Do not keep the claim-code step open. */
-  const leaveToTripList = useCallback(() => {
-    setClosingToList(true);
-    setIsDeploying(false);
-    setDeployOtpCode(null);
-    setDeployOtpExpiresAt(null);
-    setDeployTripIdForOtp(null);
-    setCurrentLoad(null);
-    router.replace(ROUTES.TABS.TRIPS);
-  }, [router]);
+  /** Stay on the allocation wizard and show the trip-created confirmation. */
+  const finishDeploySuccess = useCallback(
+    (opts: {
+      tripId: string;
+      otpCode?: string | null;
+      otpExpiresAt?: string | null;
+      toast?: string;
+    }) => {
+      if (orgId) refreshAfterDeploy(orgId);
+      if (opts.otpCode) {
+        setDeployOtpCode(opts.otpCode);
+        setDeployOtpExpiresAt(opts.otpExpiresAt ?? null);
+      }
+      setDeployTripIdForOtp(opts.tripId);
+      onSuccess(opts.toast ?? "Trip created");
+    },
+    [orgId, refreshAfterDeploy, onSuccess],
+  );
 
   const backFromOtp = useCallback(() => {
     if (deployOtpCode) {
@@ -432,10 +458,19 @@ export function useStaffHandshake({
 
   const deployRoster = useCallback(async () => {
     const load = currentLoad;
-    if (!load) return;
-    if (isDeploying) return;
+    if (!load) {
+      showAppAlert(
+        "Cannot convert",
+        "This load is no longer open. Close the wizard and open allocation again.",
+      );
+      return;
+    }
+    if (isDeploying) {
+      showAppAlert("Convert in progress", "Wait for the current convert to finish.");
+      return;
+    }
     if (!orgId) {
-      Alert.alert(
+      showAppAlert(
         "Cannot deploy",
         "Your organization context is missing. Please try again.",
       );
@@ -443,7 +478,7 @@ export function useStaffHandshake({
     }
     const status = (load.status || "").toLowerCase();
     if (status === "cancelled" || status === "closed") {
-      Alert.alert(
+      showAppAlert(
         "Load unavailable",
         "This load has been cancelled or closed.",
       );
@@ -451,20 +486,21 @@ export function useStaffHandshake({
       return;
     }
     if (!assignDriverId || typeof assignVehicleId !== "string") {
-      Alert.alert(
+      showAppAlert(
         "Select driver and vehicle",
         "Please select a driver and a vehicle from your org to assign trip.",
       );
       return;
     }
     if (!tripDetailsReady) {
-      Alert.alert(
+      showAppAlert(
         "Trip details required",
         "Set vehicle arrival date before deploying. Vehicle type, product, and weight come from the indent.",
       );
       return;
     }
     if (staffHandshakeDeployLockRef.current) {
+      showAppAlert("Convert in progress", "Wait for the current convert to finish.");
       return;
     }
     staffHandshakeDeployLockRef.current = true;
@@ -478,7 +514,7 @@ export function useStaffHandshake({
         deployLoadType,
       );
       if (detailsErr) {
-        Alert.alert("Could not save trip details", detailsErr.message);
+        showAppAlert("Could not save trip details", detailsErr.message);
         return;
       }
       const { error: tripErr, trip } = await createDeployTripFromAward(
@@ -491,9 +527,9 @@ export function useStaffHandshake({
         },
       );
       if (tripErr || !trip) {
-        Alert.alert(
+        showAppAlert(
           "Could not create trip",
-          tripErr?.message ?? "Unknown error.",
+          formatDeployTripError(tripErr?.message),
         );
         return;
       }
@@ -517,24 +553,26 @@ export function useStaffHandshake({
         });
         if (!mover.error && mover.trip) payTripId = mover.trip.id;
       }
-      const { error: payErr } = await stampTripDriverPayFromTerms(
-        payTripId,
-        assignDriverId,
-        orgId,
-      );
+      // Independent writes (driver pay on the trip vs. the indent's own completion status)
+      // — no data dependency between them, so run them together instead of serially.
+      // Matches the pattern deployAdHoc already uses for its own subcontract+indent pair.
+      const [{ error: payErr }] = await Promise.all([
+        stampTripDriverPayFromTerms(payTripId, assignDriverId, orgId),
+        updateIndent(load.id, { status: "completed" }),
+      ]);
       if (payErr) {
-        Alert.alert(
+        showAppAlert(
           "Trip created — driver pay not saved",
           "Set the driver's pay from the trip screen so it is not estimated.",
         );
       }
-      await updateIndent(load.id, { status: "completed" });
-      onSuccess("Voyage authorized — trip created.");
-      refreshAfterDeploy(orgId);
-      leaveToTripList();
+      finishDeploySuccess({
+        tripId: trip.id,
+        toast: "Voyage authorized — trip created.",
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error.";
-      Alert.alert("Could not deploy", msg);
+      showAppAlert("Could not deploy", msg);
     } finally {
       staffHandshakeDeployLockRef.current = false;
       setIsDeploying(false);
@@ -551,17 +589,24 @@ export function useStaffHandshake({
     deployVehicleType,
     deployLoadType,
     tripDetailsReady,
-    refreshAfterDeploy,
-    onSuccess,
-    leaveToTripList,
+    finishDeploySuccess,
   ]);
 
   const deployAdHoc = useCallback(async () => {
     const load = currentLoad;
-    if (!load) return;
-    if (isDeploying) return;
+    if (!load) {
+      showAppAlert(
+        "Cannot convert",
+        "This load is no longer open. Close the wizard and open allocation again.",
+      );
+      return;
+    }
+    if (isDeploying) {
+      showAppAlert("Convert in progress", "Wait for the current convert to finish.");
+      return;
+    }
     if (!orgId) {
-      Alert.alert(
+      showAppAlert(
         "Cannot deploy",
         "Your organization context is missing. Please try again.",
       );
@@ -569,7 +614,7 @@ export function useStaffHandshake({
     }
     const status = (load.status || "").toLowerCase();
     if (status === "cancelled" || status === "closed") {
-      Alert.alert(
+      showAppAlert(
         "Load unavailable",
         "This load has been cancelled or closed.",
       );
@@ -580,7 +625,7 @@ export function useStaffHandshake({
     const handshakeSubRateRaw = subcontractRate.trim();
     const handshakeSubRateNum = Number(handshakeSubRateRaw);
     if (!handshakeSubSupplierId) {
-      Alert.alert(
+      showAppAlert(
         "Partner required",
         "Select the associated partner (sub-supplier) for this trip.",
       );
@@ -591,7 +636,7 @@ export function useStaffHandshake({
       !Number.isFinite(handshakeSubRateNum) ||
       handshakeSubRateNum < 0
     ) {
-      Alert.alert(
+      showAppAlert(
         "Partner rate required",
         "Enter the rate you will pay this partner (₹).",
       );
@@ -608,21 +653,21 @@ export function useStaffHandshake({
       ? ""
       : formatIndianVehicleNumber(assignVehicleRegistration).trim();
     if (!deferHandshakeAssignment && nameTrimmed.length === 0) {
-      Alert.alert(
+      showAppAlert(
         "Driver name required",
         "Enter driver name (tracking) to continue.",
       );
       return;
     }
     if (!deferHandshakeAssignment && phoneTrimmed.length === 0) {
-      Alert.alert(
+      showAppAlert(
         "Driver phone required",
         "Enter driver phone (tracking) to continue.",
       );
       return;
     }
     if (!deferHandshakeAssignment && regTrimmed.length === 0) {
-      Alert.alert(
+      showAppAlert(
         "Vehicle number required",
         "Enter vehicle number to continue.",
       );
@@ -630,17 +675,18 @@ export function useStaffHandshake({
     }
     const phoneErr = phoneTrimmed ? validatePhone(phoneTrimmed) : null;
     if (!deferHandshakeAssignment && phoneErr) {
-      Alert.alert("Invalid driver phone", phoneErr);
+      showAppAlert("Invalid driver phone", phoneErr);
       return;
     }
     if (!tripDetailsReady) {
-      Alert.alert(
+      showAppAlert(
         "Trip details required",
         "Set vehicle arrival date before deploying. Vehicle type, product, and weight come from the indent.",
       );
       return;
     }
     if (staffHandshakeDeployLockRef.current) {
+      showAppAlert("Convert in progress", "Wait for the current convert to finish.");
       return;
     }
     staffHandshakeDeployLockRef.current = true;
@@ -654,7 +700,7 @@ export function useStaffHandshake({
         deployLoadType,
       );
       if (detailsErr) {
-        Alert.alert("Could not save trip details", detailsErr.message);
+        showAppAlert("Could not save trip details", detailsErr.message);
         return;
       }
       const vehicleIdForQuote = deferHandshakeAssignment
@@ -674,9 +720,9 @@ export function useStaffHandshake({
         },
       );
       if (tripErr || !trip) {
-        Alert.alert(
+        showAppAlert(
           "Could not create trip",
-          tripErr?.message ?? "Unknown error.",
+          formatDeployTripError(tripErr?.message),
         );
         return;
       }
@@ -691,6 +737,16 @@ export function useStaffHandshake({
       const saveSubcontract = async () => {
         if (!shouldSaveSubcontract) return;
         const isTripOwner = trip.organization_id === orgId;
+        const { supplier: partnerRow } = await getSupplierById(
+          orgId,
+          subSupplierId,
+        );
+        const partnerName = (
+          partnerRow?.company_name ||
+          partnerRow?.name ||
+          partnerRow?.contact_person ||
+          ""
+        ).trim() || null;
 
         if (isTripOwner) {
           const { error: supplierUpdateErr } = await updateTripSupplier(
@@ -698,10 +754,12 @@ export function useStaffHandshake({
             {
               supplier_id: subSupplierId,
               supplier_rate: subRateNum,
+              supplier_name: partnerName,
+              trip_payout_mode: "market",
             },
           );
           if (supplierUpdateErr) {
-            Alert.alert(
+            showAppAlert(
               "Trip created",
               `Partner was saved, but trip supplier link could not be updated. ${supplierUpdateErr.message}`,
             );
@@ -715,7 +773,7 @@ export function useStaffHandshake({
           rate: subRateNum,
         });
         if (subErr)
-          Alert.alert(
+          showAppAlert(
             "Trip created",
             `Partner could not be saved. ${subErr.message}`,
           );
@@ -729,13 +787,12 @@ export function useStaffHandshake({
           saveSubcontract(),
           updateIndent(load.id, { status: "completed" }),
         ]);
-        refreshAfterDeploy(orgId);
-        onSuccess(
-          deferHandshakeAssignment
+        finishDeploySuccess({
+          tripId: trip.id,
+          toast: deferHandshakeAssignment
             ? "Trip created — add driver and vehicle on trip detail when ready."
             : "Trip created (OTP not generated)",
-        );
-        leaveToTripList();
+        });
         return;
       }
       const { error: availabilityError, result: availability } =
@@ -752,12 +809,14 @@ export function useStaffHandshake({
           saveSubcontract(),
           updateIndent(load.id, { status: "completed" }),
         ]);
-        refreshAfterDeploy(orgId);
-        Alert.alert(
+        finishDeploySuccess({
+          tripId: trip.id,
+          toast: "Trip created — driver is already on another trip.",
+        });
+        showAppAlert(
           "Trip created",
           `Driver is already assigned to ${availability.ongoingTripLabel ?? "another ongoing trip"}.\n\nComplete or unassign that trip before assigning this one.`,
         );
-        leaveToTripList();
         return;
       }
 
@@ -776,12 +835,14 @@ export function useStaffHandshake({
           saveSubcontract(),
           updateIndent(load.id, { status: "completed" }),
         ]);
-        refreshAfterDeploy(orgId);
-        Alert.alert(
+        finishDeploySuccess({
+          tripId: trip.id,
+          toast: "Trip created — assign driver from trip detail.",
+        });
+        showAppAlert(
           "Trip created",
           `Driver could not be assigned. ${humanizeTripIdInRpcError(assignAggErr.message, trip)}\n\nAssign driver from trip detail to generate OTP.`,
         );
-        leaveToTripList();
         return;
       }
 
@@ -790,13 +851,18 @@ export function useStaffHandshake({
       // link a phone number to a real person. Skip generating/showing one
       // here so the dispatcher isn't shown a code that will never be
       // consumed and looks like a pending step that doesn't actually apply.
+      let otpCode: string | null = null;
+      let otpExpiresAt: string | null = null;
       if (!driverLinked) {
-        const { error: otpErr, code } = await generateTripOtp(trip.id);
+        const { error: otpErr, code, expires_at } = await generateTripOtp(trip.id);
         if (otpErr || !code) {
-          Alert.alert(
+          showAppAlert(
             "Trip created",
             "OTP could not be generated. Get OTP from the trip detail screen.",
           );
+        } else {
+          otpCode = code;
+          otpExpiresAt = expires_at;
         }
       }
 
@@ -804,12 +870,19 @@ export function useStaffHandshake({
         saveSubcontract(),
         updateIndent(load.id, { status: "completed" }),
       ]);
-      refreshAfterDeploy(orgId);
-      onSuccess(driverLinked ? "Trip created" : "OTP generated");
-      leaveToTripList();
+      finishDeploySuccess({
+        tripId: trip.id,
+        otpCode,
+        otpExpiresAt,
+        toast: driverLinked
+          ? "Trip created"
+          : otpCode
+            ? "OTP generated"
+            : "Trip created",
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error.";
-      Alert.alert("Could not deploy", msg);
+      showAppAlert("Could not deploy", msg);
     } finally {
       staffHandshakeDeployLockRef.current = false;
       setIsDeploying(false);
@@ -832,9 +905,7 @@ export function useStaffHandshake({
     deployLoadType,
     tripDetailsReady,
     queryClient,
-    refreshAfterDeploy,
-    onSuccess,
-    leaveToTripList,
+    finishDeploySuccess,
   ]);
 
   return {

@@ -105,7 +105,6 @@ import { LoadCenterIntegratedPartiesRow } from "@/features/network/components/Lo
 import { LoadCenterUnderlineTabStrip } from "@/features/network/components/LoadCenterUnderlineTabStrip";
 import { LoadCenterPromoCard } from "@/features/network/components/LoadCenterPromoCard";
 import { FindNetworkVehiclesDrawer } from "@/features/network/components/FindNetworkVehiclesDrawer";
-import { LoadCenterSidebarFindEmpty } from "@/features/network/components/LoadCenterSidebarFindEmpty";
 import { LoadCenterOpportunityExchange } from "@/features/network/components/LoadCenterOpportunityExchange";
 import { LoadCenterPartnerRecommendations } from "@/features/network/components/LoadCenterPartnerRecommendations";
 import {
@@ -2228,6 +2227,14 @@ export function LoadCenterView({
                     </View>
                   ) : (
                     <View style={styles.sidebarIdleCapacity}>
+                      <LoadCenterOpportunityExchange
+                        orgId={orgId}
+                        mode="get"
+                        supplierOrgIds={connectedSupplierOrgIds}
+                        clientOrgIds={connectedClientOrgIds}
+                        embedded
+                        sidebarStack
+                      />
                       <Pressable
                         onPress={() => setFindMarketplaceMode("get")}
                         style={({ pressed }) => [
@@ -2247,7 +2254,6 @@ export function LoadCenterView({
                           Find load
                         </Text>
                       </Pressable>
-                      <LoadCenterSidebarFindEmpty mode="get" />
                     </View>
                   )}
                   <LoadCenterPartnerRecommendations

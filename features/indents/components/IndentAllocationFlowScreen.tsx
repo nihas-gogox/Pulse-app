@@ -15,15 +15,26 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { IndentAggregateAllocationStep } from "@/features/indents/components/IndentAggregateAllocationStep";
 import { IndentAllocationConfirmSummary } from "@/features/indents/components/IndentAllocationConfirmSummary";
+import { IndentAllocationMarketplaceFeePanel } from "@/features/indents/components/IndentAllocationMarketplaceFeePanel";
 import { IndentAllocationSourceStep } from "@/features/indents/components/IndentAllocationSourceStep";
 import { IndentAllocationTripDetailsStep } from "@/features/indents/components/IndentAllocationTripDetailsStep";
 import { IndentAssetAllocationStep } from "@/features/indents/components/IndentAssetAllocationStep";
+import { listMyOrgMarketBids } from "@/features/network/services/findLoadsForOrg.service";
+import {
+  marketplaceFeeGateSatisfied,
+  settleMarketplaceFeeAsCash,
+} from "@/features/network/services/marketBids.service";
+import { showAppAlert } from "@/lib/appAlert";
+import { queryKeys } from "@/lib/queryKeys";
+import { STALE } from "@/lib/queryClient";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IndentDeployOtpPanel } from "@/features/indents/components/IndentDeployOtpPanel";
 import {
   AssignmentFlowFooter,
   AssignmentFlowShell,
   getIndentAllocationWizardSteps,
   indentAllocationStepSubtitle,
+  indentAllocationStepBlockReason,
   isIndentAllocationStepComplete,
   type IndentAllocationStepId,
 } from "@/features/allocation";
@@ -44,7 +55,6 @@ import { ROUTES } from "@/lib/routes";
 import {
   useClientsQuery,
   useDriversQuery,
-  useInvalidateIndents,
   useMyDirectQuotesQuery,
   useSuppliersQuery,
   useVisibleIndentQuery,
@@ -71,9 +81,32 @@ export function IndentAllocationFlowScreen({
   const { width: windowWidth } = useWindowDimensions();
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id ?? null;
-  const invalidateIndents = useInvalidateIndents();
+  const queryClient = useQueryClient();
+  const [feeSettling, setFeeSettling] = useState(false);
   const [step, setStep] = useState<IndentAllocationStepId>(
     initialFocus ? "fleet" : "source",
+  );
+
+  const marketFeeQ = useQuery({
+    queryKey: queryKeys.findLoadsForOrg.myBids(orgId ?? ""),
+    queryFn: async () => {
+      const { bids, error } = await listMyOrgMarketBids(orgId as string, 80);
+      if (error) throw error;
+      return bids;
+    },
+    enabled: Boolean(orgId) && step === "commodity",
+    staleTime: STALE.frequent,
+  });
+  const acceptedMarketBid = useMemo(
+    () =>
+      (marketFeeQ.data ?? []).find(
+        (bid) => bid.indent_id === indentId && bid.status === "accepted",
+      ) ?? null,
+    [marketFeeQ.data, indentId],
+  );
+  const marketplaceFeeBlocking = Boolean(
+    acceptedMarketBid &&
+      !marketplaceFeeGateSatisfied(acceptedMarketBid.fee_payment_status),
   );
 
   const {
@@ -139,17 +172,17 @@ export function IndentAllocationFlowScreen({
     return Object.keys(map).length > 0 ? map : undefined;
   }, [suppliers, chainAncestors, orgId, shipperOrgId]);
 
+  // refreshAfterDeploy (inside useStaffHandshake's finishDeploySuccess, which runs before
+  // this callback) already invalidates indents with bustPartnerSupplierMarket — doing it
+  // again here duplicated that round trip (and its background supplier-market refresh
+  // chain) on every successful deploy.
   const handshake = useStaffHandshake({
     orgId,
     myQuotes,
-    onSuccess: () => {
-      if (orgId) {
-        invalidateIndents(orgId, { bustPartnerSupplierMarket: true });
-      }
-    },
+    onSuccess: () => {},
   });
 
-  const { open, close, state, set, deployRoster, deployAdHoc, backFromOtp } = handshake;
+  const { open, close, state, set, deployRoster, deployAdHoc } = handshake;
   const {
     currentLoad,
     isDeploying,
@@ -175,6 +208,7 @@ export function IndentAllocationFlowScreen({
     deployTripIdForOtp,
     deployOtpExpiresAt,
   } = state;
+  const deploySucceeded = Boolean(deployTripIdForOtp);
 
   const flowSteps = useMemo(
     () =>
@@ -305,8 +339,17 @@ export function IndentAllocationFlowScreen({
 
   useEffect(() => {
     if (!orgId || !indentId || indentPending) return;
+    if (deploySucceeded) return;
     if (!indent || indentError) onBack();
-  }, [orgId, indentId, indent, indentPending, indentError, onBack]);
+  }, [
+    orgId,
+    indentId,
+    indent,
+    indentPending,
+    indentError,
+    onBack,
+    deploySucceeded,
+  ]);
 
   // Defensive: a blocked supplier (this load's own shipper) must never survive
   // as the deploy target — clears it even if it was selected before this
@@ -328,9 +371,14 @@ export function IndentAllocationFlowScreen({
   }, []);
 
   const handleClose = useCallback(() => {
+    const createdTripId = deployTripIdForOtp;
+    if (createdTripId) {
+      router.replace(ROUTES.tripDetail(createdTripId));
+      return;
+    }
     close();
     onBack();
-  }, [close, onBack]);
+  }, [close, deployTripIdForOtp, onBack, router]);
 
   const selectedDriver = activeDrivers.find((d) => String(d.id) === assignDriverId);
   const driverLabel =
@@ -495,6 +543,23 @@ export function IndentAllocationFlowScreen({
       });
     }
 
+    if (acceptedMarketBid) {
+      const feeAmt = acceptedMarketBid.platform_fee_amount;
+      const paid = marketplaceFeeGateSatisfied(
+        acceptedMarketBid.fee_payment_status,
+      );
+      rows.push({
+        id: "marketplaceFee",
+        label: "Marketplace fee",
+        value:
+          feeAmt != null && feeAmt > 0
+            ? `${paid ? "Paid" : "Due"} · ₹${Number(feeAmt).toLocaleString("en-IN")}`
+            : paid
+              ? "Not required"
+              : "Due",
+      });
+    }
+
     if (deployOtpCode) {
       rows.push({
         id: "arrival",
@@ -545,6 +610,7 @@ export function IndentAllocationFlowScreen({
     deployVehicleType,
     deployLoadType,
     deployWeightTons,
+    acceptedMarketBid,
   ]);
 
   const allocationContextRow = useMemo(() => {
@@ -693,7 +759,9 @@ export function IndentAllocationFlowScreen({
 
   const stepSubtitle = deployOtpCode
     ? "Share this code with the driver to claim the trip"
-    : indentAllocationStepSubtitle(step, useAdHocDriver);
+    : deploySucceeded
+      ? "Trip created. Open the trip or tap Done."
+      : indentAllocationStepSubtitle(step, useAdHocDriver);
 
   const footerSummary = useMemo(() => {
     if (deployOtpCode) return "";
@@ -723,54 +791,133 @@ export function IndentAllocationFlowScreen({
     vehicleLabel,
   ]);
 
+  const payMarketplaceFeeCash = useCallback(async (): Promise<boolean> => {
+    if (!acceptedMarketBid) return true;
+    if (marketplaceFeeGateSatisfied(acceptedMarketBid.fee_payment_status)) {
+      return true;
+    }
+    setFeeSettling(true);
+    try {
+      const { error } = await settleMarketplaceFeeAsCash(acceptedMarketBid.id);
+      if (error) {
+        showAppAlert(
+          "Could not record fee",
+          error.message.includes("does not exist") ||
+            error.message.includes("Could not find the function")
+            ? "Cash settlement is not on the database yet. Apply the marketplace fee cash migration, then try again."
+            : error.message,
+        );
+        return false;
+      }
+      if (orgId) {
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.findLoadsForOrg.myBids(orgId),
+        });
+      }
+      return true;
+    } finally {
+      setFeeSettling(false);
+    }
+  }, [acceptedMarketBid, orgId, queryClient]);
+
   const handlePrimary = useCallback(() => {
-    if (deployOtpCode) {
+    if (deploySucceeded) {
       handleClose();
       return;
     }
-    if (!stepComplete) return;
+    if (!stepComplete) {
+      const blockState = {
+        assignDriverId,
+        assignVehicleId,
+        subcontractSupplierId,
+        subcontractRate,
+        aggregateDriverTrackingName,
+        aggregateDriverPhone,
+        assignVehicleRegistration,
+        tripDetailsReady,
+        aggregatePhoneInTrip,
+        aggregatePhoneLookupLoading,
+        aggregatePhoneMatches,
+        aggregatePhoneSelectedUserId,
+        staffHandshakeAssignLater,
+      };
+      showAppAlert(
+        isLastStep ? "Cannot convert" : "Finish this step",
+        indentAllocationStepBlockReason(step, blockState) ??
+          "This step is not finished.",
+      );
+      return;
+    }
     if (!isLastStep) {
       const next = flowSteps[stepIndex + 1];
       if (next) setStep(next.id);
       return;
     }
-    if (useAdHocDriver) {
-      void deployAdHoc();
-    } else {
-      void deployRoster();
-    }
+    void (async () => {
+      if (marketplaceFeeBlocking) {
+        const paid = await payMarketplaceFeeCash();
+        if (!paid) return;
+      }
+      if (useAdHocDriver) {
+        await deployAdHoc();
+      } else {
+        await deployRoster();
+      }
+    })();
   }, [
-    deployOtpCode,
+    deploySucceeded,
     stepComplete,
+    step,
+    assignDriverId,
+    assignVehicleId,
+    subcontractSupplierId,
+    subcontractRate,
+    aggregateDriverTrackingName,
+    aggregateDriverPhone,
+    assignVehicleRegistration,
+    tripDetailsReady,
+    aggregatePhoneInTrip,
+    aggregatePhoneLookupLoading,
+    aggregatePhoneMatches,
+    aggregatePhoneSelectedUserId,
+    staffHandshakeAssignLater,
     isLastStep,
     flowSteps,
     stepIndex,
+    marketplaceFeeBlocking,
+    payMarketplaceFeeCash,
     useAdHocDriver,
     deployAdHoc,
     deployRoster,
     handleClose,
   ]);
 
-  const primaryDisabled = deployOtpCode
+  const primaryDisabled = deploySucceeded
     ? false
-    : !stepComplete || isDeploying;
-
-  const primaryLabel = deployOtpCode
-    ? "Done"
     : isLastStep
-      ? "Convert to trip"
-      : "Continue";
+      ? isDeploying || feeSettling
+      : !stepComplete || isDeploying || feeSettling;
 
-  const showBack = !deployOtpCode && stepIndex > 0;
+  const primaryLabel = deploySucceeded
+    ? "Done"
+    : feeSettling
+      ? "Recording fee…"
+      : isLastStep && marketplaceFeeBlocking
+        ? "Pay fee & convert"
+        : isLastStep
+          ? "Convert to trip"
+          : "Continue";
+
+  const showBack = !deploySucceeded && stepIndex > 0;
 
   const handleBack = useCallback(() => {
-    if (deployOtpCode) {
-      backFromOtp();
+    if (deploySucceeded) {
+      handleClose();
       return;
     }
     const prev = flowSteps[stepIndex - 1];
     if (prev) setStep(prev.id);
-  }, [deployOtpCode, backFromOtp, flowSteps, stepIndex]);
+  }, [deploySucceeded, handleClose, flowSteps, stepIndex]);
 
   const pickupDateError =
     deployPickupDate && !isValidIsoDateString(deployPickupDate)
@@ -779,7 +926,7 @@ export function IndentAllocationFlowScreen({
 
   const isCompactLayout = windowWidth < Layout.webDesktopMinWidth;
 
-  const showAssignLaterOnPartner = !deployOtpCode && step === "partner";
+  const showAssignLaterOnPartner = !deploySucceeded && step === "partner";
 
   const onAddPartner = useCallback(() => {
     handleClose();
@@ -857,7 +1004,13 @@ export function IndentAllocationFlowScreen({
       fullScreen
       fillBody={fillBodyStep}
       scrollBody={!fillBodyStep}
-      title={deployOtpCode ? "Trip claim code" : "Deploy load"}
+      title={
+        deployOtpCode
+          ? "Trip claim code"
+          : deploySucceeded
+            ? "Trip created"
+            : "Deploy load"
+      }
       subtitle={
         deployOtpCode
           ? "Share this code with the driver to claim the trip."
@@ -866,13 +1019,13 @@ export function IndentAllocationFlowScreen({
       stepIndex={undefined}
       stepTotal={undefined}
       steppedLayout={!isCompactLayout}
-      onClose={() => (deployOtpCode ? backFromOtp() : handleClose())}
+      onClose={handleClose}
       onBack={showBack ? handleBack : undefined}
       showBack={showBack}
       footer={
         <AssignmentFlowFooter
           summary={
-            deployOtpCode || fillBodyStep || isLastStep
+            deploySucceeded || fillBodyStep || isLastStep
               ? undefined
               : footerSummary
           }
@@ -886,22 +1039,30 @@ export function IndentAllocationFlowScreen({
       }
       submitting={isDeploying}
     >
-      {deployOtpCode ? (
-        <View style={styles.otpStack}>
+      {deploySucceeded ? (
+        <View style={[styles.otpStack, styles.confirmStepCompact]}>
           <IndentAllocationConfirmSummary
-            title="Allocation"
+            compact
+            title=""
             hint={null}
             rows={confirmAllocationRows}
           />
-          <IndentDeployOtpPanel
-            code={deployOtpCode}
-            expiresAt={deployOtpExpiresAt}
-            tripId={deployTripIdForOtp}
-            onCodeChange={(code, expiresAt) => {
-              set.deployOtpCode(code);
-              set.deployOtpExpiresAt(expiresAt);
-            }}
-          />
+          {deployOtpCode ? (
+            <IndentDeployOtpPanel
+              showHint={false}
+              code={deployOtpCode}
+              expiresAt={deployOtpExpiresAt}
+              tripId={deployTripIdForOtp}
+              onCodeChange={(code, expiresAt) => {
+                set.deployOtpCode(code);
+                set.deployOtpExpiresAt(expiresAt);
+              }}
+            />
+          ) : (
+            <Text style={styles.confirmHint}>
+              No claim code is needed for this assignment. Tap Done to open the trip.
+            </Text>
+          )}
         </View>
       ) : (
         <View
@@ -1007,11 +1168,30 @@ export function IndentAllocationFlowScreen({
             ) : null}
 
             {step === "commodity" ? (
-              <View style={styles.confirmStep}>
+              <View
+                style={[
+                  styles.confirmStep,
+                  isCompactLayout
+                    ? styles.confirmStepCompact
+                    : styles.confirmStepWide,
+                ]}
+              >
                 <IndentAllocationConfirmSummary
+                  compact
                   rows={confirmAllocationRows}
                 />
+                {acceptedMarketBid ? (
+                  <IndentAllocationMarketplaceFeePanel
+                    feeStatus={acceptedMarketBid.fee_payment_status}
+                    feeAmount={acceptedMarketBid.platform_fee_amount}
+                    busy={feeSettling}
+                    onPayCash={() => {
+                      void payMarketplaceFeeCash();
+                    }}
+                  />
+                ) : null}
                 <IndentAllocationTripDetailsStep
+                  compact={isCompactLayout}
                   pickupDate={deployPickupDate}
                   onPickupDateChange={set.deployPickupDate}
                   pickupDateError={pickupDateError}
@@ -1087,8 +1267,24 @@ const styles = StyleSheet.create({
     width: "100%",
     gap: 16,
   },
+  confirmStepCompact: {
+    gap: 10,
+  },
+  confirmStepWide: {
+    maxWidth: 560,
+    alignSelf: "center",
+    gap: 12,
+  },
   otpStack: {
     width: "100%",
-    gap: 16,
+    maxWidth: 560,
+    alignSelf: "center",
+    gap: 10,
+  },
+  confirmHint: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: Theme.textSecondary,
+    lineHeight: 20,
   },
 });

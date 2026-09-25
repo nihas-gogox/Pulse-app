@@ -117,6 +117,11 @@ export async function createTripFromAssignedIndent(
     payload.p_vehicle_display_number = options.vehicleDisplayNumber.trim() || null;
   }
 
+  // create_trip_from_assigned_indent settles the Marketplace fee itself, atomically with
+  // trip creation, when the award needs it — a separate settle call here duplicated that
+  // round trip and, if the RPC then failed for an unrelated reason, could leave the org
+  // charged with no trip. Fee-pending failures still surface via the RPC's own
+  // fee_payment_pending error (see formatDeployTripError in useStaffHandshake.ts).
   const { data, error } = await supabase().rpc(
     'create_trip_from_assigned_indent',
     payload,

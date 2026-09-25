@@ -1,5 +1,6 @@
 import {
   getIndentAllocationWizardSteps,
+  indentAllocationStepBlockReason,
   isIndentAllocationStepComplete,
 } from "../indentAllocationWizardSteps";
 
@@ -69,5 +70,19 @@ describe("isIndentAllocationStepComplete", () => {
         staffHandshakeAssignLater: true,
       }),
     ).toBe(true);
+  });
+});
+
+describe("indentAllocationStepBlockReason", () => {
+  it("names the missing arrival date on convert", () => {
+    expect(indentAllocationStepBlockReason("commodity", completeBase)).toBe(
+      "Set a valid vehicle arrival date before converting.",
+    );
+    expect(
+      indentAllocationStepBlockReason("commodity", {
+        ...completeBase,
+        tripDetailsReady: true,
+      }),
+    ).toBeNull();
   });
 });

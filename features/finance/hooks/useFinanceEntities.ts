@@ -8,6 +8,7 @@ import { type ClientRow } from "@/features/clients/services/clients.service";
 import { type DriverOffer, type DriverRow } from "@/features/drivers/services/drivers.service";
 import { type SupplierRow } from "@/features/suppliers/services/suppliers.service";
 import { getTripDisplayNumber, type TripRow } from "@/features/trips/services/trips.service";
+import { overlayViewerTripSubcontract } from "@/features/trips/utils/overlayViewerTripSubcontract.util";
 import { type VehicleRow } from "@/features/vehicles/services/vehicles.service";
 import { getAvailablePeriodOptions } from "@/features/vehicles/pnl";
 import { formatLedgerDate } from "@/lib/format";
@@ -26,7 +27,7 @@ import {
   useVehiclesQuery,
   useTripSubcontractsQuery,
 } from "@/lib/queries";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export interface UseFinanceEntitiesArgs {
   organizationId: string | null;
@@ -85,24 +86,51 @@ export function useFinanceEntities({
     useTripsWhereOrgIsSupplierQuery(orgId);
   const { data: salaryRequestsFromQuery = [] } = useSalaryRequestsQuery(orgId, "pending");
 
-  const tripIdsWhereOrgIsSupplier = useMemo(
-    () => tripsWhereOrgIsSupplier.map((t) => t.id),
-    [tripsWhereOrgIsSupplier]
+  const allVisibleTripIds = useMemo(
+    () => [...new Set([...tripRows, ...tripsWhereOrgIsSupplier].map((t) => t.id))],
+    [tripRows, tripsWhereOrgIsSupplier],
   );
   const { data: tripSubcontracts = [] } =
-    useTripSubcontractsQuery(orgId, tripIdsWhereOrgIsSupplier);
+    useTripSubcontractsQuery(orgId, allVisibleTripIds);
 
-  const tripsWhereOrgIsSupplierWithSubcontracts = useMemo(() => {
-    if (!tripSubcontracts.length) return tripsWhereOrgIsSupplier;
-    const subMap = new Map(tripSubcontracts.map(s => [s.trip_id, s]));
-    return tripsWhereOrgIsSupplier.map(t => {
-      const sub = subMap.get(t.id);
-      if (sub) {
-        return { ...t, supplier_id: sub.supplier_id, supplier_rate: sub.rate };
-      }
-      return t;
-    });
-  }, [tripsWhereOrgIsSupplier, tripSubcontracts]);
+  const supplierNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of supplierRows) {
+      const label = (
+        s.company_name ||
+        (s as { name?: string }).name ||
+        s.contact_person ||
+        ""
+      ).trim();
+      if (label) map.set(s.id, label);
+    }
+    return map;
+  }, [supplierRows]);
+
+  const overlayTripPartner = useCallback(
+    (trip: TripRow, applyRate = false): TripRow => {
+      const sub = tripSubcontracts.find((row) => row.trip_id === trip.id);
+      if (!sub) return trip;
+      return overlayViewerTripSubcontract(
+        trip,
+        orgId,
+        { supplier_id: sub.supplier_id, rate: sub.rate },
+        supplierNameById.get(sub.supplier_id) ?? null,
+        { applyRate },
+      );
+    },
+    [tripSubcontracts, orgId, supplierNameById],
+  );
+
+  const tripRowsWithPartner = useMemo(
+    () => tripRows.map(overlayTripPartner),
+    [tripRows, overlayTripPartner],
+  );
+
+  const tripsWhereOrgIsSupplierWithSubcontracts = useMemo(
+    () => tripsWhereOrgIsSupplier.map((trip) => overlayTripPartner(trip, true)),
+    [tripsWhereOrgIsSupplier, overlayTripPartner],
+  );
 
   const [pendingDriverSalaryRequests, setPendingDriverSalaryRequests] = useState<
     SalaryRequestWithDriverRow[]
@@ -142,7 +170,7 @@ export function useFinanceEntities({
 
   const trips = useMemo(
     () =>
-      tripRows.map((t) => ({
+      tripRowsWithPartner.map((t) => ({
         id: t.id,
         trip_number: getTripDisplayNumber(t),
         client_id: t.client_id ?? null,
@@ -166,7 +194,7 @@ export function useFinanceEntities({
         status: t.status ?? null,
         completed_at: t.completed_at ?? null,
       })),
-    [tripRows]
+    [tripRowsWithPartner]
   );
 
   const suppliersList = useMemo(
@@ -227,7 +255,7 @@ export function useFinanceEntities({
     clients,
     clientRows,
     trips,
-    tripRows,
+    tripRows: tripRowsWithPartner,
     // Keep full partner-owned client-perspective set (load + aggregate) so shared-ledger
     // and supplier remap can include cross-org aggregate trips too.
     tripsWhereOrgIsClient,

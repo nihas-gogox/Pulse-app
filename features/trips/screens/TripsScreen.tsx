@@ -638,8 +638,9 @@ export default function TripsScreen() {
         drivers,
         transactions,
         {},
+        { viewerOrgId: orgId, subcontracts: hubTripSubcontracts },
       ),
-    [trips, clients, suppliers, drivers, transactions],
+    [trips, clients, suppliers, drivers, transactions, orgId, hubTripSubcontracts],
   );
 
   /** Active ops trips only — used to resolve which trips have any uploaded document (POD split). */
@@ -1208,8 +1209,18 @@ export default function TripsScreen() {
         drivers,
         transactions,
         supplierNameFallbackById,
+        { viewerOrgId: orgId, subcontracts: hubTripSubcontracts },
       ),
-    [trips, clients, suppliers, drivers, transactions, supplierNameFallbackById],
+    [
+      trips,
+      clients,
+      suppliers,
+      drivers,
+      transactions,
+      supplierNameFallbackById,
+      orgId,
+      hubTripSubcontracts,
+    ],
   );
 
   const { data: inTransitPingByTripId = {} } = useTripHubInTransitPings(

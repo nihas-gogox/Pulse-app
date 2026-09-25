@@ -17,6 +17,8 @@ export type IndentDeployOtpPanelProps = {
   tripId: string | null;
   onCodeChange: (code: string, expiresAt: string | null) => void;
   onCopied?: () => void;
+  /** Shell already states how to share the code. */
+  showHint?: boolean;
 };
 
 export const IndentDeployOtpPanel = memo(function IndentDeployOtpPanel({
@@ -25,10 +27,13 @@ export const IndentDeployOtpPanel = memo(function IndentDeployOtpPanel({
   tripId,
   onCodeChange,
   onCopied,
+  showHint = true,
 }: IndentDeployOtpPanelProps) {
   return (
     <View style={styles.wrap}>
-      <Text style={styles.hint}>Share this code with the driver to claim the trip.</Text>
+      {showHint ? (
+        <Text style={styles.hint}>Share this code with the driver to claim the trip.</Text>
+      ) : null}
       <View style={styles.card}>
         <Text style={styles.code}>{code}</Text>
         {expiresAt ? (
@@ -83,17 +88,18 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Theme.cardWhite,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: Theme.borderLight,
-    padding: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   code: {
-    fontSize: 36,
-    fontWeight: "900",
-    letterSpacing: 6,
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: 8,
     color: Theme.textPrimaryDark,
   },
   expiry: {
