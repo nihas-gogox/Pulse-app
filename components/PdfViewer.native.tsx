@@ -13,6 +13,10 @@ import Theme from "@/constants/Theme";
 interface PdfViewerProps {
   pdfUri: string | null;
   style?: StyleProp<ViewStyle>;
+  showToolbar?: boolean;
+  zoom?: number;
+  sizing?: "original" | "fit";
+  page?: number;
 }
 
 /**

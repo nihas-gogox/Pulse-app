@@ -1,20 +1,20 @@
-import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
+import Theme from "@/constants/Theme";
 import type { ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import { getVehicleById, getVehicleForTripViewer } from "@/features/vehicles/services/vehicles.service";
 import { PAYMENT_MODES } from "@/lib/paymentModes";
-import Theme from "@/constants/Theme";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Modal,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    useWindowDimensions,
+    View,
 } from "react-native";
 
 type PaymentTripFacts = TripRow & {
@@ -70,17 +70,25 @@ export function CompliancePaymentConfirmModal({
   category: ComplianceLedgerCategory | null;
   submitting: boolean;
   onCancel: () => void;
-  onConfirm: (values: { amount: number; paymentModeId: string; paymentModeLabel: string; utr?: string }) => void;
+  onConfirm: (values: {
+    amount: number;
+    paymentModeId: string;
+    paymentModeLabel: string;
+    utr?: string;
+    remark?: string;
+  }) => void;
 }) {
   const { height } = useWindowDimensions();
   const [amount, setAmount] = useState("");
   const [modeId, setModeId] = useState<string>("UPI");
+  const [remark, setRemark] = useState("");
   const [truckType, setTruckType] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible) {
       setAmount("");
       setModeId("UPI");
+      setRemark("");
     }
   }, [visible, summary?.trip.id, category]);
 
@@ -123,7 +131,7 @@ export function CompliancePaymentConfirmModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={submitting ? undefined : onCancel} />
-        <View style={[styles.sheet, { maxHeight: Math.min(height - 48, 720) }]}>
+        <View style={[styles.sheet, { maxHeight: Math.min(height - 32, 640) }]}>
           <ScrollView
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.sheetContent}
@@ -145,69 +153,98 @@ export function CompliancePaymentConfirmModal({
               <FactRow label="Category" value={categoryLabel} />
             </View>
 
-            <Text style={styles.label}>Amount (₹)</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              value={amount}
-              onChangeText={setAmount}
-              editable={!submitting}
-              placeholder="Enter amount"
-              placeholderTextColor={Theme.textMuted}
-            />
+            <View style={styles.field}>
+              <Text style={styles.label}>Amount (₹)</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={amount}
+                onChangeText={setAmount}
+                editable={!submitting}
+                placeholder="Enter amount"
+                placeholderTextColor={Theme.textMuted}
+              />
+            </View>
 
-            <Text style={styles.label}>Payment mode</Text>
-            <View style={styles.modeRow}>
-              {PAYMENT_MODES.slice(0, 4).map((item) => {
-                const selected = modeId === item.id;
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => setModeId(item.id)}
-                    style={[styles.modeChip, selected && styles.modeChipOn]}
-                    disabled={submitting}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                  >
-                    <Text style={[styles.modeChipText, selected && styles.modeChipTextOn]}>{item.name}</Text>
-                  </Pressable>
-                );
-              })}
+            <View style={styles.field}>
+              <Text style={styles.label}>Payment mode</Text>
+              <View style={styles.modeRow}>
+                {PAYMENT_MODES.slice(0, 4).map((item) => {
+                  const selected = modeId === item.id;
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => setModeId(item.id)}
+                      style={[styles.modeChip, selected && styles.modeChipOn]}
+                      disabled={submitting}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                    >
+                      <Text style={[styles.modeChipText, selected && styles.modeChipTextOn]} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Remark</Text>
+              <TextInput
+                style={styles.remarkInput}
+                value={remark}
+                onChangeText={setRemark}
+                editable={!submitting}
+                placeholder="Add a remark"
+                placeholderTextColor={Theme.textMuted}
+                multiline
+                textAlignVertical="top"
+                accessibilityLabel="Remark"
+              />
             </View>
 
             <View style={styles.actions}>
-              <Pressable style={styles.cancelBtn} onPress={onCancel} disabled={submitting}>
+              <Pressable
+                style={styles.rejectBtn}
+                onPress={onCancel}
+                disabled={submitting}
+                accessibilityRole="button"
+                accessibilityLabel="Reject"
+              >
+                <Text style={styles.rejectText}>Reject</Text>
+              </Pressable>
+              <Pressable
+                style={styles.cancelBtn}
+                onPress={onCancel}
+                disabled={submitting}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+              >
                 <Text style={styles.cancelText}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={[styles.confirmBtn, !canSubmit && styles.confirmBtnDisabled]}
                 disabled={!canSubmit}
+                accessibilityRole="button"
+                accessibilityLabel={confirmText}
                 onPress={() => {
                   if (!mode || !canSubmit) return;
                   onConfirm({
                     amount: parsedAmount,
                     paymentModeId: mode.id,
                     paymentModeLabel: mode.name,
+                    remark: remark.trim() || undefined,
                   });
                 }}
               >
                 {submitting ? (
                   <ActivityIndicator color={Theme.buttonDarkText} />
                 ) : (
-                  <Text style={styles.confirmText}>{confirmText}</Text>
+                  <Text style={styles.confirmText}>Confirm</Text>
                 )}
               </Pressable>
             </View>
-
-            <Pressable
-              style={styles.gateBtn}
-              disabled={submitting}
-              onPress={() => undefined}
-              accessibilityRole="button"
-              accessibilityLabel="S-IN and S-OUT"
-            >
-              <Text style={styles.gateBtnText}>S-IN & S-OUT</Text>
-            </Pressable>
           </ScrollView>
         </View>
       </View>
@@ -225,65 +262,64 @@ const styles = StyleSheet.create({
   },
   sheet: {
     width: "100%",
-    maxWidth: 440,
+    maxWidth: 380,
     backgroundColor: Theme.cardWhite,
     borderRadius: 16,
     overflow: "hidden",
   },
   sheetContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
     gap: 10,
   },
-  title: { fontSize: 18, fontWeight: "800", color: Theme.textPrimaryDark },
-  body: { fontSize: 13, color: Theme.textMuted, lineHeight: 18 },
+  title: { fontSize: 17, fontWeight: "700", color: Theme.textPrimaryDark },
+  body: { fontSize: 12, color: Theme.textMuted, lineHeight: 16 },
   factCard: {
-    borderWidth: 1,
-    borderColor: Theme.complianceCardBorder,
-    borderRadius: 12,
-    backgroundColor: Theme.cardWhite,
-    overflow: "hidden",
+    borderRadius: 10,
+    backgroundColor: Theme.compliancePageBg,
+    paddingVertical: 2,
+    paddingHorizontal: 12,
   },
   factRow: {
-    minHeight: 40,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    minHeight: 28,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Theme.complianceCardBorder,
+    gap: 8,
   },
   factLabel: {
-    flexShrink: 0,
-    fontSize: 12,
-    fontWeight: "600",
+    width: 108,
+    fontSize: 11,
+    fontWeight: "500",
     color: Theme.textMuted,
   },
   factValue: {
     flex: 1,
     minWidth: 0,
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 12,
+    fontWeight: "600",
     color: Theme.textPrimaryDark,
     textAlign: "right",
   },
-  label: { fontSize: 12, fontWeight: "700", color: Theme.textMuted, marginTop: 2 },
+  field: { gap: 4 },
+  label: { fontSize: 11, fontWeight: "600", color: Theme.textMuted },
   input: {
-    minHeight: 44,
+    height: 38,
     borderWidth: 1,
     borderColor: Theme.complianceCardBorder,
     borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 0,
     fontSize: 14,
+    fontWeight: "600",
     color: Theme.textPrimaryDark,
     backgroundColor: Theme.cardWhite,
   },
-  modeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  modeRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   modeChip: {
-    minHeight: 36,
-    paddingHorizontal: 12,
+    flex: 1,
+    height: 32,
+    paddingHorizontal: 4,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: Theme.complianceCardBorder,
@@ -292,37 +328,51 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   modeChipOn: { backgroundColor: Theme.buttonDark, borderColor: Theme.buttonDark },
-  modeChipText: { fontSize: 12, fontWeight: "700", color: Theme.textMuted },
+  modeChipText: { fontSize: 11, fontWeight: "600", color: Theme.textMuted, textAlign: "center" },
   modeChipTextOn: { color: Theme.buttonDarkText },
-  actions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 4,
-  },
-  cancelBtn: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12 },
-  cancelText: { fontSize: 13, fontWeight: "600", color: Theme.textMuted },
-  confirmBtn: {
-    flexShrink: 1,
-    minHeight: 44,
-    paddingHorizontal: 14,
+  remarkInput: {
+    height: 52,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
     borderRadius: 10,
-    backgroundColor: Theme.buttonDark,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    lineHeight: 18,
+    color: Theme.textPrimaryDark,
+    backgroundColor: Theme.cardWhite,
   },
-  confirmBtnDisabled: { opacity: 0.5 },
-  confirmText: { fontSize: 13, fontWeight: "700", color: Theme.buttonDarkText, textAlign: "center" },
-  gateBtn: {
-    minHeight: 44,
+  actions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  rejectBtn: {
+    flex: 1,
+    height: 36,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: Theme.buttonPrimaryBorder,
-    backgroundColor: Theme.buttonPrimary,
+    borderColor: Theme.negative,
+    backgroundColor: Theme.cardWhite,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 12,
   },
-  gateBtnText: { fontSize: 13, fontWeight: "700", color: Theme.buttonPrimaryText },
+  rejectText: { fontSize: 12, fontWeight: "600", color: Theme.negative },
+  cancelBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelText: { fontSize: 12, fontWeight: "600", color: Theme.textPrimaryDark },
+  confirmBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: Theme.positive,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmBtnDisabled: { opacity: 0.45 },
+  confirmText: { fontSize: 12, fontWeight: "700", color: Theme.buttonDarkText, textAlign: "center" },
 });
