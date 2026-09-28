@@ -6,6 +6,7 @@ import {
   guessCompliancePreviewMime,
   signCompliancePreviewUrl,
 } from "@/features/tripCompliance/services/complianceDocumentView.service";
+import { NoDocumentPreviewEmpty, NoTripsFoundEmpty } from "@/features/tripCompliance/components/ComplianceEmptyState";
 import { ComplianceInputModal, type ComplianceInputField } from "@/features/tripCompliance/components/ComplianceInputModal";
 import { setTripDocumentVerification } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import {
@@ -39,12 +40,10 @@ import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocatio
 import { getTripExecutionModel } from "@/features/trips/domain/tripExecutionModel";
 import { markVehicleDocumentVerified } from "@/features/vehicles/services/vehicleDocuments.service";
 import { formatIndianVehicleNumber } from "@/lib/format";
-import { ArrowUp, ChevronLeft, ChevronRight, Folder, Minus, Plus, RotateCcw, X } from "lucide-react-native";
+import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
-  Easing,
   Image,
   Modal,
   Platform,
@@ -766,6 +765,11 @@ export function ComplianceDocumentWorkspace({
   return (
     <View style={[styles.workspace, stacked && styles.workspaceStacked, style]}>
       <View style={[styles.listPane, stacked && styles.listPaneStacked]}>
+        {summaries.length === 0 ? (
+          <View style={styles.listEmpty}>
+            <NoTripsFoundEmpty compact={stacked} />
+          </View>
+        ) : (
         <ScrollView
           ref={listRef}
           style={styles.listScroll}
@@ -800,6 +804,7 @@ export function ComplianceDocumentWorkspace({
             </View>
           ))}
         </ScrollView>
+        )}
       </View>
 
       <View style={styles.previewPane}>
@@ -874,10 +879,11 @@ export function ComplianceDocumentWorkspace({
             </>
           ) : (
             <View style={styles.emptyStage}>
-              {activeRow ? <MissingFileAnimation /> : null}
-              <Text style={styles.emptyPreview}>
-                {activeRow ? `${docTitle} has no file to preview.` : "Select a trip to preview documents."}
-              </Text>
+              <NoDocumentPreviewEmpty
+                compact={stacked}
+                title={activeRow ? `${docTitle} has no file to preview.` : "No document to preview"}
+                hint={activeRow ? undefined : "Select a document from the list to view its details here."}
+              />
             </View>
           )}
         </View>
@@ -985,42 +991,6 @@ export function ComplianceDocumentWorkspace({
   );
 }
 
-function MissingFileAnimation() {
-  const lift = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const motion = Animated.loop(
-      Animated.sequence([
-        Animated.timing(lift, {
-          toValue: 1,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(lift, {
-          toValue: 0,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    motion.start();
-    return () => motion.stop();
-  }, [lift]);
-
-  const translateY = lift.interpolate({ inputRange: [0, 1], outputRange: [0, -5] });
-
-  return (
-    <View style={styles.uploadMark}>
-      <Folder size={78} color={Theme.textPrimaryDark} strokeWidth={1.6} />
-      <Animated.View style={[styles.uploadBadge, { transform: [{ translateY }] }]}>
-        <ArrowUp size={16} color={Theme.textPrimaryDark} strokeWidth={2.4} />
-      </Animated.View>
-    </View>
-  );
-}
-
 function TripListRow({
   summary,
   selected,
@@ -1101,6 +1071,13 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   listPaneStacked: { width: "100%", maxWidth: "100%", height: "42%", maxHeight: "42%" },
+  listEmpty: {
+    flex: 1,
+    minHeight: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
+  },
   listScroll: { flex: 1 },
   listContent: { padding: 10, gap: 8 },
   row: {
@@ -1322,26 +1299,6 @@ const styles = StyleSheet.create({
     gap: 14,
     paddingHorizontal: 24,
   },
-  uploadMark: {
-    width: 108,
-    height: 84,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  uploadBadge: {
-    position: "absolute",
-    left: 6,
-    bottom: 0,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 1.6,
-    borderColor: Theme.textPrimaryDark,
-    backgroundColor: Theme.cardWhite,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyPreview: { fontSize: 14, color: Theme.textMuted, textAlign: "center" },
   navPill: {
     flexShrink: 1,
     minWidth: 0,

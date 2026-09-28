@@ -309,7 +309,7 @@ export default function ComplianceScreen() {
             <Text style={styles.reportBtnText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      ) : filteredTotal === 0 ? (
+      ) : viewMode === "table" && filteredTotal === 0 ? (
         <View style={styles.emptyFill}>
           <HubPromoHeroLottie
             source={EMPTY_STATE_LOTTIE.tripsTable}
