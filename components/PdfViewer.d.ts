@@ -1,6 +1,6 @@
 declare module "@/components/PdfViewer" {
   import { FunctionComponent } from "react";
-  import type { StyleProp, ViewStyle } from "react-native";
+    import type { StyleProp, ViewStyle } from "react-native";
 
   interface PdfViewerProps {
     pdfUri: string | null;

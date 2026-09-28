@@ -638,13 +638,20 @@ export function LogHardCopyPodModal({
                         />
                       </View>
                     </View>
-                    <Field
-                      label="Remarks"
-                      value={remarks}
-                      onChangeText={setRemarks}
-                      placeholder="Optional remarks"
-                      multiline
-                    />
+                    <View style={styles.dateTimeRow}>
+                      <View style={styles.dateTimeCol}>
+                        <Field
+                          label="Remarks"
+                          value={remarks}
+                          onChangeText={setRemarks}
+                          placeholder="Optional remarks"
+                          multiline
+                        />
+                      </View>
+                      <View style={styles.dateTimeCol}>
+                        <HardCopyPodPhotoUpload tripId={tripId} canEdit={canManage} />
+                      </View>
+                    </View>
                   </View>
                 ) : null}
 
@@ -689,18 +696,21 @@ export function LogHardCopyPodModal({
                         />
                       </View>
                     </View>
-                    <Field
-                      label="Remarks"
-                      value={remarks}
-                      onChangeText={setRemarks}
-                      placeholder="Optional remarks"
-                      multiline
-                    />
+                    <View style={styles.dateTimeRow}>
+                      <View style={styles.dateTimeCol}>
+                        <Field
+                          label="Remarks"
+                          value={remarks}
+                          onChangeText={setRemarks}
+                          placeholder="Optional remarks"
+                          multiline
+                        />
+                      </View>
+                      <View style={styles.dateTimeCol}>
+                        <HardCopyPodPhotoUpload tripId={tripId} canEdit={canManage} />
+                      </View>
+                    </View>
                   </View>
-                ) : null}
-
-                {method ? (
-                  <HardCopyPodPhotoUpload tripId={tripId} canEdit={canManage} />
                 ) : null}
               </View>
             ) : null}
@@ -732,14 +742,20 @@ export function LogHardCopyPodModal({
                     placeholder="Person name"
                     error={errors.receivedBy}
                   />
-                  <Field
-                    label="Remarks"
-                    value={remarks}
-                    onChangeText={setRemarks}
-                    placeholder="Optional"
-                    multiline
-                  />
-                  <HardCopyPodPhotoUpload tripId={tripId} canEdit={canManage} />
+                  <View style={styles.dateTimeRow}>
+                    <View style={styles.dateTimeCol}>
+                      <Field
+                        label="Remarks"
+                        value={remarks}
+                        onChangeText={setRemarks}
+                        placeholder="Optional"
+                        multiline
+                      />
+                    </View>
+                    <View style={styles.dateTimeCol}>
+                      <HardCopyPodPhotoUpload tripId={tripId} canEdit={canManage} />
+                    </View>
+                  </View>
                 </View>
               </View>
             ) : null}
@@ -1168,7 +1184,7 @@ const styles = StyleSheet.create({
   fields: { gap: 12 },
   dateTimeRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "stretch",
     gap: 12,
   },
   dateTimeCol: {

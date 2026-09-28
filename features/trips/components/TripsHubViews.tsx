@@ -73,6 +73,8 @@ import Animated, {
     withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LogHardCopyPodModal } from "@/features/trips/components/trip-detail/LogHardCopyPodModal";
+import { useMemberAccess } from "@/lib/useMemberAccess";
 import {
   getTripDisplayMeta,
   getTripDisplayNumber,
@@ -1157,6 +1159,9 @@ export function TripsHubTableView({
     trip: TripRow;
     row: LedgerRow | null;
   } | null>(null);
+  const [hardCopyPodTrip, setHardCopyPodTrip] = useState<TripRow | null>(null);
+  const { can: canSurface } = useMemberAccess();
+  const canManageHardCopyPod = canSurface("trip_compliance.pod.manage");
 
   const toggleExpanded = (tripId: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -2348,6 +2353,20 @@ export function TripsHubTableView({
                   </Pressable>
 
                   <View style={[styles.manifestTd, styles.manifestColActions]}>
+                    <View style={styles.auditActionStack}>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.hardCopyPodTableBtn,
+                        pressed && styles.hardCopyPodTableBtnPressed,
+                      ]}
+                      onPress={() => setHardCopyPodTrip(t)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Log Hard Copy POD"
+                    >
+                      <Text style={styles.hardCopyPodTableBtnText} numberOfLines={2}>
+                        Log Hard Copy POD
+                      </Text>
+                    </Pressable>
                     <View style={styles.auditCellIconRow}>
                       <View
                         style={[
@@ -2400,6 +2419,7 @@ export function TripsHubTableView({
                           color={Theme.textPrimaryDark}
                         />
                       </Pressable>
+                    </View>
                     </View>
                   </View>
                 </View>
@@ -2892,6 +2912,31 @@ export function TripsHubTableView({
           </View>
         </View>
       </Modal>
+      <LogHardCopyPodModal
+        visible={hardCopyPodTrip != null}
+        onClose={() => setHardCopyPodTrip(null)}
+        tripId={hardCopyPodTrip?.id ?? ""}
+        organizationId={currentOrganizationId ?? hardCopyPodTrip?.organization_id}
+        canManage={canManageHardCopyPod}
+        initialMode="create"
+        summary={{
+          manifestId: hardCopyPodTrip
+            ? getTripDisplayNumber(hardCopyPodTrip, currentOrganizationId)
+            : "—",
+          clientName: hardCopyPodTrip
+            ? (
+                clientNameByTripId?.[hardCopyPodTrip.id] ??
+                (hardCopyPodTrip.organization_id !== currentOrganizationId
+                  ? ""
+                  : hardCopyPodTrip.client_name ?? "")
+              ).trim() || "—"
+            : "—",
+          pickup: hardCopyPodTrip?.pickup_area?.trim() || "—",
+          delivery: hardCopyPodTrip?.drop_location?.trim() || "—",
+          driverName: hardCopyPodTrip?.driver_display_name?.trim() || "Unassigned",
+          vehicleLabel: hardCopyPodTrip?.vehicle_display_number?.trim() || "Pending",
+        }}
+      />
     </View>
   );
 }
@@ -3909,7 +3954,8 @@ const styles = StyleSheet.create({
   },
   manifestColActions: {
     width: "6%",
-    minWidth: 72,
+    minWidth: 88,
+    zIndex: 2,
     borderLeftWidth: 1,
     borderLeftColor: Theme.surfaceBorder,
     alignItems: "center",
@@ -4484,6 +4530,38 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
     paddingRight: 6,
     paddingVertical: 4,
+  },
+  auditActionStack: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  hardCopyPodTableBtn: {
+    width: "100%",
+    maxWidth: 84,
+    minHeight: 36,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+    ...(Platform.OS === "web" ? ({ cursor: "pointer" } as ViewStyle) : null),
+  },
+  hardCopyPodTableBtnPressed: {
+    backgroundColor: Theme.complianceIconWash,
+    borderColor: Theme.complianceBulk,
+  },
+  hardCopyPodTableBtnText: {
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: "700",
+    color: Theme.textPrimaryDark,
+    textAlign: "center",
   },
   auditCellIconRow: {
     flexDirection: "row",

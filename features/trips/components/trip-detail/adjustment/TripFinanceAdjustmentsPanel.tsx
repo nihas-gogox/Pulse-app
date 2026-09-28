@@ -450,10 +450,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   cardDesktop: {
-    marginTop: 10,
+    marginTop: 0,
     backgroundColor: Theme.cardWhite,
-    padding: 14,
-    gap: 12,
+    paddingVertical: 2,
+    paddingHorizontal: 0,
+    gap: 8,
   },
   header: {
     flexDirection: "row",
@@ -669,9 +670,10 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   emptyDesktop: {
-    padding: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 16,
   },
   tr: {
     flexDirection: "row",

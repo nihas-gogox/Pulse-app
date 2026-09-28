@@ -465,8 +465,8 @@ const styles = StyleSheet.create({
   },
   wrapDesktop: {
     flexDirection: "row",
-    alignItems: "stretch",
-    gap: 14,
+    alignItems: "flex-start",
+    gap: 10,
   },
   card: {
     borderWidth: 1,
@@ -479,9 +479,10 @@ const styles = StyleSheet.create({
   cardDesktop: {
     flex: 1,
     minWidth: 0,
-    padding: 12,
-    borderRadius: 14,
-    gap: 8,
+    alignSelf: "flex-start",
+    padding: 10,
+    borderRadius: 12,
+    gap: 6,
   },
   cardModal: {
     padding: 14,
@@ -539,9 +540,9 @@ const styles = StyleSheet.create({
     borderTopColor: "#eef2f7",
   },
   metricsBarDesktop: {
-    gap: 14,
-    paddingTop: 10,
-    paddingBottom: 6,
+    gap: 10,
+    paddingTop: 8,
+    paddingBottom: 2,
   },
   metricsBarModal: {
     gap: 12,
