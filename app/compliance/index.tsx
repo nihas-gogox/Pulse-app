@@ -3,6 +3,7 @@
  * Cards/Table toggle, and Trip/Vehicle/Driver checklist cards.
  */
 import { ChromeBelowTopNavLoadingScreen } from "@/components/chromeLoadingScreens";
+import { HubPromoHeroLottie } from "@/components/hub/HubPromoLottie";
 import Layout from "@/constants/Layout";
 import Theme from "@/constants/Theme";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,6 +27,7 @@ import { COMPLIANCE_FILTER_COUNT_TONE, matchesComplianceTripSearch } from "@/fea
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { formatMarkComplianceVerifiedError } from "@/features/tripCompliance/utils/complianceMarkVerifiedError.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
+import { EMPTY_STATE_LOTTIE } from "@/lib/emptyStateLottieAssets";
 import { useLayoutInsets } from "@/lib/layoutInsets";
 import { ROUTES } from "@/lib/routes";
 import { useMemberAccess } from "@/lib/useMemberAccess";
@@ -296,22 +298,31 @@ export default function ComplianceScreen() {
       ) : null}
 
       {isLoading && summaries.length === 0 ? (
-        <Text style={styles.message}>Loading required trip, document, and payment data…</Text>
+        <View style={styles.emptyFill}>
+          <Text style={styles.message}>Loading required trip, document, and payment data…</Text>
+        </View>
       ) : isError ? (
-        <View>
+        <View style={styles.emptyFill}>
           <Text style={styles.message}>{(error as Error)?.message ?? "Couldn't load Compliance."}</Text>
           <TouchableOpacity style={styles.reportBtn} onPress={() => void refetch()}>
             <Text style={styles.reportBtnText}>Retry</Text>
           </TouchableOpacity>
         </View>
       ) : filteredTotal === 0 ? (
-        <Text style={styles.message}>
-          {search.trim()
-            ? "No trips match your search."
-            : summaries.length
-              ? "No trips in this stage."
-              : "No Loading→Completed trips in the Compliance queue yet."}
-        </Text>
+        <View style={styles.emptyFill}>
+          <HubPromoHeroLottie
+            source={EMPTY_STATE_LOTTIE.tripsTable}
+            width={isNarrow ? 200 : 260}
+            height={isNarrow ? 160 : 200}
+          />
+          <Text style={styles.emptyCaption}>
+            {search.trim()
+              ? "No trips match your search."
+              : summaries.length
+                ? "No trips in this stage."
+                : "No Loading→Completed trips in the Compliance queue yet."}
+          </Text>
+        </View>
       ) : viewMode === "table" ? (
         <ScrollView style={styles.queueScroll} contentContainerStyle={styles.queueScrollContent} keyboardShouldPersistTaps="handled">
           <ComplianceTripsTable
@@ -518,8 +529,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, minHeight: 0, overflow: "hidden", backgroundColor: Theme.compliancePageBg },
   chrome: { flexShrink: 0, paddingTop: 8 },
   queueBody: { flex: 1, minHeight: 0, marginTop: 8, gap: 4 },
-  queueScroll: { flex: 1 },
-  queueScrollContent: { paddingBottom: 8 },
+  queueScroll: { flex: 1, width: "100%", minWidth: 0 },
+  queueScrollContent: { paddingBottom: 8, width: "100%", minWidth: 0 },
   workspaceFill: { flex: 1, minHeight: 0 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: Theme.compliancePageBg },
   searchRow: {
@@ -680,7 +691,22 @@ const styles = StyleSheet.create({
   toggleBtnText: { fontSize: 11, fontWeight: "500", color: Theme.textPrimary, lineHeight: 14 },
   toggleBtnTextActive: { color: Theme.buttonDarkText, fontWeight: "600" },
   cardGrid: { flexDirection: "row", flexWrap: "wrap", alignItems: "stretch" },
-  message: { fontSize: 14, color: Theme.textSecondary, textAlign: "center", paddingVertical: 28, lineHeight: 20 },
+  emptyFill: {
+    flex: 1,
+    minHeight: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    gap: 4,
+  },
+  emptyCaption: {
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 24,
+    color: Theme.textPrimary,
+    textAlign: "center",
+  },
+  message: { fontSize: 14, color: Theme.textSecondary, textAlign: "center", lineHeight: 20 },
   stale: { fontSize: 12, color: Theme.textSecondary },
   footer: {
     flexShrink: 0,

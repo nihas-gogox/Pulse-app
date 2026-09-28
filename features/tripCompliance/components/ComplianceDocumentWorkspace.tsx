@@ -6,6 +6,7 @@ import {
   guessCompliancePreviewMime,
   signCompliancePreviewUrl,
 } from "@/features/tripCompliance/services/complianceDocumentView.service";
+import { ComplianceInputModal, type ComplianceInputField } from "@/features/tripCompliance/components/ComplianceInputModal";
 import { setTripDocumentVerification } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import {
   COMPLIANCE_DRIVER_DOCUMENT_TYPES,
@@ -27,6 +28,13 @@ import {
 import { complianceReviewDecisionActions } from "@/features/tripCompliance/utils/complianceReviewActions.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
+import { markTripHardCopyPodReceived } from "@/features/trips/services/tripDocumentLrPod.service";
+
+const HARD_COPY_POD_FIELDS: ComplianceInputField[] = [
+  { key: "courier", label: "Courier", placeholder: "e.g. BlueDart", required: true },
+  { key: "awb", label: "AWB / tracking number", required: true },
+  { key: "receivedBy", label: "Received by", required: true },
+];
 import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
 import { getTripExecutionModel } from "@/features/trips/domain/tripExecutionModel";
 import { markVehicleDocumentVerified } from "@/features/vehicles/services/vehicleDocuments.service";
@@ -210,18 +218,21 @@ async function readPdfPageCount(uri: string): Promise<number | null> {
   }
 }
 
-function DocumentScreen({
+export function DocumentScreen({
   visible,
   uri,
   isPdf,
   title,
   onClose,
+  presentation = "sheet",
 }: {
   visible: boolean;
   uri: string;
   isPdf: boolean;
   title: string;
   onClose: () => void;
+  /** `page` fills the screen. `sheet` stays a centered card. */
+  presentation?: "sheet" | "page";
 }) {
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -238,6 +249,8 @@ function DocumentScreen({
   const compact = windowWidth < 720;
   const sheetWidth = Math.min(1080, windowWidth - Math.max(insets.left, 12) - Math.max(insets.right, 12) - (compact ? 16 : 48));
   const sheetHeight = Math.min(windowHeight - insets.top - insets.bottom - (compact ? 16 : 48), compact ? windowHeight : 880);
+  const frameWidth = presentation === "page" ? windowWidth - Math.max(insets.left, 8) - Math.max(insets.right, 8) : sheetWidth;
+  const frameHeight = presentation === "page" ? windowHeight - Math.max(insets.top, 8) - Math.max(insets.bottom, 8) : sheetHeight;
 
   const applyView = useCallback((nextScale: number, nextPan: { x: number; y: number }, size = frame) => {
     const zoom = clampPreviewZoom(nextScale);
@@ -378,7 +391,7 @@ function DocumentScreen({
         accessibilityViewIsModal
       >
         <Pressable style={styles.screenBackdrop} onPress={onClose} accessibilityLabel="Close document preview" />
-        <View style={[styles.screenSheet, { width: sheetWidth, height: sheetHeight }]}>
+        <View style={[styles.screenSheet, { width: frameWidth, height: frameHeight }]}>
           <View style={[styles.screenBar, compact && styles.screenBarCompact]}>
             <Text style={styles.screenTitle} numberOfLines={1}>{title}</Text>
             {isPdf ? (
@@ -586,6 +599,7 @@ export function ComplianceDocumentWorkspace({
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
+  const [podOpen, setPodOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
 
   const summary = summaries.find((item) => item.trip.id === selectedId) ?? summaries[0] ?? null;
@@ -780,6 +794,17 @@ export function ComplianceDocumentWorkspace({
             })}
           </View>
           <View style={styles.previewTools}>
+            <Pressable
+              style={[styles.podBtn, !summary && styles.btnDisabled]}
+              disabled={!summary}
+              onPress={() => setPodOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Log hardcopy POD"
+            >
+              <Text style={styles.podBtnText} numberOfLines={1}>
+                Log hardcopy POD
+              </Text>
+            </Pressable>
             <View style={styles.navPill}>
               <Pressable onPress={goPrev} hitSlop={8} accessibilityLabel="Previous document" disabled={previewable.length < 2}>
                 <ChevronLeft size={12} color={Theme.textPrimaryDark} />
@@ -901,6 +926,33 @@ export function ComplianceDocumentWorkspace({
           onClose={() => setScreenOpen(false)}
         />
       ) : null}
+      <ComplianceInputModal
+        visible={podOpen}
+        title="Log hardcopy POD"
+        fields={HARD_COPY_POD_FIELDS}
+        confirmLabel="Log hardcopy POD"
+        onCancel={() => setPodOpen(false)}
+        onSubmit={(values) => {
+          if (!summary) return;
+          void (async () => {
+            const { error, alreadyReceived } = await markTripHardCopyPodReceived(summary.trip.id, {
+              courier: values.courier,
+              awbNumber: values.awb,
+              receivedBy: values.receivedBy,
+            });
+            if (error) {
+              alertMessage("Couldn't log hardcopy POD", error.message);
+              return;
+            }
+            setPodOpen(false);
+            if (alreadyReceived) {
+              alertMessage("Hardcopy POD", "This trip already has a hardcopy POD logged.");
+              return;
+            }
+            onChanged(summary.trip.id);
+          })();
+        }}
+      />
     </View>
   );
 }
@@ -1152,7 +1204,28 @@ const styles = StyleSheet.create({
   },
   screenPage: { width: "100%", height: "100%" },
   screenFile: { width: "100%", height: "100%" },
-  previewTools: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6 },
+  previewTools: { flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 },
+  podBtn: {
+    flexShrink: 0,
+    height: 22,
+    minHeight: 22,
+    maxHeight: 22,
+    paddingVertical: 0,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  podBtnText: {
+    fontSize: 11,
+    fontWeight: "600",
+    lineHeight: 14,
+    color: Theme.textPrimaryDark,
+  },
   zoomBar: {
     flexShrink: 0,
     height: 22,

@@ -30,7 +30,7 @@ import { deriveComplianceQueueReadiness, paymentReadinessLabel } from "@/feature
 import { getTripDisplayNumber } from "@/features/trips/services/trips.service";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export type ComplianceTripsTableProps = {
   summaries: ComplianceTripSummary[];
@@ -164,7 +164,7 @@ function TripRowContent({
           style={styles.colTripId}
           onPress={() => (onOpenDetails ?? onOpenTrip)(summary.trip.id)}
         >
-          <Text style={styles.cell} selectable>
+          <Text style={styles.cell} selectable numberOfLines={1}>
             {tripIdLabel}
           </Text>
           <Text style={[styles.cell, styles.muted]} numberOfLines={1}>
@@ -174,10 +174,10 @@ function TripRowContent({
         <Text style={[styles.cell, styles.colDate]} numberOfLines={1}>
           {formatRequiredDate(summary)}
         </Text>
-        <Text style={[styles.cell, styles.colLoc]} numberOfLines={2}>
+        <Text style={[styles.cell, styles.colLoc]} numberOfLines={1}>
           {tripFromLocation(summary)}
         </Text>
-        <Text style={[styles.cell, styles.colLoc]} numberOfLines={2}>
+        <Text style={[styles.cell, styles.colLoc]} numberOfLines={1}>
           {tripToLocation(summary)}
         </Text>
         <View style={styles.colDocs}>
@@ -216,7 +216,7 @@ function TripRowContent({
           <Text style={[styles.cell, readiness.paymentReady ? styles.readyText : styles.blockedText]} numberOfLines={1}>
             {payLabel.label}
           </Text>
-          <Text style={styles.muted} numberOfLines={2}>
+          <Text style={styles.muted} numberOfLines={1}>
             {readiness.nextAction}
           </Text>
         </View>
@@ -228,6 +228,7 @@ function TripRowContent({
         </Text>
         <View style={styles.colAction}>
           <TouchableOpacity
+            style={styles.actionItem}
             disabled={markingTrip}
             onPress={() => {
               if (markingTrip) return;
@@ -245,8 +246,10 @@ function TripRowContent({
           >
             <Text style={styles.actionLink}>{markingTrip ? "Verifying…" : "Verify Docs"}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => onOpenTrip(summary.trip.id)}>
-            <Text style={[styles.actionLink, styles.viewTripLink]}>View Trip</Text>
+          <TouchableOpacity style={styles.actionItem} onPress={() => onOpenTrip(summary.trip.id)}>
+            <Text style={[styles.actionLink, styles.viewTripLink]} numberOfLines={1}>
+              View Trip
+            </Text>
           </TouchableOpacity>
           {canManageFinance && readiness.paymentReady && onPay ? (
             <TouchableOpacity onPress={() => onPay(summary.trip.id)}>
@@ -320,7 +323,7 @@ export function ComplianceTripsTable({
   }, [summaries, requiredDateSort]);
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator style={styles.tableScroll}>
+    <View style={styles.tableScroll}>
       <View style={styles.table}>
         <View style={[styles.row, styles.headerRow]}>
           <View style={styles.expandToggle} />
@@ -355,61 +358,72 @@ export function ComplianceTripsTable({
           />
         ))}
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tableScroll: { flexGrow: 0 },
+  tableScroll: { width: "100%", minWidth: 0 },
   table: {
+    width: "100%",
+    minWidth: 0,
     borderWidth: 1,
     borderColor: Theme.complianceCardBorder,
     borderRadius: 12,
     overflow: "hidden",
-    minWidth: 1400,
     backgroundColor: Theme.cardWhite,
   },
   row: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     borderTopWidth: 1,
     borderTopColor: Theme.border,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    gap: 8,
-  },
-  headerRow: { borderTopWidth: 0, backgroundColor: Theme.compliancePageBg, paddingVertical: 10 },
-  headerText: { fontSize: 10, fontWeight: "700", color: Theme.textMuted, textTransform: "uppercase", letterSpacing: 0.3 },
-  expandToggle: { width: 28, minHeight: 40, alignItems: "center", justifyContent: "flex-start", paddingTop: 4 },
-  cell: { fontSize: 13, color: Theme.textPrimary, fontWeight: "500" },
-  muted: { color: Theme.textMuted, fontSize: 11 },
-  colTripId: { flex: 1.8, minWidth: 220 },
-  colDate: { flex: 1.1, minWidth: 110 },
-  colLoc: { flex: 1.1, minWidth: 90 },
-  colDocs: { flex: 1.2, minWidth: 110, justifyContent: "flex-start", paddingTop: 2 },
-  docChips: { flexDirection: "column", alignItems: "flex-start", gap: 4 },
-  colRequiredDate: {
-    flex: 1.1,
-    minWidth: 110,
-    flexDirection: "row",
-    alignItems: "center",
+    paddingVertical: 5,
+    paddingHorizontal: 6,
     gap: 4,
   },
-  colStage: { flex: 1.1, minWidth: 120, justifyContent: "center", gap: 4 },
+  headerRow: { borderTopWidth: 0, backgroundColor: Theme.compliancePageBg, paddingVertical: 6 },
+  headerText: { fontSize: 10, fontWeight: "700", color: Theme.textMuted, textTransform: "uppercase", letterSpacing: 0.3 },
+  expandToggle: { width: 18, alignItems: "center", justifyContent: "center" },
+  cell: { fontSize: 12, color: Theme.textPrimary, fontWeight: "500" },
+  muted: { color: Theme.textMuted, fontSize: 10, lineHeight: 13 },
+  colTripId: { width: 156, maxWidth: 156, flexGrow: 0, flexShrink: 1, minWidth: 0 },
+  colDate: { flex: 0.8, minWidth: 0 },
+  colLoc: { flex: 1.1, minWidth: 0 },
+  colDocs: { flex: 0.9, minWidth: 0, justifyContent: "center" },
+  docChips: { flexDirection: "column", alignItems: "flex-start", gap: 1 },
+  colRequiredDate: {
+    flex: 0.8,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  colStage: { flex: 0.9, minWidth: 0, justifyContent: "center", gap: 2 },
   stagePill: {
     alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
     borderRadius: 999,
     maxWidth: "100%",
   },
   stagePillSpaced: { marginTop: 0 },
-  stagePillText: { fontSize: 11, fontWeight: "700" },
-  colBlockers: { flex: 1.2, minWidth: 130 },
+  stagePillText: { fontSize: 10, fontWeight: "700" },
+  colBlockers: { flex: 0.9, minWidth: 0 },
   readyText: { color: Theme.complianceStageSuccessFg, fontWeight: "700" },
   blockedText: { color: Theme.complianceStageDocsFg, fontWeight: "700" },
-  colMoney: { flex: 0.7, minWidth: 70 },
-  colAction: { flex: 1.1, minWidth: 120, flexDirection: "row", flexWrap: "wrap", gap: 10, alignItems: "center" },
+  colMoney: { flex: 0.6, minWidth: 0 },
+  colAction: {
+    width: 176,
+    minWidth: 176,
+    flexGrow: 0,
+    flexShrink: 0,
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    gap: 10,
+    alignItems: "center",
+  },
+  actionItem: { flexGrow: 0, flexShrink: 0 },
   actionLink: { fontSize: 12, fontWeight: "700", color: Theme.complianceBulk },
   viewTripLink: { color: Theme.textMuted },
   rejectLink: { color: Theme.teslaRed },
