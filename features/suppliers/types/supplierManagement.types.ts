@@ -53,7 +53,13 @@ export type SupplierKycDocType =
   | "aadhaar_front"
   | "aadhaar_back"
   | "msme"
+  | "udyam"
+  | "gumasta"
   | "cancelled_cheque"
+  | "bank_statement"
+  | "bank_proof_other"
+  | "physical_verification"
+  | "signed_agreement"
   | "other";
 
 export const SUPPLIER_KYC_DOC_LABELS: Record<SupplierKycDocType, string> = {
@@ -66,9 +72,18 @@ export const SUPPLIER_KYC_DOC_LABELS: Record<SupplierKycDocType, string> = {
   aadhaar_front: "Aadhaar Front",
   aadhaar_back: "Aadhaar Back",
   msme: "MSME Certificate",
+  udyam: "Udyam Certificate",
+  gumasta: "Gumasta Certificate",
   cancelled_cheque: "Bank Proof",
+  bank_statement: "Bank Statement",
+  bank_proof_other: "Bank Proof (Other)",
+  physical_verification: "Physical Verification Photo",
+  signed_agreement: "Signed Vendor Document",
   other: "Other",
 };
+
+/** Vendor lifecycle status (suppliers.vendor_status). */
+export type SupplierVendorStatus = "active" | "inactive" | "blacklisted";
 
 export const MANDATORY_SUPPLIER_KYC_TYPES: SupplierKycDocType[] = [
   "pan", "gstin", "cin", "certificate_of_incorporation",
@@ -78,6 +93,7 @@ export type SupplierKycDocument = {
   id: string;
   doc_type: SupplierKycDocType;
   doc_label?: string | null;
+  doc_number?: string | null;
   storage_path?: string | null;
   file_name?: string | null;
   mime_type?: string | null;

@@ -13,6 +13,8 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSupplierManagementBundleQuery } from "@/features/suppliers/hooks/useSupplierManagementBundleQuery";
 import type { SupplierManagementBundle } from "@/features/suppliers/types/supplierManagement.types";
 import { mapSupplierVerificationVaultDocs } from "@/features/suppliers/utils/supplierVerificationVault.util";
+import { SupplierVendorOnboardingVault } from "@/features/suppliers/components/vendor-onboarding/SupplierVendorOnboardingVault";
+import { useMemberAccess } from "@/lib/useMemberAccess";
 import { formatINR } from "@/lib/format";
 import { useMemo } from "react";
 import { View } from "react-native";
@@ -53,6 +55,7 @@ export function SupplierProfileScreen({ supplierId, onBack }: Props) {
   const insets = useSafeAreaInsets();
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id ?? null;
+  const { can: canSurface } = useMemberAccess();
   const bundleQ = useSupplierManagementBundleQuery(orgId, supplierId);
 
   const bundle = bundleQ.data;
@@ -134,6 +137,15 @@ export function SupplierProfileScreen({ supplierId, onBack }: Props) {
         kycDocs={kycDocs}
         organizationId={orgId}
         supplierId={supplierId}
+        supplierVaultSlot={
+          orgId && supplierId ? (
+            <SupplierVendorOnboardingVault
+              organizationId={orgId}
+              supplierId={supplierId}
+              canEdit={canSurface("sales.suppliers.edit")}
+            />
+          ) : undefined
+        }
         onClose={onBack}
         onEditPress={() => {}}
         onProfileEntitiesChange={() => {
