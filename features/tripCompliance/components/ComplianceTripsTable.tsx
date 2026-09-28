@@ -40,6 +40,8 @@ export type ComplianceTripsTableProps = {
   onReview: (tripId: string, documentKey: string | null, scope?: "trip" | "vehicle" | "driver") => void;
   /** When required trip documents are approved, Verify Docs marks the trip compliance verified. */
   onMarkComplianceVerified?: (tripId: string) => Promise<void>;
+  /** Opens this trip in the card workspace. */
+  onVerifyDocs?: (tripId: string) => void;
   onPay?: (tripId: string) => void;
   canManageFinance?: boolean;
 };
@@ -107,7 +109,7 @@ function SortHeader({
       accessibilityLabel={`Sort by ${label}, currently ${sort === "asc" ? "ascending" : "descending"}`}
     >
       <Text style={[styles.cell, styles.headerText]}>{label}</Text>
-      <Icon size={12} color={Theme.textMuted} strokeWidth={2.4} />
+      <Icon size={12} color={Theme.textPrimary} strokeWidth={2.4} />
     </TouchableOpacity>
   );
 }
@@ -118,6 +120,7 @@ function TripRowContent({
   onOpenDetails,
   onReview,
   onMarkComplianceVerified,
+  onVerifyDocs,
   onPay,
   canManageFinance = false,
 }: {
@@ -126,6 +129,7 @@ function TripRowContent({
   onOpenDetails?: (tripId: string) => void;
   onReview: (tripId: string, documentKey: string | null, scope?: "trip" | "vehicle" | "driver") => void;
   onMarkComplianceVerified?: (tripId: string) => Promise<void>;
+  onVerifyDocs?: (tripId: string) => void;
   onPay?: (tripId: string) => void;
   canManageFinance?: boolean;
 }) {
@@ -232,6 +236,10 @@ function TripRowContent({
             disabled={markingTrip}
             onPress={() => {
               if (markingTrip) return;
+              if (onVerifyDocs) {
+                onVerifyDocs(summary.trip.id);
+                return;
+              }
               const ready =
                 readiness.requiredDocs.markVerifiedReady &&
                 !summary.complianceVerifiedAt &&
@@ -304,6 +312,7 @@ export function ComplianceTripsTable({
   onOpenDetails,
   onReview,
   onMarkComplianceVerified,
+  onVerifyDocs,
   onPay,
   canManageFinance,
 }: ComplianceTripsTableProps) {
@@ -353,6 +362,7 @@ export function ComplianceTripsTable({
             onOpenDetails={onOpenDetails}
             onReview={onReview}
             onMarkComplianceVerified={onMarkComplianceVerified}
+            onVerifyDocs={onVerifyDocs}
             onPay={onPay}
             canManageFinance={canManageFinance}
           />
@@ -382,8 +392,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     gap: 4,
   },
-  headerRow: { borderTopWidth: 0, backgroundColor: Theme.compliancePageBg, paddingVertical: 6 },
-  headerText: { fontSize: 10, fontWeight: "700", color: Theme.textMuted, textTransform: "uppercase", letterSpacing: 0.3 },
+  headerRow: {
+    borderTopWidth: 0,
+    backgroundColor: Theme.compliancePageBg,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  headerText: {
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 14,
+    color: Theme.textPrimary,
+    textTransform: "uppercase",
+    letterSpacing: 0.2,
+  },
   expandToggle: { width: 18, alignItems: "center", justifyContent: "center" },
   cell: { fontSize: 12, color: Theme.textPrimary, fontWeight: "500" },
   muted: { color: Theme.textMuted, fontSize: 10, lineHeight: 13 },

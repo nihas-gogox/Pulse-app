@@ -39,10 +39,12 @@ import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocatio
 import { getTripExecutionModel } from "@/features/trips/domain/tripExecutionModel";
 import { markVehicleDocumentVerified } from "@/features/vehicles/services/vehicleDocuments.service";
 import { formatIndianVehicleNumber } from "@/lib/format";
-import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, X } from "lucide-react-native";
+import { ArrowUp, ChevronLeft, ChevronRight, Folder, Minus, Plus, RotateCcw, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Image,
   Modal,
   Platform,
@@ -577,6 +579,7 @@ export function ComplianceDocumentWorkspace({
   style,
   canManageFinance = false,
   onPay,
+  selectedTripId = null,
 }: {
   summaries: ComplianceTripSummary[];
   organizationId: string;
@@ -588,8 +591,12 @@ export function ComplianceDocumentWorkspace({
   style?: StyleProp<ViewStyle>;
   canManageFinance?: boolean;
   onPay?: (summary: ComplianceTripSummary) => void;
+  /** Trip to show when opening the card view from the table. */
+  selectedTripId?: string | null;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(summaries[0]?.trip.id ?? null);
+  const listRef = useRef<ScrollView>(null);
+  const scrolledTripId = useRef<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(selectedTripId ?? summaries[0]?.trip.id ?? null);
   const [tab, setTab] = useState<DocTab>("trip");
   const [docIndex, setDocIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -608,10 +615,14 @@ export function ComplianceDocumentWorkspace({
   const activeRow = previewable[docIndex] ?? rows[docIndex] ?? null;
 
   useEffect(() => {
+    if (selectedTripId && summaries.some((item) => item.trip.id === selectedTripId)) {
+      setSelectedId(selectedTripId);
+      return;
+    }
     if (!summaries.some((item) => item.trip.id === selectedId)) {
       setSelectedId(summaries[0]?.trip.id ?? null);
     }
-  }, [summaries, selectedId]);
+  }, [summaries, selectedId, selectedTripId]);
 
   useEffect(() => {
     setDocIndex(0);
@@ -756,21 +767,37 @@ export function ComplianceDocumentWorkspace({
     <View style={[styles.workspace, stacked && styles.workspaceStacked, style]}>
       <View style={[styles.listPane, stacked && styles.listPaneStacked]}>
         <ScrollView
+          ref={listRef}
           style={styles.listScroll}
           nestedScrollEnabled
           showsVerticalScrollIndicator
           contentContainerStyle={styles.listContent}
         >
           {summaries.map((item) => (
-            <TripListRow
+            <View
               key={item.trip.id}
-              summary={item}
-              selected={item.trip.id === summary?.trip.id}
-              onPress={() => {
-                setSelectedId(item.trip.id);
-                setTab("trip");
-              }}
-            />
+              onLayout={
+                item.trip.id === selectedTripId
+                  ? (event) => {
+                      if (scrolledTripId.current === selectedTripId) return;
+                      scrolledTripId.current = selectedTripId;
+                      listRef.current?.scrollTo({
+                        y: Math.max(0, event.nativeEvent.layout.y - 8),
+                        animated: true,
+                      });
+                    }
+                  : undefined
+              }
+            >
+              <TripListRow
+                summary={item}
+                selected={item.trip.id === summary?.trip.id}
+                onPress={() => {
+                  setSelectedId(item.trip.id);
+                  setTab("trip");
+                }}
+              />
+            </View>
           ))}
         </ScrollView>
       </View>
@@ -846,7 +873,8 @@ export function ComplianceDocumentWorkspace({
               />
             </>
           ) : (
-            <View style={styles.stageBody}>
+            <View style={styles.emptyStage}>
+              {activeRow ? <MissingFileAnimation /> : null}
               <Text style={styles.emptyPreview}>
                 {activeRow ? `${docTitle} has no file to preview.` : "Select a trip to preview documents."}
               </Text>
@@ -957,6 +985,42 @@ export function ComplianceDocumentWorkspace({
   );
 }
 
+function MissingFileAnimation() {
+  const lift = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const motion = Animated.loop(
+      Animated.sequence([
+        Animated.timing(lift, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(lift, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    motion.start();
+    return () => motion.stop();
+  }, [lift]);
+
+  const translateY = lift.interpolate({ inputRange: [0, 1], outputRange: [0, -5] });
+
+  return (
+    <View style={styles.uploadMark}>
+      <Folder size={78} color={Theme.textPrimaryDark} strokeWidth={1.6} />
+      <Animated.View style={[styles.uploadBadge, { transform: [{ translateY }] }]}>
+        <ArrowUp size={16} color={Theme.textPrimaryDark} strokeWidth={2.4} />
+      </Animated.View>
+    </View>
+  );
+}
+
 function TripListRow({
   summary,
   selected,
@@ -1049,7 +1113,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   rowSelected: {
-    borderColor: Theme.complianceTripCardSelectedBg,
+    borderWidth: 1.5,
+    borderColor: Theme.complianceTripCardSelectedBorder,
     backgroundColor: Theme.complianceTripCardSelectedBg,
   },
   rowHead: { flexDirection: "row", alignItems: "center", gap: 10 },
@@ -1057,11 +1122,11 @@ const styles = StyleSheet.create({
   client: { fontSize: 12, fontWeight: "600", letterSpacing: 0.2, color: Theme.textPrimaryDark },
   clientSelected: { color: Theme.complianceTripCardOnSelected },
   idLine: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2, minWidth: 0 },
-  tripId: { flexShrink: 1, fontSize: 11, fontWeight: "500", color: Theme.complianceStageInfoFg },
+  tripId: { flexShrink: 1, fontSize: 11, fontWeight: "500", color: Theme.textSecondary },
   tripIdSelected: { color: Theme.complianceTripCardMutedOnSelected },
   modelTag: { flexShrink: 0, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 },
   modelTagAsset: { backgroundColor: Theme.positiveMuted },
-  modelTagAggregate: { backgroundColor: Theme.cardWhite },
+  modelTagAggregate: { backgroundColor: Theme.complianceStageInfoBg },
   modelTagText: { fontSize: 9, fontWeight: "600", letterSpacing: 0.2, lineHeight: 12 },
   modelTagTextAsset: { color: Theme.darkGreen },
   modelTagTextAggregate: { color: Theme.complianceStageInfoFg },
@@ -1248,6 +1313,34 @@ const styles = StyleSheet.create({
   stageFill: { width: "100%", height: "100%" },
   stageScrollCenter: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   stageScrollStart: { flexGrow: 1, alignItems: "flex-start", justifyContent: "flex-start" },
+  emptyStage: {
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    paddingHorizontal: 24,
+  },
+  uploadMark: {
+    width: 108,
+    height: 84,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  uploadBadge: {
+    position: "absolute",
+    left: 6,
+    bottom: 0,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1.6,
+    borderColor: Theme.textPrimaryDark,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   emptyPreview: { fontSize: 14, color: Theme.textMuted, textAlign: "center" },
   navPill: {
     flexShrink: 1,

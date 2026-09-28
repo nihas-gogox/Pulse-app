@@ -134,6 +134,7 @@ export default function ComplianceScreen() {
     [canMarkVerified, invalidate, user?.uid],
   );
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
+  const [cardTripId, setCardTripId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [pay, setPay] = useState<{ summary: ComplianceTripSummary; category: ComplianceLedgerCategory } | null>(null);
   const [paying, setPaying] = useState(false);
@@ -331,6 +332,10 @@ export default function ComplianceScreen() {
             onOpenDetails={openDetails}
             onReview={(tripId, documentKey, scope = "trip") => setReview({ tripId, documentKey, scope })}
             onMarkComplianceVerified={markTripVerified}
+            onVerifyDocs={(tripId) => {
+              setCardTripId(tripId);
+              setViewMode("card");
+            }}
             onPay={(tripId) => {
               const summary = visible.find((s) => s.trip.id === tripId) ?? summaries.find((s) => s.trip.id === tripId);
               if (summary) openPay(summary);
@@ -348,6 +353,7 @@ export default function ComplianceScreen() {
           canViewDocuments={canViewDocuments}
           canManageFinance={canManageFinance}
           onPay={openPay}
+          selectedTripId={cardTripId}
           stacked={isNarrow}
           onChanged={(tripId) => invalidate(tripId)}
         />
