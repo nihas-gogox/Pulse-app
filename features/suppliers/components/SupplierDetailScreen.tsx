@@ -49,6 +49,7 @@ import { allocateAmountsToLargestDueTrips } from "@/features/finance/utils/alloc
 import { EditSupplierModal } from "@/features/suppliers/components/EditSupplierModal";
 import { getSupplierKycDocuments } from "@/features/suppliers/services/supplierKycDocuments.service";
 import { mapSupplierVerificationVaultDocs } from "@/features/suppliers/utils/supplierVerificationVault.util";
+import { SupplierVendorOnboardingVault } from "@/features/suppliers/components/vendor-onboarding/SupplierVendorOnboardingVault";
 import {
     getTripDisplayNumber,
     type TripRow,
@@ -2171,10 +2172,12 @@ export default function SupplierDetailScreen({
         onRequestClose={() => setShowProfileModal(false)}
       >
         <View
-          style={[styles.profileModalWrap, { paddingBottom: insets.bottom }]}
+          style={[styles.profileModalWrap, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
         >
           <CounterpartyProfileSystemCard
             visible={showProfileModal}
+            presentation="page"
+            profileTitle="Partner Profile"
             type="supplier"
             organizationName={
               (supplier?.company_name ??
@@ -2199,6 +2202,15 @@ export default function SupplierDetailScreen({
             organizationId={currentOrganization?.id}
             supplierId={supplierId}
             kycDocs={vaultKycDocs}
+            supplierVaultSlot={
+              currentOrganization?.id && supplierId ? (
+                <SupplierVendorOnboardingVault
+                  organizationId={currentOrganization.id}
+                  supplierId={supplierId}
+                  canEdit={canSurface("sales.suppliers.edit")}
+                />
+              ) : undefined
+            }
             onClose={() => setShowProfileModal(false)}
             canEdit={canSurface("sales.suppliers.edit")}
             onProfileEntitiesChange={() => {
