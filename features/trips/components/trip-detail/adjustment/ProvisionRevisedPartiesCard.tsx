@@ -465,8 +465,8 @@ const styles = StyleSheet.create({
   },
   wrapDesktop: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
+    alignItems: "stretch",
+    gap: 8,
   },
   card: {
     borderWidth: 1,
@@ -479,10 +479,11 @@ const styles = StyleSheet.create({
   cardDesktop: {
     flex: 1,
     minWidth: 0,
-    alignSelf: "flex-start",
-    padding: 10,
+    alignSelf: "stretch",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: 12,
-    gap: 6,
+    gap: 4,
   },
   cardModal: {
     padding: 14,
@@ -540,9 +541,9 @@ const styles = StyleSheet.create({
     borderTopColor: "#eef2f7",
   },
   metricsBarDesktop: {
-    gap: 10,
-    paddingTop: 8,
-    paddingBottom: 2,
+    gap: 8,
+    paddingTop: 6,
+    paddingBottom: 0,
   },
   metricsBarModal: {
     gap: 12,
@@ -600,8 +601,8 @@ const styles = StyleSheet.create({
     lineHeight: 26,
   },
   metricValueHeroDesktop: {
-    fontSize: 24,
-    lineHeight: 28,
+    fontSize: 20,
+    lineHeight: 24,
   },
   metricValueHeroModal: {
     fontSize: 26,

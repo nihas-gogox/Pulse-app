@@ -339,8 +339,8 @@ const styles = StyleSheet.create({
   wrapDesktop: {
     flexDirection: "row",
     alignItems: "stretch",
-    gap: 14,
-    marginBottom: 6,
+    gap: 10,
+    marginBottom: 2,
   },
   laneColumn: {
     width: "100%",
@@ -404,9 +404,10 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     minWidth: 0,
-    padding: 12,
-    borderRadius: 14,
-    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 6,
   },
   cardPressable: {
     cursor: "pointer",

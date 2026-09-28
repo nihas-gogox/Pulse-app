@@ -105,66 +105,8 @@ export const TripFinanceAdjustmentsPanel = memo(function TripFinanceAdjustmentsP
     [props.adjustments, props.isAssetExecution, props.supplierName],
   );
 
-  return (
-    <View style={[styles.card, isDesktop && styles.cardDesktop]}>
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.title, isDesktop && styles.titleDesktop]}>
-            Provision adjustments
-          </Text>
-          <Text style={[styles.hint, isDesktop && styles.hintDesktop]}>
-            {props.isAssetExecution
-              ? "Customer sale vs driver cost & posted expenses"
-              : "Revised sale & cost after CN/DN lines"}
-          </Text>
-        </View>
-        <View style={[styles.badge, isDesktop && styles.badgeDesktop]}>
-          <Text style={[styles.badgeText, isDesktop && styles.badgeTextDesktop]}>
-            {activeCount}
-          </Text>
-        </View>
-      </View>
-
-      {/* Mobile chrome already shows sale/cost once — avoid repeating party totals. */}
-      {isDesktop ? (
-        <ProvisionRevisedPartiesCard
-          clientName={props.clientName}
-          clientAvatarUrl={props.clientAvatarUrl}
-          clientAvatarSeed={props.clientAvatarSeed}
-          clientOrganizationImageUrl={props.clientOrganizationImageUrl}
-          clientOrganizationAvatarSeed={props.clientOrganizationAvatarSeed}
-          clientIntegrated={props.clientIntegrated}
-          sales={props.sales}
-          adjSales={props.adjSales}
-          revenueSideDelta={props.revenueSideDelta}
-          supplierName={props.supplierName}
-          supplierAvatarUrl={props.supplierAvatarUrl}
-          supplierAvatarSeed={props.supplierAvatarSeed}
-          supplierOrganizationImageUrl={props.supplierOrganizationImageUrl}
-          supplierOrganizationAvatarSeed={props.supplierOrganizationAvatarSeed}
-          supplierIntegrated={props.supplierIntegrated}
-          cost={props.cost}
-          adjCost={props.adjCost}
-          costSideDelta={props.costSideDelta}
-          costLaneLabel={props.costLaneLabel}
-          costPartyEntityType={props.isAssetExecution ? "driver" : "supplier"}
-          costBreakdownLines={props.costBreakdownLines}
-          costUnset={props.costUnset}
-          onSelectSide={props.onOpenProvision}
-          layout={layout}
-        />
-      ) : props.capturePaymentSlot ? (
-        <View style={styles.mobileCaptureFirst}>{props.capturePaymentSlot}</View>
-      ) : null}
-
-      {props.onRequestDeduction && passThroughRecommendations.length > 0 ? (
-        <ProvisionPassThroughCard
-          recommendations={passThroughRecommendations}
-          isAssetExecution={Boolean(props.isAssetExecution)}
-          onRequestDeduction={props.onRequestDeduction}
-        />
-      ) : null}
-
+  const adjustmentLinesEl = (
+    <>
       <View style={styles.tableToolbar}>
         <Text style={[styles.tableTitle, isDesktop && styles.tableTitleDesktop]}>
           Adjustment lines
@@ -430,9 +372,96 @@ export const TripFinanceAdjustmentsPanel = memo(function TripFinanceAdjustmentsP
           })
         )}
       </View>
+    </>
+  );
 
-      {/* Desktop: capture under lines. Mobile: already shown above. */}
+  return (
+    <View style={[styles.card, isDesktop && styles.cardDesktop]}>
+      {!isDesktop ? (
+      <View style={styles.header}>
+        <View>
+          <Text style={[styles.title, isDesktop && styles.titleDesktop]}>
+            Provision adjustments
+          </Text>
+          <Text style={[styles.hint, isDesktop && styles.hintDesktop]}>
+            {props.isAssetExecution
+              ? "Customer sale vs driver cost & posted expenses"
+              : "Revised sale & cost after CN/DN lines"}
+          </Text>
+        </View>
+        <View style={[styles.badge, isDesktop && styles.badgeDesktop]}>
+          <Text style={[styles.badgeText, isDesktop && styles.badgeTextDesktop]}>
+            {activeCount}
+          </Text>
+        </View>
+      </View>
+      ) : null}
+
+      {!isDesktop && props.capturePaymentSlot ? (
+        <View style={styles.mobileCaptureFirst}>{props.capturePaymentSlot}</View>
+      ) : null}
+
+      {props.onRequestDeduction && passThroughRecommendations.length > 0 ? (
+        <ProvisionPassThroughCard
+          recommendations={passThroughRecommendations}
+          isAssetExecution={Boolean(props.isAssetExecution)}
+          onRequestDeduction={props.onRequestDeduction}
+        />
+      ) : null}
+
+      {!isDesktop ? adjustmentLinesEl : null}
+
       {isDesktop ? props.capturePaymentSlot : null}
+
+      {isDesktop ? (
+      <View style={styles.header}>
+        <View>
+          <Text style={[styles.title, isDesktop && styles.titleDesktop]}>
+            Provision adjustments
+          </Text>
+          <Text style={[styles.hint, isDesktop && styles.hintDesktop]}>
+            {props.isAssetExecution
+              ? "Customer sale vs driver cost & posted expenses"
+              : "Revised sale & cost after CN/DN lines"}
+          </Text>
+        </View>
+        <View style={[styles.badge, isDesktop && styles.badgeDesktop]}>
+          <Text style={[styles.badgeText, isDesktop && styles.badgeTextDesktop]}>
+            {activeCount}
+          </Text>
+        </View>
+      </View>
+      ) : null}
+
+      {isDesktop ? (
+        <ProvisionRevisedPartiesCard
+          clientName={props.clientName}
+          clientAvatarUrl={props.clientAvatarUrl}
+          clientAvatarSeed={props.clientAvatarSeed}
+          clientOrganizationImageUrl={props.clientOrganizationImageUrl}
+          clientOrganizationAvatarSeed={props.clientOrganizationAvatarSeed}
+          clientIntegrated={props.clientIntegrated}
+          sales={props.sales}
+          adjSales={props.adjSales}
+          revenueSideDelta={props.revenueSideDelta}
+          supplierName={props.supplierName}
+          supplierAvatarUrl={props.supplierAvatarUrl}
+          supplierAvatarSeed={props.supplierAvatarSeed}
+          supplierOrganizationImageUrl={props.supplierOrganizationImageUrl}
+          supplierOrganizationAvatarSeed={props.supplierOrganizationAvatarSeed}
+          supplierIntegrated={props.supplierIntegrated}
+          cost={props.cost}
+          adjCost={props.adjCost}
+          costSideDelta={props.costSideDelta}
+          costLaneLabel={props.costLaneLabel}
+          costPartyEntityType={props.isAssetExecution ? "driver" : "supplier"}
+          costBreakdownLines={props.costBreakdownLines}
+          costUnset={props.costUnset}
+          onSelectSide={props.onOpenProvision}
+          layout={layout}
+        />
+      ) : null}
+      {isDesktop ? adjustmentLinesEl : null}
     </View>
   );
 });
@@ -452,9 +481,9 @@ const styles = StyleSheet.create({
   cardDesktop: {
     marginTop: 0,
     backgroundColor: Theme.cardWhite,
-    paddingVertical: 2,
+    paddingVertical: 0,
     paddingHorizontal: 0,
-    gap: 8,
+    gap: 6,
   },
   header: {
     flexDirection: "row",
@@ -596,8 +625,8 @@ const styles = StyleSheet.create({
     borderBottomColor: "#EEEEEE",
   },
   tableHeadDesktop: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
   },
   th: {
     fontSize: 10,
@@ -670,8 +699,8 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   emptyDesktop: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     fontSize: 12,
     lineHeight: 16,
   },

@@ -34,7 +34,6 @@ import {
   pushTripLedgerQuickEntry,
 } from "@/features/finance/ledger/tripLedgerEntryChooser";
 import { TripPayableReceivableSummaryCard } from "@/features/trips/components/trip-detail/adjustment/TripPayableReceivableSummaryCard";
-import { TripMarginHero } from "@/features/trips/components/trip-detail/TripMarginHero";
 import { TripLedgerTransactionPreviewModal } from "@/features/trips/components/trip-detail/TripLedgerTransactionPreviewModal";
 import { TripAuditLogPanel } from "@/features/trips/components/trip-detail/TripAuditLogPanel";
 import { TripPodStatusSection } from "@/features/trips/components/trip-detail/TripPodStatusSection";
@@ -3267,15 +3266,6 @@ export default function TripDetailScreen({
     />
   );
 
-  /** Shared mobile + desktop: trip margin hero only (detail in adjustments panel below). */
-  const financeManifestSummaryBlock = (
-    <TripMarginHero
-      amount={netManifestYield}
-      basisLabel={marginBasisLabel}
-      layout={isDesktop ? "desktop" : "mobile"}
-    />
-  );
-
   const showOdometerVerification =
     isDcoOperatingTrip(trip) || isAssetExecutionTrip(trip);
   const expenseHubDensity = isDesktop ? "comfortable" : "compact";
@@ -3542,6 +3532,327 @@ export default function TripDetailScreen({
   void openDriverDetails;
   void openVehicleDetails;
   void fmtAuditDate;
+
+  const routeHeroEl = (
+                <View style={[neoStyles.hero, neoStyles.heroFinance]}>
+                  <View style={neoStyles.heroGlow} />
+                  <View style={[neoStyles.heroBridge, neoStyles.heroBridgeFinance]}>
+                    <View style={neoStyles.heroParty}>
+                      <PartyAvatar
+                        name={clientNameForParty}
+                        entityType="client"
+                        size={22}
+                        organizationImageUrl={
+                          detail.clientPartyAvatarFields
+                            ?.organizationImageUrl ?? undefined
+                        }
+                        organizationAvatarSeed={
+                          detail.clientPartyAvatarFields
+                            ?.organizationAvatarSeed ?? undefined
+                        }
+                        avatarUrl={
+                          detail.clientPartyAvatarFields?.avatarUrl ?? undefined
+                        }
+                        avatarSeed={
+                          detail.clientPartyAvatarFields?.avatarSeed ??
+                          undefined
+                        }
+                        isIntegrated={clientPartyIntegrated}
+                        showIntegrationBadge={false}
+                      />
+                      <View style={neoStyles.heroPartyText}>
+                        <Text style={[neoStyles.heroKicker, neoStyles.heroKickerFinance]}>CLIENT</Text>
+                        <Text
+                          style={[neoStyles.heroPartyName, neoStyles.heroPartyNameFinance]}
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
+                          {clientNameCard}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[neoStyles.swapIcon, neoStyles.swapIconFinance]}>
+                      <FontAwesome name="exchange" size={11} color={Theme.textMuted} />
+                    </View>
+                    {showManifestHeroDriver ? (
+                      <NeoManifestHeroBridgePartyEnd
+                        roleLabel="DRIVER"
+                        partyName={allocatedDriverName}
+                        partyPhone={detail.driverPhone}
+                        entityType="driver"
+                        avatarSize={22}
+                        avatarUrl={detail.driverAvatarUri}
+                        avatarSeed={trip.driver_id}
+                        vehicleLabel={allocatedVehicleLabel}
+                        vehicleId={trip.vehicle_id}
+                        styles={neoStyles}
+                        partyStyles={manifestHeroBridgePartyStyles}
+                      />
+                    ) : (
+                      <NeoManifestHeroBridgePartyEnd
+                        roleLabel="SUPPLIER"
+                        partyName={supplierName}
+                        entityType="supplier"
+                        avatarSize={22}
+                        avatarUrl={detail.supplierPartyAvatarFields?.avatarUrl}
+                        avatarSeed={
+                          detail.supplierPartyAvatarFields?.avatarSeed
+                        }
+                        organizationImageUrl={
+                          detail.supplierPartyAvatarFields?.organizationImageUrl
+                        }
+                        organizationAvatarSeed={
+                          detail.supplierPartyAvatarFields
+                            ?.organizationAvatarSeed
+                        }
+                        isIntegrated={supplierPartyIntegrated}
+                        styles={neoStyles}
+                        partyStyles={manifestHeroBridgePartyStyles}
+                      />
+                    )}
+                  </View>
+
+                  <View style={[neoStyles.routeHeroRow, neoStyles.routeHeroRowFinance]}>
+                    <View style={neoStyles.routeHeroSide}>
+                      <Text style={[neoStyles.routeHeroCity, neoStyles.routeHeroCityFinance]} numberOfLines={1}>
+                        {originSplit.primary.toUpperCase()}
+                      </Text>
+                      <Text style={[neoStyles.routeHeroSub, neoStyles.routeHeroSubFinance]} numberOfLines={1}>
+                        {originStateLabel.toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={neoStyles.routeVector}>
+                      <View style={neoStyles.routeVectorLine} />
+                      <View style={[neoStyles.routeVectorTruck, neoStyles.routeVectorTruckFinance]}>
+                        <Feather name="truck" size={12} color={Theme.textMuted} />
+                      </View>
+                      <View style={neoStyles.routeVectorLine} />
+                    </View>
+                    <View
+                      style={[
+                        neoStyles.routeHeroSide,
+                        neoStyles.routeHeroSideRight,
+                      ]}
+                    >
+                      <Text
+                        style={[neoStyles.routeHeroCity, neoStyles.routeHeroCityFinance, neoStyles.alignRight]}
+                        numberOfLines={1}
+                      >
+                        {destinationSplit.primary.toUpperCase()}
+                      </Text>
+                      <Text
+                        style={[neoStyles.routeHeroSub, neoStyles.routeHeroSubFinance, neoStyles.alignRight]}
+                        numberOfLines={1}
+                      >
+                        {destinationStateLabel.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={[neoStyles.heroMetrics, neoStyles.heroMetricsFinance]}>
+                    <View style={[neoStyles.heroMetric, neoStyles.heroMetricFinance]}>
+                      <Text style={neoStyles.heroMetricLabel}>
+                        Manifest Range
+                      </Text>
+                      <Text style={neoStyles.heroMetricValue}>
+                        {resolvedDistanceLabel
+                          ? resolvedDistanceLabel.replace(/\s*km$/i, " KM")
+                          : "—"}
+                      </Text>
+                    </View>
+                    <View style={[neoStyles.heroMetricDivider, neoStyles.heroMetricDividerFinance]} />
+                    <View style={[neoStyles.heroMetric, neoStyles.heroMetricFinance]}>
+                      <Text style={neoStyles.heroMetricLabel}>
+                        ETA Manifest
+                      </Text>
+                      <Text style={neoStyles.heroMetricValue}>
+                        {liveTrackingPresentation?.eta.label ?? '—'}
+                      </Text>
+                    </View>
+                    <View style={[neoStyles.heroMetricDivider, neoStyles.heroMetricDividerFinance]} />
+                    <View style={[neoStyles.heroMetric, neoStyles.heroMetricFinance]}>
+                      <Text style={neoStyles.heroMetricLabel}>Status</Text>
+                      <View
+                        style={[
+                          neoStyles.heroMetricStatusPill,
+                          neoStyles.heroMetricStatusPillFinance,
+                          { backgroundColor: statusColor },
+                        ]}
+                      >
+                        <Text style={neoStyles.heroMetricStatusPillText}>
+                          {statusLabel.toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+  );
+
+  const financeLedgerPreviewEl = canViewTripLedger ? (
+                            <View
+                              style={[
+                                neoStyles.financeLedgerPreviewCard,
+                                isDesktop && neoStyles.financeLedgerPreviewCardDesktop,
+                                isDesktop && neoStyles.financeLedgerBesideHero,
+                              ]}
+                            >
+                              <View style={neoStyles.financeLedgerPreviewHead}>
+                                <Text
+                                  style={[
+                                    neoStyles.financeLedgerPreviewTitle,
+                                    isDesktop && neoStyles.financeLedgerPreviewTitleDesktop,
+                                  ]}
+                                >
+                                  Ledger snapshot
+                                </Text>
+                                <TouchableOpacity
+                                  style={neoStyles.financeLedgerPreviewLink}
+                                  onPress={() =>
+                                    setFinanceSubTab("transactions")
+                                  }
+                                  activeOpacity={0.85}
+                                  accessibilityRole="button"
+                                  accessibilityLabel="View full transaction list"
+                                >
+                                  <Text
+                                    style={
+                                      neoStyles.financeLedgerPreviewLinkText
+                                    }
+                                  >
+                                    View all
+                                  </Text>
+                                  <Feather
+                                    name="chevron-right"
+                                    size={14}
+                                    color="#4D3636"
+                                  />
+                                </TouchableOpacity>
+                              </View>
+                              <Text
+                                style={[
+                                  neoStyles.financeLedgerPreviewSub,
+                                  isDesktop && neoStyles.financeLedgerPreviewSubDesktop,
+                                ]}
+                              >
+                                {ledgerEntries.length === 0 && ledgerEntriesLoading
+                                  ? "Loading ledger…"
+                                  : ledgerEntries.length === 0 && ledgerEntriesError
+                                  ? "Couldn’t load ledger"
+                                  : financeHistoryRows.length === 0
+                                  ? "No cash movements on this trip yet"
+                                  : `${financeHistoryRows.length} movement${
+                                      financeHistoryRows.length === 1 ? "" : "s"
+                                    } · newest first`}
+                              </Text>
+                              <ScrollView
+                                style={[
+                                  neoStyles.financeLedgerPreviewScroll,
+                                  isDesktop && neoStyles.financeLedgerBesideHeroScroll,
+                                ]}
+                                contentContainerStyle={
+                                  neoStyles.financeLedgerPreviewScrollContent
+                                }
+                                nestedScrollEnabled
+                                showsVerticalScrollIndicator={false}
+                              >
+                                {ledgerEntries.length === 0 && ledgerEntriesLoading ? (
+                                  <Text
+                                    style={neoStyles.financeLedgerPreviewEmpty}
+                                  >
+                                    Loading ledger…
+                                  </Text>
+                                ) : ledgerEntries.length === 0 && ledgerEntriesError ? (
+                                  <Text
+                                    style={neoStyles.financeLedgerPreviewEmpty}
+                                  >
+                                    Couldn’t load ledger
+                                  </Text>
+                                ) : financeHistoryRows.length === 0 ? (
+                                  <Text
+                                    style={neoStyles.financeLedgerPreviewEmpty}
+                                  >
+                                    Trip ledger entries appear here when you
+                                    record receipts or payouts.
+                                  </Text>
+                                ) : (
+                                  financeHistoryRows.slice(0, 8).map((row) => (
+                                    <TouchableOpacity
+                                      key={row.key}
+                                      style={[
+                                        neoStyles.financePreviewTxnRow,
+                                        isDesktop && neoStyles.financePreviewTxnRowBesideHero,
+                                      ]}
+                                      activeOpacity={0.85}
+                                      onPress={() => setPreviewLedgerTx(row.tx)}
+                                      accessibilityRole="button"
+                                      accessibilityLabel="Preview transaction"
+                                    >
+                                      <View
+                                        style={[
+                                          neoStyles.financePreviewTxnIcon,
+                                          isDesktop && neoStyles.financePreviewTxnIconBesideHero,
+                                          row.isIn
+                                            ? neoStyles.financePreviewTxnIconIn
+                                            : neoStyles.financePreviewTxnIconOut,
+                                        ]}
+                                      >
+                                        <Feather
+                                          name={
+                                            row.isIn
+                                              ? "arrow-down-left"
+                                              : "arrow-up-right"
+                                          }
+                                          size={isDesktop ? 13 : 14}
+                                          color={
+                                            row.isIn ? "#10b981" : "#f43f5e"
+                                          }
+                                        />
+                                      </View>
+                                      <View
+                                        style={neoStyles.financePreviewTxnMid}
+                                      >
+                                        <Text
+                                          style={[
+                                            neoStyles.financePreviewTxnTitle,
+                                            isDesktop &&
+                                              neoStyles.financePreviewTxnTitleDesktop,
+                                          ]}
+                                          numberOfLines={1}
+                                        >
+                                          {ledgerHistoryTitle(row.tx, row.isIn)}
+                                        </Text>
+                                        <Text
+                                          style={[
+                                            neoStyles.financePreviewTxnMeta,
+                                            isDesktop &&
+                                              neoStyles.financePreviewTxnMetaDesktop,
+                                          ]}
+                                          numberOfLines={1}
+                                        >
+                                          {formatLedgerDate(
+                                            row.tx.transaction_date,
+                                          )}{" "}
+                                          · {row.tx.payment_mode || "Wallet"}
+                                        </Text>
+                                      </View>
+                                      <Text
+                                        style={[
+                                          neoStyles.financePreviewTxnAmt,
+                                          isDesktop &&
+                                            neoStyles.financePreviewTxnAmtDesktop,
+                                          row.isIn
+                                            ? neoStyles.financePreviewTxnAmtIn
+                                            : neoStyles.financePreviewTxnAmtOut,
+                                        ]}
+                                      >
+                                        {formatINR(row.amount)}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  ))
+                                )}
+                              </ScrollView>
+                            </View>
+  ) : null;
 
   return (
     <TripProvider
@@ -4321,164 +4632,48 @@ export default function TripDetailScreen({
                     );
                   })}
                 </View>
-                {activeTab !== "trip" ? (
-                <View style={[neoStyles.hero, neoStyles.heroFinance]}>
-                  <View style={neoStyles.heroGlow} />
-                  <View style={[neoStyles.heroBridge, neoStyles.heroBridgeFinance]}>
-                    <View style={neoStyles.heroParty}>
-                      <PartyAvatar
-                        name={clientNameForParty}
-                        entityType="client"
-                        size={MANIFEST_HERO_AVATAR_DESKTOP}
-                        organizationImageUrl={
-                          detail.clientPartyAvatarFields
-                            ?.organizationImageUrl ?? undefined
-                        }
-                        organizationAvatarSeed={
-                          detail.clientPartyAvatarFields
-                            ?.organizationAvatarSeed ?? undefined
-                        }
-                        avatarUrl={
-                          detail.clientPartyAvatarFields?.avatarUrl ?? undefined
-                        }
-                        avatarSeed={
-                          detail.clientPartyAvatarFields?.avatarSeed ??
-                          undefined
-                        }
-                        isIntegrated={clientPartyIntegrated}
-                        showIntegrationBadge={false}
-                      />
-                      <View style={neoStyles.heroPartyText}>
-                        <Text style={[neoStyles.heroKicker, neoStyles.heroKickerFinance]}>CLIENT</Text>
-                        <Text
-                          style={neoStyles.heroPartyName}
-                          numberOfLines={2}
-                          ellipsizeMode="tail"
+                {activeTab === "finance" ? (
+                  <View style={neoStyles.financeSubTabs}>
+                    {(["summary", "transactions"] as const).map((sub) => {
+                      const active = financeSubTab === sub;
+                      return (
+                        <TouchableOpacity
+                          key={sub}
+                          style={neoStyles.financeSubTab}
+                          onPress={() => setFinanceSubTab(sub)}
+                          activeOpacity={0.86}
                         >
-                          {clientNameCard}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={neoStyles.swapIcon}>
-                      <FontAwesome name="exchange" size={11} color={Theme.textMuted} />
-                    </View>
-                    {showManifestHeroDriver ? (
-                      <NeoManifestHeroBridgePartyEnd
-                        roleLabel="DRIVER"
-                        partyName={allocatedDriverName}
-                        partyPhone={detail.driverPhone}
-                        entityType="driver"
-                        avatarSize={MANIFEST_HERO_AVATAR_DESKTOP}
-                        avatarUrl={detail.driverAvatarUri}
-                        avatarSeed={trip.driver_id}
-                        vehicleLabel={allocatedVehicleLabel}
-                        vehicleId={trip.vehicle_id}
-                        styles={neoStyles}
-                        partyStyles={manifestHeroBridgePartyStyles}
-                      />
-                    ) : (
-                      <NeoManifestHeroBridgePartyEnd
-                        roleLabel="SUPPLIER"
-                        partyName={supplierName}
-                        entityType="supplier"
-                        avatarSize={MANIFEST_HERO_AVATAR_DESKTOP}
-                        avatarUrl={detail.supplierPartyAvatarFields?.avatarUrl}
-                        avatarSeed={
-                          detail.supplierPartyAvatarFields?.avatarSeed
-                        }
-                        organizationImageUrl={
-                          detail.supplierPartyAvatarFields?.organizationImageUrl
-                        }
-                        organizationAvatarSeed={
-                          detail.supplierPartyAvatarFields
-                            ?.organizationAvatarSeed
-                        }
-                        isIntegrated={supplierPartyIntegrated}
-                        styles={neoStyles}
-                        partyStyles={manifestHeroBridgePartyStyles}
-                      />
-                    )}
+                          <Text
+                            style={[
+                              neoStyles.financeSubTabText,
+                              isDesktop && neoStyles.financeSubTabTextDesktop,
+                              active && neoStyles.financeSubTabTextActive,
+                            ]}
+                          >
+                            {sub}
+                          </Text>
+                          {active ? <View style={neoStyles.financeSubLine} /> : null}
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-
-                  <View style={[neoStyles.routeHeroRow, neoStyles.routeHeroRowFinance]}>
-                    <View style={neoStyles.routeHeroSide}>
-                      <Text style={[neoStyles.routeHeroCity, neoStyles.routeHeroCityFinance]} numberOfLines={1}>
-                        {originSplit.primary.toUpperCase()}
-                      </Text>
-                      <Text style={[neoStyles.routeHeroSub, neoStyles.routeHeroSubFinance]} numberOfLines={1}>
-                        {originStateLabel.toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={neoStyles.routeVector}>
-                      <View style={neoStyles.routeVectorLine} />
-                      <View style={[neoStyles.routeVectorTruck, neoStyles.routeVectorTruckFinance]}>
-                        <Feather name="truck" size={12} color={Theme.textMuted} />
-                      </View>
-                      <View style={neoStyles.routeVectorLine} />
-                    </View>
-                    <View
-                      style={[
-                        neoStyles.routeHeroSide,
-                        neoStyles.routeHeroSideRight,
-                      ]}
-                    >
-                      <Text
-                        style={[neoStyles.routeHeroCity, neoStyles.routeHeroCityFinance, neoStyles.alignRight]}
-                        numberOfLines={1}
-                      >
-                        {destinationSplit.primary.toUpperCase()}
-                      </Text>
-                      <Text
-                        style={[neoStyles.routeHeroSub, neoStyles.routeHeroSubFinance, neoStyles.alignRight]}
-                        numberOfLines={1}
-                      >
-                        {destinationStateLabel.toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={[neoStyles.heroMetrics, neoStyles.heroMetricsFinance]}>
-                    <View style={[neoStyles.heroMetric, neoStyles.heroMetricFinance]}>
-                      <Text style={neoStyles.heroMetricLabel}>
-                        Manifest Range
-                      </Text>
-                      <Text style={neoStyles.heroMetricValue}>
-                        {resolvedDistanceLabel
-                          ? resolvedDistanceLabel.replace(/\s*km$/i, " KM")
-                          : "—"}
-                      </Text>
-                    </View>
-                    <View style={[neoStyles.heroMetricDivider, neoStyles.heroMetricDividerFinance]} />
-                    <View style={[neoStyles.heroMetric, neoStyles.heroMetricFinance]}>
-                      <Text style={neoStyles.heroMetricLabel}>
-                        ETA Manifest
-                      </Text>
-                      <Text style={neoStyles.heroMetricValue}>
-                        {liveTrackingPresentation?.eta.label ?? '—'}
-                      </Text>
-                    </View>
-                    <View style={[neoStyles.heroMetricDivider, neoStyles.heroMetricDividerFinance]} />
-                    <View style={[neoStyles.heroMetric, neoStyles.heroMetricFinance]}>
-                      <Text style={neoStyles.heroMetricLabel}>Status</Text>
-                      <View
-                        style={[
-                          neoStyles.heroMetricStatusPill,
-                          neoStyles.heroMetricStatusPillFinance,
-                          { backgroundColor: statusColor },
-                        ]}
-                      >
-                        <Text style={neoStyles.heroMetricStatusPillText}>
-                          {statusLabel.toUpperCase()}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-
+                ) : null}
+                {activeTab !== "trip" && !(activeTab === "finance" && isDesktop) ? (
+                  routeHeroEl
                 ) : null}
 
-            <View style={neoStyles.grid}>
-              <View style={neoStyles.mainCol}>
+            <View
+              style={[
+                neoStyles.grid,
+                activeTab === "finance" && isDesktop && neoStyles.gridFinance,
+              ]}
+            >
+              <View
+                style={[
+                  neoStyles.mainCol,
+                  activeTab === "finance" && isDesktop && neoStyles.mainColFinance,
+                ]}
+              >
                 {activeTab === "trip" ? (
                   <View
                     style={[
@@ -5254,33 +5449,8 @@ export default function TripDetailScreen({
                     </View>
                   </View>
                 ) : activeTab === "finance" ? (
-                  <View style={neoStyles.financeStack}>
-                    <View style={neoStyles.financeSubTabs}>
-                      {(["summary", "transactions"] as const).map((sub) => {
-                        const active = financeSubTab === sub;
-                        return (
-                          <TouchableOpacity
-                            key={sub}
-                            style={neoStyles.financeSubTab}
-                            onPress={() => setFinanceSubTab(sub)}
-                            activeOpacity={0.86}
-                          >
-                            <Text
-                              style={[
-                                neoStyles.financeSubTabText,
-                                isDesktop && neoStyles.financeSubTabTextDesktop,
-                                active && neoStyles.financeSubTabTextActive,
-                              ]}
-                            >
-                              {sub}
-                            </Text>
-                            {active ? (
-                              <View style={neoStyles.financeSubLine} />
-                            ) : null}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
+                  <View style={[neoStyles.financeStack, isDesktop && neoStyles.financeStackDesktop]}>
+                    {isDesktop ? routeHeroEl : null}
                     {financeSubTab === "summary" ? (
                       <>
                         <View
@@ -5301,178 +5471,19 @@ export default function TripDetailScreen({
                                 isDesktop && neoStyles.financeManifestInPaneDesktop,
                               ]}
                             >
-                              {financeManifestSummaryBlock}
                               {financeAdjustmentSummaryWrappedEl}
                             </View>
                           </View>
+                          {!isDesktop ? (
                           <View
                             style={[
                               neoStyles.financeSummaryPaneRight,
                               isDesktop && neoStyles.financeSummaryPaneRightDesktop,
                             ]}
                           >
-                            {canViewTripLedger && (
-                            <View
-                              style={[
-                                neoStyles.financeLedgerPreviewCard,
-                                isDesktop && neoStyles.financeLedgerPreviewCardDesktop,
-                              ]}
-                            >
-                              <View style={neoStyles.financeLedgerPreviewHead}>
-                                <Text
-                                  style={[
-                                    neoStyles.financeLedgerPreviewTitle,
-                                    isDesktop && neoStyles.financeLedgerPreviewTitleDesktop,
-                                  ]}
-                                >
-                                  Ledger snapshot
-                                </Text>
-                                <TouchableOpacity
-                                  style={neoStyles.financeLedgerPreviewLink}
-                                  onPress={() =>
-                                    setFinanceSubTab("transactions")
-                                  }
-                                  activeOpacity={0.85}
-                                  accessibilityRole="button"
-                                  accessibilityLabel="View full transaction list"
-                                >
-                                  <Text
-                                    style={
-                                      neoStyles.financeLedgerPreviewLinkText
-                                    }
-                                  >
-                                    View all
-                                  </Text>
-                                  <Feather
-                                    name="chevron-right"
-                                    size={14}
-                                    color="#4D3636"
-                                  />
-                                </TouchableOpacity>
-                              </View>
-                              <Text
-                                style={[
-                                  neoStyles.financeLedgerPreviewSub,
-                                  isDesktop && neoStyles.financeLedgerPreviewSubDesktop,
-                                ]}
-                              >
-                                {ledgerEntries.length === 0 && ledgerEntriesLoading
-                                  ? "Loading ledger…"
-                                  : ledgerEntries.length === 0 && ledgerEntriesError
-                                  ? "Couldn’t load ledger"
-                                  : financeHistoryRows.length === 0
-                                  ? "No cash movements on this trip yet"
-                                  : `${financeHistoryRows.length} movement${
-                                      financeHistoryRows.length === 1 ? "" : "s"
-                                    } · newest first`}
-                              </Text>
-                              <ScrollView
-                                style={neoStyles.financeLedgerPreviewScroll}
-                                contentContainerStyle={
-                                  neoStyles.financeLedgerPreviewScrollContent
-                                }
-                                nestedScrollEnabled
-                                showsVerticalScrollIndicator={false}
-                              >
-                                {ledgerEntries.length === 0 && ledgerEntriesLoading ? (
-                                  <Text
-                                    style={neoStyles.financeLedgerPreviewEmpty}
-                                  >
-                                    Loading ledger…
-                                  </Text>
-                                ) : ledgerEntries.length === 0 && ledgerEntriesError ? (
-                                  <Text
-                                    style={neoStyles.financeLedgerPreviewEmpty}
-                                  >
-                                    Couldn’t load ledger
-                                  </Text>
-                                ) : financeHistoryRows.length === 0 ? (
-                                  <Text
-                                    style={neoStyles.financeLedgerPreviewEmpty}
-                                  >
-                                    Trip ledger entries appear here when you
-                                    record receipts or payouts.
-                                  </Text>
-                                ) : (
-                                  financeHistoryRows.slice(0, 8).map((row) => (
-                                    <TouchableOpacity
-                                      key={row.key}
-                                      style={[
-                                        neoStyles.financePreviewTxnRow,
-                                        isDesktop && neoStyles.financePreviewTxnRowDesktop,
-                                      ]}
-                                      activeOpacity={0.85}
-                                      onPress={() => setPreviewLedgerTx(row.tx)}
-                                      accessibilityRole="button"
-                                      accessibilityLabel="Preview transaction"
-                                    >
-                                      <View
-                                        style={[
-                                          neoStyles.financePreviewTxnIcon,
-                                          isDesktop && neoStyles.financePreviewTxnIconDesktop,
-                                          row.isIn
-                                            ? neoStyles.financePreviewTxnIconIn
-                                            : neoStyles.financePreviewTxnIconOut,
-                                        ]}
-                                      >
-                                        <Feather
-                                          name={
-                                            row.isIn
-                                              ? "arrow-down-left"
-                                              : "arrow-up-right"
-                                          }
-                                          size={isDesktop ? 16 : 14}
-                                          color={
-                                            row.isIn ? "#10b981" : "#f43f5e"
-                                          }
-                                        />
-                                      </View>
-                                      <View
-                                        style={neoStyles.financePreviewTxnMid}
-                                      >
-                                        <Text
-                                          style={[
-                                            neoStyles.financePreviewTxnTitle,
-                                            isDesktop &&
-                                              neoStyles.financePreviewTxnTitleDesktop,
-                                          ]}
-                                          numberOfLines={1}
-                                        >
-                                          {ledgerHistoryTitle(row.tx, row.isIn)}
-                                        </Text>
-                                        <Text
-                                          style={[
-                                            neoStyles.financePreviewTxnMeta,
-                                            isDesktop &&
-                                              neoStyles.financePreviewTxnMetaDesktop,
-                                          ]}
-                                          numberOfLines={1}
-                                        >
-                                          {formatLedgerDate(
-                                            row.tx.transaction_date,
-                                          )}{" "}
-                                          · {row.tx.payment_mode || "Wallet"}
-                                        </Text>
-                                      </View>
-                                      <Text
-                                        style={[
-                                          neoStyles.financePreviewTxnAmt,
-                                          isDesktop &&
-                                            neoStyles.financePreviewTxnAmtDesktop,
-                                          row.isIn
-                                            ? neoStyles.financePreviewTxnAmtIn
-                                            : neoStyles.financePreviewTxnAmtOut,
-                                        ]}
-                                      >
-                                        {formatINR(row.amount)}
-                                      </Text>
-                                    </TouchableOpacity>
-                                  ))
-                                )}
-                              </ScrollView>
-                            </View>
-                            )}
+                            {financeLedgerPreviewEl}
                           </View>
+                          ) : null}
                         </View>
 
                         {false && showFinanceProvisionPanel ? (
@@ -5960,9 +5971,29 @@ export default function TripDetailScreen({
               </View>
 
               {activeTab !== "trip" ? (
-              <View style={neoStyles.sideCol}>
-                <View style={neoStyles.sideCard}>
-                  <View style={neoStyles.sideSection}>
+              <View
+                style={[
+                  neoStyles.sideCol,
+                  activeTab === "finance" && isDesktop && neoStyles.sideColFinance,
+                ]}
+              >
+                {activeTab === "finance" &&
+                financeSubTab === "summary" &&
+                isDesktop
+                  ? financeLedgerPreviewEl
+                  : null}
+                <View
+                  style={[
+                    neoStyles.sideCard,
+                    activeTab === "finance" && isDesktop && neoStyles.sideCardFinance,
+                  ]}
+                >
+                  <View
+                    style={[
+                      neoStyles.sideSection,
+                      activeTab === "finance" && isDesktop && neoStyles.sideSectionFinance,
+                    ]}
+                  >
                     <View style={neoStyles.sideHeading}>
                       <Feather name="activity" size={15} color={Theme.textMuted} />
                       <Text style={neoStyles.sideHeadingText}>
@@ -5983,7 +6014,10 @@ export default function TripDetailScreen({
                       driverId={trip.driver_id}
                 showChange={canChangeManifestAssets}
                       onChange={() => openAssignmentFlow("driver")}
-                      style={neoStyles.assetCardWrap}
+                      style={[
+                        neoStyles.assetCardWrap,
+                        activeTab === "finance" && isDesktop && neoStyles.assetCardWrapFinance,
+                      ]}
                     />
                     <ManifestRefAssetCard
                       desktop
@@ -5995,7 +6029,10 @@ export default function TripDetailScreen({
                       insightsLoading={manifestRefAssetInsights.isLoading}
                       showChange={canChangeManifestAssets}
                       onChange={() => openAssignmentFlow("vehicle")}
-                      style={neoStyles.assetCardWrap}
+                      style={[
+                        neoStyles.assetCardWrap,
+                        activeTab === "finance" && isDesktop && neoStyles.assetCardWrapFinance,
+                      ]}
                     />
                     <HardCopyPodStatusCard
                       state={hardCopyPodState}

@@ -579,10 +579,20 @@ export const neoStyles = StyleSheet.create({
     gap: 12,
     alignItems: "stretch",
   },
+  gridFinance: {
+    alignItems: "flex-start",
+    width: "100%",
+    gap: 12,
+  },
   mainCol: {
     flex: 1,
     minWidth: 0,
     gap: 16,
+  },
+  mainColFinance: {
+    flex: 1.6,
+    minWidth: 0,
+    gap: 8,
   },
   sideCol: {
     width: 280,
@@ -592,6 +602,15 @@ export const neoStyles = StyleSheet.create({
     ...(Platform.OS === "web"
       ? ({ position: "sticky" as never, top: 88, alignSelf: "flex-start", maxHeight: "calc(100vh - 104px)" as never, overflowY: "auto" as never } as object)
       : null),
+  },
+  sideColFinance: {
+    width: "38%",
+    maxWidth: 420,
+    minWidth: 260,
+    flexGrow: 0,
+    flexShrink: 1,
+    alignSelf: "flex-start",
+    gap: 8,
   },
   hero: {
     position: "relative",
@@ -981,7 +1000,7 @@ export const neoStyles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   heroFinance: {
-    paddingVertical: 6,
+    paddingVertical: 4,
     paddingHorizontal: 10,
   },
   heroBridgeFinance: {
@@ -991,36 +1010,49 @@ export const neoStyles = StyleSheet.create({
   },
   heroKickerFinance: {
     marginBottom: 0,
+    lineHeight: 11,
+  },
+  heroPartyNameFinance: {
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  swapIconFinance: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
   },
   routeHeroRowFinance: {
     gap: 6,
   },
   routeHeroCityFinance: {
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 12,
+    lineHeight: 14,
   },
   routeHeroSubFinance: {
     marginTop: 0,
-    lineHeight: 12,
+    fontSize: 9,
+    lineHeight: 11,
   },
   routeVectorTruckFinance: {
-    width: 22,
-    height: 22,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
   },
   heroMetricsFinance: {
-    marginTop: 4,
-    paddingVertical: 2,
+    marginTop: 2,
+    paddingVertical: 1,
   },
   heroMetricFinance: {
-    gap: 1,
+    gap: 0,
     paddingHorizontal: 4,
+    paddingVertical: 2,
   },
   heroMetricDividerFinance: {
-    height: 18,
+    height: 16,
   },
   heroMetricStatusPillFinance: {
-    minHeight: 20,
-    paddingVertical: 2,
+    minHeight: 18,
+    paddingVertical: 1,
     paddingHorizontal: 8,
   },
   journeyGrid: {
@@ -1746,6 +1778,10 @@ export const neoStyles = StyleSheet.create({
   financeStack: {
     gap: 10,
   },
+  financeStackDesktop: {
+    gap: 8,
+    width: "100%",
+  },
   expenseHubStack: {
     gap: 6,
   },
@@ -1818,6 +1854,40 @@ export const neoStyles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  financeHeroLedgerRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    width: "100%",
+  },
+  financeHeroInRow: {
+    flex: 1,
+    minWidth: 0,
+  },
+  financeLedgerBesideHero: {
+    width: "100%",
+    maxWidth: "100%",
+    flexGrow: 0,
+    flexShrink: 0,
+    alignSelf: "stretch",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+  },
+  financeLedgerBesideHeroScroll: {
+    maxHeight: 220,
+  },
+  financePreviewTxnRowBesideHero: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    gap: 8,
+    borderRadius: 10,
+  },
+  financePreviewTxnIconBesideHero: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
   },
   financeLedgerPreviewHead: {
     flexDirection: "row",
@@ -3272,11 +3342,18 @@ export const neoStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Theme.borderLight,
   },
+  sideCardFinance: {
+    padding: 10,
+    width: "100%",
+  },
   feedbackSideCard: {
     paddingTop: 16,
   },
   sideSection: {
     gap: 10,
+  },
+  sideSectionFinance: {
+    gap: 8,
   },
   sideSectionBorder: {
     paddingTop: 14,
@@ -3301,6 +3378,11 @@ export const neoStyles = StyleSheet.create({
     marginBottom: 0,
     width: "100%",
     flex: 1,
+    alignSelf: "stretch",
+  },
+  assetCardWrapFinance: {
+    flex: 0,
+    flexGrow: 0,
     alignSelf: "stretch",
   },
   assetCard: {
