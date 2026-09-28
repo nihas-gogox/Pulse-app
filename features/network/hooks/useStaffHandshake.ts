@@ -54,6 +54,39 @@ interface UseStaffHandshakeParams {
   onSuccess: (msg: string) => void;
 }
 
+function viewerOwnsIndent(
+  load: { organization_id?: string | null },
+  orgId: string,
+): boolean {
+  return String(load.organization_id ?? "").trim() === orgId;
+}
+
+async function persistIndentDeployTripDetailsIfOwner(
+  load: IndentRow,
+  orgId: string,
+  pickupDate: string,
+  weightTons: string,
+  vehicleType: string,
+  loadType: string,
+): Promise<{ error: Error | null }> {
+  if (!viewerOwnsIndent(load, orgId)) return { error: null };
+  return persistIndentDeployTripDetails(
+    load.id,
+    pickupDate,
+    weightTons,
+    vehicleType,
+    loadType,
+  );
+}
+
+async function markIndentCompletedIfOwner(
+  load: IndentRow,
+  orgId: string,
+): Promise<{ error: Error | null }> {
+  if (!viewerOwnsIndent(load, orgId)) return { error: null };
+  return updateIndent(load.id, { status: "completed" });
+}
+
 async function persistIndentDeployTripDetails(
   indentId: string,
   pickupDate: string,
@@ -506,8 +539,9 @@ export function useStaffHandshake({
     staffHandshakeDeployLockRef.current = true;
     try {
       setIsDeploying(true);
-      const { error: detailsErr } = await persistIndentDeployTripDetails(
-        load.id,
+      const { error: detailsErr } = await persistIndentDeployTripDetailsIfOwner(
+        load,
+        orgId,
         deployPickupDate,
         deployWeightTons,
         deployVehicleType,
@@ -558,7 +592,7 @@ export function useStaffHandshake({
       // Matches the pattern deployAdHoc already uses for its own subcontract+indent pair.
       const [{ error: payErr }] = await Promise.all([
         stampTripDriverPayFromTerms(payTripId, assignDriverId, orgId),
-        updateIndent(load.id, { status: "completed" }),
+        markIndentCompletedIfOwner(load, orgId),
       ]);
       if (payErr) {
         showAppAlert(
@@ -692,8 +726,9 @@ export function useStaffHandshake({
     staffHandshakeDeployLockRef.current = true;
     try {
       setIsDeploying(true);
-      const { error: detailsErr } = await persistIndentDeployTripDetails(
-        load.id,
+      const { error: detailsErr } = await persistIndentDeployTripDetailsIfOwner(
+        load,
+        orgId,
         deployPickupDate,
         deployWeightTons,
         deployVehicleType,
@@ -785,7 +820,7 @@ export function useStaffHandshake({
       if (deferHandshakeAssignment || !phoneTrimmed || phoneErr) {
         await Promise.all([
           saveSubcontract(),
-          updateIndent(load.id, { status: "completed" }),
+          markIndentCompletedIfOwner(load, orgId),
         ]);
         finishDeploySuccess({
           tripId: trip.id,
@@ -807,7 +842,7 @@ export function useStaffHandshake({
       if (availability.isBusy) {
         await Promise.all([
           saveSubcontract(),
-          updateIndent(load.id, { status: "completed" }),
+          markIndentCompletedIfOwner(load, orgId),
         ]);
         finishDeploySuccess({
           tripId: trip.id,
@@ -833,7 +868,7 @@ export function useStaffHandshake({
       if (assignAggErr) {
         await Promise.all([
           saveSubcontract(),
-          updateIndent(load.id, { status: "completed" }),
+          markIndentCompletedIfOwner(load, orgId),
         ]);
         finishDeploySuccess({
           tripId: trip.id,
@@ -868,7 +903,7 @@ export function useStaffHandshake({
 
       await Promise.all([
         saveSubcontract(),
-        updateIndent(load.id, { status: "completed" }),
+        markIndentCompletedIfOwner(load, orgId),
       ]);
       finishDeploySuccess({
         tripId: trip.id,

@@ -40,6 +40,8 @@ import {
 } from "@/features/marketplace/components/PilotPaymentMethodSheet";
 import { RazorpayTestPreviewSheet } from "@/features/driver/components/RazorpayTestPreviewSheet";
 import { getTripByIndentId } from "@/features/trips/services/trips.service";
+import type { IndentRow } from "@/features/indents/services/indents.service";
+import { setInitialIndentForDetail } from "@/features/indents/initialIndentForDetail";
 import { showAppAlert } from "@/lib/appAlert";
 import { confirmDialog } from "@/lib/confirmDialog";
 import { ROUTES } from "@/lib/routes";
@@ -112,13 +114,42 @@ function feePendingLabel(status: FeePaymentStatus, feeAmount: number | null): st
   }
 }
 
+function indentRowFromOrgMarketBid(
+  bid: MyOrgMarketBidRow,
+  viewerOrgId: string,
+): IndentRow {
+  return {
+    id: bid.indent_id,
+    organization_id: bid.owner_organization_id ?? "",
+    indent_number:
+      (bid.indent_number ?? "").trim() ||
+      bid.indent_id.slice(0, 8).toUpperCase(),
+    pickup_area: bid.pickup_area ?? "",
+    drop_location: bid.drop_location ?? "",
+    client_name: "",
+    client_price: Number(bid.amount) || 0,
+    supplier_target: Number(bid.amount) || 0,
+    assigned_supplier_rate: Number(bid.amount) || 0,
+    status: "awarded",
+    vehicle_type: null,
+    load_type: bid.load_type,
+    pickup_date: bid.pickup_date,
+    circulation_target: "marketplace",
+    created_at: bid.created_at,
+    creator_organization_name: bid.owner_organization_name,
+    assigned_supplier_id: viewerOrgId,
+  };
+}
+
 export function OrgMyBidsList({
   bids,
   isLoading,
+  orgId,
   onPaymentUpdated,
 }: {
   bids: MyOrgMarketBidRow[];
   isLoading: boolean;
+  orgId?: string | null;
   /** A8.7: called after a checkout attempt closes, so the caller can refetch bids/loads. */
   onPaymentUpdated?: () => void;
 }) {
@@ -159,21 +190,36 @@ export function OrgMyBidsList({
       {groups.awarded.length > 0 ? (
         <Section title="Awarded" count={groups.awarded.length}>
           {groups.awarded.map((b) => (
-            <BidCard key={b.id} bid={b} onPaymentUpdated={onPaymentUpdated} />
+            <BidCard
+              key={b.id}
+              bid={b}
+              orgId={orgId}
+              onPaymentUpdated={onPaymentUpdated}
+            />
           ))}
         </Section>
       ) : null}
       {groups.pending.length > 0 ? (
         <Section title="Pending" count={groups.pending.length}>
           {groups.pending.map((b) => (
-            <BidCard key={b.id} bid={b} onPaymentUpdated={onPaymentUpdated} />
+            <BidCard
+              key={b.id}
+              bid={b}
+              orgId={orgId}
+              onPaymentUpdated={onPaymentUpdated}
+            />
           ))}
         </Section>
       ) : null}
       {groups.closed.length > 0 ? (
         <Section title="Not selected" count={groups.closed.length}>
           {groups.closed.map((b) => (
-            <BidCard key={b.id} bid={b} onPaymentUpdated={onPaymentUpdated} />
+            <BidCard
+              key={b.id}
+              bid={b}
+              orgId={orgId}
+              onPaymentUpdated={onPaymentUpdated}
+            />
           ))}
         </Section>
       ) : null}
@@ -207,9 +253,11 @@ function Section({
 
 function BidCard({
   bid,
+  orgId,
   onPaymentUpdated,
 }: {
   bid: MyOrgMarketBidRow;
+  orgId?: string | null;
   onPaymentUpdated?: () => void;
 }) {
   const router = useRouter();
@@ -369,12 +417,21 @@ function BidCard({
     if (isNavigating) return;
     setIsNavigating(true);
     try {
+      const viewerOrgId = (orgId ?? "").trim();
+      if (viewerOrgId) {
+        setInitialIndentForDetail(indentRowFromOrgMarketBid(bid, viewerOrgId));
+      }
       const res = await getTripByIndentId(bid.indent_id);
       if (res.trip?.id) {
         router.push(ROUTES.tripAssignment(res.trip.id, "vehicle") as never);
-      } else {
-        router.push(ROUTES.indentAllocation(bid.indent_id) as never);
+        return;
       }
+      router.push(ROUTES.indentAllocation(bid.indent_id) as never);
+    } catch (e) {
+      showAppAlert(
+        "Could not open assignment",
+        e instanceof Error ? e.message : "Please try again.",
+      );
     } finally {
       setIsNavigating(false);
     }

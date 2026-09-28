@@ -524,6 +524,7 @@ export default function FindLoadsScreen() {
           <OrgMyBidsList
             bids={myBids}
             isLoading={myBidsQ.isLoading}
+            orgId={orgId}
             onPaymentUpdated={() => {
               if (orgId) {
                 queryClient.invalidateQueries({ queryKey: queryKeys.findLoadsForOrg.myBids(orgId) });

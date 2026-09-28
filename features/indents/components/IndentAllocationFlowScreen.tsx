@@ -337,20 +337,6 @@ export function IndentAllocationFlowScreen({
     };
   }, []);
 
-  useEffect(() => {
-    if (!orgId || !indentId || indentPending) return;
-    if (deploySucceeded) return;
-    if (!indent || indentError) onBack();
-  }, [
-    orgId,
-    indentId,
-    indent,
-    indentPending,
-    indentError,
-    onBack,
-    deploySucceeded,
-  ]);
-
   // Defensive: a blocked supplier (this load's own shipper) must never survive
   // as the deploy target — clears it even if it was selected before this
   // guard existed, or if a later step is reached without revisiting Partner.
@@ -995,7 +981,34 @@ export function IndentAllocationFlowScreen({
     return null;
   }
 
+  if (state.closingToList) {
+    return null;
+  }
+
   if (!currentLoad) {
+    if (indentError && !indentPending) {
+      return (
+        <View style={[styles.flowStep, { padding: Layout.screenPaddingHorizontal, paddingTop: 24 }]}>
+          <Text
+            style={{
+              color: Theme.textPrimaryDark,
+              fontSize: 15,
+              fontWeight: "600",
+            }}
+          >
+            Could not open this award for assignment. Go back and try Assign
+            again.
+          </Text>
+          <Text
+            onPress={onBack}
+            style={{ color: Theme.primary, fontSize: 14, fontWeight: "700", marginTop: 12 }}
+            accessibilityRole="button"
+          >
+            Back
+          </Text>
+        </View>
+      );
+    }
     return <CenteredLoadingView message="Loading allocation…" />;
   }
 
