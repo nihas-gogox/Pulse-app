@@ -5,8 +5,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   PanResponder,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +17,8 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { Calendar } from "react-native-calendars";
 import {
   notifySupplierKycUser,
   openSupplierKycDocument,
@@ -78,6 +82,168 @@ function spocContactValue(phone: string | null | undefined): string {
   return value;
 }
 
+function dateDraft(value: string | null | undefined): string {
+  return (value ?? "").trim().slice(0, 10);
+}
+
+function formatDdMmYyyy(iso: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
+  const [year, month, day] = iso.split("-");
+  return `${day}-${month}-${year}`;
+}
+
+function dateFromIso(iso: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return new Date(`${iso}T12:00:00`);
+  return new Date();
+}
+
+function isoFromDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function ValidityDatePicker({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (iso: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const iso = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+  const shown = iso ? formatDdMmYyyy(iso) : "DD-MM-YYYY";
+  const close = () => setOpen(false);
+
+  return (
+    <View style={styles.dateField}>
+      <Text style={[styles.fieldLabel, styles.fieldLabelPage]}>{label}</Text>
+      <Pressable
+        style={[styles.fieldInputLarge, styles.fieldInputPage, styles.datePickerShell]}
+        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+      >
+        <Text style={[styles.datePickerText, !iso && styles.datePickerPlaceholder]}>{shown}</Text>
+        <FontAwesome name="calendar-o" size={14} color={Theme.textMuted} />
+      </Pressable>
+      {Platform.OS === "web" ? (
+        <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
+          <View style={styles.datePickerBackdropCenter}>
+            <Pressable style={styles.datePickerDismiss} onPress={close} accessibilityLabel="Close date picker" />
+            <View style={styles.datePickerPopover}>
+              <Text style={styles.datePickerSheetTitle}>{label}</Text>
+              <Calendar
+                current={iso || undefined}
+                onDayPress={(day: { dateString: string }) => {
+                  onChange(day.dateString);
+                  close();
+                }}
+                markedDates={
+                  iso
+                    ? {
+                        [iso]: {
+                          selected: true,
+                          selectedColor: Theme.primary,
+                          selectedTextColor: Theme.textOnPrimary,
+                        },
+                      }
+                    : undefined
+                }
+                theme={{
+                  backgroundColor: Theme.cardWhite,
+                  calendarBackground: Theme.cardWhite,
+                  textSectionTitleColor: Theme.textMuted,
+                  monthTextColor: Theme.textPrimaryDark,
+                  dayTextColor: Theme.textPrimaryDark,
+                  todayTextColor: Theme.primary,
+                  arrowColor: Theme.primary,
+                  selectedDayBackgroundColor: Theme.primary,
+                  selectedDayTextColor: Theme.textOnPrimary,
+                  textDayFontWeight: "500",
+                  textMonthFontWeight: "700",
+                  textDayHeaderFontWeight: "600",
+                }}
+              />
+              <Pressable
+                onPress={() => {
+                  onChange("");
+                  close();
+                }}
+                hitSlop={8}
+                style={styles.datePickerClearRow}
+              >
+                <Text style={styles.datePickerClear}>Clear</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+      {open && Platform.OS === "android" ? (
+        <DateTimePicker
+          value={dateFromIso(iso)}
+          mode="date"
+          display="default"
+          onChange={(event, date) => {
+            setOpen(false);
+            if (event.type === "set" && date) onChange(isoFromDate(date));
+          }}
+        />
+      ) : null}
+      {Platform.OS === "ios" ? (
+        <Modal visible={open} transparent animationType="slide">
+          <Pressable style={styles.datePickerBackdrop} onPress={() => setOpen(false)}>
+            <View style={styles.datePickerSheet}>
+              <View style={styles.datePickerSheetHeader}>
+                <Pressable
+                  onPress={() => {
+                    onChange("");
+                    setOpen(false);
+                  }}
+                  hitSlop={10}
+                >
+                  <Text style={styles.datePickerClear}>Clear</Text>
+                </Pressable>
+                <Text style={styles.datePickerSheetTitle}>{label}</Text>
+                <Pressable onPress={() => setOpen(false)} hitSlop={10}>
+                  <Text style={styles.datePickerDone}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={dateFromIso(iso)}
+                mode="date"
+                display="spinner"
+                onChange={(_, date) => {
+                  if (date) onChange(isoFromDate(date));
+                }}
+              />
+            </View>
+          </Pressable>
+        </Modal>
+      ) : null}
+    </View>
+  );
+}
+
+function parseDateDraft(value: string): { ok: true; value: string | null } | { ok: false } {
+  const text = value.trim();
+  if (!text) return { ok: true, value: null };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return { ok: false };
+  const [year, month, day] = text.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return { ok: false };
+  }
+  return { ok: true, value: text };
+}
+
 export type ProfileKycDoc = {
   id: string;
   documentType: string;
@@ -103,6 +269,8 @@ export type CounterpartyProfileSystemCardProps = {
   gstNumber?: string | null;
   panNumber?: string | null;
   billingAddress?: string | null;
+  validFrom?: string | null;
+  validTo?: string | null;
   gridVolumeLabel?: string;
   /** e.g. "94.2%" or health-derived */
   networkTrustLabel?: string;
@@ -301,6 +469,8 @@ export function CounterpartyProfileSystemCard({
   gstNumber,
   panNumber,
   billingAddress,
+  validFrom,
+  validTo,
   gridVolumeLabel,
   networkTrustLabel = "94.2%",
   isIntegrated,
@@ -400,6 +570,9 @@ export function CounterpartyProfileSystemCard({
   const [draftAdmin, setDraftAdmin] = useState((adminName ?? "").trim());
   const [draftEmail, setDraftEmail] = useState((email ?? "").trim());
   const [draftPhone, setDraftPhone] = useState(spocContactValue(phone));
+  const [draftValidFrom, setDraftValidFrom] = useState(dateDraft(validFrom));
+  const [draftValidTo, setDraftValidTo] = useState(dateDraft(validTo));
+  const [dateError, setDateError] = useState<string | null>(null);
   const [savingIdentity, setSavingIdentity] = useState(false);
   const [contractWarehouseFilter, setContractWarehouseFilter] = useState<string>("all");
   const [contractPage, setContractPage] = useState(0);
@@ -424,6 +597,8 @@ export function CounterpartyProfileSystemCard({
     setDraftAdmin((adminName ?? "").trim());
     setDraftEmail((email ?? "").trim());
     setDraftPhone(spocContactValue(phone));
+    setDraftValidFrom(dateDraft(validFrom));
+    setDraftValidTo(dateDraft(validTo));
   }, [
     mode,
     organizationName,
@@ -433,6 +608,8 @@ export function CounterpartyProfileSystemCard({
     adminName,
     email,
     phone,
+    validFrom,
+    validTo,
   ]);
 
   const completion = useMemo(
@@ -527,11 +704,31 @@ export function CounterpartyProfileSystemCard({
     if (type === "client" && organizationId && clientId) {
       setSavingIdentity(true);
       try {
+        const fromDate = parseDateDraft(draftValidFrom);
+        const toDate = parseDateDraft(draftValidTo);
+        if (!fromDate.ok || !toDate.ok) {
+          const message = "Enter Valid from and Valid to as YYYY-MM-DD.";
+          setDateError(message);
+          Alert.alert("Could not save profile", message);
+          return;
+        }
+        if (fromDate.value && toDate.value && toDate.value < fromDate.value) {
+          const message = "Valid to must be on or after Valid from.";
+          setDateError(message);
+          Alert.alert("Could not save profile", message);
+          return;
+        }
+        setDateError(null);
+        const validity = {
+          valid_from: fromDate.value,
+          valid_to: toDate.value,
+        };
         const identityPatch = isIntegrated
           ? {
               gstin: draftGst.trim(),
               pan_number: draftPan.trim(),
               address: draftBilling.trim(),
+              ...validity,
             }
           : {
               organization_name: draftName.trim(),
@@ -541,6 +738,7 @@ export function CounterpartyProfileSystemCard({
               gstin: draftGst.trim(),
               pan_number: draftPan.trim(),
               address: draftBilling.trim(),
+              ...validity,
             };
         const { error } = await updateClient(organizationId, clientId, identityPatch);
         if (error) {
@@ -865,6 +1063,21 @@ export function CounterpartyProfileSystemCard({
                       />
                     </>
                   ) : null}
+                  {type === "client" ? (
+                    <View style={styles.dateRow}>
+                      <ValidityDatePicker
+                        label="Valid from"
+                        value={draftValidFrom}
+                        onChange={setDraftValidFrom}
+                      />
+                      <ValidityDatePicker
+                        label="Valid to"
+                        value={draftValidTo}
+                        onChange={setDraftValidTo}
+                      />
+                    </View>
+                  ) : null}
+                  {dateError ? <Text style={styles.identitySaveError}>{dateError}</Text> : null}
                 </View>
 
                 <View style={[styles.editSectionHeadingRow, { marginTop: 20 }]}>
@@ -1334,6 +1547,8 @@ export function CounterpartyProfileSystemCard({
                 { label: "SPOC Contact", value: spocContactValue(phone) || "—" },
                 { label: "Email", value: (email ?? "").trim() || "—" },
                 { label: "Billing Address", value: (billingAddress ?? "").trim() || "—" },
+                { label: "Valid from", value: formatDdMmYyyy(dateDraft(validFrom)) || "—" },
+                { label: "Valid to", value: formatDdMmYyyy(dateDraft(validTo)) || "—" },
                 {
                   label: "Operations Hub",
                   value:
@@ -3124,6 +3339,87 @@ const styles = StyleSheet.create({
     fontSize: 8,
     letterSpacing: 0.45,
     marginBottom: 4,
+  },
+  dateRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 8,
+  },
+  dateField: { flex: 1, minWidth: 0 },
+  datePickerShell: {
+    position: "relative",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 0,
+  },
+  datePickerText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600",
+    color: Theme.textPrimaryDark,
+  },
+  datePickerPlaceholder: { color: Theme.textSection },
+  datePickerHit: { ...StyleSheet.absoluteFillObject },
+  datePickerBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: Theme.overlayBackdrop,
+  },
+  datePickerBackdropCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: Theme.overlayBackdrop,
+  },
+  datePickerDismiss: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
+  datePickerPopover: {
+    width: 320,
+    maxWidth: "100%",
+    zIndex: 2,
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  datePickerClearRow: {
+    minHeight: 44,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  datePickerSheet: {
+    backgroundColor: Theme.cardWhite,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    paddingBottom: 24,
+  },
+  datePickerSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Theme.borderInput,
+  },
+  datePickerSheetTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Theme.textPrimaryDark,
+  },
+  datePickerDone: { fontSize: 14, fontWeight: "700", color: Theme.primary },
+  datePickerClear: { fontSize: 14, fontWeight: "600", color: Theme.textMuted },
+  identitySaveError: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: "600",
+    color: Theme.destructive,
   },
   fieldInputLarge: {
     backgroundColor: Theme.surfaceGray,

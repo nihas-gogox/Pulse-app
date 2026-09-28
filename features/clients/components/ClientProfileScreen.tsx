@@ -164,6 +164,8 @@ export function ClientProfileScreen({ clientId, onBack }: Props) {
           gstNumber={client.gstin}
           panNumber={client.pan_number}
           billingAddress={client.address}
+          validFrom={client.valid_from}
+          validTo={client.valid_to}
           gridVolumeLabel={projectedVolumeLabel(client)}
           networkTrustLabel={networkTrustLabel}
           isIntegrated={isIntegrated}

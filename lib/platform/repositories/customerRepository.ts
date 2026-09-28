@@ -219,6 +219,8 @@ export const customerRepository = {
     }
     if (input.contactPerson !== undefined) patch.contact_person = input.contactPerson;
     if (input.panNumber !== undefined) patch.pan_number = input.panNumber;
+    if (input.validFrom !== undefined) patch.valid_from = input.validFrom;
+    if (input.validTo !== undefined) patch.valid_to = input.validTo;
     if (Object.keys(patch).length === 0) return null;
 
     const { data, error } = await requirePlatformDb()
