@@ -228,10 +228,27 @@ export function pickLoadCenterRecommendations(
   const ranked = [...rankedPreferred, ...rankedRest];
 
   const slots: ScoredDiscoverOrg[] = [];
+  const usedLocations = new Set<string>();
+  const locationKey = (org: ScoredDiscoverOrg) =>
+    (org.city ?? org.state ?? getDiscoverOrgLocation(org) ?? "")
+      .trim()
+      .toLowerCase();
+
   for (const org of ranked) {
     if (opts.dismissed?.has(org.id)) continue;
+    const loc = locationKey(org);
+    if (loc && usedLocations.has(loc)) continue;
+    if (loc) usedLocations.add(loc);
     slots.push(org);
     if (slots.length >= opts.limit) break;
+  }
+  if (slots.length < opts.limit) {
+    const have = new Set(slots.map((org) => org.id));
+    for (const org of ranked) {
+      if (opts.dismissed?.has(org.id) || have.has(org.id)) continue;
+      slots.push(org);
+      if (slots.length >= opts.limit) break;
+    }
   }
   return slots;
 }

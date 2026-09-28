@@ -4,8 +4,16 @@ import {
 } from "@/features/finance/domain/financeCounterpartyLane";
 import { SuppliersTab } from "@/features/suppliers/components/SuppliersTab";
 import Theme from "@/constants/Theme";
+import { useTabBarAwareScrollProps } from "@/contexts/DemoTabBarScrollContext";
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import type { FinanceTabBodyProps } from "../FinanceTabBody.types";
 
 export function FinanceSuppliersTab(props: FinanceTabBodyProps) {
@@ -63,6 +71,9 @@ export function FinanceSuppliersTab(props: FinanceTabBodyProps) {
   const showDco = supplierPartyKind === "all" || supplierPartyKind === "dco";
   const showSupplier =
     supplierPartyKind === "all" || supplierPartyKind === "supplier";
+  /** All: DCO rows and the supplier table share one scroll. */
+  const scrollTogether = !embedInParentScroll && showDco && showSupplier;
+  const tabBarScrollProps = useTabBarAwareScrollProps();
 
   const kindChips = (
     <View style={styles.kindRow}>
@@ -85,9 +96,8 @@ export function FinanceSuppliersTab(props: FinanceTabBodyProps) {
     </View>
   );
 
-  return (
-    <View style={embedInParentScroll ? styles.embedWrap : styles.wrap}>
-      {kindChips}
+  const lists = (
+    <>
       {showDco ? (
         <DcoPayeesTab
           organizationId={orgId}
@@ -138,16 +148,49 @@ export function FinanceSuppliersTab(props: FinanceTabBodyProps) {
           viewTab={supplierViewTab}
           onViewTabChange={onSupplierViewTabChange}
           hideSummaryRow
-          embedInParentScroll={embedInParentScroll}
+          embedInParentScroll={embedInParentScroll || scrollTogether}
           onAddPartyPress={onAddPartyPress}
         />
       ) : null}
+    </>
+  );
+
+  if (scrollTogether) {
+    return (
+      <View style={styles.wrap}>
+        {kindChips}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={{ paddingBottom: bottomInset ?? 24 }}
+          showsVerticalScrollIndicator={false}
+          {...tabBarScrollProps}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={refreshing ?? false}
+                onRefresh={onRefresh}
+                tintColor={Theme.loaderAccent}
+              />
+            ) : undefined
+          }
+        >
+          {lists}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={embedInParentScroll ? styles.embedWrap : styles.wrap}>
+      {kindChips}
+      {lists}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, minHeight: 0 },
+  scroll: { flex: 1, minHeight: 0 },
   embedWrap: { width: "100%", minWidth: 0 },
   kindRow: {
     flexDirection: "row",

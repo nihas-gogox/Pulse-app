@@ -101,6 +101,8 @@ export const queryKeys = {
       ["q", "clients", orgId, clientId, "invoice-pod-policy"] as const,
     managementBundle: (orgId: string, clientId: string) =>
       ["q", "clients", orgId, clientId, "management-bundle"] as const,
+    pageBootstrap: (orgId: string, clientId: string) =>
+      ["q", "clients", orgId, clientId, "page-bootstrap"] as const,
     warehouses: (orgId: string, clientId: string) =>
       ["q", "clients", orgId, clientId, "warehouses"] as const,
     laneRates: (orgId: string, clientId: string, search = "") =>
@@ -120,6 +122,8 @@ export const queryKeys = {
       ["q", "suppliers", orgId, supplierId] as const,
     managementBundle: (orgId: string, supplierId: string) =>
       ["q", "suppliers", orgId, supplierId, "management-bundle"] as const,
+    pageBootstrap: (orgId: string, supplierId: string) =>
+      ["q", "suppliers", orgId, supplierId, "page-bootstrap"] as const,
     /** Live organization_relations + suppliers.linked_organization_id — not the CRM cache. */
     connectedOrgIds: (orgId: string) =>
       ["q", "suppliers", orgId, "connected-org-ids"] as const,
@@ -327,11 +331,12 @@ export const queryKeys = {
   /** A4 — Business Find Loads: open Marketplace/both discovery for an org. */
   findLoadsForOrg: {
     list: (orgId: string) => ["q", "find-loads", orgId] as const,
-    infinite: (orgId: string, pageSize: number) =>
-      ["q", "find-loads", orgId, "infinite", pageSize] as const,
+    infinite: (orgId: string, pageSize: number, searchKey = "") =>
+      ["q", "find-loads", orgId, "infinite", pageSize, searchKey] as const,
     postIds: (orgId: string, indentIdsKey: string) =>
       ["q", "find-loads", orgId, "post-ids", indentIdsKey] as const,
     myBids: (orgId: string) => ["q", "find-loads", orgId, "my-bids"] as const,
+    searchLanes: (orgId: string) => ["q", "find-loads", orgId, "search-lanes"] as const,
   },
 
   reach: {

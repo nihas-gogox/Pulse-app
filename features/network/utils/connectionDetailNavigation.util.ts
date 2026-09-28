@@ -14,15 +14,15 @@ export function connectedDriverEntityId(connectionId: string): string {
     : connectionId;
 }
 
-/** Finance ledger detail route for a hub connection (client / supplier / driver). */
+/** Party detail for a hub connection. Lands on the Trips tab. */
 export function connectedOrgLedgerDetailRoute(item: ConnectedOrg): string {
   if (item.role === "CLIENT") {
-    return ROUTES.clientDetail(item.id, "cash");
+    return ROUTES.clientDetail(item.id, "trips");
   }
   if (item.role === "SUPPLIER") {
-    return ROUTES.supplierDetail(item.id, "cash");
+    return ROUTES.supplierDetail(item.id, "trips");
   }
-  return ROUTES.driverDetail(connectedDriverEntityId(item.id), "ledger");
+  return ROUTES.driverDetail(connectedDriverEntityId(item.id), "trips");
 }
 
 function clientSeedFromConnection(item: ConnectedOrg, orgId: string): ClientRow {

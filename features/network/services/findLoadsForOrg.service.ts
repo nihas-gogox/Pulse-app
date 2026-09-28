@@ -18,6 +18,19 @@ import {
   nextMarketplacePageOffset,
   sliceMarketplaceLoadsPage,
 } from '@/features/network/utils/marketplaceLoadsPage.util';
+import {
+  isMarketplaceSearchReady,
+  isUnsupportedMarketplaceSearchRpc,
+  lanesFromMarketplaceLoads,
+  loadMatchesMarketplaceSearch,
+  normalizeMarketplaceSearch,
+  type MarketplaceLoadSearch,
+  type MarketplaceSearchLane,
+} from '@/features/network/utils/marketplaceSearch.util';
+
+const LANE_FALLBACK_LIMIT = 80;
+
+export type { MarketplaceLoadSearch, MarketplaceSearchLane };
 
 export type OrgOpenMarketplaceLoad = {
   id: string;
@@ -40,6 +53,75 @@ export type OrgOpenMarketplaceLoad = {
 export async function listOpenMarketplaceLoadsForOrg(
   orgId: string,
   limit = MARKETPLACE_LOAD_PAGE_SIZE,
+  search?: MarketplaceLoadSearch | null,
+): Promise<{ error: Error | null; loads: OrgOpenMarketplaceLoad[] }> {
+  const { error, loads } = await listOpenMarketplaceLoadsPage(
+    orgId,
+    0,
+    limit,
+    search,
+  );
+  return { error, loads };
+}
+
+/** Server-filtered page — does not fetch until from / to / vehicle are set. */
+export async function listOpenMarketplaceLoadsPage(
+  orgId: string,
+  offset = 0,
+  pageSize = MARKETPLACE_LOAD_PAGE_SIZE,
+  search?: MarketplaceLoadSearch | null,
+): Promise<{
+  error: Error | null;
+  loads: OrgOpenMarketplaceLoad[];
+  hasMore: boolean;
+  nextOffset: number | undefined;
+}> {
+  if (!isMarketplaceSearchReady(search)) {
+    return { error: null, loads: [], hasMore: false, nextOffset: undefined };
+  }
+  const ready = normalizeMarketplaceSearch(search);
+  const { data, error } = await supabase().rpc(
+    'list_open_marketplace_loads_for_org',
+    {
+      p_org_id: orgId,
+      p_limit: pageSize,
+      p_offset: offset,
+      p_pickup: ready.pickup,
+      p_drop: ready.drop,
+      p_vehicle_type: ready.vehicleType,
+    },
+  );
+  if (!error) {
+    const page = (data ?? []) as OrgOpenMarketplaceLoad[];
+    return {
+      error: null,
+      loads: page,
+      hasMore: page.length >= pageSize,
+      nextOffset: nextMarketplacePageOffset(offset, page.length, pageSize),
+    };
+  }
+  if (!isUnsupportedMarketplaceSearchRpc(error.message)) {
+    return { error: new Error(error.message), loads: [], hasMore: false, nextOffset: undefined };
+  }
+  const fallback = await listOpenMarketplaceLoadsUnfiltered(orgId, LANE_FALLBACK_LIMIT);
+  if (fallback.error) {
+    return { error: fallback.error, loads: [], hasMore: false, nextOffset: undefined };
+  }
+  const matched = fallback.loads.filter((load) =>
+    loadMatchesMarketplaceSearch(load, ready),
+  );
+  const { page, hasMore } = sliceMarketplaceLoadsPage(matched, offset, pageSize);
+  return {
+    error: null,
+    loads: page,
+    hasMore,
+    nextOffset: nextMarketplacePageOffset(offset, page.length, pageSize),
+  };
+}
+
+async function listOpenMarketplaceLoadsUnfiltered(
+  orgId: string,
+  limit: number,
 ): Promise<{ error: Error | null; loads: OrgOpenMarketplaceLoad[] }> {
   const { data, error } = await supabase().rpc(
     'list_open_marketplace_loads_for_org',
@@ -49,31 +131,31 @@ export async function listOpenMarketplaceLoadsForOrg(
   return { error: null, loads: (data ?? []) as OrgOpenMarketplaceLoad[] };
 }
 
-/** Offset page over the existing limit-only RPC (prefix fetch + slice). */
-export async function listOpenMarketplaceLoadsPage(
+/** Distinct live Marketplace lanes for From / To / Vehicle dropdowns. */
+export async function listMarketplaceSearchLanes(
   orgId: string,
-  offset = 0,
-  pageSize = MARKETPLACE_LOAD_PAGE_SIZE,
-): Promise<{
-  error: Error | null;
-  loads: OrgOpenMarketplaceLoad[];
-  hasMore: boolean;
-  nextOffset: number | undefined;
-}> {
-  const { error, loads } = await listOpenMarketplaceLoadsForOrg(
-    orgId,
-    offset + pageSize,
-  );
-  if (error) {
-    return { error, loads: [], hasMore: false, nextOffset: undefined };
+): Promise<{ error: Error | null; lanes: MarketplaceSearchLane[] }> {
+  const dedicated = await supabase().rpc('list_marketplace_search_lanes', {
+    p_org_id: orgId,
+  });
+  if (!dedicated.error) {
+    const lanes = ((dedicated.data ?? []) as MarketplaceSearchLane[]).filter(
+      (row) =>
+        Boolean(row.pickup_area?.trim()) &&
+        Boolean(row.drop_location?.trim()) &&
+        Boolean(row.vehicle_type?.trim()),
+    );
+    if (lanes.length > 0) return { error: null, lanes };
+  } else if (
+    dedicated.error &&
+    !isUnsupportedMarketplaceSearchRpc(dedicated.error.message)
+  ) {
+    return { error: new Error(dedicated.error.message), lanes: [] };
   }
-  const { page, hasMore } = sliceMarketplaceLoadsPage(loads, offset, pageSize);
-  return {
-    error: null,
-    loads: page,
-    hasMore,
-    nextOffset: nextMarketplacePageOffset(offset, page.length, pageSize),
-  };
+
+  const fallback = await listOpenMarketplaceLoadsUnfiltered(orgId, LANE_FALLBACK_LIMIT);
+  if (fallback.error) return { error: fallback.error, lanes: [] };
+  return { error: null, lanes: lanesFromMarketplaceLoads(fallback.loads) };
 }
 
 /**

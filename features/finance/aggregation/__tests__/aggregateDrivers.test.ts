@@ -63,6 +63,22 @@ describe('aggregateDrivers', () => {
     expect(rows[0].pending).toBe(300);
   });
 
+  it('surfaces a trip whose driver_id is not in the loaded drivers list as its own row instead of dropping the commission', () => {
+    const trips: TripForDriver[] = [
+      { driver_id: 'd1', driver_commission: 500 } as TripForDriver,
+      { driver_id: 'ghost-driver', driver_commission: 300 } as TripForDriver,
+    ];
+    const { rows, totals } = aggregateDrivers(drivers, trips, []);
+    expect(rows).toHaveLength(2);
+    const unresolvedRow = rows.find((r) => r.id === 'ghost-driver');
+    expect(unresolvedRow).toBeDefined();
+    expect(unresolvedRow?.name).toBe('Unknown Driver');
+    expect(unresolvedRow?.due).toBe(300);
+    expect(unresolvedRow?.trips).toBe(1);
+    // Totals must include the unresolved driver's commission too, not just the known driver.
+    expect(totals.totalOut).toBe(800);
+  });
+
   it('does not let generic (non-driver-tagged) cash-out rows reduce a driver’s pending due', () => {
     const trips: TripForDriver[] = [{ driver_id: 'd1', driver_commission: 500 } as TripForDriver];
     const transactions: LedgerTx[] = [

@@ -3,6 +3,7 @@ import { isLoadBasedTrip } from "@/features/trips/visibility/tripVisibility";
 import {
   indentHubLifecycleStatus,
   indentHubSourceTags,
+  indentHubStatusTag,
   indentHubTargetRateInr,
 } from "@/features/trips/utils/indentHubCardPresentation";
 
@@ -41,6 +42,14 @@ describe("indentHubLifecycleStatus", () => {
 
   it("maps awarded (even with bids) → AWARDED, not a trip stage", () => {
     expect(indentHubLifecycleStatus("awarded", 4)).toBe("AWARDED");
+  });
+});
+
+describe("indentHubStatusTag", () => {
+  it("maps waiting, receiving bids, and awarded", () => {
+    expect(indentHubStatusTag("open", 0)).toBe("pending");
+    expect(indentHubStatusTag("open", 2)).toBe("bids");
+    expect(indentHubStatusTag("awarded", 2)).toBe("awarded");
   });
 });
 

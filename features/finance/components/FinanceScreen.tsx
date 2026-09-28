@@ -75,7 +75,9 @@ import { useRealtimeTransactionsInvalidation } from "@/lib/queries/useRealtimeIn
 import { useInvalidateTransactions } from "@/lib/queries/useTransactionsQuery";
 import { queryKeys } from "@/lib/queryKeys";
 import { ROUTES } from "@/lib/routes";
+import { prefetchClientPageBootstrap } from "@/features/clients/hooks/useClientPageBootstrapQuery";
 import { setInitialClientForDetail } from "@/features/clients/initialClientForDetail";
+import { prefetchSupplierPageBootstrap } from "@/features/suppliers/hooks/useSupplierPageBootstrapQuery";
 import { setInitialSupplierForDetail } from "@/features/suppliers/initialSupplierForDetail";
 import { setInitialDriverForDetail } from "@/features/drivers/initialDriverForDetail";
 import { setInitialVehicleForDetail } from "@/features/vehicles/initialVehicleForDetail";
@@ -374,6 +376,12 @@ export function FinanceScreen() {
     () => allTripsForLedger.filter(tripMatchesFinanceDate),
     [allTripsForLedger, tripMatchesFinanceDate],
   );
+  const financeFilteredTripsForSupplierAgg = useMemo(() => {
+    const byId = new Map(
+      financeFilteredTripsWhereOrgIsSupplier.map((t) => [t.id, t]),
+    );
+    return financeFilteredAllTripsForLedger.map((t) => byId.get(t.id) ?? t);
+  }, [financeFilteredAllTripsForLedger, financeFilteredTripsWhereOrgIsSupplier]);
 
   const financeTripIdsForAdjustments = useMemo(() => {
     const ids = new Set<string>();
@@ -937,7 +945,7 @@ export function FinanceScreen() {
     if (financeSubTab === "suppliers") {
       const { rows } = aggregateSuppliers(
         supplierRows,
-        financeFilteredAllTripsForLedger,
+        financeFilteredTripsForSupplierAgg,
         ledgerRows,
         financeFilteredTripsWhereOrgIsClient,
         tripPartyMap,
@@ -1092,17 +1100,20 @@ export function FinanceScreen() {
       subTab: FinanceSubTab,
     ) => {
       // aggregateCustomers.ts synthesizes `ledger-party-*` ids for parties that only appear in the
-      // ledger (no row in `clients`). That id isn't a real client id, so routing to /client/[id]
+      // ledger (no row in `clients`), and `unlinked:*` ids for trips whose client couldn't be
+      // resolved to any client id at all. Neither is a real client id, so routing to /client/[id]
       // sends it to a backend RPC expecting a UUID, which fails and renders "Client not found."
       // Fall through to the in-memory overlay below instead, which matches by name/ledger data only.
-      const isLedgerOnlyCustomer = data.id.startsWith("ledger-party-");
+      const isLedgerOnlyCustomer =
+        data.id.startsWith("ledger-party-") || data.id.startsWith("unlinked:");
       if (entityType === "CLIENT" && subTab === "customers" && !isLedgerOnlyCustomer) {
         // Stash the already-loaded ClientRow for Client Detail's first paint —
         // seed only, ClientDetailScreen still fetches the authoritative bundle.
         const seed = clientRows.find((c) => c.id === data.id);
         if (seed) setInitialClientForDetail(seed);
+        void prefetchClientPageBootstrap(queryClient, currentOrganization?.id, data.id);
         router.push(
-          ROUTES.clientDetail(data.id, "cash") as Parameters<
+          ROUTES.clientDetail(data.id, "trips") as Parameters<
             typeof router.push
           >[0],
         );
@@ -1112,8 +1123,9 @@ export function FinanceScreen() {
       if (entityType === "SUPPLIER" && subTab === "suppliers" && !isDcoCounterparty) {
         const seed = supplierRows.find((s) => s.id === data.id);
         if (seed) setInitialSupplierForDetail(seed);
+        void prefetchSupplierPageBootstrap(queryClient, currentOrganization?.id, data.id);
         router.push(
-          ROUTES.supplierDetail(data.id, "cash") as Parameters<
+          ROUTES.supplierDetail(data.id, "trips") as Parameters<
             typeof router.push
           >[0],
         );
@@ -1131,7 +1143,7 @@ export function FinanceScreen() {
         const seed = driverRows.find((d) => d.id === data.id);
         if (seed) setInitialDriverForDetail(seed);
         router.push(
-          ROUTES.driverDetail(data.id, "ledger") as Parameters<
+          ROUTES.driverDetail(data.id, "trips") as Parameters<
             typeof router.push
           >[0],
         );
@@ -1139,7 +1151,7 @@ export function FinanceScreen() {
       }
       setSelectedEntity({ data, entityType, subTab });
     },
-    [router, clientRows, supplierRows, driverRows, vehicleRows],
+    [router, clientRows, supplierRows, driverRows, vehicleRows, queryClient, currentOrganization?.id],
   );
 
   const supplierPartyOptions = useMemo(

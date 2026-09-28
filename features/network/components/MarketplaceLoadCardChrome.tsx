@@ -31,11 +31,13 @@ export function MarketplaceRouteGrid({
     <View style={styles.routeGrid}>
       <View style={styles.routeCol}>
         <Text style={styles.routeLabel}>{pickupLabel}</Text>
-        <RouteEndpointStack
-          value={pickup}
-          primaryStyle={styles.routeCity}
-          secondaryStyle={styles.routeState}
-        />
+        <View style={styles.routeStack}>
+          <RouteEndpointStack
+            value={pickup}
+            primaryStyle={styles.routeCity}
+            secondaryStyle={styles.routeState}
+          />
+        </View>
       </View>
       <View style={styles.routeSep} pointerEvents="none" accessibilityElementsHidden>
         <View style={styles.routeSepLine} />
@@ -44,12 +46,14 @@ export function MarketplaceRouteGrid({
       </View>
       <View style={[styles.routeCol, styles.routeColEnd]}>
         <Text style={[styles.routeLabel, styles.routeLabelEnd]}>{dropLabel}</Text>
-        <RouteEndpointStack
-          value={drop}
-          align="end"
-          primaryStyle={styles.routeCity}
-          secondaryStyle={styles.routeState}
-        />
+        <View style={[styles.routeStack, styles.routeStackEnd]}>
+          <RouteEndpointStack
+            value={drop}
+            align="end"
+            primaryStyle={styles.routeCity}
+            secondaryStyle={styles.routeState}
+          />
+        </View>
       </View>
     </View>
   );
@@ -116,6 +120,9 @@ const styles = StyleSheet.create({
   }),
   routeCol: Platform.select({
     web: {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "flex-start",
       minWidth: 0,
       maxWidth: "100%",
     } as ViewStyle,
@@ -128,6 +135,15 @@ const styles = StyleSheet.create({
     },
   }),
   routeColEnd: {
+    alignItems: "flex-end",
+  },
+  routeStack: {
+    width: "100%",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 1,
+  },
+  routeStackEnd: {
     alignItems: "flex-end",
   },
   routeSep: {

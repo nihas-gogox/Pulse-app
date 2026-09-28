@@ -131,6 +131,8 @@ export async function awardMarketBid(bidId: string): Promise<{
 export async function createMarketTripAfterFeePayment(
   bidId: string,
 ): Promise<{ error: Error | null; tripId: string | null }> {
+  await supabase().rpc('settle_marketplace_fee_as_cash', { p_bid_id: bidId });
+
   const { data, error } = await supabase().rpc('create_market_trip_after_fee_payment', {
     p_bid_id: bidId,
   });
@@ -236,6 +238,38 @@ export async function createTestMarketplaceFeeOrder(
  * "my current attempt on this bid"; the server derives the rest and calls
  * the same confirm_marketplace_fee_payment() Razorpay itself uses.
  */
+export async function settleMarketplaceFeeAsCash(
+  bidId: string,
+): Promise<{ error: Error | null }> {
+  const { error } = await supabase().rpc('settle_marketplace_fee_as_cash', {
+    p_bid_id: bidId,
+  });
+  if (error) return { error: new Error(error.message) };
+  return { error: null };
+}
+
+export async function settleMarketplaceFeeAsCashForIndent(
+  indentId: string,
+): Promise<{ error: Error | null }> {
+  const { error } = await supabase().rpc('settle_marketplace_fee_as_cash_for_indent', {
+    p_indent_id: indentId,
+  });
+  if (error) {
+    const missing =
+      error.code === 'PGRST202' ||
+      /could not find the function|does not exist/i.test(error.message);
+    if (missing) return { error: null };
+    return { error: new Error(error.message) };
+  }
+  return { error: null };
+}
+
+export function marketplaceFeeGateSatisfied(
+  status: FeePaymentStatus | null | undefined,
+): boolean {
+  return status === 'paid' || status === 'not_required';
+}
+
 export async function simulateTestMarketplaceFeePayment(
   bidId: string,
   outcome: 'paid' | 'failed',

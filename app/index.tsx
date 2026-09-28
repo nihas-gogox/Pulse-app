@@ -6,14 +6,18 @@ import { tGlobal } from '@/contexts/LanguageContext';
 import { useIsOnline } from '@/contexts/NetworkContext';
 import {
   claimIndexBootRedirect,
+  consumeFreshSignInLanding,
   getBrowserLocation,
   hasIndexBootRedirected,
   isPastIndexBootPath,
+  isWorkspaceSidebarRoute,
+  peekFreshSignInLanding,
   resetIndexBootRedirect,
+  resolveSignedInHomeRoute,
   resolveWebRefreshHref,
 } from '@/lib/indexBootRedirect.util';
 import { getLastRestorableRoute } from '@/lib/lastRoute';
-import { preloadTabForRoute } from '@/lib/preloadRoutes';
+import { preloadPulseLoadsRoute, preloadTabForRoute } from '@/lib/preloadRoutes';
 import {
   hydrateSignupFlowFlags,
   isBusinessSignupBrandingActiveSync,
@@ -26,7 +30,10 @@ import {
   setOwnerBusinessProfileRequired,
 } from '@/lib/onboarding/incompleteOwnerOrg.util';
 import { hasPendingOAuthMetadata } from '@/features/auth/services/auth.service';
-import { DEFAULT_DRIVER_ROUTE } from '@/lib/routes';
+import { useComplianceProductEnabled } from '@/features/tripCompliance/hooks/useComplianceProductEnabled';
+import { DEFAULT_DRIVER_ROUTE, ROUTES } from '@/lib/routes';
+import { useMemberAccess } from '@/lib/useMemberAccess';
+import { useMemberCapabilities } from '@/lib/useMemberCapabilities';
 import {
   finalizeSuiteNavigationIntent,
   isSuiteExternalAppPath,
@@ -47,7 +54,46 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+function warmHomeRoute(route: string): void {
+  if (route === ROUTES.PULSE_LOADS) {
+    preloadPulseLoadsRoute();
+    return;
+  }
+  preloadTabForRoute(route);
+}
+
 export default function Index() {
+  const { sessionAttached } = useAuth();
+  if (!sessionAttached) {
+    return <IndexBoot homeRoute={null} homeReady />;
+  }
+  return <AuthenticatedIndexBoot />;
+}
+
+function AuthenticatedIndexBoot() {
+  const memberAccess = useMemberCapabilities();
+  const { can: canSurface, isLoading: surfaceLoading } = useMemberAccess();
+  const { enabled: complianceEnabled, isLoading: productsLoading } =
+    useComplianceProductEnabled();
+  const homeReady =
+    !memberAccess.isLoading && !surfaceLoading && !productsLoading;
+  const homeRoute = resolveSignedInHomeRoute({
+    trips: memberAccess.tripops,
+    loadCenter: homeReady && canSurface('tripops.pulse_loads'),
+    finance: memberAccess.finance,
+    compliance: homeReady && complianceEnabled && canSurface('trip_compliance.tab'),
+    network: memberAccess.sales,
+  });
+  return <IndexBoot homeRoute={homeRoute} homeReady={homeReady} />;
+}
+
+function IndexBoot({
+  homeRoute,
+  homeReady,
+}: {
+  homeRoute: string | null;
+  homeReady: boolean;
+}) {
   const insets = useSafeAreaInsets();
   const isOnline = useIsOnline();
   const { user, profile, loading, restoreError, refreshSession, clearRestoreError } = useAuth();
@@ -146,6 +192,7 @@ export default function Index() {
         // Policy Actor owns redirect to /driver-signup.
         return;
       }
+      consumeFreshSignInLanding();
       if (!claimIndexBootRedirect(uid)) return;
       logRouteDecision('redirect_driver_root', { uid, pathname });
       router.replace(DEFAULT_DRIVER_ROUTE as '/');
@@ -154,7 +201,8 @@ export default function Index() {
 
     if (hasIndexBootRedirected(uid)) return;
 
-    if (!claimIndexBootRedirect(uid)) return;
+    const freshSignIn = peekFreshSignInLanding();
+    if (freshSignIn && !homeReady) return;
 
     void (async () => {
       try {
@@ -177,13 +225,30 @@ export default function Index() {
       } catch {
         // Fall through to normal tab redirect
       }
-      void getLastRestorableRoute().then((route) => {
-        preloadTabForRoute(route);
-        logRouteDecision('redirect_dispatcher_last_route', { uid, pathname, route });
-        router.replace(route as '/');
-      });
+      const restored = freshSignIn ? null : await getLastRestorableRoute();
+      const openHome =
+        freshSignIn || (restored != null && isWorkspaceSidebarRoute(restored));
+      if (openHome && !homeReady) return;
+      if (!claimIndexBootRedirect(uid)) return;
+      if (openHome && homeRoute) {
+        consumeFreshSignInLanding();
+        warmHomeRoute(homeRoute);
+        logRouteDecision('redirect_signed_in_home', {
+          uid,
+          pathname,
+          route: homeRoute,
+          freshSignIn,
+        });
+        router.replace(homeRoute as '/');
+        return;
+      }
+      consumeFreshSignInLanding();
+      const route = restored ?? (await getLastRestorableRoute());
+      warmHomeRoute(route);
+      logRouteDecision('redirect_dispatcher_last_route', { uid, pathname, route });
+      router.replace(route as '/');
     })();
-  }, [uid, profile, loading, pathname, router, isFocused, brandingGateHydrated, returnTo]);
+  }, [uid, profile, loading, pathname, router, isFocused, brandingGateHydrated, returnTo, homeReady, homeRoute]);
 
   const splashVariant = useMemo(() => {
     if (loading) return 'session' as const;

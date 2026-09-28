@@ -1,6 +1,7 @@
 import { useOptionalOrganization } from "@/contexts/OrganizationContext";
 import { AwardedIndentDeployModal } from "@/features/indents/components/AwardedIndentDeployModal";
 import { AwardedIndentDeployPeek } from "@/features/indents/components/AwardedIndentDeployPeek";
+import { setInitialIndentForDetail } from "@/features/indents/initialIndentForDetail";
 import { buildPendingAwardedDeployQueue } from "@/features/indents/utils/pendingAwardedDeploy.util";
 import {
   clearDeploySnooze,
@@ -296,6 +297,7 @@ export function AwardedIndentDeployModalProvider({ children }: { children: React
   const handleAssign = useCallback(() => {
     if (!activeItem) return;
     const indentId = activeItem.indent.id;
+    setInitialIndentForDetail(activeItem.indent);
     markQueueLaterToPeek();
     setDeployFlowIndentId(indentId);
     router.push(

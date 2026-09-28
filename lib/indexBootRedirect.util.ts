@@ -17,6 +17,111 @@ export function claimIndexBootRedirect(uid: string): boolean {
 
 export function resetIndexBootRedirect(): void {
   bootRedirectUid = null;
+  freshSignInLanding = false;
+  writeFreshSignInStorage(false);
+}
+
+/**
+ * Set when email or OAuth sign-in has no explicit product deep link.
+ * Index consumes it once and opens the member's top-nav page instead of
+ * the last Network hub or workspace sidebar.
+ * sessionStorage survives the OAuth full-page hop into `/`.
+ */
+const FRESH_SIGN_IN_KEY = 'app:fresh_sign_in_landing';
+let freshSignInLanding = false;
+
+function readFreshSignInStorage(): boolean {
+  try {
+    if (typeof sessionStorage === 'undefined') return false;
+    return sessionStorage.getItem(FRESH_SIGN_IN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeFreshSignInStorage(pending: boolean): void {
+  try {
+    if (typeof sessionStorage === 'undefined') return;
+    if (pending) sessionStorage.setItem(FRESH_SIGN_IN_KEY, '1');
+    else sessionStorage.removeItem(FRESH_SIGN_IN_KEY);
+  } catch {
+    // Private mode / unavailable
+  }
+}
+
+export function markFreshSignInLanding(): void {
+  freshSignInLanding = true;
+  writeFreshSignInStorage(true);
+}
+
+export function peekFreshSignInLanding(): boolean {
+  return freshSignInLanding || readFreshSignInStorage();
+}
+
+export function consumeFreshSignInLanding(): boolean {
+  const pending = peekFreshSignInLanding();
+  freshSignInLanding = false;
+  writeFreshSignInStorage(false);
+  return pending;
+}
+
+function pathAndSearch(href: string): { path: string; search: string } {
+  const raw = (href ?? '').trim();
+  const hashless = raw.split('#')[0] ?? raw;
+  const qIndex = hashless.indexOf('?');
+  const path = qIndex >= 0 ? hashless.slice(0, qIndex) : hashless;
+  const search = qIndex >= 0 ? hashless.slice(qIndex + 1) : '';
+  return { path, search };
+}
+
+/**
+ * Destinations that are the app shell, not a top-nav work page.
+ * Fresh sign-in replaces these with the member's accessible top-nav page.
+ */
+export function isPostAuthShellLanding(href: string): boolean {
+  const { path, search } = pathAndSearch(href);
+  if (!path || path === '/') return true;
+  if (path === '/network' || path === '/(tabs)/network') return true;
+  if (path.includes('/network/hub')) {
+    const tab = new URLSearchParams(search).get('tab');
+    return !tab || tab === 'profile' || tab === 'details';
+  }
+  if (path === '/workspace' || path.endsWith('/workspace')) {
+    return !new URLSearchParams(search).get('panel');
+  }
+  return false;
+}
+
+/**
+ * Top-nav pages a member can open after sign-in.
+ * Order is the landing priority: a work surface first, Network hub last.
+ */
+export type SignedInHomeAccess = {
+  trips: boolean;
+  loadCenter: boolean;
+  finance: boolean;
+  compliance: boolean;
+  network: boolean;
+};
+
+/**
+ * First top-nav page this member can open.
+ * Network is the fallback — it is the hub, not the default work surface.
+ */
+export function resolveSignedInHomeRoute(access: SignedInHomeAccess): string {
+  if (access.trips) return '/(tabs)/trips';
+  if (access.loadCenter) return '/pulse-loads';
+  if (access.finance) return '/(tabs)/finance';
+  if (access.compliance) return '/compliance';
+  if (access.network) return '/(tabs)/network';
+  return '/(tabs)/trips';
+}
+
+/** Workspace overlay with no panel — the sidebar hub, not a detail page. */
+export function isWorkspaceSidebarRoute(href: string): boolean {
+  const { path, search } = pathAndSearch(href);
+  if (path !== '/workspace' && !path.endsWith('/workspace')) return false;
+  return !new URLSearchParams(search).get('panel');
 }
 
 /**

@@ -20,3 +20,21 @@ export function nextMarketplacePageOffset(
   if (pageLength < pageSize) return undefined;
   return offset + pageSize;
 }
+
+/** Visible prefix for a lazy-loaded list. The page size never replaces the total. */
+export function takeVisibleLoadPage<T>(
+  rows: readonly T[],
+  visibleCount: number,
+  pageSize: number = MARKETPLACE_LOAD_PAGE_SIZE,
+): T[] {
+  const size = Math.max(pageSize, visibleCount);
+  return rows.slice(0, size);
+}
+
+export function growVisibleLoadCount(
+  visibleCount: number,
+  total: number,
+  pageSize: number = MARKETPLACE_LOAD_PAGE_SIZE,
+): number {
+  return Math.min(total, visibleCount + pageSize);
+}

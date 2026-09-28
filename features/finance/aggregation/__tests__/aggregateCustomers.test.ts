@@ -43,3 +43,81 @@ describe('aggregateCustomers — client paid-amount double-count regression', ()
     expect(rows[0].received).toBe(1000);
   });
 });
+
+describe('aggregateCustomers — unresolved-client trips are no longer silently dropped', () => {
+  const client: ClientLike = { id: 'client-1', name: 'Acme Shipping' };
+
+  it('surfaces a trip whose client_id is not in the loaded clients list as its own row instead of dropping it', () => {
+    // client-1 is loaded; client-2 is a real client id (e.g. archived, cross-org, RLS-filtered)
+    // that never made it into the `clients` array passed in.
+    const knownTrip: TripForCustomer = {
+      id: 'trip-1',
+      client_id: client.id,
+      client_name: client.name,
+      client_price: 1000,
+      amount_paid: 0,
+    };
+    const orphanTrip: TripForCustomer = {
+      id: 'trip-2',
+      client_id: 'client-2',
+      client_name: 'Ghost Client Co',
+      client_price: 500,
+      amount_paid: 0,
+    };
+
+    const { rows, totals } = aggregateCustomers([client], [knownTrip, orphanTrip], []);
+
+    expect(rows).toHaveLength(2);
+    const orphanRow = rows.find((r) => r.name === 'Ghost Client Co');
+    expect(orphanRow).toBeDefined();
+    expect(orphanRow?.subline).toBe('UNLINKED');
+    expect(orphanRow?.trips).toBe(1);
+    expect(orphanRow?.billed).toBe(500);
+    expect(orphanRow?.pending).toBe(500);
+    // Totals must include the orphaned trip too, not just the known client.
+    expect(totals.totalIn).toBe(1500);
+  });
+
+  it('surfaces a trip with no client_id and no name match against any loaded client', () => {
+    const unmatchedTrip: TripForCustomer = {
+      id: 'trip-3',
+      client_id: null,
+      client_name: 'Totally Unknown Shipper',
+      client_price: 750,
+      amount_paid: 0,
+    };
+
+    const { rows } = aggregateCustomers([client], [unmatchedTrip], []);
+
+    expect(rows).toHaveLength(2);
+    const unlinkedRow = rows.find((r) => r.name === 'Totally Unknown Shipper');
+    expect(unlinkedRow).toBeDefined();
+    expect(unlinkedRow?.subline).toBe('UNLINKED');
+    expect(unlinkedRow?.trips).toBe(1);
+    expect(unlinkedRow?.billed).toBe(750);
+  });
+
+  it('groups multiple unresolved trips with the same client_name into one row', () => {
+    const tripA: TripForCustomer = {
+      id: 'trip-4',
+      client_id: null,
+      client_name: 'Repeat Shipper',
+      client_price: 100,
+      amount_paid: 0,
+    };
+    const tripB: TripForCustomer = {
+      id: 'trip-5',
+      client_id: null,
+      client_name: 'Repeat Shipper',
+      client_price: 200,
+      amount_paid: 0,
+    };
+
+    const { rows } = aggregateCustomers([client], [tripA, tripB], []);
+
+    const grouped = rows.find((r) => r.name === 'Repeat Shipper');
+    expect(grouped).toBeDefined();
+    expect(grouped?.trips).toBe(2);
+    expect(grouped?.billed).toBe(300);
+  });
+});

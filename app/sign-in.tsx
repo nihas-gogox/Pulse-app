@@ -20,7 +20,8 @@ import { signUpMobileContentInner } from '@/features/auth/signup/signUpMobile.st
 import { PULSE_SIGNUP, PULSE_SIGNUP_RADIUS } from '@/features/auth/signup/signUpPulseTheme';
 import { createPulseSignUpTextStyles, PULSE_SIGNUP_TYPO } from '@/features/auth/signup/signUpTypography';
 import { SIGN_IN_BRAND } from '@/lib/auth/signInContent';
-import { navigateAfterSuiteAuth } from '@/lib/suite/suiteAuth';
+import { markFreshSignInLanding, isPostAuthShellLanding } from '@/lib/indexBootRedirect.util';
+import { navigateAfterSuiteAuth, normalizeSuiteReturnTo } from '@/lib/suite/suiteAuth';
 import { suiteSignInCopy } from '@/lib/suite/suiteAuthContent';
 import { validateEmailRequired } from '@/lib/emailValidation';
 import { getKeepSignedIn } from '@/lib/keepSignedInPreference';
@@ -28,7 +29,7 @@ import { ROUTES } from '@/lib/routes';
 import { useIsDesktopWebInput } from '@/lib/useIsDesktopWebInput';
 import { containsNullByte, validatePasswordForSignIn } from '@/lib/validation';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { useLocalSearchParams, useRootNavigationState, useRouter, type Href } from 'expo-router';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -65,6 +66,8 @@ function getOAuthErrorFromParams(params: { oauth_error?: string | string[] }): s
 export default function SignIn() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
+  const rootNavReady = Boolean(rootNavigationState?.key);
   const params = useLocalSearchParams<{
     email?: string | string[];
     oauth_error?: string | string[];
@@ -116,9 +119,18 @@ export default function SignIn() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
-    navigateAfterSuiteAuth(returnTo, (href) => router.replace(href as Href));
-  }, [user, router, returnTo]);
+    if (!user || !rootNavReady) return;
+    const target = normalizeSuiteReturnTo(returnTo);
+    const shellLanding = isPostAuthShellLanding(target);
+    if (shellLanding) markFreshSignInLanding();
+    navigateAfterSuiteAuth(shellLanding ? '/' : returnTo, (href) => {
+      try {
+        router.replace(href as Href);
+      } catch {
+        // Slot not mounted yet — retry when rootNavReady / user deps change.
+      }
+    });
+  }, [user, router, returnTo, rootNavReady]);
 
   useEffect(() => {
     const next = getEmailFromParams(params);

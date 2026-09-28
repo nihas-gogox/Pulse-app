@@ -23,6 +23,7 @@ export function aggregateSuppliersFromRpc(
   const rows: FinancialRowData[] = [];
   let totalPayables = 0;
   let totalUnsettled = 0;
+  const loadedSupplierIds = new Set(suppliers.map((s) => s.id));
 
   for (let i = 0; i < suppliers.length; i++) {
     const s = suppliers[i];
@@ -48,6 +49,26 @@ export function aggregateSuppliersFromRpc(
       is_integrated: s.supplier_type === 'integrated',
       linked_organization_id: s.linked_organization_id ?? undefined,
       contactPerson: (s.contact_person ?? '').trim() || undefined,
+    });
+  }
+
+  // get_supplier_ledger_aggregation can return a supplier_id that fell outside the loaded
+  // (active-only) `suppliers` roster — same "counted internally, never emitted" gap as
+  // aggregateCustomersFromRpc. Surface it as its own row instead of dropping the payable.
+  for (const r of rpcRows) {
+    if (loadedSupplierIds.has(r.supplier_id)) continue;
+    totalPayables += r.due;
+    totalUnsettled += r.unsettled;
+    rows.push({
+      id: r.supplier_id,
+      name: 'Unknown Supplier',
+      subline: 'UNLINKED',
+      trips: r.trips_count,
+      sourced: r.trips_count,
+      due: r.unsettled,
+      payables: r.due,
+      paid: r.paid,
+      sales: r.due,
     });
   }
 

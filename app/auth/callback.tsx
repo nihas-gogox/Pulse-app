@@ -2,6 +2,7 @@ import { CenteredLoadingView } from "@/components/CenteredLoadingView";
 import Theme from "@/constants/Theme";
 import * as authService from "@/features/auth/services/auth.service";
 import { supabase } from "@/lib/supabase";
+import { isPostAuthShellLanding, markFreshSignInLanding } from "@/lib/indexBootRedirect.util";
 import { ROUTES } from "@/lib/routes";
 import {
   buildSuiteSignInHrefWithOAuthError,
@@ -120,7 +121,12 @@ export default function AuthCallback() {
             peekSuiteNavigationIntentSync() ?? (await peekSuiteNavigationIntent());
           if (pending?.returnTo) {
             const target = normalizeSuiteReturnTo(pending.returnTo);
-            if (!tryCompleteOAuthPopup(target)) {
+            if (isPostAuthShellLanding(target)) {
+              markFreshSignInLanding();
+              if (!tryCompleteOAuthPopup(ROUTES.INDEX)) {
+                setRedirectTo(ROUTES.INDEX as Href);
+              }
+            } else if (!tryCompleteOAuthPopup(target)) {
               if (isSuiteExternalAppPath(target)) {
                 navigateAfterSuiteAuth(target);
               } else {
@@ -130,6 +136,7 @@ export default function AuthCallback() {
             await finalizeSuiteNavigationIntent();
             return;
           }
+          markFreshSignInLanding();
           if (!tryCompleteOAuthPopup(ROUTES.INDEX)) {
             setRedirectTo(ROUTES.INDEX as Href);
           }

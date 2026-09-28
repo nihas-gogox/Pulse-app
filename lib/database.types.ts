@@ -14824,6 +14824,14 @@ export type Database = {
         }
         Returns: Json
       }
+      settle_marketplace_fee_as_cash: {
+        Args: { p_bid_id: string }
+        Returns: Json
+      }
+      settle_marketplace_fee_as_cash_for_indent: {
+        Args: { p_indent_id: string }
+        Returns: Json
+      }
       confirm_to_accounting_books: {
         Args: { p_message_id: string; p_org_id: string }
         Returns: Json
@@ -16021,6 +16029,10 @@ export type Database = {
         Args: { p_client_id: string; p_org_id: string }
         Returns: Json
       }
+      get_client_page_bootstrap: {
+        Args: { p_client_id: string; p_org_id: string }
+        Returns: Json
+      }
       get_client_details: { Args: { p_client_id: string }; Returns: Json }
       get_client_management_bundle: {
         Args: { p_client_id: string; p_org_id: string }
@@ -17045,6 +17057,10 @@ export type Database = {
         Args: { p_org_id: string; p_supplier_id: string }
         Returns: Json
       }
+      get_supplier_page_bootstrap: {
+        Args: { p_org_id: string; p_supplier_id: string }
+        Returns: Json
+      }
       get_supplier_monthly_analytics: {
         Args: {
           p_months_back?: number
@@ -17833,6 +17849,15 @@ export type Database = {
           vehicle_number: string
         }[]
       }
+      list_marketplace_search_lanes: {
+        Args: { p_org_id: string }
+        Returns: {
+          drop_location: string
+          load_count: number
+          pickup_area: string
+          vehicle_type: string
+        }[]
+      }
       list_my_org_market_bids: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: {
@@ -17877,7 +17902,14 @@ export type Database = {
         }[]
       }
       list_open_marketplace_loads_for_org: {
-        Args: { p_limit?: number; p_org_id: string }
+        Args: {
+          p_limit?: number
+          p_org_id: string
+          p_offset?: number
+          p_pickup?: string
+          p_drop?: string
+          p_vehicle_type?: string
+        }
         Returns: {
           circulation_target: string
           created_at: string

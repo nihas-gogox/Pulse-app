@@ -2,7 +2,7 @@
  * Full-screen indent deploy — asset and aggregate allocation wizards.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Platform, StyleSheet, Switch, Text, useWindowDimensions, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { CenteredLoadingView } from "@/components/CenteredLoadingView";
@@ -15,27 +15,46 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { IndentAggregateAllocationStep } from "@/features/indents/components/IndentAggregateAllocationStep";
 import { IndentAllocationConfirmSummary } from "@/features/indents/components/IndentAllocationConfirmSummary";
+import { IndentAllocationMarketplaceFeePanel } from "@/features/indents/components/IndentAllocationMarketplaceFeePanel";
+import { IndentAllocationSourceStep } from "@/features/indents/components/IndentAllocationSourceStep";
 import { IndentAllocationTripDetailsStep } from "@/features/indents/components/IndentAllocationTripDetailsStep";
+import { IndentAssetAllocationStep } from "@/features/indents/components/IndentAssetAllocationStep";
+import { listMyOrgMarketBids } from "@/features/network/services/findLoadsForOrg.service";
+import {
+  marketplaceFeeGateSatisfied,
+  settleMarketplaceFeeAsCash,
+} from "@/features/network/services/marketBids.service";
+import { showAppAlert } from "@/lib/appAlert";
+import { queryKeys } from "@/lib/queryKeys";
+import { STALE } from "@/lib/queryClient";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IndentDeployOtpPanel } from "@/features/indents/components/IndentDeployOtpPanel";
 import {
   AssignmentFlowFooter,
   AssignmentFlowShell,
-  SupplyAllocationModeBar,
   getIndentAllocationWizardSteps,
   indentAllocationStepSubtitle,
+  indentAllocationStepBlockReason,
   isIndentAllocationStepComplete,
   type IndentAllocationStepId,
 } from "@/features/allocation";
-import { AssetRosterPickers } from "@/features/network/components/StaffHandshakeModal";
 import { useStaffHandshake } from "@/features/network/hooks/useStaffHandshake";
+import {
+  seedDeployLoadTypeFromIndent,
+  seedDeployPickupDateFromIndent,
+  seedDeployVehicleTypeFromIndent,
+  seedDeployWeightTonsFromIndent,
+} from "@/features/indents/utils/indentDeployTripDetails.util";
 import { formatIsoDateForDisplay, isValidIsoDateString } from "@/lib/dateIso.util";
+import Layout from "@/constants/Layout";
 import Theme from "@/constants/Theme";
+import { ListTodo } from "lucide-react-native";
+import { createTripDesktopStyles as tripS } from "@/features/trips/components/add-trip/createTripDesktop.styles";
 import { resolveMarketIndentShipperLabel } from "@/features/indents/utils/indentPartyDisplay.util";
 import { ROUTES } from "@/lib/routes";
 import {
   useClientsQuery,
   useDriversQuery,
-  useInvalidateIndents,
   useMyDirectQuotesQuery,
   useSuppliersQuery,
   useVisibleIndentQuery,
@@ -55,16 +74,39 @@ export interface IndentAllocationFlowScreenProps {
 
 export function IndentAllocationFlowScreen({
   indentId,
-  initialFocus = "driver",
+  initialFocus,
   onBack,
 }: IndentAllocationFlowScreenProps) {
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id ?? null;
-  const invalidateIndents = useInvalidateIndents();
+  const queryClient = useQueryClient();
+  const [feeSettling, setFeeSettling] = useState(false);
   const [step, setStep] = useState<IndentAllocationStepId>(
-    initialFocus === "vehicle" ? "vehicle" : "driver",
+    initialFocus ? "fleet" : "source",
+  );
+
+  const marketFeeQ = useQuery({
+    queryKey: queryKeys.findLoadsForOrg.myBids(orgId ?? ""),
+    queryFn: async () => {
+      const { bids, error } = await listMyOrgMarketBids(orgId as string, 80);
+      if (error) throw error;
+      return bids;
+    },
+    enabled: Boolean(orgId) && step === "commodity",
+    staleTime: STALE.frequent,
+  });
+  const acceptedMarketBid = useMemo(
+    () =>
+      (marketFeeQ.data ?? []).find(
+        (bid) => bid.indent_id === indentId && bid.status === "accepted",
+      ) ?? null,
+    [marketFeeQ.data, indentId],
+  );
+  const marketplaceFeeBlocking = Boolean(
+    acceptedMarketBid &&
+      !marketplaceFeeGateSatisfied(acceptedMarketBid.fee_payment_status),
   );
 
   const {
@@ -130,17 +172,17 @@ export function IndentAllocationFlowScreen({
     return Object.keys(map).length > 0 ? map : undefined;
   }, [suppliers, chainAncestors, orgId, shipperOrgId]);
 
+  // refreshAfterDeploy (inside useStaffHandshake's finishDeploySuccess, which runs before
+  // this callback) already invalidates indents with bustPartnerSupplierMarket — doing it
+  // again here duplicated that round trip (and its background supplier-market refresh
+  // chain) on every successful deploy.
   const handshake = useStaffHandshake({
     orgId,
     myQuotes,
-    onSuccess: () => {
-      if (orgId) {
-        invalidateIndents(orgId, { bustPartnerSupplierMarket: true });
-      }
-    },
+    onSuccess: () => {},
   });
 
-  const { open, close, state, set, deployRoster, deployAdHoc, backFromOtp } = handshake;
+  const { open, close, state, set, deployRoster, deployAdHoc } = handshake;
   const {
     currentLoad,
     isDeploying,
@@ -166,6 +208,7 @@ export function IndentAllocationFlowScreen({
     deployTripIdForOtp,
     deployOtpExpiresAt,
   } = state;
+  const deploySucceeded = Boolean(deployTripIdForOtp);
 
   const flowSteps = useMemo(
     () =>
@@ -180,6 +223,7 @@ export function IndentAllocationFlowScreen({
   const isLastStep = stepIndex >= 0 && stepIndex === flowSteps.length - 1;
 
   const openedIndentKeyRef = useRef<string | null>(null);
+  const seededIndentKeyRef = useRef<string | null>(null);
   const closeRef = useRef(close);
   closeRef.current = close;
 
@@ -189,10 +233,51 @@ export function IndentAllocationFlowScreen({
     if (openedIndentKeyRef.current === openKey) return;
     openedIndentKeyRef.current = openKey;
     open(indent);
-    /** Asset deep-links only; aggregate first step is corrected by flowSteps sync. */
-    if (initialFocus === "vehicle") setStep("vehicle");
-    else if (initialFocus === "driver") setStep("driver");
-  }, [indent, open, initialFocus]);
+    /** Award “Assign driver/vehicle” deep-links skip source and open grouped fleet. */
+    if (initialFocus === "vehicle" || initialFocus === "driver") {
+      set.useAdHocDriver(false);
+      setStep("fleet");
+    } else {
+      setStep("source");
+    }
+  }, [indent, open, initialFocus, set]);
+
+  useEffect(() => {
+    if (!indent || !currentLoad || currentLoad.id !== indent.id) return;
+    const seedKey = [
+      indent.id,
+      indent.weight ?? "",
+      indent.vehicle_type ?? "",
+      indent.load_type ?? "",
+      indent.pickup_date ?? "",
+    ].join("|");
+    if (seededIndentKeyRef.current === seedKey) return;
+    seededIndentKeyRef.current = seedKey;
+    if (!deployWeightTons) {
+      const weight = seedDeployWeightTonsFromIndent(indent);
+      if (weight) set.deployWeightTons(weight);
+    }
+    if (!deployVehicleType) {
+      const vehicleType = seedDeployVehicleTypeFromIndent(indent);
+      if (vehicleType) set.deployVehicleType(vehicleType);
+    }
+    if (!deployLoadType) {
+      const loadType = seedDeployLoadTypeFromIndent(indent);
+      if (loadType) set.deployLoadType(loadType);
+    }
+    if (!deployPickupDate) {
+      const pickup = seedDeployPickupDateFromIndent(indent);
+      if (pickup) set.deployPickupDate(pickup);
+    }
+  }, [
+    indent,
+    currentLoad,
+    deployWeightTons,
+    deployVehicleType,
+    deployLoadType,
+    deployPickupDate,
+    set,
+  ]);
 
   /**
    * Seed the subcontract partner + rate from the indent's own award — but
@@ -254,8 +339,17 @@ export function IndentAllocationFlowScreen({
 
   useEffect(() => {
     if (!orgId || !indentId || indentPending) return;
+    if (deploySucceeded) return;
     if (!indent || indentError) onBack();
-  }, [orgId, indentId, indent, indentPending, indentError, onBack]);
+  }, [
+    orgId,
+    indentId,
+    indent,
+    indentPending,
+    indentError,
+    onBack,
+    deploySucceeded,
+  ]);
 
   // Defensive: a blocked supplier (this load's own shipper) must never survive
   // as the deploy target — clears it even if it was selected before this
@@ -269,23 +363,22 @@ export function IndentAllocationFlowScreen({
 
   useEffect(() => {
     if (flowSteps.some((s) => s.id === step)) return;
-    setStep(flowSteps[0]?.id ?? "driver");
+    setStep(flowSteps[0]?.id ?? "source");
   }, [flowSteps, step]);
-
-  useEffect(() => {
-    if (staffHandshakeAssignLater && !useAdHocDriver && step !== "commodity") {
-      setStep("commodity");
-    }
-  }, [staffHandshakeAssignLater, useAdHocDriver, step]);
 
   const advanceToRates = useCallback(() => {
     setStep("rates");
   }, []);
 
   const handleClose = useCallback(() => {
+    const createdTripId = deployTripIdForOtp;
+    if (createdTripId) {
+      router.replace(ROUTES.tripDetail(createdTripId));
+      return;
+    }
     close();
     onBack();
-  }, [close, onBack]);
+  }, [close, deployTripIdForOtp, onBack, router]);
 
   const selectedDriver = activeDrivers.find((d) => String(d.id) === assignDriverId);
   const driverLabel =
@@ -439,14 +532,31 @@ export function IndentAllocationFlowScreen({
         id: "driver",
         label: "Driver",
         value: assignDriverId ? driverLabel : "—",
-        onEdit: editable ? () => setStep("driver") : undefined,
+        onEdit: editable ? () => setStep("fleet") : undefined,
       });
       rows.push({
         id: "vehicle",
         label: "Vehicle",
         value:
           typeof assignVehicleId === "string" ? vehicleLabel : "—",
-        onEdit: editable ? () => setStep("vehicle") : undefined,
+          onEdit: editable ? () => setStep("fleet") : undefined,
+      });
+    }
+
+    if (acceptedMarketBid) {
+      const feeAmt = acceptedMarketBid.platform_fee_amount;
+      const paid = marketplaceFeeGateSatisfied(
+        acceptedMarketBid.fee_payment_status,
+      );
+      rows.push({
+        id: "marketplaceFee",
+        label: "Marketplace fee",
+        value:
+          feeAmt != null && feeAmt > 0
+            ? `${paid ? "Paid" : "Due"} · ₹${Number(feeAmt).toLocaleString("en-IN")}`
+            : paid
+              ? "Not required"
+              : "Due",
       });
     }
 
@@ -500,6 +610,7 @@ export function IndentAllocationFlowScreen({
     deployVehicleType,
     deployLoadType,
     deployWeightTons,
+    acceptedMarketBid,
   ]);
 
   const allocationContextRow = useMemo(() => {
@@ -587,21 +698,13 @@ export function IndentAllocationFlowScreen({
       return { left, right: null };
     }
 
-    const assetSteps = new Set<IndentAllocationStepId>([
-      "driver",
-      "vehicle",
-    ]);
-    if (assetSteps.has(step)) {
+    if (step === "fleet") {
       return {
         left,
         right: {
           label: "Driver",
           name:
-            assignDriverId && selectedDriver
-              ? driverLabel
-              : step === "driver"
-                ? "Select driver"
-                : "—",
+            assignDriverId && selectedDriver ? driverLabel : "Select driver",
           subtitle: selectedDriver
             ? [selectedDriver.phone, selectedDriver.email]
                 .filter(Boolean)
@@ -614,12 +717,12 @@ export function IndentAllocationFlowScreen({
           avatarSeed:
             (selectedDriver as { avatar_seed?: string | null })?.avatar_seed ??
             null,
-          onPress:
-            step !== "driver" && assignDriverId
-              ? () => setStep("driver")
-              : undefined,
         },
       };
+    }
+
+    if (step === "source") {
+      return { left, right: null };
     }
 
     return null;
@@ -656,12 +759,15 @@ export function IndentAllocationFlowScreen({
 
   const stepSubtitle = deployOtpCode
     ? "Share this code with the driver to claim the trip"
-    : indentAllocationStepSubtitle(step, useAdHocDriver);
+    : deploySucceeded
+      ? "Trip created. Open the trip or tap Done."
+      : indentAllocationStepSubtitle(step, useAdHocDriver);
 
   const footerSummary = useMemo(() => {
     if (deployOtpCode) return "";
     /** Final step: confirmation lives in the body, not the footer. */
     if (step === "commodity") return "";
+    if (step === "source") return useAdHocDriver ? "Aggregate" : "Asset fleet";
     if (useAdHocDriver) {
       if (step === "partner") return partnerLabel;
       if (step === "rates") return subcontractRate.trim() ? `₹${subcontractRate.trim()}` : "—";
@@ -670,8 +776,7 @@ export function IndentAllocationFlowScreen({
       if (step === "vehicleReg") return assignVehicleRegistration.trim() || "—";
       return partnerLabel;
     }
-    if (step === "vehicle") return `${driverLabel} · ${vehicleLabel}`;
-    if (step === "driver") return driverLabel;
+    if (step === "fleet") return `${driverLabel} · ${vehicleLabel}`;
     return `${driverLabel} · ${vehicleLabel}`;
   }, [
     deployOtpCode,
@@ -686,74 +791,142 @@ export function IndentAllocationFlowScreen({
     vehicleLabel,
   ]);
 
-  const goToModeFirstStep = useCallback(
-    (aggregate: boolean, assignLater: boolean) => {
-      const steps = getIndentAllocationWizardSteps({ aggregate, assignLater });
-      setStep(steps[0]?.id ?? (aggregate ? "partner" : "driver"));
-    },
-    [],
-  );
+  const payMarketplaceFeeCash = useCallback(async (): Promise<boolean> => {
+    if (!acceptedMarketBid) return true;
+    if (marketplaceFeeGateSatisfied(acceptedMarketBid.fee_payment_status)) {
+      return true;
+    }
+    setFeeSettling(true);
+    try {
+      const { error } = await settleMarketplaceFeeAsCash(acceptedMarketBid.id);
+      if (error) {
+        showAppAlert(
+          "Could not record fee",
+          error.message.includes("does not exist") ||
+            error.message.includes("Could not find the function")
+            ? "Cash settlement is not on the database yet. Apply the marketplace fee cash migration, then try again."
+            : error.message,
+        );
+        return false;
+      }
+      if (orgId) {
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.findLoadsForOrg.myBids(orgId),
+        });
+      }
+      return true;
+    } finally {
+      setFeeSettling(false);
+    }
+  }, [acceptedMarketBid, orgId, queryClient]);
 
   const handlePrimary = useCallback(() => {
-    if (deployOtpCode) {
+    if (deploySucceeded) {
       handleClose();
       return;
     }
-    if (!stepComplete) return;
+    if (!stepComplete) {
+      const blockState = {
+        assignDriverId,
+        assignVehicleId,
+        subcontractSupplierId,
+        subcontractRate,
+        aggregateDriverTrackingName,
+        aggregateDriverPhone,
+        assignVehicleRegistration,
+        tripDetailsReady,
+        aggregatePhoneInTrip,
+        aggregatePhoneLookupLoading,
+        aggregatePhoneMatches,
+        aggregatePhoneSelectedUserId,
+        staffHandshakeAssignLater,
+      };
+      showAppAlert(
+        isLastStep ? "Cannot convert" : "Finish this step",
+        indentAllocationStepBlockReason(step, blockState) ??
+          "This step is not finished.",
+      );
+      return;
+    }
     if (!isLastStep) {
       const next = flowSteps[stepIndex + 1];
       if (next) setStep(next.id);
       return;
     }
-    if (useAdHocDriver) {
-      void deployAdHoc();
-    } else {
-      void deployRoster();
-    }
+    void (async () => {
+      if (marketplaceFeeBlocking) {
+        const paid = await payMarketplaceFeeCash();
+        if (!paid) return;
+      }
+      if (useAdHocDriver) {
+        await deployAdHoc();
+      } else {
+        await deployRoster();
+      }
+    })();
   }, [
-    deployOtpCode,
+    deploySucceeded,
     stepComplete,
+    step,
+    assignDriverId,
+    assignVehicleId,
+    subcontractSupplierId,
+    subcontractRate,
+    aggregateDriverTrackingName,
+    aggregateDriverPhone,
+    assignVehicleRegistration,
+    tripDetailsReady,
+    aggregatePhoneInTrip,
+    aggregatePhoneLookupLoading,
+    aggregatePhoneMatches,
+    aggregatePhoneSelectedUserId,
+    staffHandshakeAssignLater,
     isLastStep,
     flowSteps,
     stepIndex,
+    marketplaceFeeBlocking,
+    payMarketplaceFeeCash,
     useAdHocDriver,
     deployAdHoc,
     deployRoster,
     handleClose,
   ]);
 
-  const primaryDisabled = deployOtpCode
+  const primaryDisabled = deploySucceeded
     ? false
-    : !stepComplete || isDeploying;
-
-  const primaryLabel = deployOtpCode
-    ? "Done"
     : isLastStep
-      ? "Convert to trip"
-      : "Continue";
+      ? isDeploying || feeSettling
+      : !stepComplete || isDeploying || feeSettling;
 
-  const showBack = !deployOtpCode && stepIndex > 0;
+  const primaryLabel = deploySucceeded
+    ? "Done"
+    : feeSettling
+      ? "Recording fee…"
+      : isLastStep && marketplaceFeeBlocking
+        ? "Pay fee & convert"
+        : isLastStep
+          ? "Convert to trip"
+          : "Continue";
+
+  const showBack = !deploySucceeded && stepIndex > 0;
 
   const handleBack = useCallback(() => {
-    if (deployOtpCode) {
-      backFromOtp();
+    if (deploySucceeded) {
+      handleClose();
       return;
     }
     const prev = flowSteps[stepIndex - 1];
     if (prev) setStep(prev.id);
-  }, [deployOtpCode, backFromOtp, flowSteps, stepIndex]);
+  }, [deploySucceeded, handleClose, flowSteps, stepIndex]);
 
   const pickupDateError =
     deployPickupDate && !isValidIsoDateString(deployPickupDate)
       ? "Use a valid date (YYYY-MM-DD)."
       : null;
 
-  const showModeBar =
-    !deployOtpCode &&
-    (step === "driver" ||
-      step === "vehicle" ||
-      step === "partner" ||
-      (staffHandshakeAssignLater && step === "commodity"));
+  const isCompactLayout = windowWidth < Layout.webDesktopMinWidth;
+
+  const showAssignLaterOnPartner = !deploySucceeded && step === "partner";
 
   const onAddPartner = useCallback(() => {
     handleClose();
@@ -780,11 +953,47 @@ export function IndentAllocationFlowScreen({
     step === "driverName" ||
     step === "vehicleReg";
 
+  const applySupplyMode = useCallback(
+    (aggregate: boolean) => {
+      set.useAdHocDriver(aggregate);
+      if (aggregate) {
+        set.assignDriverId(null);
+        set.assignVehicleId(undefined);
+      } else {
+        set.aggregateDriverPhone("");
+        set.aggregateDriverTrackingName("");
+        set.subcontractSupplierId(null);
+        set.subcontractRate("");
+        set.assignVehicleRegistration("");
+        set.aggregateDriverNameManualRef.current = false;
+      }
+    },
+    [set],
+  );
+
+  const applyAssignLater = useCallback(
+    (v: boolean) => {
+      set.staffHandshakeAssignLater(v);
+      if (v) {
+        set.assignDriverId(null);
+        set.assignVehicleId(undefined);
+        set.aggregateDriverPhone("");
+        set.aggregateDriverTrackingName("");
+        set.assignVehicleRegistration("");
+      }
+    },
+    [set],
+  );
+
   const hasFlowChrome =
     Boolean(allocationContextRow) ||
     priorSelections.length > 0 ||
-    showModeBar ||
+    showAssignLaterOnPartner ||
     (staffHandshakeAssignLater && step === "commodity");
+
+  if (state.closingToList) {
+    return null;
+  }
 
   if (!currentLoad) {
     return <CenteredLoadingView message="Loading allocation…" />;
@@ -795,7 +1004,13 @@ export function IndentAllocationFlowScreen({
       fullScreen
       fillBody={fillBodyStep}
       scrollBody={!fillBodyStep}
-      title={deployOtpCode ? "Trip claim code" : "Deploy load"}
+      title={
+        deployOtpCode
+          ? "Trip claim code"
+          : deploySucceeded
+            ? "Trip created"
+            : "Deploy load"
+      }
       subtitle={
         deployOtpCode
           ? "Share this code with the driver to claim the trip."
@@ -803,13 +1018,14 @@ export function IndentAllocationFlowScreen({
       }
       stepIndex={undefined}
       stepTotal={undefined}
-      onClose={() => (deployOtpCode ? backFromOtp() : handleClose())}
+      steppedLayout={!isCompactLayout}
+      onClose={handleClose}
       onBack={showBack ? handleBack : undefined}
       showBack={showBack}
       footer={
         <AssignmentFlowFooter
           summary={
-            deployOtpCode || fillBodyStep || isLastStep
+            deploySucceeded || fillBodyStep || isLastStep
               ? undefined
               : footerSummary
           }
@@ -823,22 +1039,30 @@ export function IndentAllocationFlowScreen({
       }
       submitting={isDeploying}
     >
-      {deployOtpCode ? (
-        <View style={styles.otpStack}>
+      {deploySucceeded ? (
+        <View style={[styles.otpStack, styles.confirmStepCompact]}>
           <IndentAllocationConfirmSummary
-            title="Allocation"
+            compact
+            title=""
             hint={null}
             rows={confirmAllocationRows}
           />
-          <IndentDeployOtpPanel
-            code={deployOtpCode}
-            expiresAt={deployOtpExpiresAt}
-            tripId={deployTripIdForOtp}
-            onCodeChange={(code, expiresAt) => {
-              set.deployOtpCode(code);
-              set.deployOtpExpiresAt(expiresAt);
-            }}
-          />
+          {deployOtpCode ? (
+            <IndentDeployOtpPanel
+              showHint={false}
+              code={deployOtpCode}
+              expiresAt={deployOtpExpiresAt}
+              tripId={deployTripIdForOtp}
+              onCodeChange={(code, expiresAt) => {
+                set.deployOtpCode(code);
+                set.deployOtpExpiresAt(expiresAt);
+              }}
+            />
+          ) : (
+            <Text style={styles.confirmHint}>
+              No claim code is needed for this assignment. Tap Done to open the trip.
+            </Text>
+          )}
         </View>
       ) : (
         <View
@@ -870,39 +1094,31 @@ export function IndentAllocationFlowScreen({
                 />
               ) : null}
 
-              {showModeBar ? (
-                <SupplyAllocationModeBar
-                  variant="wizard"
-                  mode={useAdHocDriver ? "aggregate" : "asset"}
-                  assignLater={staffHandshakeAssignLater}
-                  onModeChange={(mode) => {
-                    const aggregate = mode === "aggregate";
-                    set.useAdHocDriver(aggregate);
-                    if (aggregate) {
-                      set.assignDriverId(null);
-                      set.assignVehicleId(undefined);
-                    } else {
-                      set.aggregateDriverPhone("");
-                      set.aggregateDriverTrackingName("");
-                      set.subcontractSupplierId(null);
-                      set.subcontractRate("");
-                      set.assignVehicleRegistration("");
-                      set.aggregateDriverNameManualRef.current = false;
-                    }
-                    goToModeFirstStep(aggregate, staffHandshakeAssignLater);
-                  }}
-                  onAssignLaterChange={(v) => {
-                    set.staffHandshakeAssignLater(v);
-                    if (v) {
-                      set.assignDriverId(null);
-                      set.assignVehicleId(undefined);
-                      set.aggregateDriverPhone("");
-                      set.aggregateDriverTrackingName("");
-                      set.assignVehicleRegistration("");
-                    }
-                    goToModeFirstStep(useAdHocDriver, v);
-                  }}
-                />
+              {showAssignLaterOnPartner ? (
+                <View
+                  style={[
+                    tripS.inputBoxClean,
+                    tripS.allocAssignLaterBox,
+                    isCompactLayout && tripS.compactAssignLaterBox,
+                  ]}
+                >
+                  <ListTodo size={16} color={Theme.textRouteCard} strokeWidth={2} />
+                  <View style={tripS.allocAssignLaterCopy}>
+                    <Text style={tripS.allocAssignLaterTitle}>Assign later</Text>
+                    <Text style={tripS.allocAssignLaterSub}>
+                      Add vehicle & driver phone on trip detail
+                    </Text>
+                  </View>
+                  <Switch
+                    value={staffHandshakeAssignLater}
+                    onValueChange={applyAssignLater}
+                    trackColor={{
+                      false: Theme.borderLight,
+                      true: Theme.textPrimaryDark,
+                    }}
+                    thumbColor={Theme.cardWhite}
+                  />
+                </View>
               ) : null}
 
               {staffHandshakeAssignLater && step === "commodity" ? (
@@ -924,6 +1140,14 @@ export function IndentAllocationFlowScreen({
                 : styles.flowStep
             }
           >
+            {step === "source" ? (
+              <IndentAllocationSourceStep
+                compact={isCompactLayout}
+                mode={useAdHocDriver ? "aggregate" : "asset"}
+                onModeChange={(mode) => applySupplyMode(mode === "aggregate")}
+              />
+            ) : null}
+
             {useAdHocDriver &&
             step !== "commodity" &&
             (step === "partner" ||
@@ -944,11 +1168,30 @@ export function IndentAllocationFlowScreen({
             ) : null}
 
             {step === "commodity" ? (
-              <View style={styles.confirmStep}>
+              <View
+                style={[
+                  styles.confirmStep,
+                  isCompactLayout
+                    ? styles.confirmStepCompact
+                    : styles.confirmStepWide,
+                ]}
+              >
                 <IndentAllocationConfirmSummary
+                  compact
                   rows={confirmAllocationRows}
                 />
+                {acceptedMarketBid ? (
+                  <IndentAllocationMarketplaceFeePanel
+                    feeStatus={acceptedMarketBid.fee_payment_status}
+                    feeAmount={acceptedMarketBid.platform_fee_amount}
+                    busy={feeSettling}
+                    onPayCash={() => {
+                      void payMarketplaceFeeCash();
+                    }}
+                  />
+                ) : null}
                 <IndentAllocationTripDetailsStep
+                  compact={isCompactLayout}
                   pickupDate={deployPickupDate}
                   onPickupDateChange={set.deployPickupDate}
                   pickupDateError={pickupDateError}
@@ -956,24 +1199,29 @@ export function IndentAllocationFlowScreen({
               </View>
             ) : null}
 
-            {!useAdHocDriver && !staffHandshakeAssignLater && (step === "driver" || step === "vehicle") ? (
-              <AssetRosterPickers
-                isFlow
-                assetFlowStep={step === "vehicle" ? "vehicle" : "driver"}
-                width={windowWidth}
+            {!useAdHocDriver && step === "fleet" ? (
+              <IndentAssetAllocationStep
+                compact={isCompactLayout}
                 orgId={orgId}
-                activeDrivers={activeDrivers}
+                drivers={activeDrivers}
                 vehicles={vehicles}
                 assignDriverId={assignDriverId}
                 assignVehicleId={assignVehicleId}
-                set={set}
-                onNavigateAddDriver={() => {
+                assignLater={staffHandshakeAssignLater}
+                onAssignLaterChange={applyAssignLater}
+                onSelectDriver={(id) =>
+                  set.assignDriverId(assignDriverId === id ? null : id)
+                }
+                onSelectVehicle={(id) =>
+                  set.assignVehicleId(assignVehicleId === id ? undefined : id)
+                }
+                onAddDriver={() => {
                   router.push({
                     pathname: "/(modals)/add-driver",
                     params: { returnTo: ROUTES.indentAllocation(indentId) },
                   });
                 }}
-                onNavigateAddVehicle={() => {
+                onAddVehicle={() => {
                   router.push({
                     pathname: "/(modals)/add-vehicle",
                     params: { returnTo: ROUTES.indentAllocation(indentId) },
@@ -1019,8 +1267,24 @@ const styles = StyleSheet.create({
     width: "100%",
     gap: 16,
   },
+  confirmStepCompact: {
+    gap: 10,
+  },
+  confirmStepWide: {
+    maxWidth: 560,
+    alignSelf: "center",
+    gap: 12,
+  },
   otpStack: {
     width: "100%",
-    gap: 16,
+    maxWidth: 560,
+    alignSelf: "center",
+    gap: 10,
+  },
+  confirmHint: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: Theme.textSecondary,
+    lineHeight: 20,
   },
 });

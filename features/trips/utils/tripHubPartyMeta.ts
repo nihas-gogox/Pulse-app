@@ -7,6 +7,7 @@ import type { ClientRow } from "@/features/clients/services/clients.service";
 import type { DriverRow } from "@/features/drivers/services/drivers.service";
 import type { SupplierRow } from "@/features/suppliers/services/suppliers.service";
 import type { TripRow } from "../services/trips.service";
+import { overlayViewerTripSubcontract } from "./overlayViewerTripSubcontract.util";
 
 export function isUuidLikeString(value: string | null | undefined): boolean {
   return (
@@ -42,7 +43,8 @@ function isGenericSupplierLabel(value: string): boolean {
     v === "partner" ||
     v === "aggregate supplier" ||
     v === "asset / own vehicle" ||
-    v === "own vehicle"
+    v === "own vehicle" ||
+    v === "awaiting data"
   ) {
     return true;
   }
@@ -122,6 +124,14 @@ export function buildTripHubPartyMetaByTripId(
   drivers: DriverRow[],
   transactions: LedgerRow[],
   supplierNameByIdFallback?: Record<string, string>,
+  opts?: {
+    viewerOrgId?: string | null;
+    subcontracts?: Array<{
+      trip_id: string;
+      supplier_id: string;
+      rate: number;
+    }>;
+  },
 ): Map<string, TripHubPartyMeta> {
   const clientById = new Map(
     clients.map((c) => [String(c.id).trim().toLowerCase(), c] as const),
@@ -142,8 +152,38 @@ export function buildTripHubPartyMetaByTripId(
     else txByTripId.set(k, [tx]);
   }
 
+  const subcontractByTripId = new Map<
+    string,
+    { supplier_id: string; rate: number }
+  >();
+  for (const row of opts?.subcontracts ?? []) {
+    const tid = String(row.trip_id ?? "").trim();
+    if (!tid || !row.supplier_id) continue;
+    subcontractByTripId.set(tid, {
+      supplier_id: row.supplier_id,
+      rate: Number(row.rate) || 0,
+    });
+  }
+
   const meta = new Map<string, TripHubPartyMeta>();
-  for (const t of tripsList) {
+  for (const raw of tripsList) {
+    const sub = subcontractByTripId.get(raw.id);
+    const subName = sub
+      ? (
+          supplierById.get(String(sub.supplier_id).trim().toLowerCase())
+        )
+      : undefined;
+    const t = overlayViewerTripSubcontract(
+      raw,
+      opts?.viewerOrgId ?? null,
+      sub,
+      (
+        subName?.name ??
+        subName?.company_name ??
+        subName?.contact_person ??
+        ""
+      ).trim() || null,
+    );
     const tidKey = String(t.id).trim().toLowerCase();
     const entries = txByTripId.get(tidKey) ?? [];
     const displaySupplierName = resolveSupplierName(

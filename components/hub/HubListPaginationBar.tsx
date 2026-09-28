@@ -15,8 +15,10 @@ export type HubListPaginationBarProps = {
   page: number;
   totalPages: number;
   totalItems: number;
-  pageSize: HubGridPageSize;
-  onPageSizeChange: (size: HubGridPageSize) => void;
+  pageSize: number;
+  onPageSizeChange: (size: number) => void;
+  /** Defaults to the hub grid sizes. Party trip tables pass 25, 50, 100. */
+  pageSizeOptions?: readonly number[];
   onPrev: () => void;
   onNext: () => void;
   /** e.g. "trips" or "loads" */
@@ -45,6 +47,7 @@ export function HubListPaginationBar({
   totalItems,
   pageSize,
   onPageSizeChange,
+  pageSizeOptions = HUB_GRID_PAGE_SIZE_OPTIONS,
   onPrev,
   onNext,
   itemLabel = "items",
@@ -56,7 +59,7 @@ export function HubListPaginationBar({
   const controls = (
     <View style={styles.right}>
       <View style={styles.pageSizeWrap}>
-        {HUB_GRID_PAGE_SIZE_OPTIONS.map((n) => (
+        {pageSizeOptions.map((n) => (
           <Pressable
             key={n}
             style={[

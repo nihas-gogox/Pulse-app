@@ -612,6 +612,7 @@ function RootLayoutNav() {
               <Stack.Screen name="fleet-operations" options={{ animation: 'slide_from_right', headerShown: false }} />
               <Stack.Screen name="compliance" options={{ animation: 'slide_from_right', headerShown: false }} />
               <Stack.Screen name="pulse-loads" options={{ animation: 'slide_from_right', headerShown: false }} />
+              <Stack.Screen name="find-loads" options={{ animation: 'slide_from_right', headerShown: false }} />
               <Stack.Screen name="create-indent" options={{ presentation: 'fullScreenModal' }} />
               <Stack.Screen name="log-incoming-pods" options={{ presentation: 'card', animation: 'slide_from_right' }} />
               <Stack.Screen name="invoicing-execute" options={{ presentation: 'card', animation: 'slide_from_right' }} />

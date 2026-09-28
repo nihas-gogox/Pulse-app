@@ -620,7 +620,19 @@ export function useFinanceLedger({
       const tripSupplierName = ((t as { supplier_name?: string | null }).supplier_name ?? "")
         .trim() || null;
       let supplierDisplayName: string | null = tripSupplierName;
-      if (isCrossOrgIntegrationTrip(t, organizationId) && t.organization_id) {
+      if (!supplierDisplayName && t.supplier_id) {
+        const srow = supplierById.get(t.supplier_id);
+        const fromId =
+          (srow?.name ?? "").trim() ||
+          (srow?.company_name ?? "").trim() ||
+          (srow?.contact_person ?? "").trim();
+        if (fromId) supplierDisplayName = fromId;
+      }
+      if (
+        !supplierDisplayName &&
+        isCrossOrgIntegrationTrip(t, organizationId) &&
+        t.organization_id
+      ) {
         const localSid = linkedSupplierIdByOrgId.get(t.organization_id) ?? null;
         if (localSid) {
           const srow = supplierById.get(localSid);

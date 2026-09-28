@@ -1,9 +1,5 @@
 /**
- * A11.3 — Organization Find Work must distinguish a backend failure from a
- * genuine "no open loads" empty state. Full-mount test (heavy dependency
- * surface mocked, following this repo's existing pattern in
- * app/__tests__/sign-in.test.tsx) covering exactly the three states the
- * fix touches: error+Retry, loading, and the unchanged empty state.
+ * Marketplace Loads: search-first. RPC only runs after from / to / vehicle.
  */
 import React from 'react';
 import { render, waitFor, fireEvent } from '@testing-library/react-native';
@@ -23,8 +19,12 @@ jest.mock('@/lib/layoutInsets', () => ({
 jest.mock('@/lib/useMemberAccess', () => ({
   useMemberAccess: () => ({ can: () => true, isLoading: false }),
 }));
+const mockUseOptionalOrganization = jest.fn(() => ({
+  currentOrganization: { id: 'org-1' },
+  isLoading: false,
+}));
 jest.mock('@/contexts/OrganizationContext', () => ({
-  useOrganization: () => ({ currentOrganization: { id: 'org-1' }, isLoading: false }),
+  useOptionalOrganization: () => mockUseOptionalOrganization(),
 }));
 
 jest.mock('@/features/network/services/findLoadsForOrg.service', () => {
@@ -32,6 +32,18 @@ jest.mock('@/features/network/services/findLoadsForOrg.service', () => {
   return {
     ...actual,
     listOpenMarketplaceLoadsForOrg: jest.fn(),
+    listOpenMarketplaceLoadsPage: jest.fn(),
+    listMarketplaceSearchLanes: jest.fn().mockResolvedValue({
+      error: null,
+      lanes: [
+        {
+          pickup_area: "Bhandara",
+          drop_location: "Bengaluru",
+          vehicle_type: "40 FT",
+          load_count: 3,
+        },
+      ],
+    }),
     listMyOrgMarketBids: jest.fn().mockResolvedValue({ error: null, bids: [] }),
     submitOrgMarketBid: jest.fn(),
   };
@@ -51,9 +63,20 @@ function renderScreen() {
   );
 }
 
-describe('Find Loads (organization) — backend error vs. empty state', () => {
+async function applySearch(utils: ReturnType<typeof renderScreen>) {
+  fireEvent.press(await utils.findByLabelText('Pickup city'));
+  fireEvent.press(await utils.findByLabelText('Pickup Bhandara, 3 available'));
+  fireEvent.press(await utils.findByLabelText('Drop Bengaluru, 3 available'));
+  fireEvent.press(await utils.findByLabelText('Vehicle 40 FT, 3 available'));
+}
+
+describe('Find Loads (organization) — search-first marketplace', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseOptionalOrganization.mockReturnValue({
+      currentOrganization: { id: 'org-1' },
+      isLoading: false,
+    });
     (vehiclesService.getVehiclesByOrganization as jest.Mock).mockResolvedValue({
       error: null,
       vehicles: [],
@@ -64,48 +87,74 @@ describe('Find Loads (organization) — backend error vs. empty state', () => {
     });
   });
 
-  it('shows the error state with Retry when the RPC fails -- never the empty-state copy', async () => {
-    (findLoadsForOrgService.listOpenMarketplaceLoadsForOrg as jest.Mock).mockResolvedValue({
-      error: new Error('permission denied for function list_open_marketplace_loads_for_org'),
-      loads: [],
-    });
-    const { findByText, queryByText } = renderScreen();
-
-    await waitFor(() => expect(findByText("Couldn't load Marketplace loads.")).resolves.toBeTruthy());
-    expect(queryByText('No open Marketplace loads right now.')).toBeNull();
-    expect(await findByText('Retry')).toBeTruthy();
+  it('does not call the marketplace RPC until the user searches', async () => {
+    const { findByLabelText } = renderScreen();
+    expect(await findByLabelText('Pickup city')).toBeTruthy();
+    expect(await findByLabelText('Drop city')).toBeTruthy();
+    expect(await findByLabelText('Vehicle type')).toBeTruthy();
+    expect(findLoadsForOrgService.listOpenMarketplaceLoadsPage).not.toHaveBeenCalled();
   });
 
-  it('tapping Retry calls the same query mechanism again (refetch), not a new path', async () => {
-    (findLoadsForOrgService.listOpenMarketplaceLoadsForOrg as jest.Mock).mockResolvedValue({
+  it('shows the error state with Retry when the RPC fails after search', async () => {
+    (findLoadsForOrgService.listOpenMarketplaceLoadsPage as jest.Mock).mockResolvedValue({
+      error: new Error('permission denied for function list_open_marketplace_loads_for_org'),
+      loads: [],
+      hasMore: false,
+      nextOffset: undefined,
+    });
+    const screen = renderScreen();
+    await applySearch(screen);
+
+    await waitFor(() =>
+      expect(screen.findByText("Couldn't load Marketplace loads.")).resolves.toBeTruthy(),
+    );
+    expect(screen.queryByText('No Marketplace loads on this route.')).toBeNull();
+    expect(await screen.findByText('Retry')).toBeTruthy();
+  });
+
+  it('tapping Retry refetches the same search', async () => {
+    (findLoadsForOrgService.listOpenMarketplaceLoadsPage as jest.Mock).mockResolvedValue({
       error: new Error('network error'),
       loads: [],
+      hasMore: false,
+      nextOffset: undefined,
     });
-    const { findByText } = renderScreen();
-    await waitFor(() => expect(findByText("Couldn't load Marketplace loads.")).resolves.toBeTruthy());
+    const screen = renderScreen();
+    await applySearch(screen);
+    await waitFor(() =>
+      expect(screen.findByText("Couldn't load Marketplace loads.")).resolves.toBeTruthy(),
+    );
 
-    const callsBeforeRetry = (findLoadsForOrgService.listOpenMarketplaceLoadsForOrg as jest.Mock).mock
+    const callsBeforeRetry = (findLoadsForOrgService.listOpenMarketplaceLoadsPage as jest.Mock).mock
       .calls.length;
-    fireEvent.press(await findByText('Retry'));
+    fireEvent.press(await screen.findByText('Retry'));
 
     await waitFor(() =>
       expect(
-        (findLoadsForOrgService.listOpenMarketplaceLoadsForOrg as jest.Mock).mock.calls.length,
+        (findLoadsForOrgService.listOpenMarketplaceLoadsPage as jest.Mock).mock.calls.length,
       ).toBeGreaterThan(callsBeforeRetry),
     );
   });
 
-  it('a successful request with zero eligible loads shows the unchanged empty state, never the error copy', async () => {
-    (findLoadsForOrgService.listOpenMarketplaceLoadsForOrg as jest.Mock).mockResolvedValue({
+  it('a successful search with zero loads shows route empty copy, never the error copy', async () => {
+    (findLoadsForOrgService.listOpenMarketplaceLoadsPage as jest.Mock).mockResolvedValue({
       error: null,
       loads: [],
+      hasMore: false,
+      nextOffset: undefined,
     });
-    const { findByText, queryByText } = renderScreen();
+    const screen = renderScreen();
+    await applySearch(screen);
 
     await waitFor(() =>
-      expect(findByText('No open Marketplace loads right now.')).resolves.toBeTruthy(),
+      expect(screen.findByText('No Marketplace loads on this route.')).resolves.toBeTruthy(),
     );
-    expect(queryByText("Couldn't load Marketplace loads.")).toBeNull();
-    expect(queryByText('Retry')).toBeNull();
+    expect(screen.queryByText("Couldn't load Marketplace loads.")).toBeNull();
+    expect(screen.queryByText('Retry')).toBeNull();
+  });
+
+  it('does not throw when OrganizationProvider is missing', () => {
+    mockUseOptionalOrganization.mockReturnValue(undefined as never);
+    expect(() => renderScreen()).not.toThrow();
   });
 });

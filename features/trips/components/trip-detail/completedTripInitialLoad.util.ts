@@ -84,12 +84,11 @@ export function shouldFetchHubDigitalPodFlags(
   return true;
 }
 
-/** Subcontract rates: live trips only. */
+/** Subcontract partner + rate for Finance / trip detail (including completed). */
 export function shouldFetchTripSubcontractsOnDetail(
   trip: TripCompletionFields | null | undefined,
 ): boolean {
-  if (!trip?.id) return false;
-  return !isTripCompleted(trip);
+  return Boolean(trip?.id);
 }
 
 export function shouldBackfillPostedExpensesToLedger(input: {

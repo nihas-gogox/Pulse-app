@@ -1,7 +1,9 @@
 import {
+  growVisibleLoadCount,
   MARKETPLACE_LOAD_PAGE_SIZE,
   nextMarketplacePageOffset,
   sliceMarketplaceLoadsPage,
+  takeVisibleLoadPage,
 } from "@/features/network/utils/marketplaceLoadsPage.util";
 
 describe("marketplaceLoadsPage", () => {
@@ -18,5 +20,23 @@ describe("marketplaceLoadsPage", () => {
     });
     expect(nextMarketplacePageOffset(0, 15)).toBe(15);
     expect(nextMarketplacePageOffset(15, 4)).toBeUndefined();
+  });
+
+  it("grows the on-screen network prefix 15 at a time", () => {
+    const rows = Array.from({ length: 40 }, (_, i) => i);
+    expect(takeVisibleLoadPage(rows, 15)).toHaveLength(15);
+    expect(growVisibleLoadCount(15, 40)).toBe(30);
+    expect(growVisibleLoadCount(30, 40)).toBe(40);
+  });
+
+  it("pages every load, including repeated routes", () => {
+    const rows = Array.from({ length: 20 }, (_, i) => ({
+      id: i,
+      pickup_area: "Periyapalayam",
+      drop_location: "Poonamallee",
+    }));
+    expect(takeVisibleLoadPage(rows, 15)).toHaveLength(15);
+    expect(takeVisibleLoadPage(rows, 30)).toHaveLength(20);
+    expect(rows).toHaveLength(20);
   });
 });

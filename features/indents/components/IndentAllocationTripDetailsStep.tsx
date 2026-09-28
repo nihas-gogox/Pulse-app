@@ -26,6 +26,8 @@ export type IndentAllocationTripDetailsStepProps = {
   pickupDate: string;
   onPickupDateChange: (iso: string) => void;
   pickupDateError?: string | null;
+  /** Phone: chips and field sit tight under the summary. */
+  compact?: boolean;
 };
 
 /**
@@ -37,6 +39,7 @@ export const IndentAllocationTripDetailsStep = memo(
     pickupDate,
     onPickupDateChange,
     pickupDateError,
+    compact = false,
   }: IndentAllocationTripDetailsStepProps) {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const { width } = useWindowDimensions();
@@ -47,14 +50,15 @@ export const IndentAllocationTripDetailsStep = memo(
         style={[
           fullPageWizardStyles.wizardStepContentFlat,
           styles.root,
-          isWide && styles.rootWebWide,
+          isWide && !compact && styles.rootWebWide,
+          compact && styles.rootCompact,
         ]}
       >
-        <View style={fullPageWizardStyles.wizardFieldBlock}>
-          <Text style={fullPageWizardStyles.wizardFieldLabel}>
-            Vehicle arrival date *
+        <View style={[styles.dateCard, compact && styles.dateCardCompact]}>
+          <Text style={[styles.dateLabel, compact && styles.dateLabelCompact]}>
+            Vehicle arrival date
           </Text>
-          <View style={fullPageWizardStyles.quickDateRow}>
+          <View style={[styles.chipRow, compact && styles.chipRowCompact]}>
             {(
               [
                 { label: "Today", iso: getTodayIso() },
@@ -67,15 +71,17 @@ export const IndentAllocationTripDetailsStep = memo(
                 <Pressable
                   key={label}
                   style={[
-                    fullPageWizardStyles.quickDateChip,
-                    isActive && fullPageWizardStyles.quickDateChipActive,
+                    styles.chip,
+                    compact && styles.chipCompact,
+                    isActive && styles.chipActive,
                   ]}
                   onPress={() => onPickupDateChange(iso)}
                 >
                   <Text
                     style={[
-                      fullPageWizardStyles.quickDateChipText,
-                      isActive && fullPageWizardStyles.quickDateChipTextActive,
+                      styles.chipText,
+                      compact && styles.chipTextCompact,
+                      isActive && styles.chipTextActive,
                     ]}
                   >
                     {label}
@@ -86,7 +92,11 @@ export const IndentAllocationTripDetailsStep = memo(
           </View>
           {Platform.OS === "web" ? (
             <TextInput
-              style={[styles.input, pickupDateError ? styles.inputError : null]}
+              style={[
+                styles.input,
+                compact && styles.inputCompact,
+                pickupDateError ? styles.inputError : null,
+              ]}
               placeholder="YYYY-MM-DD"
               placeholderTextColor={Theme.placeholder}
               value={pickupDate}
@@ -190,8 +200,81 @@ const styles = StyleSheet.create({
     maxWidth: 520,
     alignSelf: "center",
   },
+  rootCompact: {
+    gap: 0,
+  },
+  dateCard: {
+    width: "100%",
+    gap: 8,
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  dateCardCompact: {
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  dateLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Theme.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  dateLabelCompact: {
+    letterSpacing: 0.3,
+  },
+  chipRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  chipRowCompact: {
+    gap: 6,
+  },
+  chip: {
+    flex: 1,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    backgroundColor: Theme.backgroundInput,
+    paddingHorizontal: 8,
+  },
+  chipCompact: {
+    minHeight: 36,
+    borderRadius: 8,
+  },
+  chipActive: {
+    borderColor: Theme.textPrimaryDark,
+    backgroundColor: Theme.textPrimaryDark,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Theme.textRouteCard,
+  },
+  chipTextCompact: {
+    fontSize: 12,
+  },
+  chipTextActive: {
+    color: Theme.textOnPrimary,
+  },
   input: {
     ...fullPageWizardStyles.wizardFieldInput,
+  },
+  inputCompact: {
+    height: 40,
+    minHeight: 40,
+    fontSize: 15,
+    lineHeight: 20,
+    paddingVertical: 8,
+    backgroundColor: Theme.backgroundInput,
   },
   inputError: {
     borderColor: Theme.destructive,

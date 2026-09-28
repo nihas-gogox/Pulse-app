@@ -1,8 +1,8 @@
 /**
- * Full-page modal listing all indent cards for a Load Center kanban column.
- * Full-bleed width; grid uses up to 4 columns and shrinks when the stage is sparse
- * so cards fill the row (no empty right half). Toolbar: search + pickup / drop /
- * vehicle filters. Nested children (Award / Bid) + indent detail overlay stay on-page.
+ * Full-page modal listing indent cards for a Load Center kanban column.
+ * Network Loads (OPEN) is search-first: pickup / drop / vehicle first, then
+ * only matching cards — same pattern as Marketplace Loads. Other stages keep
+ * search + chips. Nested Award / Bid + indent detail stay on-page.
  */
 import Theme from "@/constants/Theme";
 import Layout from "@/constants/Layout";
@@ -12,6 +12,18 @@ import { getIndentDisplayNumber, type IndentRow } from "@/features/indents";
 import type {
   LoadCenterKanbanColumn,
 } from "@/features/network/components/LoadCenterKanbanBoard";
+import { MarketplaceLaneFilters } from "@/features/network/components/MarketplaceLaneFilters";
+import {
+  filterMarketplaceOptions,
+  isMarketplaceSearchReady,
+  lanesFromMarketplaceLoads,
+  type MarketplaceLoadSearch,
+} from "@/features/network/utils/marketplaceSearch.util";
+import {
+  growVisibleLoadCount,
+  MARKETPLACE_LOAD_PAGE_SIZE,
+  takeVisibleLoadPage,
+} from "@/features/network/utils/marketplaceLoadsPage.util";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import type { ReactNode } from "react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -35,9 +47,12 @@ const IndentDetailScreen = lazy(() =>
 );
 
 const TABLET_BREAKPOINT = 720;
-const DESKTOP_SIDE_PAD = 20;
+const DESKTOP_SIDE_PAD = 32;
 const MOBILE_SIDE_PAD = Layout.screenPaddingHorizontal;
-const GRID_GAP = 10;
+const GRID_GAP = 14;
+const BOARD_MAX_ONE = 720;
+const BOARD_MAX_TWO = 980;
+const BOARD_MAX_THREE = 1180;
 /** Collapsed edge rail width — content inset keeps cards clear of the icon. */
 const STAGE_BOOKMARK_RAIL = 40;
 
@@ -67,8 +82,8 @@ export type LoadCenterKanbanColumnModalProps = {
   children?: ReactNode;
 };
 
-function maxColumnsForWidth(width: number): 1 | 2 | 4 {
-  if (width >= HUB_GRID_MIN_WIDTH) return 4;
+function maxColumnsForWidth(width: number): 1 | 2 | 3 {
+  if (width >= HUB_GRID_MIN_WIDTH) return 3;
   if (width >= TABLET_BREAKPOINT) return 2;
   return 1;
 }
@@ -83,15 +98,6 @@ function columnsForGrid(width: number, cardCount: number): number {
 function gridTemplateColumns(columns: number): string {
   if (columns <= 1) return "minmax(0, 1fr)";
   return `repeat(${columns}, minmax(0, 1fr))`;
-}
-
-function uniqueSorted(values: Array<string | null | undefined>): string[] {
-  const set = new Set<string>();
-  for (const v of values) {
-    const t = (v ?? "").trim();
-    if (t) set.add(t);
-  }
-  return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
 
 function norm(value: string | null | undefined): string {
@@ -243,6 +249,13 @@ export function LoadCenterKanbanColumnModal({
   const [dropFilter, setDropFilter] = useState("");
   const [vehicleFilter, setVehicleFilter] = useState("");
   const [openMenu, setOpenMenu] = useState<FilterKey | null>(null);
+  const [menuQuery, setMenuQuery] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState<MarketplaceLoadSearch | null>(
+    null,
+  );
+  const [visibleCount, setVisibleCount] = useState(MARKETPLACE_LOAD_PAGE_SIZE);
+  const searchFirst = column?.id === "OPEN";
+  const searchReady = isMarketplaceSearchReady(appliedSearch);
 
   const tabs = column?.tabs ?? [];
   const hasTabs = tabs.length > 0;
@@ -258,32 +271,80 @@ export function LoadCenterKanbanColumnModal({
     setDropFilter("");
     setVehicleFilter("");
     setOpenMenu(null);
+    setMenuQuery("");
+    setAppliedSearch(null);
+    setVisibleCount(MARKETPLACE_LOAD_PAGE_SIZE);
   }, [column]);
+
+  useEffect(() => {
+    setVisibleCount(MARKETPLACE_LOAD_PAGE_SIZE);
+  }, [
+    searchQuery,
+    pickupFilter,
+    dropFilter,
+    vehicleFilter,
+    appliedSearch,
+    activeTabId,
+  ]);
 
   const allColumnLoads = column?.loads ?? [];
 
-  const filterOptions = useMemo(() => {
-    return {
-      pickup: uniqueSorted(allColumnLoads.map((l) => l.pickup_area)),
-      drop: uniqueSorted(allColumnLoads.map((l) => l.drop_location)),
-      vehicle: uniqueSorted(allColumnLoads.map((l) => l.vehicle_type)),
-    };
-  }, [allColumnLoads]);
-
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0] ?? null;
   const stageLoads = hasTabs ? (activeTab?.loads ?? []) : allColumnLoads;
+  const laneDraft = useMemo(
+    () => ({
+      pickup: pickupFilter,
+      drop: dropFilter,
+      vehicleType: vehicleFilter,
+    }),
+    [pickupFilter, dropFilter, vehicleFilter],
+  );
+  const columnLanes = useMemo(
+    () => lanesFromMarketplaceLoads(allColumnLoads),
+    [allColumnLoads],
+  );
+  const cascadeOptions = useMemo(
+    () =>
+      filterMarketplaceOptions(
+        columnLanes,
+        laneDraft,
+        openMenu ?? "pickup",
+        menuQuery,
+      ),
+    [columnLanes, laneDraft, openMenu, menuQuery],
+  );
 
   const filteredLoads = useMemo(() => {
+    if (searchFirst && !searchReady) return [];
+    const pickup = searchFirst ? (appliedSearch?.pickup ?? "") : pickupFilter;
+    const drop = searchFirst ? (appliedSearch?.drop ?? "") : dropFilter;
+    const vehicle = searchFirst
+      ? (appliedSearch?.vehicleType ?? "")
+      : vehicleFilter;
     return stageLoads.filter(
       (load) =>
-        loadMatchesSearch(load, searchQuery) &&
-        fieldEquals(load.pickup_area, pickupFilter) &&
-        fieldEquals(load.drop_location, dropFilter) &&
-        fieldEquals(load.vehicle_type, vehicleFilter),
+        loadMatchesSearch(load, searchFirst ? "" : searchQuery) &&
+        fieldEquals(load.pickup_area, pickup) &&
+        fieldEquals(load.drop_location, drop) &&
+        fieldEquals(load.vehicle_type, vehicle),
     );
-  }, [stageLoads, searchQuery, pickupFilter, dropFilter, vehicleFilter]);
+  }, [
+    searchFirst,
+    searchReady,
+    appliedSearch,
+    stageLoads,
+    searchQuery,
+    pickupFilter,
+    dropFilter,
+    vehicleFilter,
+  ]);
 
-  const columns = columnsForGrid(width, filteredLoads.length);
+  const visibleLoads = useMemo(
+    () => takeVisibleLoadPage(filteredLoads, visibleCount),
+    [filteredLoads, visibleCount],
+  );
+
+  const columns = columnsForGrid(width, visibleLoads.length);
 
   const cellStyle = useMemo(() => {
     if (Platform.OS === "web") {
@@ -304,6 +365,9 @@ export function LoadCenterKanbanColumnModal({
     };
   }, [columns]);
 
+  const boardMaxWidth =
+    columns <= 1 ? BOARD_MAX_ONE : columns === 2 ? BOARD_MAX_TWO : BOARD_MAX_THREE;
+
   const webGridStyle = useMemo(() => {
     if (Platform.OS !== "web") return null;
     return {
@@ -311,17 +375,18 @@ export function LoadCenterKanbanColumnModal({
       gridTemplateColumns: gridTemplateColumns(columns),
       gap: GRID_GAP,
       width: "100%",
-      maxWidth: columns === 1 ? 440 : ("100%" as const),
-      alignSelf: columns === 1 ? ("flex-start" as const) : ("stretch" as const),
+      maxWidth: boardMaxWidth,
+      alignSelf: "center" as const,
       alignItems: "stretch" as const,
     };
-  }, [columns]);
+  }, [columns, boardMaxWidth]);
 
-  const hasActiveFilters =
-    searchQuery.trim().length > 0 ||
-    pickupFilter.length > 0 ||
-    dropFilter.length > 0 ||
-    vehicleFilter.length > 0;
+  const hasActiveFilters = searchFirst
+    ? searchReady
+    : searchQuery.trim().length > 0 ||
+      pickupFilter.length > 0 ||
+      dropFilter.length > 0 ||
+      vehicleFilter.length > 0;
 
   const clearFilters = useCallback(() => {
     setSearchQuery("");
@@ -329,6 +394,9 @@ export function LoadCenterKanbanColumnModal({
     setDropFilter("");
     setVehicleFilter("");
     setOpenMenu(null);
+    setMenuQuery("");
+    setAppliedSearch(null);
+    setVisibleCount(MARKETPLACE_LOAD_PAGE_SIZE);
   }, []);
 
   const badgeCount = allColumnLoads.length;
@@ -336,14 +404,7 @@ export function LoadCenterKanbanColumnModal({
 
   if (!column) return null;
 
-  const menuOptions =
-    openMenu === "pickup"
-      ? filterOptions.pickup
-      : openMenu === "drop"
-        ? filterOptions.drop
-        : openMenu === "vehicle"
-          ? filterOptions.vehicle
-          : [];
+  const menuOptions = openMenu ? cascadeOptions : [];
 
   const menuValue =
     openMenu === "pickup"
@@ -355,9 +416,23 @@ export function LoadCenterKanbanColumnModal({
           : "";
 
   const setMenuValue = (value: string) => {
-    if (openMenu === "pickup") setPickupFilter(value);
-    if (openMenu === "drop") setDropFilter(value);
+    if (openMenu === "pickup") {
+      setPickupFilter(value);
+      setDropFilter("");
+      setVehicleFilter("");
+      setMenuQuery("");
+      setOpenMenu(value ? "drop" : null);
+      return;
+    }
+    if (openMenu === "drop") {
+      setDropFilter(value);
+      setVehicleFilter("");
+      setMenuQuery("");
+      setOpenMenu(value ? "vehicle" : null);
+      return;
+    }
     if (openMenu === "vehicle") setVehicleFilter(value);
+    setMenuQuery("");
     setOpenMenu(null);
   };
 
@@ -375,19 +450,25 @@ export function LoadCenterKanbanColumnModal({
     label: string,
     value: string,
     icon: "map-marker" | "flag" | "truck",
+    disabled = false,
   ) => {
     const active = value.length > 0 || openMenu === key;
     return (
       <Pressable
         key={key}
-        onPress={() => setOpenMenu((cur) => (cur === key ? null : key))}
+        disabled={disabled}
+        onPress={() => {
+          setMenuQuery("");
+          setOpenMenu((cur) => (cur === key ? null : key));
+        }}
         style={({ pressed }) => [
           styles.filterChip,
           active && styles.filterChipActive,
-          pressed && styles.filterChipPressed,
+          disabled && styles.filterChipDisabled,
+          pressed && !disabled && styles.filterChipPressed,
         ]}
         accessibilityRole="button"
-        accessibilityState={{ expanded: openMenu === key }}
+        accessibilityState={{ expanded: openMenu === key, disabled }}
         accessibilityLabel={`${label}${value ? `: ${value}` : ""}`}
       >
         <FontAwesome
@@ -428,50 +509,72 @@ export function LoadCenterKanbanColumnModal({
         ]}
       >
         <View style={[styles.headerBand, { paddingHorizontal: sidePad }]}>
-          <View style={styles.headerInner}>
-            <View style={styles.headerLeft}>
-              <View
-                style={[styles.accent, { backgroundColor: column.accent }]}
-              />
-              <View style={styles.headerText}>
-                <Text
-                  style={[styles.title, isDesktop && styles.titleDesktop]}
-                  numberOfLines={1}
-                >
-                  {column.label}
-                </Text>
-                <Text style={styles.subtitle} numberOfLines={1}>
-                  {hasActiveFilters
-                    ? `${shownCount} of ${stageLoads.length} load${
-                        stageLoads.length === 1 ? "" : "s"
-                      } shown`
-                    : `${badgeCount} load${badgeCount === 1 ? "" : "s"} in this stage`}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.headerRight}>
-              <View style={styles.countBadge}>
-                <Text style={styles.countText}>
-                  {hasActiveFilters ? shownCount : badgeCount}
-                </Text>
-              </View>
-              <Pressable
-                onPress={onClose}
-                style={({ pressed }) => [
-                  styles.closeBtn,
-                  pressed && styles.closeBtnPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                hitSlop={8}
-              >
-                <FontAwesome
-                  name="times"
-                  size={16}
-                  color={Theme.textPrimaryDark}
+          <View
+            style={[styles.headerInner, !isDesktop && styles.headerInnerMobile]}
+          >
+            <View style={styles.headerTopRow}>
+              <View style={styles.headerLeft}>
+                <View
+                  style={[styles.accent, { backgroundColor: column.accent }]}
                 />
-              </Pressable>
+                <View style={styles.headerText}>
+                  <Text style={styles.eyebrow} numberOfLines={1}>
+                    {searchFirst ? "GET LOAD" : "LOAD STAGE"}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.title,
+                      isDesktop && styles.titleDesktop,
+                      !isDesktop && styles.titleMobile,
+                    ]}
+                    numberOfLines={isDesktop ? 1 : 2}
+                  >
+                    {column.label}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.headerRight}>
+                {searchFirst && !searchReady ? null : (
+                  <View
+                    style={[
+                      styles.countBadge,
+                      !isDesktop && styles.countBadgeMobile,
+                    ]}
+                  >
+                    <Text style={styles.countText}>
+                      {hasActiveFilters ? shownCount : badgeCount}
+                    </Text>
+                  </View>
+                )}
+                <Pressable
+                  onPress={onClose}
+                  style={({ pressed }) => [
+                    styles.headerAction,
+                    !isDesktop && styles.headerActionMobile,
+                    pressed && styles.closeBtnPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                  hitSlop={8}
+                >
+                  <FontAwesome
+                    name="times"
+                    size={16}
+                    color={Theme.textPrimaryDark}
+                  />
+                </Pressable>
+              </View>
             </View>
+            <Text
+              style={[styles.subtitle, !isDesktop && styles.subtitleMobile]}
+              numberOfLines={isDesktop ? 1 : 2}
+            >
+              {searchFirst && !searchReady
+                ? "Choose pickup, drop, and vehicle to see matching loads"
+                : hasActiveFilters
+                  ? `${shownCount} matching load${shownCount === 1 ? "" : "s"}`
+                  : `${badgeCount} load${badgeCount === 1 ? "" : "s"} in this stage`}
+            </Text>
           </View>
         </View>
 
@@ -513,7 +616,29 @@ export function LoadCenterKanbanColumnModal({
           </View>
         ) : null}
 
-        {/* Search + filters */}
+        {searchFirst ? (
+          <View style={[styles.toolbarBand, { paddingHorizontal: sidePad }]}>
+            <View style={[styles.lanePanel, !isDesktop && styles.lanePanelMobile]}>
+              <View style={styles.lanePanelHead}>
+                <Text style={styles.lanePanelHint}>
+                  Pickup · Drop · Vehicle
+                </Text>
+                <Text style={styles.lanePanelMeta} numberOfLines={1}>
+                  {searchReady
+                    ? `${shownCount} match${shownCount === 1 ? "" : "es"}`
+                    : "Choose a lane"}
+                </Text>
+              </View>
+              <MarketplaceLaneFilters
+                lanes={columnLanes}
+                value={appliedSearch}
+                onChange={setAppliedSearch}
+                autoOpenFirst
+                stacked={!isDesktop}
+              />
+            </View>
+          </View>
+        ) : (
         <View style={[styles.toolbarBand, { paddingHorizontal: sidePad }]}>
           <View style={[styles.toolbar, !isDesktop && styles.toolbarMobile]}>
             <View style={[styles.searchWrap, !isDesktop && styles.searchWrapMobile]}>
@@ -548,8 +673,20 @@ export function LoadCenterKanbanColumnModal({
 
             <View style={[styles.filterRow, !isDesktop && styles.filterRowMobile]}>
               {renderFilterChip("pickup", "Pickup", pickupFilter, "map-marker")}
-              {renderFilterChip("drop", "Drop", dropFilter, "flag")}
-              {renderFilterChip("vehicle", "Vehicle", vehicleFilter, "truck")}
+              {renderFilterChip(
+                "drop",
+                "Drop",
+                dropFilter,
+                "flag",
+                !pickupFilter,
+              )}
+              {renderFilterChip(
+                "vehicle",
+                "Vehicle",
+                vehicleFilter,
+                "truck",
+                !pickupFilter || !dropFilter,
+              )}
               {hasActiveFilters ? (
                 <Pressable
                   onPress={clearFilters}
@@ -567,6 +704,7 @@ export function LoadCenterKanbanColumnModal({
             </View>
           </View>
         </View>
+        )}
 
         <ScrollView
           style={styles.scroll}
@@ -575,10 +713,14 @@ export function LoadCenterKanbanColumnModal({
             {
               paddingLeft:
                 sidePad +
-                (!showDetail && previousStage ? STAGE_BOOKMARK_RAIL : 0),
+                (isDesktop && !showDetail && previousStage
+                  ? STAGE_BOOKMARK_RAIL
+                  : 0),
               paddingRight:
                 sidePad +
-                (!showDetail && nextStage ? STAGE_BOOKMARK_RAIL : 0),
+                (isDesktop && !showDetail && nextStage
+                  ? STAGE_BOOKMARK_RAIL
+                  : 0),
               paddingTop: isDesktop ? 16 : 14,
               paddingBottom: isDesktop ? 32 : 28,
             },
@@ -590,19 +732,36 @@ export function LoadCenterKanbanColumnModal({
             <View style={styles.empty}>
               <View style={styles.emptyIcon}>
                 <FontAwesome
-                  name={hasActiveFilters ? "filter" : "inbox"}
-                  size={16}
-                  color={Theme.textMuted}
+                  name={
+                    searchFirst && !searchReady
+                      ? "search"
+                      : hasActiveFilters
+                        ? "filter"
+                        : "inbox"
+                  }
+                  size={18}
+                  color={Theme.primary}
                 />
               </View>
+              <Text style={styles.emptyTitle}>
+                {searchFirst && !searchReady
+                  ? "Search a live lane"
+                  : hasActiveFilters
+                    ? "No loads on this lane"
+                    : "Nothing in this stage"}
+              </Text>
               <Text style={styles.emptyText}>
-                {hasActiveFilters
-                  ? "No loads match your filters"
-                  : "No loads in this stage"}
+                {searchFirst && !searchReady
+                  ? "Pick pickup, then drop, then vehicle. Only matching Network loads will appear."
+                  : hasActiveFilters
+                    ? "Try another city pair or vehicle type."
+                    : "Loads will appear here when they enter this stage."}
               </Text>
               {hasActiveFilters ? (
                 <Pressable onPress={clearFilters} style={styles.emptyClearBtn}>
-                  <Text style={styles.emptyClearText}>Clear filters</Text>
+                  <Text style={styles.emptyClearText}>
+                    {searchFirst ? "Change search" : "Clear filters"}
+                  </Text>
                 </Pressable>
               ) : null}
             </View>
@@ -611,10 +770,11 @@ export function LoadCenterKanbanColumnModal({
               style={[
                 styles.grid,
                 columns === 1 && styles.gridStack,
+                Platform.OS !== "web" && { maxWidth: boardMaxWidth, alignSelf: "center" },
                 webGridStyle as object,
               ]}
             >
-              {filteredLoads.map((load) => (
+              {visibleLoads.map((load) => (
                 <View
                   key={load.id}
                   style={[
@@ -627,17 +787,36 @@ export function LoadCenterKanbanColumnModal({
               ))}
             </View>
           )}
+          {filteredLoads.length > visibleLoads.length ? (
+            <Pressable
+              onPress={() =>
+                setVisibleCount((n) =>
+                  growVisibleLoadCount(n, filteredLoads.length),
+                )
+              }
+              style={({ pressed }) => [
+                styles.loadMoreBtn,
+                pressed && styles.loadMoreBtnPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Load more loads"
+            >
+              <Text style={styles.loadMoreBtnText}>
+                Load more ({filteredLoads.length - visibleLoads.length} more)
+              </Text>
+            </Pressable>
+          ) : null}
         </ScrollView>
 
         {/* Bookmark-style stage jumpers — hide on first/last and while detail is open */}
-        {!showDetail && previousStage && onNavigateStage ? (
+        {isDesktop && !showDetail && previousStage && onNavigateStage ? (
           <StageBookmarkArrow
             side="left"
             stage={previousStage}
             onPress={() => onNavigateStage(previousStage.id)}
           />
         ) : null}
-        {!showDetail && nextStage && onNavigateStage ? (
+        {isDesktop && !showDetail && nextStage && onNavigateStage ? (
           <StageBookmarkArrow
             side="right"
             stage={nextStage}
@@ -696,12 +875,34 @@ export function LoadCenterKanbanColumnModal({
               <View style={styles.menuHeader}>
                 <Text style={styles.menuTitle}>{menuTitle}</Text>
                 <Pressable
-                  onPress={() => setOpenMenu(null)}
+                  onPress={() => {
+                    setMenuQuery("");
+                    setOpenMenu(null);
+                  }}
                   style={styles.menuClose}
                   hitSlop={8}
                 >
                   <FontAwesome name="times" size={14} color={Theme.textMuted} />
                 </Pressable>
+              </View>
+              <View style={styles.menuSearch}>
+                <FontAwesome name="search" size={12} color={Theme.textMuted} />
+                <TextInput
+                  style={styles.menuSearchInput}
+                  value={menuQuery}
+                  onChangeText={setMenuQuery}
+                  placeholder={
+                    openMenu === "pickup"
+                      ? "Search pickup"
+                      : openMenu === "drop"
+                        ? "Search drop"
+                        : "Search vehicle"
+                  }
+                  placeholderTextColor={Theme.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  accessibilityLabel="Search filter options"
+                />
               </View>
               <ScrollView
                 style={styles.menuList}
@@ -732,14 +933,14 @@ export function LoadCenterKanbanColumnModal({
                   ) : null}
                 </Pressable>
                 {menuOptions.length === 0 ? (
-                  <Text style={styles.menuEmpty}>No options in this stage</Text>
+                  <Text style={styles.menuEmpty}>No matching live loads</Text>
                 ) : (
                   menuOptions.map((opt) => {
-                    const on = norm(opt) === norm(menuValue);
+                    const on = norm(opt.label) === norm(menuValue);
                     return (
                       <Pressable
-                        key={opt}
-                        onPress={() => setMenuValue(opt)}
+                        key={opt.label}
+                        onPress={() => setMenuValue(opt.label)}
                         style={[styles.menuOption, on && styles.menuOptionActive]}
                       >
                         <Text
@@ -749,15 +950,20 @@ export function LoadCenterKanbanColumnModal({
                           ]}
                           numberOfLines={2}
                         >
-                          {opt}
+                          {opt.label}
                         </Text>
-                        {on ? (
-                          <FontAwesome
-                            name="check"
-                            size={12}
-                            color={Theme.textPrimaryDark}
-                          />
-                        ) : null}
+                        <View style={styles.menuOptionMeta}>
+                          <Text style={styles.menuOptionCount}>
+                            {opt.count} {opt.count === 1 ? "load" : "loads"}
+                          </Text>
+                          {on ? (
+                            <FontAwesome
+                              name="check"
+                              size={12}
+                              color={Theme.textPrimaryDark}
+                            />
+                          ) : null}
+                        </View>
                       </Pressable>
                     );
                   })
@@ -774,7 +980,7 @@ export function LoadCenterKanbanColumnModal({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Theme.surfaceGray,
+    backgroundColor: Theme.analyticsCanvas,
     width: "100%",
     position: "relative",
     overflow: "hidden",
@@ -782,11 +988,24 @@ const styles = StyleSheet.create({
   headerBand: {
     backgroundColor: Theme.cardWhite,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Theme.borderLight,
-    paddingBottom: 14,
+    borderBottomColor: Theme.surfaceBorder,
+    paddingBottom: 16,
     width: "100%",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 1px 0 rgba(15,23,42,0.04)",
+      } as object,
+      default: {},
+    }),
   },
   headerInner: {
+    width: "100%",
+    gap: 8,
+  },
+  headerInnerMobile: {
+    gap: 10,
+  },
+  headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -798,60 +1017,94 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
   },
   accent: {
     width: 4,
-    height: 32,
-    borderRadius: 2,
+    height: 44,
+    borderRadius: 999,
+    flexShrink: 0,
   },
   headerText: {
     flex: 1,
     minWidth: 0,
     gap: 2,
   },
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+    color: Theme.textMuted,
+  },
   title: {
-    fontSize: 17,
+    fontSize: 22,
     fontWeight: "800",
     color: Theme.textPrimaryDark,
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
   },
   titleDesktop: {
+    fontSize: 26,
+    letterSpacing: -0.6,
+  },
+  titleMobile: {
     fontSize: 20,
+    lineHeight: 24,
     letterSpacing: -0.4,
   },
   subtitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: Theme.textMuted,
+    fontSize: 13,
+    fontWeight: "500",
+    color: Theme.textSecondary,
+  },
+  subtitleMobile: {
+    paddingLeft: 16,
+    lineHeight: 18,
   },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     flexShrink: 0,
   },
+  headerAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerActionMobile: {
+    width: 44,
+    height: 44,
+  },
   countBadge: {
-    minWidth: 28,
-    height: 26,
-    paddingHorizontal: 8,
-    borderRadius: 999,
+    minWidth: 40,
+    height: 40,
+    paddingHorizontal: 10,
+    borderRadius: 12,
     backgroundColor: Theme.surface,
     borderWidth: 1,
     borderColor: Theme.borderLight,
     alignItems: "center",
     justifyContent: "center",
   },
+  countBadgeMobile: {
+    minWidth: 44,
+    height: 44,
+  },
   countText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "800",
-    color: Theme.textSecondary,
+    color: Theme.textPrimaryDark,
     fontVariant: ["tabular-nums"],
   },
   closeBtn: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: Theme.surfaceGray,
     borderWidth: 1,
     borderColor: Theme.borderLight,
@@ -1013,12 +1266,47 @@ const styles = StyleSheet.create({
     color: Theme.textOnDark,
   },
   toolbarBand: {
-    backgroundColor: Theme.cardWhite,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Theme.borderLight,
-    paddingTop: 10,
-    paddingBottom: 12,
+    backgroundColor: Theme.analyticsCanvas,
+    paddingTop: 14,
+    paddingBottom: 4,
     width: "100%",
+  },
+  lanePanel: {
+    width: "100%",
+    maxWidth: BOARD_MAX_THREE,
+    alignSelf: "center",
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: Theme.cardWhite,
+    borderWidth: 1,
+    borderColor: Theme.surfaceBorder,
+    gap: 10,
+  },
+  lanePanelMobile: {
+    maxWidth: "100%",
+    padding: 12,
+    borderRadius: 14,
+  },
+  lanePanelHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  lanePanelHint: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: Theme.textMuted,
+  },
+  lanePanelMeta: {
+    flexShrink: 0,
+    fontSize: 11,
+    fontWeight: "700",
+    color: Theme.textSecondary,
   },
   toolbar: {
     flexDirection: "row",
@@ -1106,6 +1394,9 @@ const styles = StyleSheet.create({
   filterChipPressed: {
     opacity: 0.88,
   },
+  filterChipDisabled: {
+    opacity: 0.42,
+  },
   filterChipText: {
     fontSize: 11,
     fontWeight: "700",
@@ -1187,24 +1478,41 @@ const styles = StyleSheet.create({
   empty: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    paddingVertical: 80,
+    gap: 8,
+    paddingVertical: 72,
+    paddingHorizontal: 24,
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Theme.textPrimaryDark,
+    letterSpacing: -0.3,
+    textAlign: "center",
+  },
+  emptyQuiet: {
+    minHeight: 220,
     width: "100%",
   },
   emptyIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: Theme.cardWhite,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: Theme.brandBlueSoft,
     borderWidth: 1,
-    borderColor: Theme.borderLight,
+    borderColor: Theme.brandBlue,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 6,
   },
   emptyText: {
     fontSize: 13,
-    fontWeight: "600",
-    color: Theme.textMuted,
+    fontWeight: "500",
+    color: Theme.textSecondary,
+    textAlign: "center",
+    lineHeight: 18,
   },
   emptyClearBtn: {
     marginTop: 4,
@@ -1217,6 +1525,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: Theme.textOnDark,
+  },
+  loadMoreBtn: {
+    alignSelf: "center",
+    marginTop: 16,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    backgroundColor: Theme.cardWhite,
+    justifyContent: "center",
+  },
+  loadMoreBtnPressed: {
+    opacity: 0.85,
+  },
+  loadMoreBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Theme.primary,
   },
   menuBackdrop: {
     flex: 1,
@@ -1256,6 +1584,25 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Theme.borderLight,
+  },
+  menuSearch: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    minHeight: 40,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    backgroundColor: Theme.screenBackground,
+  },
+  menuSearchInput: {
+    flex: 1,
+    minHeight: 40,
+    fontSize: 14,
+    color: Theme.textPrimaryDark,
   },
   menuTitle: {
     fontSize: 13,
@@ -1298,6 +1645,17 @@ const styles = StyleSheet.create({
   menuOptionTextActive: {
     color: Theme.textPrimaryDark,
     fontWeight: "800",
+  },
+  menuOptionMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
+  },
+  menuOptionCount: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Theme.textSecondary,
   },
   menuEmpty: {
     padding: 20,
