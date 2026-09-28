@@ -33,12 +33,15 @@ type Props = {
   clientId: string;
   /** Optional seed from an already-loaded client row/bundle. */
   rawPolicy?: unknown;
+  /** Header-sized card placed beside the customer name. */
+  compact?: boolean;
 };
 
 export function ClientInvoicePodPolicySection({
   orgId,
   clientId,
   rawPolicy,
+  compact = false,
 }: Props) {
   const queryClient = useQueryClient();
   const policyQueryKey = queryKeys.clients.invoicePodPolicy(orgId, clientId);
@@ -105,12 +108,28 @@ export function ClientInvoicePodPolicySection({
       : "Unconfigured";
 
   return (
-    <View style={styles.wrap} accessibilityLabel="POD for Invoicing">
+    <View style={[styles.wrap, compact && styles.wrapCompact]} accessibilityLabel="POD for Invoicing">
       <View style={styles.head}>
-        <Text style={styles.kicker}>POD for Invoicing</Text>
-        <Text style={[styles.status, !parsed.ok && styles.invalid]} numberOfLines={1}>
-          {statusLabel}
+        <Text style={[styles.kicker, compact && styles.kickerCompact]} numberOfLines={1}>
+          POD for Invoicing
         </Text>
+        <View
+          style={[
+            styles.statusBadge,
+            !parsed.ok ? styles.statusBadgeBad : configuredPolicy ? styles.statusBadgeOk : styles.statusBadgeWarn,
+          ]}
+        >
+          <Text
+            style={[
+              styles.status,
+              !parsed.ok && styles.invalid,
+              configuredPolicy ? styles.statusOk : !parsed.ok ? null : styles.statusWarn,
+            ]}
+            numberOfLines={1}
+          >
+            {statusLabel}
+          </Text>
+        </View>
       </View>
       {!parsed.ok ? (
         <Text style={styles.invalid} numberOfLines={1}>
@@ -119,7 +138,7 @@ export function ClientInvoicePodPolicySection({
       ) : null}
 
       <View
-        style={styles.optionsRow}
+        style={[styles.optionsRow, compact && styles.optionsRowCompact]}
         accessibilityRole="radiogroup"
         accessibilityLabel="POD for invoicing policy"
       >
@@ -128,7 +147,14 @@ export function ClientInvoicePodPolicySection({
           return (
             <Pressable
               key={option.value}
-              style={[styles.option, selected && styles.optionSelected]}
+              style={(state) => [
+                styles.option,
+                compact && styles.optionCompact,
+                selected && styles.optionSelected,
+                (state.pressed || Boolean((state as { hovered?: boolean }).hovered)) &&
+                  !selected &&
+                  styles.optionHover,
+              ]}
               onPress={() => {
                 void persist(option.value);
               }}
@@ -145,7 +171,7 @@ export function ClientInvoicePodPolicySection({
                 {selected ? <View style={styles.radioDot} /> : null}
               </View>
               <Text
-                style={[styles.optionLabel, !canEdit && styles.optionMuted]}
+                style={[styles.optionLabel, compact && styles.optionLabelCompact, !canEdit && styles.optionMuted]}
                 numberOfLines={1}
               >
                 {option.label}
@@ -188,14 +214,14 @@ const styles = StyleSheet.create({
   wrap: {
     marginHorizontal: Layout.screenPaddingHorizontal,
     marginTop: 8,
-    marginBottom: 6,
+    marginBottom: 4,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: Theme.surfaceBorder,
+    borderColor: Theme.borderInput,
     backgroundColor: Theme.cardWhite,
-    gap: 6,
+    gap: 8,
   },
   head: {
     flexDirection: "row",
@@ -205,17 +231,28 @@ const styles = StyleSheet.create({
   },
   kicker: {
     fontSize: 11,
-    fontWeight: "800",
-    color: Theme.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
+    fontWeight: "700",
+    color: Theme.textPrimaryDark,
+    letterSpacing: 0.2,
   },
+  statusBadge: {
+    flexShrink: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: Theme.surfaceGray,
+  },
+  statusBadgeWarn: { backgroundColor: Theme.warningMuted },
+  statusBadgeOk: { backgroundColor: Theme.positiveMuted },
+  statusBadgeBad: { backgroundColor: Theme.modalNeutralIconWash },
   status: {
     flexShrink: 1,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     color: Theme.textPrimary,
   },
+  statusWarn: { color: Theme.warning },
+  statusOk: { color: Theme.positive },
   invalid: {
     fontSize: 12,
     fontWeight: "600",
@@ -233,16 +270,21 @@ const styles = StyleSheet.create({
     minHeight: 36,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 8,
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: Theme.surfaceBorder,
+    borderColor: Theme.borderInput,
+    backgroundColor: Theme.cardWhite,
+  },
+  optionHover: {
+    backgroundColor: Theme.surface,
+    borderColor: Theme.borderFocus,
   },
   optionSelected: {
     backgroundColor: Theme.brandBlueWashSubtle,
-    borderColor: Theme.brandBlue,
+    borderColor: Theme.analyticsHeroBg,
   },
   optionLabel: {
     flex: 1,
@@ -264,13 +306,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   radioOn: {
-    borderColor: Theme.primary,
+    borderColor: Theme.analyticsHeroBg,
   },
   radioDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Theme.primary,
+    backgroundColor: Theme.analyticsHeroBg,
   },
   reset: {
     flexShrink: 0,
@@ -298,4 +340,28 @@ const styles = StyleSheet.create({
   spinner: {
     marginTop: 8,
   },
+  wrapCompact: {
+    marginHorizontal: 0,
+    marginTop: 0,
+    marginBottom: 0,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    gap: 4,
+    maxWidth: 460,
+    flexShrink: 1,
+  },
+  kickerCompact: {
+    fontSize: 10,
+    letterSpacing: 0.1,
+  },
+  optionsRowCompact: { gap: 4 },
+  optionCompact: {
+    minHeight: 28,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    gap: 4,
+    borderRadius: 8,
+  },
+  optionLabelCompact: { fontSize: 11 },
 });

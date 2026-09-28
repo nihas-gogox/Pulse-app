@@ -18,6 +18,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -72,6 +73,9 @@ export function ClientProfileHubsEditSection({
   const [draft, setDraft] = useState<HubDraft>(emptyDraft());
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const { width } = useWindowDimensions();
+  const cardColumns = width >= 1100 ? 3 : width >= 720 ? 2 : 1;
 
   useEffect(() => {
     setWarehouses(initialWarehouses);
@@ -208,10 +212,38 @@ export function ClientProfileHubsEditSection({
             <Text style={styles.backCtaText}>Back</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.smallCtaAmber} onPress={startAdd} activeOpacity={0.85}>
-            <FontAwesome name="plus" size={11} color={Theme.warning} />
-            <Text style={styles.smallCtaAmberText}>Register Hub</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <View style={styles.viewToggle}>
+              <TouchableOpacity
+                style={[styles.viewToggleBtn, viewMode === "cards" && styles.viewToggleBtnOn]}
+                onPress={() => setViewMode("cards")}
+                accessibilityRole="button"
+                accessibilityLabel="Card view"
+              >
+                <FontAwesome
+                  name="th-large"
+                  size={12}
+                  color={viewMode === "cards" ? Theme.textOnPrimary : Theme.textRouteCard}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.viewToggleBtn, viewMode === "list" && styles.viewToggleBtnOn]}
+                onPress={() => setViewMode("list")}
+                accessibilityRole="button"
+                accessibilityLabel="List view"
+              >
+                <FontAwesome
+                  name="list"
+                  size={12}
+                  color={viewMode === "list" ? Theme.textOnPrimary : Theme.textRouteCard}
+                />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={styles.smallCtaAmber} onPress={startAdd} activeOpacity={0.85}>
+              <FontAwesome name="plus" size={11} color={Theme.warning} />
+              <Text style={styles.smallCtaAmberText}>Register Hub</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -219,50 +251,96 @@ export function ClientProfileHubsEditSection({
         <Text style={styles.emptyMuted}>No hubs yet. Tap Register Hub to add one.</Text>
       ) : null}
 
-      {!showForm
-        ? warehouses.map((wh) => (
-          <View key={wh.id} style={styles.hubCard}>
-            <View style={styles.hubTop}>
-              <View style={styles.hubIcon}>
-                <FontAwesome name="archive" size={13} color={Theme.textRouteCard} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.hubName}>{wh.name}</Text>
-                <View style={styles.gstPill}>
-                  <Text style={styles.gstPillText}>
-                    Local GST: {(wh.local_gstin ?? "").trim() || "—"}
+      {!showForm && warehouses.length > 0 ? (
+        viewMode === "cards" ? (
+          <View style={styles.cardGrid}>
+            {(() => {
+              const rows: ClientWarehouseExtended[][] = [];
+              for (let i = 0; i < warehouses.length; i += cardColumns) {
+                rows.push(warehouses.slice(i, i + cardColumns));
+              }
+              return rows.map((row) => (
+                <View key={row[0]?.id} style={styles.cardRow}>
+                  {row.map((wh) => (
+                    <View key={wh.id} style={styles.cardInner}>
+                      <View style={styles.hubTop}>
+                        <View style={styles.hubIcon}>
+                          <FontAwesome name="archive" size={12} color={Theme.textRouteCard} />
+                        </View>
+                        <View style={styles.hubTitleBlock}>
+                          <Text style={styles.hubName} numberOfLines={1}>
+                            {wh.name}
+                          </Text>
+                          <Text style={styles.gstLine} numberOfLines={1}>
+                            GST {(wh.local_gstin ?? "").trim() || "—"}
+                          </Text>
+                        </View>
+                        <HubActions
+                          busy={deletingId === wh.id}
+                          onEdit={() => startEdit(wh)}
+                          onDelete={() => void handleDelete(wh.id, wh.name)}
+                        />
+                      </View>
+                      <Text style={styles.hubAddr} numberOfLines={2}>
+                        {formatHubAddress(wh)}
+                      </Text>
+                      <View style={styles.cardMeta}>
+                        <FontAwesome name="user" size={11} color={Theme.textMuted} />
+                        <Text style={styles.hubContact} numberOfLines={1}>
+                          {(wh.contact_name ?? "").trim() || "—"}
+                        </Text>
+                        <Text style={styles.hubPhone} numberOfLines={1}>
+                          {(wh.contact_phone ?? "").trim() || "—"}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                  {row.length < cardColumns
+                    ? Array.from({ length: cardColumns - row.length }, (_, index) => (
+                        <View key={`pad-${row[0]?.id}-${index}`} style={styles.cardPad} />
+                      ))
+                    : null}
+                </View>
+              ));
+            })()}
+          </View>
+        ) : (
+          <View style={styles.listWrap}>
+            {warehouses.map((wh, index) => (
+              <View
+                key={wh.id}
+                style={[styles.listRow, index === warehouses.length - 1 && styles.listRowLast]}
+              >
+                <View style={styles.hubIcon}>
+                  <FontAwesome name="archive" size={12} color={Theme.textRouteCard} />
+                </View>
+                <View style={styles.listName}>
+                  <Text style={styles.hubName} numberOfLines={1}>
+                    {wh.name}
+                  </Text>
+                  <Text style={styles.gstLine} numberOfLines={1}>
+                    GST {(wh.local_gstin ?? "").trim() || "—"}
                   </Text>
                 </View>
+                <Text style={[styles.hubAddr, styles.listAddr]} numberOfLines={1}>
+                  {formatHubAddress(wh)}
+                </Text>
+                <Text style={[styles.hubContact, styles.listPerson]} numberOfLines={1}>
+                  {(wh.contact_name ?? "").trim() || "—"}
+                </Text>
+                <Text style={[styles.hubPhone, styles.listPhone]} numberOfLines={1}>
+                  {(wh.contact_phone ?? "").trim() || "—"}
+                </Text>
+                <HubActions
+                  busy={deletingId === wh.id}
+                  onEdit={() => startEdit(wh)}
+                  onDelete={() => void handleDelete(wh.id, wh.name)}
+                />
               </View>
-              <TouchableOpacity onPress={() => startEdit(wh)} style={styles.iconBtn}>
-                <FontAwesome name="pencil" size={16} color={Theme.textMuted} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => void handleDelete(wh.id, wh.name)}
-                style={styles.iconBtn}
-                disabled={deletingId === wh.id}
-              >
-                {deletingId === wh.id ? (
-                  <LoadingIndicator size="small" color={Theme.negative} />
-                ) : (
-                  <FontAwesome name="trash-o" size={16} color={Theme.negative} />
-                )}
-              </TouchableOpacity>
-            </View>
-            <View style={styles.hubGrid}>
-              <View style={styles.hubCol}>
-                <FontAwesome name="map-marker" size={16} color={Theme.aggregatePillText} />
-                <Text style={styles.hubAddr}>{formatHubAddress(wh)}</Text>
-              </View>
-              <View style={[styles.hubCol, styles.hubColRight]}>
-                <FontAwesome name="user" size={16} color={Theme.positive} />
-                <Text style={styles.hubContact}>{(wh.contact_name ?? "").trim() || "—"}</Text>
-                <Text style={styles.hubPhone}>{(wh.contact_phone ?? "").trim() || "—"}</Text>
-              </View>
-            </View>
+            ))}
           </View>
-        ))
-        : null}
+        )
+      ) : null}
 
       {showForm ? (
         <View style={styles.formCard}>
@@ -417,6 +495,36 @@ export function ClientProfileHubsEditSection({
   );
 }
 
+function HubActions({
+  busy,
+  onEdit,
+  onDelete,
+}: {
+  busy: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <View style={styles.actionRow}>
+      <TouchableOpacity onPress={onEdit} style={styles.iconBtn} accessibilityLabel="Edit hub">
+        <FontAwesome name="pencil" size={12} color={Theme.textMuted} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={onDelete}
+        style={styles.iconBtn}
+        disabled={busy}
+        accessibilityLabel="Delete hub"
+      >
+        {busy ? (
+          <LoadingIndicator size="small" color={Theme.negative} />
+        ) : (
+          <FontAwesome name="trash-o" size={13} color={Theme.negative} />
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function Field({
   label,
   value,
@@ -494,57 +602,87 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.3,
   },
-  emptyMuted: { fontSize: 11, fontWeight: "500", color: Theme.textMuted, marginBottom: 8 },
-  hubCard: {
-    padding: 10,
-    backgroundColor: Theme.cardWhite,
-    marginBottom: 8,
-    width: "100%",
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  viewToggle: {
+    flexDirection: "row",
     borderRadius: 8,
     borderWidth: 1,
     borderColor: Theme.borderInput,
+    backgroundColor: Theme.surfaceGray,
+    padding: 2,
+    gap: 2,
   },
-  hubTop: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 },
-  hubIcon: {
+  viewToggleBtn: {
     width: 28,
     height: 28,
     borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  viewToggleBtnOn: { backgroundColor: Theme.analyticsHeroBg },
+  emptyMuted: { fontSize: 11, fontWeight: "500", color: Theme.textMuted, marginBottom: 8 },
+  cardGrid: { width: "100%", gap: 8 },
+  cardRow: { width: "100%", flexDirection: "row", alignItems: "stretch", gap: 8 },
+  cardInner: {
+    flex: 1,
+    minWidth: 0,
+    padding: 10,
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    gap: 6,
+  },
+  cardPad: { flex: 1, minWidth: 0 },
+  hubTop: { flexDirection: "row", alignItems: "center", gap: 8 },
+  hubTitleBlock: { flex: 1, minWidth: 0 },
+  hubIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     backgroundColor: Theme.surfaceGray,
     alignItems: "center",
     justifyContent: "center",
   },
   hubName: { fontSize: 13, fontWeight: "700", color: Theme.textPrimaryDark },
-  gstPill: {
-    alignSelf: "flex-start",
-    marginTop: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    backgroundColor: Theme.surfaceGray,
-  },
-  gstPillText: { fontSize: 9, fontWeight: "700", color: Theme.textRouteCard, textTransform: "uppercase" },
+  gstLine: { marginTop: 1, fontSize: 10, fontWeight: "600", color: Theme.textRouteCard },
+  actionRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   iconBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 6,
-    backgroundColor: Theme.surfaceGray,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: Theme.surface,
     borderWidth: 1,
     borderColor: Theme.borderInput,
     alignItems: "center",
     justifyContent: "center",
   },
-  hubGrid: {
-    flexDirection: "row",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Theme.borderInput,
-    paddingTop: 8,
-    gap: 8,
+  hubAddr: { fontSize: 12, fontWeight: "500", color: Theme.textPrimary, lineHeight: 16 },
+  cardMeta: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
+  hubContact: { flexShrink: 1, fontSize: 12, fontWeight: "600", color: Theme.textPrimaryDark },
+  hubPhone: { fontSize: 11, fontWeight: "600", color: Theme.textMuted },
+  listWrap: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    borderRadius: 10,
+    backgroundColor: Theme.cardWhite,
+    overflow: "hidden",
   },
-  hubCol: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: 6, minWidth: 0 },
-  hubColRight: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: Theme.borderInput, paddingLeft: 10 },
-  hubAddr: { flex: 1, fontSize: 12, fontWeight: "700", color: Theme.textPrimary },
-  hubContact: { fontSize: 12, fontWeight: "700", color: Theme.textPrimary },
-  hubPhone: { marginTop: 3, fontSize: 10, fontWeight: "700", color: Theme.textMuted },
+  listRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Theme.borderInput,
+  },
+  listRowLast: { borderBottomWidth: 0 },
+  listName: { width: 148, minWidth: 0 },
+  listAddr: { flex: 1, minWidth: 0 },
+  listPerson: { width: 110 },
+  listPhone: { width: 108 },
   formCard: {
     marginTop: 4,
     padding: 14,

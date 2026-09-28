@@ -146,16 +146,19 @@ export function ClientProfileScreen({ clientId, onBack }: Props) {
         paddingBottom: insets.bottom,
       }}
     >
-      <ClientInvoicePodPolicySection
-        orgId={orgId}
-        clientId={clientId}
-        rawPolicy={bundle.client?.invoice_pod_policy}
-      />
       <View style={{ flex: 1, minHeight: 0 }}>
         <CounterpartyProfileSystemCard
           visible
           presentation="page"
           profileTitle="Customer Profile"
+          headerSlot={
+            <ClientInvoicePodPolicySection
+              orgId={orgId}
+              clientId={clientId}
+              rawPolicy={bundle.client?.invoice_pod_policy}
+              compact
+            />
+          }
           type="client"
           organizationName={displayName}
           adminName={client.contact_person}
