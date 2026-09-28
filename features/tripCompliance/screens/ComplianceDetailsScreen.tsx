@@ -194,6 +194,7 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
             paymentModeId: values.paymentModeId,
             paymentModeLabel: values.paymentModeLabel,
             utr: values.utr,
+            notes: values.remark,
           });
           setPaying(false);
           if (payError) {

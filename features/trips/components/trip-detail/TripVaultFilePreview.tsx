@@ -12,6 +12,12 @@ type Props = {
   isPdf: boolean;
   style?: StyleProp<ViewStyle | ImageStyle>;
   accessibilityLabel?: string;
+  showToolbar?: boolean;
+  /** 1 renders the file at its own pixel size. */
+  zoom?: number;
+  sizing?: "original" | "fit";
+  /** 1-based PDF page. Ignored for images. */
+  page?: number;
 };
 
 /** Renders an uploaded vault file: PDF via PdfViewer, images via Image. */
@@ -20,11 +26,15 @@ export function TripVaultFilePreview({
   isPdf,
   style,
   accessibilityLabel,
+  showToolbar = true,
+  zoom = 1,
+  sizing = "fit",
+  page,
 }: Props) {
   if (isPdf) {
     return (
       <View style={style as StyleProp<ViewStyle>}>
-        <PdfViewer pdfUri={uri} />
+        <PdfViewer pdfUri={uri} showToolbar={showToolbar} zoom={zoom} sizing={sizing} page={page} />
       </View>
     );
   }

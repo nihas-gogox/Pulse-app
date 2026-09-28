@@ -177,10 +177,6 @@ export async function postCompliancePayment(params: {
   const prerequisite = checkComplianceLedgerPrerequisite(params.category, params.trip);
   if (!prerequisite.ok) return { error: new Error(prerequisite.reason) };
 
-  if (params.paymentModeId.toUpperCase() !== "CASH" && !params.utr?.trim()) {
-    return { error: new Error("UTR / reference is required for non-cash payment modes.") };
-  }
-
   const amountCheck = validateCompliancePaymentAmount({ amount: params.amount, trip: params.trip });
   if (!amountCheck.ok) return { error: new Error(amountCheck.reason) };
 

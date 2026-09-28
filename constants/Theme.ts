@@ -569,6 +569,13 @@ export const Theme = {
   complianceStageSuccessBg: "#F0FDF4",
   complianceStageInfoFg: "#7C3AED",
   complianceStageInfoBg: "#F5F3FF",
+  /** Trip queue cards — lavender wash, with a solid violet selected state. */
+  complianceTripCardBg: "#F5F3FF",
+  complianceTripCardBorder: "#E4DFF5",
+  complianceTripCardSelectedBg: "#8B7CF6",
+  complianceTripCardOnSelected: "#FFFFFF",
+  complianceTripCardMutedOnSelected: "#EDE9FE",
+  complianceTripCardDividerOnSelected: "rgba(255,255,255,0.35)",
   complianceStageDocsFg: "#DC2626",
   complianceStageDocsBg: "#FEF2F2",
   complianceStageBalanceFg: "#2563EB",

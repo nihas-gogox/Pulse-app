@@ -499,6 +499,7 @@ export function ComplianceSection({
             paymentModeId: values.paymentModeId,
             paymentModeLabel: values.paymentModeLabel,
             utr: values.utr,
+            notes: values.remark,
           });
           setPaying(false);
           if (error) {

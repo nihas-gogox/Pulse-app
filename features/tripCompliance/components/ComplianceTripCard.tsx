@@ -218,7 +218,10 @@ export function ComplianceTripCard({
     readiness.requiredDocs.markVerifiedReady && !fullyVerified && Boolean(onMarkComplianceVerified);
   const [markingTrip, setMarkingTrip] = useState(false);
   const showPayAction = Boolean(canManageFinance && readiness.paymentReady && onPay);
-  const showCardFooter = showPaymentPill;
+  const showCardFooter =
+    showPaymentPill &&
+    payment.label !== "Awaiting POD" &&
+    payment.label !== "Advance Processed";
   const tripId = complianceTripDisplayId(trip);
   const when = formatComplianceTimestamp(complianceEventAt(trip));
   const payLabel = paymentReadinessLabel(readiness);
@@ -260,6 +263,7 @@ export function ComplianceTripCard({
       const n = line.replace(/\.+$/, "").trim().toLowerCase();
       const next = nextLine.replace(/\.+$/, "").trim().toLowerCase();
       if (!n) return false;
+      if (n.startsWith("pending verification:")) return false;
       if (next && (n === next || n === `next: ${next}`)) return false;
       return true;
     })
@@ -343,11 +347,6 @@ export function ComplianceTripCard({
                   </Pressable>
                 ) : null}
               </View>
-              {showPaymentPill ? (
-                <Text style={styles.headMetaMuted} numberOfLines={1}>
-                  {verification.label}
-                </Text>
-              ) : null}
               <Text style={styles.headMetaMuted} numberOfLines={1}>
                 {when}
               </Text>

@@ -113,12 +113,14 @@ export function useComplianceTripsQuery(_page = 0): ComplianceQueueResult & {
   };
 }
 
+export type ComplianceQueueFilter = ComplianceStage | "all" | "pod_received";
+
 export function useComplianceStageFilter(summaries: ComplianceTripSummary[] | undefined) {
-  const [stage, setStage] = useState<ComplianceStage | "all">("all");
+  const [stage, setStage] = useState<ComplianceQueueFilter>("all");
   const filtered = useMemo(() => {
     if (!summaries) return [];
     if (stage === "all") return summaries;
-    // Mutually exclusive chips — one derived stage per trip.
+    if (stage === "pod_received") return summaries.filter((summary) => summary.hardCopyPod?.received);
     return summaries.filter((s) => s.stage === stage);
   }, [summaries, stage]);
 
@@ -139,7 +141,12 @@ export function useComplianceStageFilter(summaries: ComplianceTripSummary[] | un
     return next;
   }, [summaries]);
 
-  return { stage, setStage, filtered, counts };
+  const podReceivedCount = useMemo(
+    () => (summaries ?? []).filter((summary) => summary.hardCopyPod?.received).length,
+    [summaries],
+  );
+
+  return { stage, setStage, filtered, counts, podReceivedCount };
 }
 
 /** Client-side page over an already-filtered summary list. */

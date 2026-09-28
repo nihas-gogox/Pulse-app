@@ -58,6 +58,7 @@ import {
 } from "@/features/tripCompliance/utils/complianceTripDocumentFormat.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { isTripDocumentsStoragePathConflict, uploadTripDocument, type TripDocumentType } from "@/features/trips/services/tripDocuments.service";
+import { TripVaultFilePreview } from "@/features/trips/components/trip-detail/TripVaultFilePreview";
 import {
     markVehicleDocumentVerified,
     resolveVehicleDocumentsWriteTarget,
@@ -171,8 +172,9 @@ export function ComplianceDocumentReviewSheet({
   vehicleLabel = "Unassigned",
   driverLabel = "Unassigned",
 }: ComplianceDocumentReviewSheetProps) {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const splitColumns = windowWidth >= REVIEW_SPLIT_MIN_WIDTH;
+  const sideBySide = windowWidth >= 960;
   const rows = useMemo(() => {
     if (scope === "vehicle") return deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, vehicleDocuments);
     if (scope === "driver") return deriveEntityComplianceRows(COMPLIANCE_DRIVER_DOCUMENT_TYPES, driverDocuments);
@@ -344,6 +346,11 @@ export function ComplianceDocumentReviewSheet({
     },
     [scope, stopProofForRow, canViewDocuments, organizationId, entityId],
   );
+
+  useEffect(() => {
+    if (!visible || !sideBySide || !selected) return;
+    void openRowPreview(selected);
+  }, [visible, sideBySide, selected, openRowPreview]);
 
   const selectedStopProof = stopProofForRow(selected);
 
@@ -763,7 +770,7 @@ export function ComplianceDocumentReviewSheet({
             ? "Upload"
             : "Replace";
     return (
-      <View key={row.key} style={[styles.docBlock, index > 0 && styles.docBlockBorder]}>
+      <View key={row.key} style={[styles.docBlock, index > 0 && styles.docBlockBorder, selectedKey === row.key && styles.docBlockSelected]}>
         <View style={styles.docRow}>
           <TouchableOpacity
             style={styles.docRowMain}
@@ -797,7 +804,10 @@ export function ComplianceDocumentReviewSheet({
             <ComplianceStatusChip status={row.status} label={meta.label} compact />
             <View style={styles.docActionBtns}>
               <TouchableOpacity
-                onPress={() => void openRowPreview(row)}
+                onPress={() => {
+                  setSelectedKey(row.key);
+                  if (!sideBySide) void openRowPreview(row);
+                }}
                 disabled={viewingKey != null || !canViewDocuments}
                 style={styles.eyeBtn}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -1010,9 +1020,16 @@ export function ComplianceDocumentReviewSheet({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[styles.sheet, splitColumns && styles.sheetWide]}>
+        <View
+          style={[
+            styles.sheet,
+            splitColumns && !sideBySide && styles.sheetWide,
+            sideBySide && styles.sheetSplit,
+            sideBySide ? { height: Math.round(windowHeight * 0.88) } : null,
+          ]}
+        >
           <View style={styles.header}>
-            {selected ? (
+            {selected && !sideBySide ? (
               <TouchableOpacity style={styles.backBtn} onPress={() => setSelectedKey(null)}>
                 <ChevronLeft size={16} color={Theme.textPrimary} strokeWidth={2.2} />
                 <Text style={styles.backBtnText}>Back to documents</Text>
@@ -1056,9 +1073,10 @@ export function ComplianceDocumentReviewSheet({
             </TouchableOpacity>
           </View>
 
-          {!selected ? (
+          {(sideBySide || !selected) ? (
+            <View style={sideBySide ? styles.splitBody : undefined}>
             <ScrollView
-              style={styles.listScroll}
+              style={sideBySide ? styles.splitList : styles.listScroll}
               contentContainerStyle={styles.listContent}
               keyboardShouldPersistTaps="handled"
             >
@@ -1097,11 +1115,39 @@ export function ComplianceDocumentReviewSheet({
                 </View>
               ) : null}
               {scope === "trip" &&
-              canMarkVerified &&
-              summary?.complianceVerifiedAt &&
-              summary?.complianceDecision !== "approved_with_exception" ? (
-                <View style={styles.verifiedBanner}>
-                  <Text style={styles.verifiedBannerText}>Compliance Verified ✓</Text>
+              ((canMarkVerified &&
+                summary?.complianceVerifiedAt &&
+                summary?.complianceDecision !== "approved_with_exception") ||
+                (canManageFinance && readiness?.paymentReady && onPay)) ? (
+                <View
+                  style={
+                    canMarkVerified &&
+                    summary?.complianceVerifiedAt &&
+                    summary?.complianceDecision !== "approved_with_exception" &&
+                    canManageFinance &&
+                    readiness?.paymentReady &&
+                    onPay
+                      ? styles.verifiedPayRow
+                      : undefined
+                  }
+                >
+                  {canMarkVerified &&
+                  summary?.complianceVerifiedAt &&
+                  summary?.complianceDecision !== "approved_with_exception" ? (
+                    <View style={[styles.verifiedBanner, styles.verifiedPayItem]}>
+                      <Text style={styles.verifiedBannerText}>Compliance Verified ✓</Text>
+                    </View>
+                  ) : null}
+                  {canManageFinance && readiness?.paymentReady && onPay ? (
+                    <TouchableOpacity
+                      style={[styles.primaryCta, styles.verifiedPayItem]}
+                      onPress={onPay}
+                    >
+                      <Text style={styles.primaryCtaText}>
+                        Pay {readiness.readyCategory === "compliance_balance" ? "balance" : "advance"}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               ) : null}
               {scope === "trip" && canMarkVerified && !summary?.complianceVerifiedAt && !tripVerifyCheck.ok ? (
@@ -1172,14 +1218,30 @@ export function ComplianceDocumentReviewSheet({
                   )}
                 </View>
               ) : null}
-              {scope === "trip" && canManageFinance && readiness?.paymentReady && onPay ? (
-                <TouchableOpacity style={styles.primaryCta} onPress={onPay}>
-                  <Text style={styles.primaryCtaText}>
-                    Pay {readiness.readyCategory === "compliance_balance" ? "balance" : "advance"}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
             </ScrollView>
+            {sideBySide ? (
+              <View style={styles.splitPreview}>
+                {!selected ? (
+                  <Text style={styles.splitEmpty}>Select a document to preview it here.</Text>
+                ) : lightbox?.loading || viewingKey === selected.key ? (
+                  <ActivityIndicator color={Theme.textPrimaryDark} />
+                ) : lightbox?.url ? (
+                  <TripVaultFilePreview
+                    uri={lightbox.url}
+                    isPdf={(lightbox.mime ?? "").includes("pdf")}
+                    showToolbar
+                    sizing="fit"
+                    style={styles.splitFile}
+                    accessibilityLabel={lightbox.title}
+                  />
+                ) : lightbox?.placeProof ? (
+                  <Text style={styles.splitEmpty}>{lightbox.placeProof.note ?? lightbox.placeProof.label}</Text>
+                ) : (
+                  <Text style={styles.splitEmpty}>This document has no file to preview.</Text>
+                )}
+              </View>
+            ) : null}
+            </View>
           ) : (
             <ScrollView style={styles.previewScroll}>
               <View style={styles.previewBox}>
@@ -1284,7 +1346,7 @@ export function ComplianceDocumentReviewSheet({
         }}
       />
       <ComplianceDocumentPreviewModal
-        visible={lightbox != null}
+        visible={!sideBySide && lightbox != null}
         title={lightbox?.title ?? ""}
         fileName={lightbox?.fileName}
         url={lightbox?.url ?? null}
@@ -1329,6 +1391,37 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  /** Desktop table review: document list on the left, file on the right. */
+  sheetSplit: {
+    width: "100%",
+    maxWidth: 1180,
+    maxHeight: "88%",
+  },
+  splitBody: { flex: 1, minHeight: 0, flexDirection: "row" },
+  splitList: {
+    width: 540,
+    maxWidth: "50%",
+    borderRightWidth: 1,
+    borderRightColor: Theme.complianceCardBorder,
+  },
+  splitPreview: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 0,
+    backgroundColor: Theme.compliancePageBg,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  splitFile: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
+  splitEmpty: {
+    paddingHorizontal: 24,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
+    color: Theme.textMuted,
+  },
+  docBlockSelected: { backgroundColor: Theme.complianceStageInfoBg },
   /** Desktop: wide enough for two compact columns, not full-screen. */
   sheetWide: {
     maxWidth: 760,
@@ -1673,12 +1766,26 @@ const styles = StyleSheet.create({
   inlineStatus: { fontSize: 12, color: Theme.textMuted, fontWeight: "600" },
   footerActionsBlock: { gap: 10, marginTop: 4 },
   verifiedBanner: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 44,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 10,
     backgroundColor: Theme.complianceVerifiedPillBg,
     borderWidth: 1,
     borderColor: Theme.complianceVerifiedPillBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  verifiedPayRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 8,
+  },
+  verifiedPayItem: {
+    flex: 1,
+    minWidth: 0,
   },
   verifiedBannerText: {
     fontSize: 13,
