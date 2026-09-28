@@ -46,6 +46,9 @@ packages/pulse-v2/.env.v2
 # generated native folders
 /ios
 /android
+/apps/driver/android
+/apps/driver/ios
+/apps/driver/expo-env.d.ts
 
 # test coverage
 coverage/
