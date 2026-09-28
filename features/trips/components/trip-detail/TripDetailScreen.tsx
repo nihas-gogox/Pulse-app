@@ -47,7 +47,11 @@ import { latestTripSettlementLedgerEntry } from "@/features/trips/utils/tripSett
 import { computePartnerIndentFreightCost } from "@/features/finance/utils/partnerIndentFreightCost.util";
 import { resolveTripLedgerTripType } from "@/features/finance/utils/tripLedgerPayoutMode.util";
 import { TripRatingsBlock } from "@/features/ratings/components/TripRatingsBlock";
-import { isAggregateTrip } from "@/features/drivers/utils/driverUtils.util";
+import {
+  isAggregateTrip,
+  shouldShowManifestHeroDriverParty,
+  type AggregateTripKindPillContext,
+} from "@/features/drivers/utils/driverUtils.util";
 import { ROUTES, tripExpenseEntryEditRoute } from "@/lib/routes";
 import { useMemberAccess } from "@/lib/useMemberAccess";
 import { formatINR, formatIndianVehicleNumber } from "@/lib/format";
@@ -2462,6 +2466,24 @@ export default function TripDetailScreen({
       return true;
     },
     [detail.trip?.id, detail.currentUserId, detail.loadTripDocuments],
+  );
+
+  const manifestHeroPartyContext = useMemo<AggregateTripKindPillContext>(
+    () => ({
+      viewerOrganizationId: currentOrganization?.id ?? null,
+      supplierLinkedOrganizationId: detail.partnerOrgId ?? null,
+    }),
+    [currentOrganization?.id, detail.partnerOrgId],
+  );
+  const showManifestHeroDriver = useMemo(
+    () =>
+      detail.trip
+        ? shouldShowManifestHeroDriverParty(
+            detail.trip,
+            manifestHeroPartyContext,
+          )
+        : false,
+    [detail.trip, manifestHeroPartyContext],
   );
 
   const { open: openVaultChatPreview, node: vaultChatPreviewNode } =
