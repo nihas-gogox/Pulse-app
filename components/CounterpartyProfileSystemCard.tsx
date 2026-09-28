@@ -28,6 +28,7 @@ import { resolveSupplierVaultDocType } from "@/features/suppliers/utils/supplier
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { ClientProfileHubsEditSection } from "@/features/clients/components/ClientProfileHubsEditSection";
+import { ClientProfileAgreementSection } from "@/features/clients/components/ClientProfileAgreementSection";
 import { ClientProfileLanesEditSection } from "@/features/clients/components/ClientProfileLanesEditSection";
 import { ClientProfileFinanceStatementSection } from "@/features/clients/components/ClientProfileFinanceStatementSection";
 import { ClientProfileMarginAnalysisSection } from "@/features/clients/components/ClientProfileMarginAnalysisSection";
@@ -44,7 +45,7 @@ const ASIDE_MAX = 320;
 const CONTRACTS_PAGE_SIZE = 5;
 
 type EditPanel = "BASIC" | "WAREHOUSES" | "CONTRACTS" | "KYC";
-type ViewTab = "OVERVIEW" | "FINANCE" | "PERFORMANCE" | "MARGIN";
+type ViewTab = "OVERVIEW" | "HUBS" | "CONTRACTS" | "AGREEMENT" | "FINANCE" | "PERFORMANCE" | "MARGIN";
 
 type EditTab = {
   id: EditPanel;
@@ -279,6 +280,8 @@ export type CounterpartyProfileSystemCardProps = {
   warehouses?: ProfileWarehouse[];
   contracts?: ProfileContract[];
   kycDocs?: ProfileKycDoc[];
+  /** Page header accessory, rendered beside the customer name. */
+  headerSlot?: ReactNode;
   onClose: () => void;
   /** Opens full edit flow (router / modal) */
   onEditPress?: () => void;
@@ -480,6 +483,7 @@ export function CounterpartyProfileSystemCard({
   warehouses = [],
   contracts = [],
   kycDocs = [],
+  headerSlot,
   onClose,
   onEditPress,
   canEdit = true,
@@ -815,18 +819,19 @@ export function CounterpartyProfileSystemCard({
 
   const editTabs = useMemo(() => {
     const base: EditTab[] = [{ id: "BASIC", label: "Basic Information", icon: "info-circle" }];
-    if (type === "client") {
+    if (type === "client" && !isPage) {
       base.push(
         { id: "WAREHOUSES", label: "Operations Hubs", icon: "archive" },
         { id: "CONTRACTS", label: "Route Contracts", icon: "file-text" },
       );
-    } else {
+    } else if (type !== "client") {
       base.push({ id: "KYC", label: "Verification Vault", icon: "shield" });
     }
     return base;
-  }, [type]);
+  }, [type, isPage]);
 
-  if (mode === "edit") {
+  if (mode === "edit" && !(isPage && type === "client")) {
+    const useFieldGrid = isPage && isWide;
     return (
       <View style={[styles.editorRoot, { paddingTop: isPage ? 0 : insets.top }]}>
         <View style={[styles.editorHeader, isPage && styles.editorHeaderPage]}>
@@ -870,7 +875,7 @@ export function CounterpartyProfileSystemCard({
         </View>
 
         <View style={[styles.editorBody, !isWide && styles.editorBodyColumn]}>
-          {isWide ? (
+          {editTabs.length > 1 && isWide ? (
             <View style={[styles.editorAside, { width: asideWidth, maxWidth: asideWidth }]}>
               <View style={styles.editorAsideContent}>
                 {editTabs.map((tab) => {
@@ -914,7 +919,7 @@ export function CounterpartyProfileSystemCard({
                 <View style={styles.editorResizeGrip} />
               </View>
             </View>
-          ) : (
+          ) : editTabs.length > 1 ? (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -953,7 +958,7 @@ export function CounterpartyProfileSystemCard({
                 );
               })}
             </ScrollView>
-          )}
+          ) : null}
 
           <ScrollView
             style={styles.editorMain}
@@ -976,29 +981,43 @@ export function CounterpartyProfileSystemCard({
                     </Text>
                   </View>
                 </View>
-                <View style={[styles.editFormCard, isPage && styles.editFormCardPage]}>
-                  <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                    {type === "client" ? "Client Name" : "Legal organization name"}
-                  </Text>
-                  <TextInput
-                    value={draftName}
-                    onChangeText={setDraftName}
-                    style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                    placeholder={type === "client" ? "Client name" : "Entity legal name"}
-                    placeholderTextColor={Theme.textSection}
-                    editable={!isIntegrated}
-                  />
+                <View
+                  style={[
+                    styles.editFormCard,
+                    isPage && styles.editFormCardPage,
+                    useFieldGrid && styles.editFormGrid,
+                  ]}
+                >
+                  <View style={useFieldGrid ? styles.editFormCell : undefined}>
+                    <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
+                      {type === "client" ? "Client Name" : "Legal organization name"}
+                    </Text>
+                    <TextInput
+                      value={draftName}
+                      onChangeText={setDraftName}
+                      style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                      placeholder={type === "client" ? "Client name" : "Entity legal name"}
+                      placeholderTextColor={Theme.textSection}
+                      editable={!isIntegrated}
+                    />
+                  </View>
+                  <View style={useFieldGrid ? styles.editFormCell : undefined}>
+                    <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
+                      Email link
+                    </Text>
+                    <TextInput
+                      value={draftEmail}
+                      onChangeText={setDraftEmail}
+                      style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                      placeholder="billing@company.com"
+                      placeholderTextColor={Theme.textSection}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      editable={type === "client" ? !isIntegrated : true}
+                    />
+                  </View>
                   {type === "client" ? (
-                    <>
-                      <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>PAN</Text>
-                      <TextInput
-                        value={draftPan}
-                        onChangeText={setDraftPan}
-                        style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                        placeholder="PAN"
-                        placeholderTextColor={Theme.textSection}
-                        autoCapitalize="characters"
-                      />
+                    <View style={useFieldGrid ? styles.editFormCell : undefined}>
                       <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>GST</Text>
                       <TextInput
                         value={draftGst}
@@ -1008,66 +1027,50 @@ export function CounterpartyProfileSystemCard({
                         placeholderTextColor={Theme.textSection}
                         autoCapitalize="characters"
                       />
-                    </>
-                  ) : null}
-                  <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                    {type === "client" ? "SPOC Name" : "Admin name"}
-                  </Text>
-                  <TextInput
-                    value={draftAdmin}
-                    onChangeText={setDraftAdmin}
-                    style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                    placeholder={type === "client" ? "SPOC name" : "Contact person"}
-                    placeholderTextColor={Theme.textSection}
-                    editable={!isIntegrated}
-                  />
-                  {type === "client" ? null : (
-                    <>
-                      <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                        Email link
-                      </Text>
-                      <TextInput
-                        value={draftEmail}
-                        onChangeText={setDraftEmail}
-                        style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                        placeholder="billing@company.com"
-                        placeholderTextColor={Theme.textSection}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                      />
-                    </>
-                  )}
-                  <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                    {type === "client" ? "SPOC Contact" : "Phone registry"}
-                  </Text>
-                  <TextInput
-                    value={draftPhone}
-                    onChangeText={setDraftPhone}
-                    style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                    placeholder={type === "client" ? "SPOC phone" : "Phone"}
-                    placeholderTextColor={Theme.textSection}
-                    keyboardType="phone-pad"
-                    editable={!isIntegrated}
-                  />
-                  {type === "client" ? (
-                    <>
-                      <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                        Email link
-                      </Text>
-                      <TextInput
-                        value={draftEmail}
-                        onChangeText={setDraftEmail}
-                        style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                        placeholder="billing@company.com"
-                        placeholderTextColor={Theme.textSection}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        editable={!isIntegrated}
-                      />
-                    </>
+                    </View>
                   ) : null}
                   {type === "client" ? (
-                    <View style={styles.dateRow}>
+                    <View style={useFieldGrid ? styles.editFormCell : undefined}>
+                      <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>PAN</Text>
+                      <TextInput
+                        value={draftPan}
+                        onChangeText={setDraftPan}
+                        style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                        placeholder="PAN"
+                        placeholderTextColor={Theme.textSection}
+                        autoCapitalize="characters"
+                      />
+                    </View>
+                  ) : null}
+                  <View style={useFieldGrid ? styles.editFormCell : undefined}>
+                    <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
+                      {type === "client" ? "SPOC Name" : "Admin name"}
+                    </Text>
+                    <TextInput
+                      value={draftAdmin}
+                      onChangeText={setDraftAdmin}
+                      style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                      placeholder={type === "client" ? "SPOC name" : "Contact person"}
+                      placeholderTextColor={Theme.textSection}
+                      editable={!isIntegrated}
+                    />
+                  </View>
+                  <View style={useFieldGrid ? styles.editFormCell : undefined}>
+                    <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
+                      {type === "client" ? "SPOC Contact" : "Phone registry"}
+                    </Text>
+                    <TextInput
+                      value={draftPhone}
+                      onChangeText={setDraftPhone}
+                      style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                      placeholder={type === "client" ? "SPOC phone" : "Phone"}
+                      placeholderTextColor={Theme.textSection}
+                      keyboardType="phone-pad"
+                      editable={!isIntegrated}
+                    />
+                  </View>
+                  {type === "client" ? (
+                    <View style={[styles.dateRow, useFieldGrid && styles.editFormCellFull]}>
                       <ValidityDatePicker
                         label="Valid from"
                         value={draftValidFrom}
@@ -1080,10 +1083,14 @@ export function CounterpartyProfileSystemCard({
                       />
                     </View>
                   ) : null}
-                  {dateError ? <Text style={styles.identitySaveError}>{dateError}</Text> : null}
+                  {dateError ? (
+                    <Text style={[styles.identitySaveError, useFieldGrid && styles.editFormCellFull]}>
+                      {dateError}
+                    </Text>
+                  ) : null}
                 </View>
 
-                <View style={[styles.editSectionHeadingRow, { marginTop: 20 }]}>
+                <View style={[styles.editSectionHeadingRow, { marginTop: isPage ? 10 : 20 }]}>
                   <View style={styles.accentNavy} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.editSectionTitle, isPage && styles.editSectionTitlePage]}>
@@ -1096,7 +1103,12 @@ export function CounterpartyProfileSystemCard({
                     </Text>
                   </View>
                 </View>
-                <View style={[styles.editFormCard, isPage && styles.editFormCardPage]}>
+                <View
+                  style={[
+                    styles.editFormCard,
+                    isPage && styles.editFormCardPage,
+                  ]}
+                >
                   {type === "client" ? null : (
                     <>
                       <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
@@ -1118,11 +1130,7 @@ export function CounterpartyProfileSystemCard({
                   <TextInput
                     value={draftBilling}
                     onChangeText={setDraftBilling}
-                    style={[
-                      styles.fieldInputArea,
-                      isPage && styles.fieldInputAreaPage,
-                      isPage && styles.fieldInputPageLast,
-                    ]}
+                    style={[styles.fieldInputArea, isPage && styles.fieldInputAreaPage]}
                     placeholder="Street, city, state, PIN"
                     placeholderTextColor={Theme.textSection}
                     multiline
@@ -1131,7 +1139,7 @@ export function CounterpartyProfileSystemCard({
               </View>
             )}
 
-            {editPanel === "WAREHOUSES" && type === "client" && canEditEntities ? (
+            {editPanel === "WAREHOUSES" && type === "client" && !isPage && canEditEntities ? (
               <ClientProfileHubsEditSection
                 warehouses={editableWarehouses}
                 organizationId={organizationId!}
@@ -1140,7 +1148,7 @@ export function CounterpartyProfileSystemCard({
               />
             ) : null}
 
-            {editPanel === "WAREHOUSES" && type === "client" && !canEditEntities ? (
+            {editPanel === "WAREHOUSES" && type === "client" && !isPage && !canEditEntities ? (
               <View style={styles.editSection}>
                 <View style={styles.editSectionRow}>
                   <View style={styles.editSectionBarAmber} />
@@ -1184,7 +1192,7 @@ export function CounterpartyProfileSystemCard({
               </View>
             ) : null}
 
-            {editPanel === "CONTRACTS" && type === "client" && canEditEntities ? (
+            {editPanel === "CONTRACTS" && type === "client" && !isPage && canEditEntities ? (
               <ClientProfileLanesEditSection
                 laneRates={editableLaneRates}
                 warehouses={editableWarehouses}
@@ -1194,7 +1202,7 @@ export function CounterpartyProfileSystemCard({
               />
             ) : null}
 
-            {editPanel === "CONTRACTS" && type === "client" && !canEditEntities ? (
+            {editPanel === "CONTRACTS" && type === "client" && !isPage && !canEditEntities ? (
               <View style={styles.editSection}>
                 <View style={styles.editSectionRow}>
                   <View style={styles.editSectionBarNavy} />
@@ -1295,23 +1303,76 @@ export function CounterpartyProfileSystemCard({
           ]}
         >
           <View style={styles.viewStickyLeft}>
-            <TouchableOpacity onPress={onClose} style={styles.iconBtn} hitSlop={12} accessibilityLabel="Close profile">
-              <FontAwesome name="chevron-left" size={isPage ? 18 : 22} color={Theme.textPrimaryDark} />
-            </TouchableOpacity>
-            <Text
-              style={[styles.viewStickyTitle, isPage && styles.viewStickyTitlePage]}
-              numberOfLines={1}
+            <TouchableOpacity
+              onPress={onClose}
+              style={[styles.iconBtn, isPage && styles.iconBtnPage]}
+              hitSlop={12}
+              accessibilityLabel="Close profile"
             >
-              {headerTitle}
-            </Text>
+              <FontAwesome name="chevron-left" size={isPage ? 14 : 22} color={Theme.textPrimaryDark} />
+            </TouchableOpacity>
+            {isPage ? (
+              <>
+                <View style={[styles.avatarCircle, styles.avatarCirclePage]}>
+                  <Text style={[styles.avatarInitials, styles.avatarInitialsPage]}>{initials}</Text>
+                </View>
+                <View style={styles.pageHeaderIdentity}>
+                  <Text style={styles.pageHeaderName} numberOfLines={1}>
+                    {organizationName}
+                  </Text>
+                  <View style={styles.identityMetaInline}>
+                    {shortId ? (
+                      <Text style={[styles.identityId, styles.identityIdPage]}>#{shortId}</Text>
+                    ) : null}
+                    <View style={styles.pillEmerald}>
+                      <Text style={[styles.pillEmeraldText, styles.pillTextPage]}>Active</Text>
+                    </View>
+                    <View style={[styles.pillIndigo, !isIntegrated && styles.pillIndigoMuted]}>
+                      <Text
+                        style={[
+                          styles.pillIndigoText,
+                          !isIntegrated && styles.pillIndigoTextMuted,
+                          styles.pillTextPage,
+                        ]}
+                      >
+                        {isIntegrated ? "Integrated" : "Core"}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <Text style={styles.viewStickyTitle} numberOfLines={1}>
+                {headerTitle}
+              </Text>
+            )}
           </View>
           <View style={styles.viewStickyRight}>
-            <Badge variant={type === "client" ? "blue" : "orange"}>{typeBadge}</Badge>
+            {isPage ? null : (
+              <Badge variant={type === "client" ? "blue" : "orange"}>{typeBadge}</Badge>
+            )}
+            {headerSlot ? <View style={styles.pageHeaderPod}>{headerSlot}</View> : null}
             {canEdit ? (
-              <TouchableOpacity style={[styles.editProfileBtn, isPage && styles.editProfileBtnPage]} onPress={() => setMode("edit")} activeOpacity={0.9}>
+              <Pressable
+                onPress={() => {
+                  setEditPanel("BASIC");
+                  setMode("edit");
+                }}
+                style={(state) => [
+                  styles.editProfileBtn,
+                  isPage && styles.editProfileBtnPage,
+                  isPage &&
+                    (state.pressed || Boolean((state as { hovered?: boolean }).hovered)) &&
+                    styles.editProfileBtnHover,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Edit profile"
+              >
                 <FontAwesome name="pencil" size={12} color={Theme.textOnPrimary} />
-                <Text style={[styles.editProfileBtnText, isPage && styles.editProfileBtnTextPage]}>Edit Profile</Text>
-              </TouchableOpacity>
+                <Text style={[styles.editProfileBtnText, isPage && styles.editProfileBtnTextPage]}>
+                  Edit Profile
+                </Text>
+              </Pressable>
             ) : null}
           </View>
         </View>
@@ -1321,6 +1382,7 @@ export function CounterpartyProfileSystemCard({
         <View
           style={[
             styles.viewTabBar,
+            isPage && styles.viewTabBarPage,
             isPage && {
               paddingHorizontal: pagePad,
               maxWidth: pageMaxWidth,
@@ -1329,6 +1391,60 @@ export function CounterpartyProfileSystemCard({
             },
           ]}
         >
+          {isPage ? (
+          <View style={styles.viewTabTrackPage}>
+          {(
+            [
+              { id: "OVERVIEW" as const, label: "Overview" },
+              ...(type === "client" && isPage
+                ? ([
+                    { id: "HUBS" as const, label: "Operations Hubs" },
+                    { id: "CONTRACTS" as const, label: "Route Contracts" },
+                    { id: "AGREEMENT" as const, label: "Agreement" },
+                  ] as const)
+                : []),
+              { id: "FINANCE" as const, label: "Finance · Statement" },
+              { id: "PERFORMANCE" as const, label: "Lane Performance" },
+              { id: "MARGIN" as const, label: "Margin Analysis" },
+            ] as const
+          ).map((tab) => {
+            const active = viewTab === tab.id;
+            return (
+              <Pressable
+                key={tab.id}
+                style={(state) => [
+                  styles.viewTabChip,
+                  isPage && styles.viewTabChipPage,
+                  active && (isPage ? styles.viewTabChipActivePage : styles.viewTabChipActive),
+                  !active &&
+                    isPage &&
+                    (state.pressed || Boolean((state as { hovered?: boolean }).hovered)) &&
+                    styles.viewTabChipHover,
+                ]}
+                onPress={() => setViewTab(tab.id)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+              >
+                <Text
+                  style={[
+                    styles.viewTabChipText,
+                    isPage && styles.viewTabChipTextPage,
+                    active && (isPage ? styles.viewTabChipTextActivePage : styles.viewTabChipTextActive),
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+          </View>
+          ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.viewTabScroll}
+            contentContainerStyle={styles.viewTabScrollContent}
+          >
           {(
             [
               { id: "OVERVIEW" as const, label: "Overview" },
@@ -1339,18 +1455,29 @@ export function CounterpartyProfileSystemCard({
           ).map((tab) => {
             const active = viewTab === tab.id;
             return (
-              <TouchableOpacity
+              <Pressable
                 key={tab.id}
-                style={[styles.viewTabChip, active && styles.viewTabChipActive]}
+                style={[
+                  styles.viewTabChip,
+                  active && styles.viewTabChipActive,
+                ]}
                 onPress={() => setViewTab(tab.id)}
-                activeOpacity={0.85}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
               >
-                <Text style={[styles.viewTabChipText, active && styles.viewTabChipTextActive]}>
+                <Text
+                  style={[
+                    styles.viewTabChipText,
+                    active && styles.viewTabChipTextActive,
+                  ]}
+                >
                   {tab.label}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             );
           })}
+          </ScrollView>
+          )}
         </View>
       ) : null}
 
@@ -1396,194 +1523,168 @@ export function CounterpartyProfileSystemCard({
             />
             <View style={{ height: 24 }} />
           </>
+        ) : viewTab === "HUBS" && type === "client" ? (
+          <View style={styles.overviewBlock}>
+            {canEditEntities ? (
+              <ClientProfileHubsEditSection
+                warehouses={editableWarehouses}
+                organizationId={organizationId!}
+                clientId={clientId!}
+                onChanged={onProfileEntitiesChange!}
+              />
+            ) : (
+              <Text style={styles.emptyMuted}>No hubs yet.</Text>
+            )}
+          </View>
+        ) : viewTab === "CONTRACTS" && type === "client" ? (
+          <View style={styles.overviewBlock}>
+            {canEditEntities ? (
+              <ClientProfileLanesEditSection
+                laneRates={editableLaneRates}
+                warehouses={editableWarehouses}
+                organizationId={organizationId!}
+                clientId={clientId!}
+                onChanged={onProfileEntitiesChange!}
+              />
+            ) : (
+              <Text style={styles.emptyMuted}>No lane contracts on file.</Text>
+            )}
+          </View>
+        ) : viewTab === "AGREEMENT" && type === "client" && organizationId && clientId ? (
+          <View style={styles.overviewBlock}>
+            <ClientProfileAgreementSection
+              organizationId={organizationId}
+              clientId={clientId}
+              onChanged={() => onProfileEntitiesChange?.()}
+            />
+          </View>
         ) : (
           <>
-        <View style={[styles.identityCard, isPage && styles.identityCardPage]}>
-          {!isPage ? <View style={styles.identityBlob} /> : null}
-          {isPage && isWide ? (
-            <View style={styles.identityPageWideStack}>
-              <View style={styles.identityPageWideRow}>
-                <View style={styles.identityPageWideMain}>
-                  <View style={[styles.avatarRing, styles.avatarRingPage, styles.avatarRingPageWide]}>
-                    <View style={[styles.avatarCircle, styles.avatarCirclePage]}>
-                      <Text style={[styles.avatarInitials, styles.avatarInitialsPage]}>{initials}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.identityPageWideText}>
-                    <Text style={[styles.identityName, styles.identityNamePage, styles.identityNamePageWide]} numberOfLines={1}>
-                      {organizationName}
-                    </Text>
-                    <View style={styles.identityMetaInline}>
-                      {shortId ? (
-                        <Text style={[styles.identityId, styles.identityIdPage]}>#{shortId}</Text>
-                      ) : null}
-                      <View style={[styles.identityBadgeRow, styles.identityBadgeRowPageWide]}>
-                        <View style={styles.pillEmerald}>
-                          <Text style={[styles.pillEmeraldText, styles.pillTextPage]}>Active</Text>
-                        </View>
-                        <View style={[styles.pillIndigo, !isIntegrated && styles.pillIndigoMuted]}>
-                          <Text style={[styles.pillIndigoText, !isIntegrated && styles.pillIndigoTextMuted, styles.pillTextPage]}>
-                            {isIntegrated ? "Integrated" : "Core"}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={styles.identityMetricsInline}>
-                  <View style={styles.metricCell}>
-                    <View style={styles.completionHead}>
-                      <Text style={[styles.completionLabel, styles.completionLabelPage]}>Readiness</Text>
-                      <Text style={[styles.completionPct, styles.completionPctPage]}>{completion}%</Text>
-                    </View>
-                    <View style={styles.completionTrack}>
-                      <LinearGradient
-                        colors={[Theme.primaryLight, Theme.positive]}
-                        start={{ x: 0, y: 0.5 }}
-                        end={{ x: 1, y: 0.5 }}
-                        style={[styles.completionFill, { width: `${completion}%` }]}
-                      />
-                    </View>
-                  </View>
-                  <View style={styles.metricCell}>
-                    <Text style={[styles.kpiTileLabel, styles.kpiTileLabelPage]}>Volume</Text>
-                    <Text style={[styles.kpiTileValue, styles.kpiTileValuePage]} numberOfLines={1}>
-                      {gridVolumeLabel ?? "—"}
-                    </Text>
-                  </View>
-                  <View style={styles.metricCell}>
-                    <Text style={[styles.kpiTileLabel, styles.kpiTileLabelPage]}>Trust</Text>
-                    <Text
-                      style={[
-                        styles.kpiTileValue,
-                        styles.kpiTileValuePage,
-                        { color: trustLabelColor(networkTrustLabel) },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {networkTrustLabel}
-                    </Text>
-                  </View>
-                </View>
-              </View>
+        {!isPage ? (
+        <View style={styles.identityCard}>
+          <View style={styles.identityBlob} />
+          <View style={styles.avatarRing}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarInitials}>{initials}</Text>
             </View>
-          ) : (
-            <>
-              <View style={[styles.avatarRing, isPage && styles.avatarRingPage]}>
-                <View style={[styles.avatarCircle, isPage && styles.avatarCirclePage]}>
-                  <Text style={[styles.avatarInitials, isPage && styles.avatarInitialsPage]}>{initials}</Text>
-                </View>
-              </View>
-              <Text style={[styles.identityName, isPage && styles.identityNamePage]} numberOfLines={3}>
-                {organizationName}
+          </View>
+          <Text style={styles.identityName} numberOfLines={3}>
+            {organizationName}
+          </Text>
+          {shortId ? <Text style={styles.identityId}>#{shortId}</Text> : null}
+          <View style={styles.identityBadgeRow}>
+            <View style={styles.pillEmerald}>
+              <Text style={styles.pillEmeraldText}>Active Profile</Text>
+            </View>
+            <View style={[styles.pillIndigo, !isIntegrated && styles.pillIndigoMuted]}>
+              <Text style={[styles.pillIndigoText, !isIntegrated && styles.pillIndigoTextMuted]}>
+                {isIntegrated ? "Integrated Node" : "Core Node"}
               </Text>
-              {shortId ? (
-                <Text style={[styles.identityId, isPage && styles.identityIdPage]}>#{shortId}</Text>
-              ) : null}
-              <View style={styles.identityBadgeRow}>
-                <View style={styles.pillEmerald}>
-                  <Text style={[styles.pillEmeraldText, isPage && styles.pillTextPage]}>Active Profile</Text>
-                </View>
-                <View style={[styles.pillIndigo, !isIntegrated && styles.pillIndigoMuted]}>
-                  <Text style={[styles.pillIndigoText, !isIntegrated && styles.pillIndigoTextMuted, isPage && styles.pillTextPage]}>
-                    {isIntegrated ? "Integrated Node" : "Core Node"}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={[styles.completionBlock, isPage && styles.completionBlockPage]}>
-                <View style={styles.completionHead}>
-                  <Text style={[styles.completionLabel, isPage && styles.completionLabelPage]}>Profile Readiness</Text>
-                  <Text style={[styles.completionPct, isPage && styles.completionPctPage]}>{completion}%</Text>
-                </View>
-                <View style={styles.completionTrack}>
-                  <LinearGradient
-                    colors={[Theme.primaryLight, Theme.positive]}
-                    start={{ x: 0, y: 0.5 }}
-                    end={{ x: 1, y: 0.5 }}
-                    style={[styles.completionFill, { width: `${completion}%` }]}
-                  />
-                </View>
-              </View>
-
-              <View style={[styles.kpiGrid, isPage && styles.kpiGridPage]}>
-                <View style={styles.kpiTile}>
-                  <Text style={[styles.kpiTileLabel, isPage && styles.kpiTileLabelPage]}>Business Volume</Text>
-                  <Text style={[styles.kpiTileValue, isPage && styles.kpiTileValuePage]}>{gridVolumeLabel ?? "—"}</Text>
-                </View>
-                <View style={styles.kpiTile}>
-                  <Text style={[styles.kpiTileLabel, isPage && styles.kpiTileLabelPage]}>Network Trust</Text>
-                  <Text
-                    style={[
-                      styles.kpiTileValue,
-                      isPage && styles.kpiTileValuePage,
-                      { color: trustLabelColor(networkTrustLabel) },
-                    ]}
-                  >
-                    {networkTrustLabel}
-                  </Text>
-                </View>
-              </View>
-            </>
-          )}
+            </View>
+          </View>
+          <View style={styles.completionBlock}>
+            <View style={styles.completionHead}>
+              <Text style={styles.completionLabel}>Profile Readiness</Text>
+              <Text style={styles.completionPct}>{completion}%</Text>
+            </View>
+            <View style={styles.completionTrack}>
+              <LinearGradient
+                colors={[Theme.primaryLight, Theme.positive]}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={[styles.completionFill, { width: `${completion}%` }]}
+              />
+            </View>
+          </View>
+          <View style={styles.kpiGrid}>
+            <View style={styles.kpiTile}>
+              <Text style={styles.kpiTileLabel}>Business Volume</Text>
+              <Text style={styles.kpiTileValue}>{gridVolumeLabel ?? "—"}</Text>
+            </View>
+            <View style={styles.kpiTile}>
+              <Text style={styles.kpiTileLabel}>Network Trust</Text>
+              <Text style={[styles.kpiTileValue, { color: trustLabelColor(networkTrustLabel) }]}>
+                {networkTrustLabel}
+              </Text>
+            </View>
+          </View>
         </View>
+        ) : null}
 
         {type === "client" && isPage ? (
           <View style={styles.overviewBlock}>
             <View style={[styles.blockHeadingRow, styles.overviewHeadingRow]}>
-              <Text style={styles.overviewSectionTitle}>Customer details</Text>
+              <View style={styles.overviewTitleWrap}>
+                <View style={styles.accentNavy} />
+                <Text style={styles.overviewSectionTitle}>Customer details</Text>
+              </View>
               <TouchableOpacity
-                onPress={() => {
-                  setEditPanel("WAREHOUSES");
-                  setMode("edit");
-                }}
+                onPress={() => setViewTab("HUBS")}
                 hitSlop={8}
               >
                 <Text style={styles.linkCta}>Manage hubs</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.overviewGrid}>
-              {[
-                { label: "Client Name", value: organizationName.trim() || "—" },
-                { label: "GST", value: (gstNumber ?? "").trim() || "—" },
-                { label: "PAN", value: (panNumber ?? "").trim() || "—" },
-                { label: "SPOC Name", value: (adminName ?? "").trim() || "—" },
-                { label: "SPOC Contact", value: spocContactValue(phone) || "—" },
-                { label: "Email", value: (email ?? "").trim() || "—" },
-                { label: "Billing Address", value: (billingAddress ?? "").trim() || "—" },
-                { label: "Valid from", value: formatDdMmYyyy(dateDraft(validFrom)) || "—" },
-                { label: "Valid to", value: formatDdMmYyyy(dateDraft(validTo)) || "—" },
-                {
-                  label: "Operations Hub",
-                  value:
-                    warehouses
-                      .map((hub) =>
-                        [hub.name.trim(), hub.address.trim()].filter(Boolean).join(" · "),
-                      )
-                      .filter(Boolean)
-                      .join(", ") || "—",
-                },
-              ].map((item) => (
-                <View key={item.label} style={styles.overviewTile}>
-                  <Text style={styles.overviewTileLabel}>{item.label}</Text>
-                  <Text style={styles.overviewTileValue} numberOfLines={1}>
-                    {item.value}
-                  </Text>
-                </View>
-              ))}
+            <View style={styles.detailGrid}>
+              {(() => {
+                const detailCells = [
+                  { label: "Client Name", value: organizationName.trim() || "—" },
+                  { label: "Email", value: (email ?? "").trim() || "—" },
+                  { label: "GST", value: (gstNumber ?? "").trim() || "—" },
+                  { label: "PAN", value: (panNumber ?? "").trim() || "—" },
+                  { label: "SPOC Name", value: (adminName ?? "").trim() || "—" },
+                  { label: "SPOC Contact", value: spocContactValue(phone) || "—" },
+                  { label: "Valid from", value: formatDdMmYyyy(dateDraft(validFrom)) || "—" },
+                  { label: "Valid to", value: formatDdMmYyyy(dateDraft(validTo)) || "—" },
+                  { label: "Billing Address", value: (billingAddress ?? "").trim() || "—" },
+                  {
+                    label: "Operations Hub",
+                    value:
+                      warehouses
+                        .map((hub) =>
+                          [hub.name.trim(), hub.address.trim()].filter(Boolean).join(" · "),
+                        )
+                        .filter(Boolean)
+                        .join(", ") || "—",
+                  },
+                ];
+                const columns = isWide ? 5 : 2;
+                const rows: Array<typeof detailCells> = [];
+                for (let i = 0; i < detailCells.length; i += columns) {
+                  rows.push(detailCells.slice(i, i + columns));
+                }
+                return rows.map((row) => (
+                  <View key={row[0]?.label} style={styles.detailRow}>
+                    {row.map((cell) => (
+                      <View key={cell.label} style={styles.detailCard}>
+                        <Text style={styles.overviewTileLabel}>{cell.label}</Text>
+                        <Text
+                          style={styles.overviewTileValue}
+                          numberOfLines={
+                            cell.label === "Billing Address" || cell.label === "Operations Hub" ? 2 : 1
+                          }
+                        >
+                          {cell.value}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ));
+              })()}
             </View>
 
             <View style={[styles.blockHeadingRow, styles.overviewHeadingRow]}>
-              <Text style={styles.overviewSectionTitle}>Lanes</Text>
+              <View style={styles.overviewTitleWrap}>
+                <View style={styles.accentNavy} />
+                <Text style={styles.overviewSectionTitle}>Lanes</Text>
+              </View>
               <TouchableOpacity
-                onPress={() => {
-                  setEditPanel("CONTRACTS");
-                  setMode("edit");
-                }}
+                onPress={() => setViewTab("CONTRACTS")}
                 hitSlop={8}
+                style={styles.secondaryAction}
+                activeOpacity={0.85}
               >
-                <Text style={styles.linkCta}>View Rate Cards</Text>
+                <Text style={styles.secondaryActionText}>View Rate Cards</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.overviewLaneToolbar}>
@@ -1637,25 +1738,30 @@ export function CounterpartyProfileSystemCard({
             ) : (
               <View style={styles.laneList}>
                 {filteredContracts.map((cnt, idx) => (
-                  <View
+                  <Pressable
                     key={cnt.id}
-                    style={[
+                    style={(state) => [
                       styles.laneCard,
                       idx === filteredContracts.length - 1 && styles.laneCardLast,
+                      (state.pressed || Boolean((state as { hovered?: boolean }).hovered)) &&
+                        styles.laneCardHover,
                     ]}
                   >
+                    <FontAwesome name="map-marker" size={12} color={Theme.textMuted} />
                     <Text style={styles.laneCardRoute} numberOfLines={1}>
                       {cnt.pickup}
                       <Text style={styles.laneCardArrow}>{" → "}</Text>
                       {cnt.destination}
                     </Text>
-                    <Text style={styles.laneCardTruck} numberOfLines={1}>
-                      {(cnt.vehicleType ?? "").trim() || "—"}
-                    </Text>
+                    <View style={styles.laneTruckChip}>
+                      <Text style={styles.laneCardTruck} numberOfLines={1}>
+                        {(cnt.vehicleType ?? "").trim() || "—"}
+                      </Text>
+                    </View>
                     <Text style={styles.laneCardRate}>
                       ₹{Math.round(cnt.price).toLocaleString("en-IN")}
                     </Text>
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             )}
@@ -2061,8 +2167,18 @@ export function CounterpartyProfileSystemCard({
             {type === "supplier" && supplierVaultSlot ? (
               supplierVaultSlot
             ) : kycDocs.length === 0 ? (
-              <View style={styles.emptyPanel}>
-                <Text style={styles.emptyMuted}>No KYC documents on file.</Text>
+              <View style={[styles.emptyPanel, isPage && styles.vaultEmpty]}>
+                {isPage ? (
+                  <View style={styles.vaultIcon}>
+                    <FontAwesome name="shield" size={14} color={Theme.textMuted} />
+                  </View>
+                ) : null}
+                <View style={styles.vaultCopy}>
+                  <Text style={styles.emptyMuted}>No KYC documents on file.</Text>
+                  {isPage ? (
+                    <Text style={styles.vaultHint}>Uploaded compliance documents will show here.</Text>
+                  ) : null}
+                </View>
               </View>
             ) : (
               <VerificationVaultCards
@@ -2081,6 +2197,152 @@ export function CounterpartyProfileSystemCard({
           </>
         )}
       </ScrollView>
+      {isPage && type === "client" && mode === "edit" ? (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setMode("view")}>
+          <View style={styles.editDialogBackdrop}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setMode("view")}
+              accessibilityLabel="Close edit profile"
+            />
+            <View style={[styles.editDialogCard, { width: Math.min(720, Math.max(320, windowWidth - 40)) }]}>
+              <View style={styles.editDialogHead}>
+                <View style={styles.editDialogHeadCopy}>
+                  <Text style={styles.editDialogTitle}>Edit profile</Text>
+                  <Text style={styles.editDialogSubtitle} numberOfLines={1}>
+                    {organizationName}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setMode("view")}
+                  style={styles.editDialogClose}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                >
+                  <FontAwesome name="times" size={14} color={Theme.textPrimaryDark} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.editDialogGrid}>
+                <View style={styles.editDialogCell}>
+                  <Text style={[styles.fieldLabel, styles.fieldLabelPage]}>
+                    {type === "client" ? "Client Name" : "Legal organization name"}
+                  </Text>
+                  <TextInput
+                    value={draftName}
+                    onChangeText={setDraftName}
+                    style={styles.editDialogInput}
+                    placeholder={type === "client" ? "Client name" : "Entity legal name"}
+                    placeholderTextColor={Theme.textSection}
+                    editable={!isIntegrated}
+                  />
+                </View>
+                <View style={styles.editDialogCell}>
+                  <Text style={[styles.fieldLabel, styles.fieldLabelPage]}>Email</Text>
+                  <TextInput
+                    value={draftEmail}
+                    onChangeText={setDraftEmail}
+                    style={styles.editDialogInput}
+                    placeholder="billing@company.com"
+                    placeholderTextColor={Theme.textSection}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    editable={type === "client" ? !isIntegrated : true}
+                  />
+                </View>
+                <View style={styles.editDialogCell}>
+                  <Text style={[styles.fieldLabel, styles.fieldLabelPage]}>GST</Text>
+                  <TextInput
+                    value={draftGst}
+                    onChangeText={setDraftGst}
+                    style={styles.editDialogInput}
+                    placeholder="GSTIN"
+                    placeholderTextColor={Theme.textSection}
+                    autoCapitalize="characters"
+                  />
+                </View>
+                <View style={styles.editDialogCell}>
+                  <Text style={[styles.fieldLabel, styles.fieldLabelPage]}>PAN</Text>
+                  <TextInput
+                    value={draftPan}
+                    onChangeText={setDraftPan}
+                    style={styles.editDialogInput}
+                    placeholder="PAN"
+                    placeholderTextColor={Theme.textSection}
+                    autoCapitalize="characters"
+                  />
+                </View>
+                <View style={styles.editDialogCell}>
+                  <Text style={[styles.fieldLabel, styles.fieldLabelPage]}>{type === "client" ? "SPOC Name" : "Admin name"}</Text>
+                  <TextInput
+                    value={draftAdmin}
+                    onChangeText={setDraftAdmin}
+                    style={styles.editDialogInput}
+                    placeholder={type === "client" ? "SPOC name" : "Contact person"}
+                    placeholderTextColor={Theme.textSection}
+                    editable={!isIntegrated}
+                  />
+                </View>
+                <View style={styles.editDialogCell}>
+                  <Text style={[styles.fieldLabel, styles.fieldLabelPage]}>
+                    {type === "client" ? "SPOC Contact" : "Phone"}
+                  </Text>
+                  <TextInput
+                    value={draftPhone}
+                    onChangeText={setDraftPhone}
+                    style={styles.editDialogInput}
+                    placeholder="Phone"
+                    placeholderTextColor={Theme.textSection}
+                    keyboardType="phone-pad"
+                    editable={!isIntegrated}
+                  />
+                </View>
+                {type === "client" ? (
+                  <View style={styles.editDialogDates}>
+                    <ValidityDatePicker
+                      label="Valid from"
+                      value={draftValidFrom}
+                      onChange={setDraftValidFrom}
+                    />
+                    <ValidityDatePicker
+                      label="Valid to"
+                      value={draftValidTo}
+                      onChange={setDraftValidTo}
+                    />
+                  </View>
+                ) : null}
+                <View style={styles.editDialogFull}>
+                  <Text style={[styles.fieldLabel, styles.fieldLabelPage]}>Billing address</Text>
+                  <TextInput
+                    value={draftBilling}
+                    onChangeText={setDraftBilling}
+                    style={styles.editDialogInput}
+                    placeholder="Street, city, state, PIN"
+                    placeholderTextColor={Theme.textSection}
+                  />
+                </View>
+                {dateError ? <Text style={styles.editDialogError}>{dateError}</Text> : null}
+              </View>
+              <View style={styles.editDialogActions}>
+                <TouchableOpacity style={styles.editDialogDiscard} onPress={() => setMode("view")}>
+                  <Text style={styles.editDialogDiscardText}>Discard</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.editDialogSave}
+                  onPress={() => {
+                    void handleSynchronize();
+                  }}
+                  disabled={savingIdentity}
+                >
+                  <Text style={styles.editDialogSaveText}>
+                    {savingIdentity ? "Saving…" : "Save"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -2091,7 +2353,119 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.surface,
   },
   viewRootPage: {
-    backgroundColor: Theme.screenBackground,
+    backgroundColor: Theme.analyticsCanvas,
+  },
+  editDialogBackdrop: {
+    flex: 1,
+    backgroundColor: Theme.overlayBackdrop,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  editDialogCard: {
+    zIndex: 2,
+    alignSelf: "center",
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    padding: 12,
+    gap: 8,
+  },
+  editDialogHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  editDialogHeadCopy: { flex: 1, minWidth: 0 },
+  editDialogTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: Theme.textPrimaryDark,
+  },
+  editDialogSubtitle: {
+    marginTop: 1,
+    fontSize: 11,
+    fontWeight: "600",
+    color: Theme.textMuted,
+  },
+  editDialogClose: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Theme.cardWhite,
+  },
+  editDialogGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: 8,
+    rowGap: 6,
+  },
+  editDialogCell: {
+    flexGrow: 1,
+    flexBasis: "46%",
+    minWidth: 0,
+  },
+  editDialogDates: {
+    flexBasis: "100%",
+    flexGrow: 0,
+    flexDirection: "row",
+    gap: 8,
+  },
+  editDialogFull: { flexBasis: "100%", flexGrow: 0, minWidth: 0 },
+  editDialogInput: {
+    height: 32,
+    minHeight: 32,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 12,
+    fontWeight: "600",
+    color: Theme.textPrimaryDark,
+    backgroundColor: Theme.surface,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    borderRadius: 8,
+    width: "100%",
+  },
+  editDialogError: {
+    flexBasis: "100%",
+    fontSize: 11,
+    fontWeight: "600",
+    color: Theme.negative,
+  },
+  editDialogActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  editDialogDiscard: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    backgroundColor: Theme.cardWhite,
+  },
+  editDialogDiscardText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Theme.textMuted,
+  },
+  editDialogSave: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Theme.analyticsHeroBg,
+  },
+  editDialogSaveText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: Theme.textOnPrimary,
   },
   viewStickyHeader: {
     flexDirection: "row",
@@ -2116,6 +2490,7 @@ const styles = StyleSheet.create({
   viewStickyHeaderPage: {
     paddingHorizontal: 0,
     paddingVertical: 0,
+    borderBottomWidth: 0,
   },
   viewStickyHeaderInner: {
     flexDirection: "row",
@@ -2136,13 +2511,22 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   viewStickyTitlePage: {
-    fontSize: 11,
+    fontSize: 16,
     fontWeight: "700",
     fontStyle: "normal",
-    letterSpacing: 0.7,
-    color: Theme.textMuted,
+    letterSpacing: -0.2,
+    textTransform: "none",
+    color: Theme.textPrimaryDark,
   },
-  viewStickyRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  viewStickyRight: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, minWidth: 0 },
+  pageHeaderIdentity: { flexShrink: 1, minWidth: 120, justifyContent: "center" },
+  pageHeaderPod: { flexShrink: 1, minWidth: 280, justifyContent: "center" },
+  pageHeaderName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Theme.textPrimaryDark,
+    letterSpacing: -0.2,
+  },
   viewTabBar: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -2179,6 +2563,63 @@ const styles = StyleSheet.create({
   viewTabChipTextActive: {
     color: Theme.textOnPrimary,
   },
+  viewTabBarPage: {
+    backgroundColor: Theme.cardWhite,
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.borderInput,
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  viewTabScroll: { flexGrow: 0, alignSelf: "flex-start", maxWidth: "100%" },
+  viewTabScrollPage: { alignSelf: "stretch", flexGrow: 1 },
+  viewTabScrollContent: { flexDirection: "row", alignItems: "center", gap: 6 },
+  viewTabTrack: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    padding: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    backgroundColor: Theme.surfaceGray,
+  },
+  viewTabTrackPage: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-end",
+    gap: 2,
+    width: "100%",
+    minHeight: 40,
+  },
+  viewTabChipPage: {
+    borderWidth: 0,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    minHeight: 40,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    justifyContent: "center",
+  },
+  viewTabChipHover: {
+    backgroundColor: Theme.surface,
+  },
+  viewTabChipActivePage: {
+    backgroundColor: "transparent",
+    borderBottomColor: Theme.analyticsHeroBg,
+  },
+  viewTabChipTextPage: {
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 0,
+    textTransform: "none",
+    color: Theme.textRouteCard,
+  },
+  viewTabChipTextActivePage: {
+    color: Theme.analyticsHeroBg,
+    fontWeight: "700",
+  },
   iconBtn: {
     width: 44,
     height: 44,
@@ -2189,8 +2630,10 @@ const styles = StyleSheet.create({
   iconBtnPage: {
     width: 32,
     height: 32,
-    borderRadius: 6,
-    backgroundColor: "transparent",
+    borderRadius: 10,
+    backgroundColor: Theme.cardWhite,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
   },
   editProfileBtn: {
     flexDirection: "row",
@@ -2218,13 +2661,30 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   editProfileBtnPage: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    paddingVertical: 0,
+    borderRadius: 10,
+    backgroundColor: Theme.analyticsHeroBg,
+    gap: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: Theme.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.12,
+        shadowRadius: 6,
+      },
+      android: { elevation: 2 },
+      default: {},
+    }),
   },
+  editProfileBtnHover: { opacity: 0.88 },
   editProfileBtnTextPage: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "700",
-    letterSpacing: 0.4,
+    letterSpacing: 0.2,
+    textTransform: "none",
+    color: Theme.textOnPrimary,
   },
   viewScroll: { flex: 1 },
   viewScrollContent: {
@@ -2261,19 +2721,22 @@ const styles = StyleSheet.create({
     }),
   },
   identityCardPage: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     marginBottom: 0,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Theme.borderInput,
     alignItems: "stretch",
+    backgroundColor: Theme.cardWhite,
     ...Platform.select({
       ios: {
-        shadowOpacity: 0,
-        shadowRadius: 0,
+        shadowColor: Theme.shadow,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
       },
-      android: { elevation: 0 },
+      android: { elevation: 1 },
       default: {},
     }),
   },
@@ -2334,10 +2797,10 @@ const styles = StyleSheet.create({
     minWidth: 0,
     borderWidth: 1,
     borderColor: Theme.borderInput,
-    borderRadius: 6,
-    backgroundColor: Theme.surfaceGray,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: Theme.cardWhite,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     justifyContent: "center",
   },
   identityMetricGrow: {
@@ -2370,7 +2833,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarCirclePage: { width: 44, height: 44, borderRadius: 8 },
+  avatarCirclePage: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: Theme.analyticsHeroBg,
+  },
   avatarInitials: {
     color: Theme.textOnPrimary,
     fontSize: 28,
@@ -2397,9 +2865,10 @@ const styles = StyleSheet.create({
   },
   identityNamePageWide: {
     textAlign: "left",
-    fontSize: 15,
-    lineHeight: 19,
-    letterSpacing: -0.2,
+    fontSize: 16,
+    lineHeight: 20,
+    letterSpacing: -0.3,
+    textTransform: "none",
   },
   identityId: {
     marginTop: 4,
@@ -2419,15 +2888,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     backgroundColor: Theme.positiveMuted,
-    borderRadius: 4,
+    borderRadius: 999,
   },
   pillEmeraldText: { fontSize: 10, fontWeight: "900", color: Theme.positive, textTransform: "uppercase" },
   pillTextPage: { fontSize: 8, fontWeight: "700", letterSpacing: 0.3 },
   pillIndigo: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: Theme.fiscalTabActiveBg,
-    borderRadius: 4,
+    backgroundColor: Theme.brandBlueWashSubtle,
+    borderRadius: 999,
   },
   pillIndigoMuted: { backgroundColor: Theme.surfaceGray },
   pillIndigoText: { fontSize: 10, fontWeight: "900", color: Theme.aggregatePillText, textTransform: "uppercase" },
@@ -2468,6 +2937,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   completionFill: { height: "100%", borderRadius: 999 },
+  completionFillPage: { backgroundColor: Theme.analyticsHeroBg },
   kpiGrid: { flexDirection: "row", gap: 12, marginTop: 22, width: "100%" },
   kpiGridPage: { gap: 10, marginTop: 16 },
   kpiTilePageWide: {
@@ -2627,10 +3097,17 @@ const styles = StyleSheet.create({
   registryValuePage: { fontSize: 12, fontWeight: "600", color: Theme.textPrimaryDark, lineHeight: 15 },
   overviewBlock: { gap: 10, marginBottom: 4 },
   overviewHeadingRow: { marginBottom: 0, minHeight: 0 },
+  overviewTitleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
+  },
   overviewSectionTitle: {
     fontSize: 12,
     fontWeight: "700",
     color: Theme.textPrimaryDark,
+    letterSpacing: 0.2,
   },
   overviewLaneToolbar: {
     flexDirection: "row",
@@ -2643,55 +3120,74 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Theme.textSecondary,
   },
-  overviewGrid: {
+  detailGrid: {
+    width: "100%",
+    gap: 8,
+  },
+  detailRow: {
+    width: "100%",
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "stretch",
+    gap: 8,
+  },
+  detailCard: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Theme.borderInput,
-    borderRadius: 8,
     backgroundColor: Theme.cardWhite,
-    overflow: "hidden",
-  },
-  overviewTile: {
-    width: "25%",
-    minWidth: 148,
-    flexGrow: 1,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: Theme.borderInput,
   },
   overviewTileLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "700",
     color: Theme.textRouteCard,
     textTransform: "uppercase",
-    letterSpacing: 0.3,
-    marginBottom: 2,
+    letterSpacing: 0.45,
+    marginBottom: 3,
   },
   overviewTileValue: {
     fontSize: 13,
     fontWeight: "600",
     color: Theme.textPrimaryDark,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   laneList: {
     borderWidth: 1,
     borderColor: Theme.borderInput,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: Theme.cardWhite,
     overflow: "hidden",
+  },
+  secondaryAction: {
+    minHeight: 28,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryActionText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Theme.analyticsHeroBg,
+    letterSpacing: 0.2,
   },
   laneCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Theme.borderInput,
+    backgroundColor: Theme.cardWhite,
   },
+  laneCardHover: { backgroundColor: Theme.surface },
   laneCardLast: { borderBottomWidth: 0 },
   laneCardRoute: {
     flex: 1,
@@ -2705,10 +3201,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Theme.textMuted,
   },
+  laneTruckChip: {
+    minWidth: 52,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: Theme.surfaceGray,
+    alignItems: "center",
+  },
   laneCardTruck: {
-    width: 96,
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "700",
     color: Theme.textSecondary,
   },
   laneCardRate: {
@@ -2716,7 +3219,7 @@ const styles = StyleSheet.create({
     textAlign: "right",
     fontSize: 13,
     fontWeight: "700",
-    color: Theme.textPrimaryDark,
+    color: Theme.primary,
   },
   taxLabel: {
     fontSize: 10,
@@ -2830,10 +3333,30 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingVertical: 14,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Theme.borderInput,
     backgroundColor: Theme.cardWhite,
+  },
+  vaultEmpty: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+  },
+  vaultIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: Theme.surfaceGray,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  vaultCopy: { flex: 1, minWidth: 0, gap: 2 },
+  vaultHint: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: Theme.textRouteCard,
   },
   mtTable: {
     overflow: "hidden",
@@ -3330,9 +3853,28 @@ const styles = StyleSheet.create({
   },
   editFormCardPage: {
     borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingTop: 8,
-    paddingBottom: 2,
+    paddingBottom: 8,
+    width: "100%",
+    alignSelf: "stretch",
+  },
+  editFormGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    marginHorizontal: -6,
+  },
+  editFormCell: {
+    width: "50%",
+    paddingHorizontal: 6,
+    marginBottom: 8,
+    minWidth: 0,
+  },
+  editFormCellFull: {
+    width: "100%",
+    paddingHorizontal: 6,
+    marginBottom: 0,
   },
   fieldLabel: {
     fontSize: 9,
@@ -3344,13 +3886,13 @@ const styles = StyleSheet.create({
   },
   fieldLabelPage: {
     fontSize: 8,
-    letterSpacing: 0.45,
-    marginBottom: 4,
+    letterSpacing: 0.4,
+    marginBottom: 2,
   },
   dateRow: {
     flexDirection: "row",
-    gap: 10,
-    marginTop: 8,
+    gap: 12,
+    marginTop: 0,
   },
   dateField: { flex: 1, minWidth: 0 },
   datePickerShell: {
@@ -3443,11 +3985,13 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   fieldInputPage: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    height: 32,
+    minHeight: 32,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     fontSize: 12,
     fontWeight: "600",
-    marginBottom: 10,
+    marginBottom: 0,
   },
   fieldInputPageLast: {
     marginBottom: 10,
@@ -3469,10 +4013,10 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   fieldInputAreaPage: {
-    minHeight: 64,
-    paddingVertical: 8,
+    minHeight: 52,
+    paddingVertical: 6,
     fontSize: 12,
-    marginBottom: 10,
+    marginBottom: 0,
   },
   smallCtaAmber: {
     flexDirection: "row",

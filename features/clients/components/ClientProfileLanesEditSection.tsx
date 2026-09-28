@@ -21,12 +21,15 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -170,6 +173,11 @@ export function ClientProfileLanesEditSection({
   const [draft, setDraft] = useState<LaneDraft>(emptyDraft(warehouses));
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  /** Sidebar hub. Null is the optional Custom pickup. */
+  const [navHubId, setNavHubId] = useState<string | null>(warehouses[0]?.id ?? null);
+  const { width } = useWindowDimensions();
+  const sideBySide = width >= 900;
+  const dialogWide = width >= 720;
 
   useEffect(() => {
     setLanes(initialLanes);
@@ -181,16 +189,25 @@ export function ClientProfileLanesEditSection({
     setEditingId(null);
   };
 
-  const startAdd = () => {
-    setDraft(emptyDraft(warehouses));
-    setAddingLane(true);
+  const startAdd = (hubId: string | null = navHubId) => {
+    distanceTouchedRef.current = false;
+    setNavHubId(hubId);
     setEditingId(null);
+    setAddingLane(true);
+    setDraft({
+      ...emptyDraft(warehouses),
+      origin_warehouse_id: hubId,
+      origin_label: hubOriginLabel(hubId),
+      origin_coords: hubCoords(hubId),
+    });
   };
 
   const startEdit = (lane: ClientLaneRate) => {
+    setNavHubId(lane.origin_warehouse_id);
     setEditingId(lane.id);
     setDraft(laneToDraft(lane, warehouses));
     setAddingLane(false);
+    distanceTouchedRef.current = lane.distance_km != null;
   };
 
   /** Origin label for a hub — "Name · City, State", matching the desktop form. */
@@ -206,16 +223,16 @@ export function ClientProfileLanesEditSection({
       ? warehouseCoords(warehouses.find((w) => w.id === warehouseId))
       : null;
 
-  const selectHub = (warehouseId: string | null) => {
+  const selectNavHub = (warehouseId: string | null) => {
+    setNavHubId(warehouseId);
+    if (!addingLane || editingId) return;
     distanceTouchedRef.current = false;
-    setDraft({
-      ...emptyDraft(warehouses),
+    setDraft((d) => ({
+      ...d,
       origin_warehouse_id: warehouseId,
       origin_label: hubOriginLabel(warehouseId),
       origin_coords: hubCoords(warehouseId),
-    });
-    setEditingId(null);
-    setAddingLane(true);
+    }));
   };
 
   /** Apply an existing hub lane into the form for update (management) or duplicate-as-new. */
@@ -226,19 +243,6 @@ export function ClientProfileLanesEditSection({
     // auto-fill cannot overwrite it.
     distanceTouchedRef.current = lane.distance_km != null;
     setDraft(laneToDraft(lane, warehouses));
-  };
-
-  const startBlankLaneForHub = () => {
-    const hubId = draft.origin_warehouse_id;
-    setEditingId(null);
-    setAddingLane(true);
-    distanceTouchedRef.current = false;
-    setDraft({
-      ...emptyDraft(warehouses),
-      origin_warehouse_id: hubId,
-      origin_label: hubOriginLabel(hubId) || draft.origin_label,
-      origin_coords: hubCoords(hubId) ?? draft.origin_coords,
-    });
   };
 
   /** Valid To before Valid From would silently hide the lane from every picker. */
@@ -300,11 +304,20 @@ export function ClientProfileLanesEditSection({
     () =>
       lanesForHub(
         lanes,
-        draft.origin_warehouse_id,
-        warehouses.length > 0 && draft.origin_warehouse_id == null,
+        navHubId,
+        warehouses.length > 0 && navHubId == null,
       ),
-    [lanes, draft.origin_warehouse_id, warehouses.length],
+    [lanes, navHubId, warehouses.length],
   );
+
+  const navHubName =
+    navHubId == null
+      ? "Custom"
+      : (warehouses.find((w) => w.id === navHubId)?.name ?? "Hub");
+  const draftHubName =
+    draft.origin_warehouse_id == null
+      ? "Custom"
+      : (warehouses.find((w) => w.id === draft.origin_warehouse_id)?.name ?? "Hub");
 
   const handleSave = async () => {
     const hub = draft.origin_warehouse_id
@@ -407,42 +420,96 @@ export function ClientProfileLanesEditSection({
         <View style={styles.editSectionBarNavy} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.sectionTitle}>Route Contracts</Text>
-          <Text style={styles.sectionHint}>Defined lane protocols and rate cards</Text>
+          <Text style={styles.sectionHint}>
+            {navHubName} · {hubLanes.length} lane{hubLanes.length === 1 ? "" : "s"}
+          </Text>
         </View>
-        {showForm ? (
-          <TouchableOpacity
-            style={styles.backCta}
-            onPress={resetDraft}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Back to lanes list"
-          >
-            <FontAwesome name="chevron-left" size={12} color={Theme.textPrimaryDark} />
-            <Text style={styles.backCtaText}>Back</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.smallCtaNavy} onPress={startAdd} activeOpacity={0.85}>
-            <FontAwesome name="plus" size={11} color={Theme.textOnPrimary} />
-            <Text style={styles.smallCtaNavyText}>Define Lane</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
-      {!showForm ? (
+      <View style={[styles.workspace, !sideBySide && styles.workspaceStack]}>
+        <View style={[styles.sideNav, !sideBySide && styles.sideNavStack]}>
+          <Text style={styles.sideNavLabel}>Pickup hub</Text>
+          {warehouses.map((wh) => {
+            const on = navHubId === wh.id;
+            return (
+              <View key={wh.id} style={[styles.navItem, on && styles.navItemOn]}>
+                <TouchableOpacity
+                  style={styles.navItemMain}
+                  onPress={() => selectNavHub(wh.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                >
+                  <Text style={[styles.navItemText, on && styles.navItemTextOn]} numberOfLines={1}>
+                    {wh.name}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.navPlus, on && styles.navPlusOn]}
+                  onPress={() => startAdd(wh.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add lane for ${wh.name}`}
+                  hitSlop={6}
+                >
+                  <FontAwesome
+                    name="plus"
+                    size={10}
+                    color={on ? Theme.analyticsHeroBg : Theme.textOnPrimary}
+                  />
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+          {hubLanes.length === 0 ? (
+            <Text style={styles.sideNavEmpty}>No lanes on this hub yet</Text>
+          ) : (
+            hubLanes.map((lane) => {
+              const active = editingId === lane.id;
+              const price = lanePrice(lane);
+              return (
+                <TouchableOpacity
+                  key={lane.id}
+                  style={[styles.navLane, active && styles.navLaneOn]}
+                  onPress={() => applyLaneTag(lane)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.navLaneDest, active && styles.navLaneDestOn]} numberOfLines={1}>
+                    {formatCityStateLabel(lane.destination_label) ||
+                      (lane.destination_label ?? "").trim() ||
+                      "Destination"}
+                  </Text>
+                  <Text style={[styles.navLaneMeta, active && styles.navLaneMetaOn]} numberOfLines={1}>
+                    {(lane.vehicle_type ?? "").trim() || "Any vehicle"}
+                    {" · "}
+                    {price > 0 ? formatINRChip(price) : "TBD"}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </View>
+
+        <View style={styles.mainPane}>
         <View style={styles.tableWrap}>
           <View style={styles.tableHead}>
             <Text style={[styles.th, styles.colPickup]}>Hub (Pickup)</Text>
             <Text style={[styles.th, styles.colDest]}>Destination</Text>
             <Text style={[styles.th, styles.colVehicle]}>Vehicle</Text>
+            <Text style={[styles.th, styles.colTons]}>Tons</Text>
             <Text style={[styles.th, styles.colPricing]}>Pricing</Text>
             <Text style={[styles.th, styles.colRate]}>Lane Rate</Text>
             <Text style={[styles.th, styles.colActions]} />
           </View>
-          {lanes.length === 0 ? (
-            <Text style={styles.emptyMuted}>No contracts yet. Tap Define Lane to add one.</Text>
+          {hubLanes.length === 0 ? (
+            <Text style={styles.emptyMuted}>No lanes on this hub yet. Use + on the hub.</Text>
           ) : (
-            lanes.map((lane) => {
+            hubLanes.map((lane) => {
               const vehicleLabel = (lane.vehicle_type ?? "").trim();
+              const tons = lane.default_load_tons;
+              const tonsLabel =
+                tons != null && Number.isFinite(Number(tons))
+                  ? `${Number(tons)} t`
+                  : "—";
               return (
                 <View key={lane.id} style={styles.tr}>
                   <Text style={[styles.td, styles.tdPickup, styles.colPickup]} numberOfLines={2}>
@@ -453,6 +520,9 @@ export function ClientProfileLanesEditSection({
                   </Text>
                   <Text style={[styles.td, styles.tdVehicle, styles.colVehicle]} numberOfLines={1}>
                     {vehicleLabel || "—"}
+                  </Text>
+                  <Text style={[styles.td, styles.tdTons, styles.colTons]} numberOfLines={1}>
+                    {tonsLabel}
                   </Text>
                   <View style={[styles.colPricing, styles.pricingCol]}>
                     <View
@@ -502,141 +572,55 @@ export function ClientProfileLanesEditSection({
             })
           )}
         </View>
-      ) : null}
+        </View>
+      </View>
 
-      {showForm ? (
-        <View style={styles.formCard}>
+      <Modal
+        visible={showForm}
+        transparent
+        animationType="fade"
+        onRequestClose={resetDraft}
+      >
+        <View style={styles.dialogBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={resetDraft}
+            accessibilityLabel="Close lane dialog"
+          />
+          <View
+            style={[
+              styles.dialogCard,
+              { width: Math.min(820, Math.max(320, width - 48)) },
+            ]}
+          >
           <View style={styles.formTitleRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.formTitle}>{editingId ? "Edit Lane" : "New Lane Contract"}</Text>
+              <Text style={styles.formSubtitle}>Pickup hub · {draftHubName}</Text>
+            </View>
             <TouchableOpacity
               style={styles.formBackBtn}
               onPress={resetDraft}
               hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel="Back"
+              accessibilityLabel="Close"
             >
-              <FontAwesome name="chevron-left" size={14} color={Theme.textPrimaryDark} />
+              <FontAwesome name="times" size={14} color={Theme.textPrimaryDark} />
             </TouchableOpacity>
-            <Text style={styles.formTitle}>{editingId ? "Edit Lane" : "New Lane Contract"}</Text>
           </View>
-
-          {warehouses.length > 0 ? (
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Pickup Hub (optional)</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                <TouchableOpacity
-                  style={[styles.chip, !draft.origin_warehouse_id && styles.chipSelected]}
-                  onPress={() => selectHub(null)}
-                >
-                  <Text style={[styles.chipText, !draft.origin_warehouse_id && styles.chipTextSelected]}>
-                    Custom
-                  </Text>
-                </TouchableOpacity>
-                {warehouses.map((wh) => (
-                  <TouchableOpacity
-                    key={wh.id}
-                    style={[styles.chip, draft.origin_warehouse_id === wh.id && styles.chipSelected]}
-                    onPress={() => selectHub(wh.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        draft.origin_warehouse_id === wh.id && styles.chipTextSelected,
-                      ]}
-                    >
-                      {wh.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              <View style={styles.laneTagBlock}>
-                  <Text style={styles.laneTagLabel}>
-                    {hubLanes.length > 0
-                      ? `Existing lanes · ${hubLanes.length}`
-                      : "No lanes on this hub yet"}
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.laneTagScroll}
-                    contentContainerStyle={styles.laneTagRow}
-                    keyboardShouldPersistTaps="handled"
-                  >
-                    <TouchableOpacity
-                      style={[
-                        styles.laneTag,
-                        styles.laneTagNew,
-                        editingId == null && styles.laneTagSelected,
-                      ]}
-                      onPress={startBlankLaneForHub}
-                      accessibilityRole="button"
-                      accessibilityLabel="New blank lane"
-                    >
-                      <FontAwesome
-                        name="plus"
-                        size={9}
-                        color={editingId == null ? Theme.textOnPrimary : Theme.textMuted}
-                      />
-                      <Text
-                        style={[
-                          styles.laneTagText,
-                          editingId == null && styles.laneTagTextSelected,
-                        ]}
-                      >
-                        New
-                      </Text>
-                    </TouchableOpacity>
-                    {hubLanes.map((lane) => {
-                      const active = editingId === lane.id;
-                      const price = lanePrice(lane);
-                      return (
-                        <TouchableOpacity
-                          key={lane.id}
-                          style={[styles.laneTag, active && styles.laneTagSelected]}
-                          onPress={() => applyLaneTag(lane)}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: active }}
-                          accessibilityLabel={`Lane ${lane.destination_label}`}
-                        >
-                          <Text
-                            style={[styles.laneTagDest, active && styles.laneTagTextSelected]}
-                            numberOfLines={1}
-                          >
-                            {formatCityStateLabel(lane.destination_label) ||
-                              (lane.destination_label ?? "").trim() ||
-                              "Destination"}
-                          </Text>
-                          {(lane.vehicle_type ?? "").trim() ? (
-                            <Text
-                              style={[styles.laneTagMeta, active && styles.laneTagMetaSelected]}
-                              numberOfLines={1}
-                            >
-                              {(lane.vehicle_type ?? "").trim()}
-                            </Text>
-                          ) : null}
-                          <Text
-                            style={[styles.laneTagPrice, active && styles.laneTagPriceSelected]}
-                            numberOfLines={1}
-                          >
-                            {price > 0 ? formatINRChip(price) : "TBD"}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-            </View>
-          ) : null}
-
+          <View style={styles.dialogBody}>
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionCardTitle}>Route</Text>
+          <View style={styles.formPair}>
+          <View style={styles.formPairCell}>
           {draft.origin_warehouse_id ? (
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Pickup Area *</Text>
               <View style={[styles.fieldInput, styles.fieldInputLocked]}>
-                <Text style={styles.lockedFieldText} numberOfLines={2}>
+                <Text style={styles.lockedFieldText} numberOfLines={1}>
                   {draft.origin_label || "—"}
                 </Text>
               </View>
-              <Text style={styles.lockedFieldHint}>Locked to selected hub (city + state)</Text>
             </View>
           ) : (
             <View style={styles.mapFieldWrap}>
@@ -658,6 +642,8 @@ export function ClientProfileLanesEditSection({
               />
             </View>
           )}
+          </View>
+          <View style={styles.formPairCell}>
           <View style={styles.mapFieldWrap}>
             <LocationSearchField
               label="Destination *"
@@ -676,6 +662,13 @@ export function ClientProfileLanesEditSection({
               inputStyle={styles.fieldInput}
             />
           </View>
+          </View>
+          </View>
+          </View>
+
+          <View style={dialogWide ? styles.formPair : styles.formStack}>
+          <View style={[styles.sectionCard, styles.sectionCardSide]}>
+            <Text style={styles.sectionCardTitle}>Load</Text>
           {/**
            * Vehicle type + product type + tons all come from the trip wizard's
            * own control, so the lane form offers the same dropdowns and the
@@ -713,6 +706,9 @@ export function ClientProfileLanesEditSection({
             </Text>
           ) : null}
 
+          </View>
+          <View style={[styles.sectionCard, styles.sectionCardSide]}>
+            <Text style={styles.sectionCardTitle}>Commercial</Text>
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Rate Type</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
@@ -767,6 +763,8 @@ export function ClientProfileLanesEditSection({
             onChangeText={(v) => setDraft((d) => ({ ...d, notes: v }))}
             placeholder="Optional notes"
           />
+          </View>
+          </View>
 
           <View style={styles.formActions}>
             <TouchableOpacity style={styles.cancelBtn} onPress={resetDraft} activeOpacity={0.8}>
@@ -785,8 +783,10 @@ export function ClientProfileLanesEditSection({
               )}
             </TouchableOpacity>
           </View>
+          </View>
+          </View>
         </View>
-      ) : null}
+      </Modal>
     </View>
   );
 }
@@ -893,6 +893,7 @@ const styles = StyleSheet.create({
   colPickup: { flex: 1.35, minWidth: 0 },
   colDest: { flex: 1.2, minWidth: 0 },
   colVehicle: { flex: 0.85, minWidth: 0 },
+  colTons: { width: 64, flexGrow: 0, flexShrink: 0 },
   colPricing: { width: 92, flexGrow: 0, flexShrink: 0 },
   colRate: { width: 104, flexGrow: 0, flexShrink: 0, textAlign: "right" },
   colActions: {
@@ -927,6 +928,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Theme.textMuted,
     textTransform: "none",
+  },
+  tdTons: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Theme.textPrimaryDark,
+    fontVariant: ["tabular-nums"],
   },
   pricingCol: { alignItems: "flex-start", justifyContent: "center" },
   perPill: {
@@ -964,19 +971,179 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  formCard: {
+  workspace: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    width: "100%",
     marginTop: 4,
-    padding: 14,
-    backgroundColor: Theme.surfaceGray,
+  },
+  workspaceStack: { flexDirection: "column" },
+  sideNav: {
+    width: 232,
+    flexShrink: 0,
+    padding: 10,
+    gap: 6,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Theme.borderInput,
+    backgroundColor: Theme.cardWhite,
+  },
+  sideNavStack: { width: "100%" },
+  sideNavLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: Theme.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  sideNavDivider: {
+    height: 1,
+    backgroundColor: Theme.borderInput,
+    marginVertical: 6,
+  },
+  sideNavHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  sideNavEmpty: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Theme.textMuted,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  navItem: {
+    minHeight: 36,
+    paddingLeft: 10,
+    paddingRight: 4,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    backgroundColor: Theme.surface,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  navItemMain: { flex: 1, minWidth: 0, justifyContent: "center", minHeight: 28 },
+  navPlus: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Theme.analyticsHeroBg,
+  },
+  navPlusOn: { backgroundColor: Theme.cardWhite },
+  navItemOn: {
+    backgroundColor: Theme.analyticsHeroBg,
+    borderColor: Theme.analyticsHeroBg,
+  },
+  navItemText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Theme.textPrimaryDark,
+  },
+  navItemTextOn: { color: Theme.textOnPrimary },
+  navNewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    minHeight: 28,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: Theme.analyticsHeroBg,
+  },
+  navNewBtnText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Theme.textOnPrimary,
+  },
+  navLane: {
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    backgroundColor: Theme.surface,
+    gap: 2,
+  },
+  navLaneOn: {
+    borderColor: Theme.analyticsHeroBg,
+    backgroundColor: Theme.cardWhite,
+  },
+  navLaneDest: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Theme.textPrimaryDark,
+  },
+  navLaneDestOn: { color: Theme.analyticsHeroBg },
+  navLaneMeta: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Theme.textMuted,
+  },
+  navLaneMetaOn: { color: Theme.textRouteCard },
+  mainPane: { flex: 1, minWidth: 0, width: "100%" },
+  dialogBackdrop: {
+    flex: 1,
+    backgroundColor: Theme.overlayBackdrop,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  dialogCard: {
+    zIndex: 2,
+    alignSelf: "center",
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    padding: 12,
+    gap: 8,
+  },
+  dialogBody: { width: "100%", gap: 8 },
+  formSubtitle: {
+    marginTop: 2,
+    fontSize: 11,
+    fontWeight: "600",
+    color: Theme.textMuted,
+  },
+  formCard: {
+    marginTop: 4,
+    padding: 0,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     width: "100%",
+    gap: 8,
+  },
+  formStack: { width: "100%", gap: 8 },
+  formPair: { width: "100%", flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  formPairCell: { flex: 1, minWidth: 0 },
+  sectionCard: {
+    minWidth: 0,
+    padding: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    backgroundColor: Theme.cardWhite,
+    gap: 6,
+  },
+  sectionCardSide: { flex: 1 },
+  sectionCardTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Theme.textPrimaryDark,
+    marginBottom: 2,
   },
   formTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 12,
   },
   formBackBtn: {
     width: 32,
@@ -995,26 +1162,27 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     flex: 1,
   },
-  fieldGroup: { marginBottom: 10, width: "100%" },
+  fieldGroup: { marginBottom: 0, width: "100%", minWidth: 0 },
   fieldLabel: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: "700",
     color: Theme.textRouteCard,
     textTransform: "uppercase",
-    letterSpacing: 0.45,
+    letterSpacing: 0.4,
     marginBottom: 4,
   },
   fieldInput: {
-    backgroundColor: Theme.surfaceGray,
+    backgroundColor: Theme.surface,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     color: Theme.textPrimaryDark,
     borderWidth: 1,
     borderColor: Theme.borderInput,
-    borderRadius: 6,
+    borderRadius: 8,
     width: "100%",
+    minHeight: 32,
   },
   fieldInputLocked: {
     backgroundColor: Theme.borderLight,
@@ -1040,8 +1208,9 @@ const styles = StyleSheet.create({
     color: Theme.textSection,
   },
   mapFieldWrap: {
-    marginBottom: 10,
     width: "100%",
+    minWidth: 0,
+    alignSelf: "stretch",
   },
   dateFieldRow: {
     flexDirection: "row",
@@ -1144,10 +1313,10 @@ const styles = StyleSheet.create({
   laneTagTextSelected: {
     color: Theme.textOnPrimary,
   },
-  formActions: { flexDirection: "row", gap: 10, marginTop: 4 },
+  formActions: { flexDirection: "row", gap: 8 },
   cancelBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: Theme.cardWhite,
     borderWidth: 1,
     borderColor: Theme.borderInput,
@@ -1155,7 +1324,7 @@ const styles = StyleSheet.create({
   cancelBtnText: { fontSize: 11, fontWeight: "800", color: Theme.textMuted, textTransform: "uppercase" },
   saveBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 8,
     backgroundColor: Theme.textPrimaryDark,
     alignItems: "center",
     justifyContent: "center",
