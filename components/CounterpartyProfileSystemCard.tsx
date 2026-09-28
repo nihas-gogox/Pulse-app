@@ -824,6 +824,7 @@ export function CounterpartyProfileSystemCard({
   }, [type]);
 
   if (mode === "edit") {
+    const useFieldGrid = isPage && isWide;
     return (
       <View style={[styles.editorRoot, { paddingTop: isPage ? 0 : insets.top }]}>
         <View style={[styles.editorHeader, isPage && styles.editorHeaderPage]}>
@@ -973,29 +974,43 @@ export function CounterpartyProfileSystemCard({
                     </Text>
                   </View>
                 </View>
-                <View style={[styles.editFormCard, isPage && styles.editFormCardPage]}>
-                  <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                    {type === "client" ? "Client Name" : "Legal organization name"}
-                  </Text>
-                  <TextInput
-                    value={draftName}
-                    onChangeText={setDraftName}
-                    style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                    placeholder={type === "client" ? "Client name" : "Entity legal name"}
-                    placeholderTextColor={Theme.textSection}
-                    editable={!isIntegrated}
-                  />
+                <View
+                  style={[
+                    styles.editFormCard,
+                    isPage && styles.editFormCardPage,
+                    useFieldGrid && styles.editFormGrid,
+                  ]}
+                >
+                  <View style={useFieldGrid ? styles.editFormCell : undefined}>
+                    <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
+                      {type === "client" ? "Client Name" : "Legal organization name"}
+                    </Text>
+                    <TextInput
+                      value={draftName}
+                      onChangeText={setDraftName}
+                      style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                      placeholder={type === "client" ? "Client name" : "Entity legal name"}
+                      placeholderTextColor={Theme.textSection}
+                      editable={!isIntegrated}
+                    />
+                  </View>
+                  <View style={useFieldGrid ? styles.editFormCell : undefined}>
+                    <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
+                      Email link
+                    </Text>
+                    <TextInput
+                      value={draftEmail}
+                      onChangeText={setDraftEmail}
+                      style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                      placeholder="billing@company.com"
+                      placeholderTextColor={Theme.textSection}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      editable={type === "client" ? !isIntegrated : true}
+                    />
+                  </View>
                   {type === "client" ? (
-                    <>
-                      <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>PAN</Text>
-                      <TextInput
-                        value={draftPan}
-                        onChangeText={setDraftPan}
-                        style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                        placeholder="PAN"
-                        placeholderTextColor={Theme.textSection}
-                        autoCapitalize="characters"
-                      />
+                    <View style={useFieldGrid ? styles.editFormCell : undefined}>
                       <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>GST</Text>
                       <TextInput
                         value={draftGst}
@@ -1005,66 +1020,50 @@ export function CounterpartyProfileSystemCard({
                         placeholderTextColor={Theme.textSection}
                         autoCapitalize="characters"
                       />
-                    </>
-                  ) : null}
-                  <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                    {type === "client" ? "SPOC Name" : "Admin name"}
-                  </Text>
-                  <TextInput
-                    value={draftAdmin}
-                    onChangeText={setDraftAdmin}
-                    style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                    placeholder={type === "client" ? "SPOC name" : "Contact person"}
-                    placeholderTextColor={Theme.textSection}
-                    editable={!isIntegrated}
-                  />
-                  {type === "client" ? null : (
-                    <>
-                      <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                        Email link
-                      </Text>
-                      <TextInput
-                        value={draftEmail}
-                        onChangeText={setDraftEmail}
-                        style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                        placeholder="billing@company.com"
-                        placeholderTextColor={Theme.textSection}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                      />
-                    </>
-                  )}
-                  <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                    {type === "client" ? "SPOC Contact" : "Phone registry"}
-                  </Text>
-                  <TextInput
-                    value={draftPhone}
-                    onChangeText={setDraftPhone}
-                    style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                    placeholder={type === "client" ? "SPOC phone" : "Phone"}
-                    placeholderTextColor={Theme.textSection}
-                    keyboardType="phone-pad"
-                    editable={!isIntegrated}
-                  />
-                  {type === "client" ? (
-                    <>
-                      <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                        Email link
-                      </Text>
-                      <TextInput
-                        value={draftEmail}
-                        onChangeText={setDraftEmail}
-                        style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                        placeholder="billing@company.com"
-                        placeholderTextColor={Theme.textSection}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        editable={!isIntegrated}
-                      />
-                    </>
+                    </View>
                   ) : null}
                   {type === "client" ? (
-                    <View style={styles.dateRow}>
+                    <View style={useFieldGrid ? styles.editFormCell : undefined}>
+                      <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>PAN</Text>
+                      <TextInput
+                        value={draftPan}
+                        onChangeText={setDraftPan}
+                        style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                        placeholder="PAN"
+                        placeholderTextColor={Theme.textSection}
+                        autoCapitalize="characters"
+                      />
+                    </View>
+                  ) : null}
+                  <View style={useFieldGrid ? styles.editFormCell : undefined}>
+                    <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
+                      {type === "client" ? "SPOC Name" : "Admin name"}
+                    </Text>
+                    <TextInput
+                      value={draftAdmin}
+                      onChangeText={setDraftAdmin}
+                      style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                      placeholder={type === "client" ? "SPOC name" : "Contact person"}
+                      placeholderTextColor={Theme.textSection}
+                      editable={!isIntegrated}
+                    />
+                  </View>
+                  <View style={useFieldGrid ? styles.editFormCell : undefined}>
+                    <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
+                      {type === "client" ? "SPOC Contact" : "Phone registry"}
+                    </Text>
+                    <TextInput
+                      value={draftPhone}
+                      onChangeText={setDraftPhone}
+                      style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                      placeholder={type === "client" ? "SPOC phone" : "Phone"}
+                      placeholderTextColor={Theme.textSection}
+                      keyboardType="phone-pad"
+                      editable={!isIntegrated}
+                    />
+                  </View>
+                  {type === "client" ? (
+                    <View style={[styles.dateRow, useFieldGrid && styles.editFormCellFull]}>
                       <ValidityDatePicker
                         label="Valid from"
                         value={draftValidFrom}
@@ -1077,10 +1076,14 @@ export function CounterpartyProfileSystemCard({
                       />
                     </View>
                   ) : null}
-                  {dateError ? <Text style={styles.identitySaveError}>{dateError}</Text> : null}
+                  {dateError ? (
+                    <Text style={[styles.identitySaveError, useFieldGrid && styles.editFormCellFull]}>
+                      {dateError}
+                    </Text>
+                  ) : null}
                 </View>
 
-                <View style={[styles.editSectionHeadingRow, { marginTop: 20 }]}>
+                <View style={[styles.editSectionHeadingRow, { marginTop: isPage ? 10 : 20 }]}>
                   <View style={styles.accentNavy} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.editSectionTitle, isPage && styles.editSectionTitlePage]}>
@@ -1093,7 +1096,12 @@ export function CounterpartyProfileSystemCard({
                     </Text>
                   </View>
                 </View>
-                <View style={[styles.editFormCard, isPage && styles.editFormCardPage]}>
+                <View
+                  style={[
+                    styles.editFormCard,
+                    isPage && styles.editFormCardPage,
+                  ]}
+                >
                   {type === "client" ? null : (
                     <>
                       <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
@@ -1115,11 +1123,7 @@ export function CounterpartyProfileSystemCard({
                   <TextInput
                     value={draftBilling}
                     onChangeText={setDraftBilling}
-                    style={[
-                      styles.fieldInputArea,
-                      isPage && styles.fieldInputAreaPage,
-                      isPage && styles.fieldInputPageLast,
-                    ]}
+                    style={[styles.fieldInputArea, isPage && styles.fieldInputAreaPage]}
                     placeholder="Street, city, state, PIN"
                     placeholderTextColor={Theme.textSection}
                     multiline
@@ -1541,11 +1545,11 @@ export function CounterpartyProfileSystemCard({
             <View style={styles.overviewGrid}>
               {[
                 { label: "Client Name", value: organizationName.trim() || "—" },
+                { label: "Email", value: (email ?? "").trim() || "—" },
                 { label: "GST", value: (gstNumber ?? "").trim() || "—" },
                 { label: "PAN", value: (panNumber ?? "").trim() || "—" },
                 { label: "SPOC Name", value: (adminName ?? "").trim() || "—" },
                 { label: "SPOC Contact", value: spocContactValue(phone) || "—" },
-                { label: "Email", value: (email ?? "").trim() || "—" },
                 { label: "Billing Address", value: (billingAddress ?? "").trim() || "—" },
                 { label: "Valid from", value: formatDdMmYyyy(dateDraft(validFrom)) || "—" },
                 { label: "Valid to", value: formatDdMmYyyy(dateDraft(validTo)) || "—" },
@@ -3323,9 +3327,28 @@ const styles = StyleSheet.create({
   },
   editFormCardPage: {
     borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingTop: 8,
-    paddingBottom: 2,
+    paddingBottom: 8,
+    width: "100%",
+    alignSelf: "stretch",
+  },
+  editFormGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    marginHorizontal: -6,
+  },
+  editFormCell: {
+    width: "50%",
+    paddingHorizontal: 6,
+    marginBottom: 8,
+    minWidth: 0,
+  },
+  editFormCellFull: {
+    width: "100%",
+    paddingHorizontal: 6,
+    marginBottom: 0,
   },
   fieldLabel: {
     fontSize: 9,
@@ -3337,13 +3360,13 @@ const styles = StyleSheet.create({
   },
   fieldLabelPage: {
     fontSize: 8,
-    letterSpacing: 0.45,
-    marginBottom: 4,
+    letterSpacing: 0.4,
+    marginBottom: 2,
   },
   dateRow: {
     flexDirection: "row",
-    gap: 10,
-    marginTop: 8,
+    gap: 12,
+    marginTop: 0,
   },
   dateField: { flex: 1, minWidth: 0 },
   datePickerShell: {
@@ -3436,11 +3459,13 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   fieldInputPage: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    height: 32,
+    minHeight: 32,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     fontSize: 12,
     fontWeight: "600",
-    marginBottom: 10,
+    marginBottom: 0,
   },
   fieldInputPageLast: {
     marginBottom: 10,
@@ -3462,10 +3487,10 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   fieldInputAreaPage: {
-    minHeight: 64,
-    paddingVertical: 8,
+    minHeight: 52,
+    paddingVertical: 6,
     fontSize: 12,
-    marginBottom: 10,
+    marginBottom: 0,
   },
   smallCtaAmber: {
     flexDirection: "row",
