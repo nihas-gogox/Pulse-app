@@ -72,6 +72,12 @@ export type ProfileContract = {
   notes?: string | null;
 };
 
+function spocContactValue(phone: string | null | undefined): string {
+  const value = (phone ?? "").trim();
+  if (/^linked-/i.test(value)) return "";
+  return value;
+}
+
 export type ProfileKycDoc = {
   id: string;
   documentType: string;
@@ -393,7 +399,7 @@ export function CounterpartyProfileSystemCard({
   const [draftBilling, setDraftBilling] = useState((billingAddress ?? "").trim());
   const [draftAdmin, setDraftAdmin] = useState((adminName ?? "").trim());
   const [draftEmail, setDraftEmail] = useState((email ?? "").trim());
-  const [draftPhone, setDraftPhone] = useState((phone ?? "").trim());
+  const [draftPhone, setDraftPhone] = useState(spocContactValue(phone));
   const [savingIdentity, setSavingIdentity] = useState(false);
   const [contractWarehouseFilter, setContractWarehouseFilter] = useState<string>("all");
   const [contractPage, setContractPage] = useState(0);
@@ -410,14 +416,24 @@ export function CounterpartyProfileSystemCard({
   }, [visible]);
 
   useEffect(() => {
+    if (mode === "edit") return;
     setDraftName(organizationName);
     setDraftGst((gstNumber ?? "").trim());
     setDraftPan((panNumber ?? "").trim());
     setDraftBilling((billingAddress ?? "").trim());
     setDraftAdmin((adminName ?? "").trim());
     setDraftEmail((email ?? "").trim());
-    setDraftPhone((phone ?? "").trim());
-  }, [organizationName, gstNumber, panNumber, billingAddress, adminName, email, phone]);
+    setDraftPhone(spocContactValue(phone));
+  }, [
+    mode,
+    organizationName,
+    gstNumber,
+    panNumber,
+    billingAddress,
+    adminName,
+    email,
+    phone,
+  ]);
 
   const completion = useMemo(
     () =>
@@ -511,15 +527,22 @@ export function CounterpartyProfileSystemCard({
     if (type === "client" && organizationId && clientId) {
       setSavingIdentity(true);
       try {
-        const { error } = await updateClient(organizationId, clientId, {
-          organization_name: draftName.trim(),
-          contact_person: draftAdmin.trim(),
-          email: draftEmail.trim(),
-          phone: draftPhone.trim(),
-          gstin: draftGst.trim(),
-          pan_number: draftPan.trim(),
-          address: draftBilling.trim(),
-        });
+        const identityPatch = isIntegrated
+          ? {
+              gstin: draftGst.trim(),
+              pan_number: draftPan.trim(),
+              address: draftBilling.trim(),
+            }
+          : {
+              organization_name: draftName.trim(),
+              contact_person: draftAdmin.trim(),
+              email: draftEmail.trim(),
+              phone: draftPhone.trim(),
+              gstin: draftGst.trim(),
+              pan_number: draftPan.trim(),
+              address: draftBilling.trim(),
+            };
+        const { error } = await updateClient(organizationId, clientId, identityPatch);
         if (error) {
           Alert.alert("Could not save profile", error.message);
           return;
@@ -754,48 +777,94 @@ export function CounterpartyProfileSystemCard({
                 </View>
                 <View style={[styles.editFormCard, isPage && styles.editFormCardPage]}>
                   <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                    Legal organization name
+                    {type === "client" ? "Client Name" : "Legal organization name"}
                   </Text>
                   <TextInput
                     value={draftName}
                     onChangeText={setDraftName}
                     style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                    placeholder="Entity legal name"
+                    placeholder={type === "client" ? "Client name" : "Entity legal name"}
                     placeholderTextColor={Theme.textSection}
+                    editable={!isIntegrated}
                   />
+                  {type === "client" ? (
+                    <>
+                      <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>PAN</Text>
+                      <TextInput
+                        value={draftPan}
+                        onChangeText={setDraftPan}
+                        style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                        placeholder="PAN"
+                        placeholderTextColor={Theme.textSection}
+                        autoCapitalize="characters"
+                      />
+                      <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>GST</Text>
+                      <TextInput
+                        value={draftGst}
+                        onChangeText={setDraftGst}
+                        style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                        placeholder="15-character GSTIN"
+                        placeholderTextColor={Theme.textSection}
+                        autoCapitalize="characters"
+                      />
+                    </>
+                  ) : null}
                   <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                    Admin name
+                    {type === "client" ? "SPOC Name" : "Admin name"}
                   </Text>
                   <TextInput
                     value={draftAdmin}
                     onChangeText={setDraftAdmin}
                     style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                    placeholder="Contact person"
+                    placeholder={type === "client" ? "SPOC name" : "Contact person"}
                     placeholderTextColor={Theme.textSection}
+                    editable={!isIntegrated}
                   />
+                  {type === "client" ? null : (
+                    <>
+                      <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
+                        Email link
+                      </Text>
+                      <TextInput
+                        value={draftEmail}
+                        onChangeText={setDraftEmail}
+                        style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                        placeholder="billing@company.com"
+                        placeholderTextColor={Theme.textSection}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                      />
+                    </>
+                  )}
                   <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                    Email link
-                  </Text>
-                  <TextInput
-                    value={draftEmail}
-                    onChangeText={setDraftEmail}
-                    style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                    placeholder="billing@company.com"
-                    placeholderTextColor={Theme.textSection}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                  <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                    Phone registry
+                    {type === "client" ? "SPOC Contact" : "Phone registry"}
                   </Text>
                   <TextInput
                     value={draftPhone}
                     onChangeText={setDraftPhone}
                     style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                    placeholder="Phone"
+                    placeholder={type === "client" ? "SPOC phone" : "Phone"}
                     placeholderTextColor={Theme.textSection}
                     keyboardType="phone-pad"
+                    editable={!isIntegrated}
                   />
+                  {type === "client" ? (
+                    <>
+                      <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
+                        Email link
+                      </Text>
+                      <TextInput
+                        value={draftEmail}
+                        onChangeText={setDraftEmail}
+                        style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
+                        placeholder="billing@company.com"
+                        placeholderTextColor={Theme.textSection}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        editable={!isIntegrated}
+                      />
+                    </>
+                  ) : null}
                 </View>
 
                 <View style={[styles.editSectionHeadingRow, { marginTop: 20 }]}>
@@ -805,37 +874,28 @@ export function CounterpartyProfileSystemCard({
                       Tax Identity
                     </Text>
                     <Text style={[styles.editSectionHint, isPage && styles.editSectionHintPage]}>
-                      GSTIN, PAN, and billing address printed on the invoice
+                      {type === "client"
+                        ? "Billing address printed on the invoice"
+                        : "GSTIN, PAN, and billing address printed on the invoice"}
                     </Text>
                   </View>
                 </View>
                 <View style={[styles.editFormCard, isPage && styles.editFormCardPage]}>
-                  <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                    Registered GSTIN
-                  </Text>
-                  <TextInput
-                    value={draftGst}
-                    onChangeText={setDraftGst}
-                    style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                    placeholder="15-character GSTIN"
-                    placeholderTextColor={Theme.textSection}
-                    autoCapitalize="characters"
-                  />
-                  {type === "client" ? (
+                  {type === "client" ? null : (
                     <>
                       <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
-                        PAN registry
+                        Registered GSTIN
                       </Text>
                       <TextInput
-                        value={draftPan}
-                        onChangeText={setDraftPan}
+                        value={draftGst}
+                        onChangeText={setDraftGst}
                         style={[styles.fieldInputLarge, isPage && styles.fieldInputPage]}
-                        placeholder="PAN"
+                        placeholder="15-character GSTIN"
                         placeholderTextColor={Theme.textSection}
                         autoCapitalize="characters"
                       />
                     </>
-                  ) : null}
+                  )}
                   <Text style={[styles.fieldLabel, isPage && styles.fieldLabelPage]}>
                     Billing address
                   </Text>
@@ -1011,7 +1071,7 @@ export function CounterpartyProfileSystemCard({
             styles.viewStickyHeaderInner,
             isPage && {
               paddingHorizontal: pagePad,
-              paddingVertical: isWide ? 12 : 10,
+              paddingVertical: isWide ? 6 : 8,
               maxWidth: pageMaxWidth,
             },
           ]}
@@ -1251,11 +1311,142 @@ export function CounterpartyProfileSystemCard({
           )}
         </View>
 
+        {type === "client" && isPage ? (
+          <View style={styles.overviewBlock}>
+            <View style={[styles.blockHeadingRow, styles.overviewHeadingRow]}>
+              <Text style={styles.overviewSectionTitle}>Customer details</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setEditPanel("WAREHOUSES");
+                  setMode("edit");
+                }}
+                hitSlop={8}
+              >
+                <Text style={styles.linkCta}>Manage hubs</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.overviewGrid}>
+              {[
+                { label: "Client Name", value: organizationName.trim() || "—" },
+                { label: "GST", value: (gstNumber ?? "").trim() || "—" },
+                { label: "PAN", value: (panNumber ?? "").trim() || "—" },
+                { label: "SPOC Name", value: (adminName ?? "").trim() || "—" },
+                { label: "SPOC Contact", value: spocContactValue(phone) || "—" },
+                { label: "Email", value: (email ?? "").trim() || "—" },
+                { label: "Billing Address", value: (billingAddress ?? "").trim() || "—" },
+                {
+                  label: "Operations Hub",
+                  value:
+                    warehouses
+                      .map((hub) =>
+                        [hub.name.trim(), hub.address.trim()].filter(Boolean).join(" · "),
+                      )
+                      .filter(Boolean)
+                      .join(", ") || "—",
+                },
+              ].map((item) => (
+                <View key={item.label} style={styles.overviewTile}>
+                  <Text style={styles.overviewTileLabel}>{item.label}</Text>
+                  <Text style={styles.overviewTileValue} numberOfLines={1}>
+                    {item.value}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={[styles.blockHeadingRow, styles.overviewHeadingRow]}>
+              <Text style={styles.overviewSectionTitle}>Lanes</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setEditPanel("CONTRACTS");
+                  setMode("edit");
+                }}
+                hitSlop={8}
+              >
+                <Text style={styles.linkCta}>View Rate Cards</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.overviewLaneToolbar}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.mtFilterChips}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.mtChip,
+                    contractWarehouseFilter === "all" && styles.mtChipActive,
+                  ]}
+                  onPress={() => setContractWarehouseFilter("all")}
+                  activeOpacity={0.85}
+                >
+                  <Text
+                    style={[
+                      styles.mtChipText,
+                      contractWarehouseFilter === "all" && styles.mtChipTextActive,
+                    ]}
+                  >
+                    All
+                  </Text>
+                </TouchableOpacity>
+                {contractWarehouseOptions.map((opt) => {
+                  const active = contractWarehouseFilter === opt.id;
+                  return (
+                    <TouchableOpacity
+                      key={opt.id}
+                      style={[styles.mtChip, active && styles.mtChipActive]}
+                      onPress={() => setContractWarehouseFilter(opt.id)}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[styles.mtChipText, active && styles.mtChipTextActive]}
+                        numberOfLines={1}
+                      >
+                        {opt.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <Text style={styles.overviewLaneCount}>
+                {filteredContracts.length} lane{filteredContracts.length === 1 ? "" : "s"}
+              </Text>
+            </View>
+            {filteredContracts.length === 0 ? (
+              <Text style={styles.emptyMuted}>No lane contracts on file.</Text>
+            ) : (
+              <View style={styles.laneList}>
+                {filteredContracts.map((cnt, idx) => (
+                  <View
+                    key={cnt.id}
+                    style={[
+                      styles.laneCard,
+                      idx === filteredContracts.length - 1 && styles.laneCardLast,
+                    ]}
+                  >
+                    <Text style={styles.laneCardRoute} numberOfLines={1}>
+                      {cnt.pickup}
+                      <Text style={styles.laneCardArrow}>{" → "}</Text>
+                      {cnt.destination}
+                    </Text>
+                    <Text style={styles.laneCardTruck} numberOfLines={1}>
+                      {(cnt.vehicleType ?? "").trim() || "—"}
+                    </Text>
+                    <Text style={styles.laneCardRate}>
+                      ₹{Math.round(cnt.price).toLocaleString("en-IN")}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        ) : null}
+
+        {!(type === "client" && isPage) ? (
         <View
           style={[
             styles.twoCol,
             type === "client" && isWide && styles.threeCol,
-            type === "client" && isWide && isPage && styles.infoTable,
             !isWide && styles.twoColStack,
           ]}
         >
@@ -1278,11 +1469,35 @@ export function CounterpartyProfileSystemCard({
                 isWide && styles.infoPanelEqual,
               ]}
             >
-              {[
-                { label: "Admin Name", value: (adminName ?? "").trim() || "—", icon: "user" as const },
-                { label: "Email Link", value: (email ?? "").trim() || "—", icon: "envelope" as const },
-                { label: "Phone Registry", value: (phone ?? "").trim() || "—", icon: "phone" as const },
-              ].map((item, idx, arr) => (
+              {(type === "client"
+                ? [
+                    {
+                      label: "Client Name",
+                      value: organizationName.trim() || "—",
+                      icon: "building-o" as const,
+                    },
+                    {
+                      label: "SPOC Name",
+                      value: (adminName ?? "").trim() || "—",
+                      icon: "user" as const,
+                    },
+                    {
+                      label: "SPOC Contact",
+                      value: spocContactValue(phone) || "—",
+                      icon: "phone" as const,
+                    },
+                    {
+                      label: "Email Link",
+                      value: (email ?? "").trim() || "—",
+                      icon: "envelope" as const,
+                    },
+                  ]
+                : [
+                    { label: "Admin Name", value: (adminName ?? "").trim() || "—", icon: "user" as const },
+                    { label: "Email Link", value: (email ?? "").trim() || "—", icon: "envelope" as const },
+                    { label: "Phone Registry", value: (phone ?? "").trim() || "—", icon: "phone" as const },
+                  ]
+              ).map((item, idx, arr) => (
                 <View
                   key={item.label}
                   style={[
@@ -1325,27 +1540,37 @@ export function CounterpartyProfileSystemCard({
                 isWide && styles.infoPanelEqual,
               ]}
             >
-              {[
-                {
-                  label: "Registered GSTIN",
-                  value: (gstNumber ?? "").trim() || "Not Configured",
-                  icon: "file-text-o" as const,
-                },
-                ...(type === "client"
-                  ? [
-                      {
-                        label: "PAN Registry",
-                        value: (panNumber ?? "").trim() || "—",
-                        icon: "id-card-o" as const,
-                      },
-                    ]
-                  : []),
-                {
-                  label: "Billing Address",
-                  value: (billingAddress ?? "").trim() || "Not Configured",
-                  icon: "map-marker" as const,
-                },
-              ].map((item, idx, arr) => (
+              {(type === "client"
+                ? [
+                    {
+                      label: "GST",
+                      value: (gstNumber ?? "").trim() || "—",
+                      icon: "file-text-o" as const,
+                    },
+                    {
+                      label: "PAN",
+                      value: (panNumber ?? "").trim() || "—",
+                      icon: "id-card-o" as const,
+                    },
+                    {
+                      label: "Billing Address",
+                      value: (billingAddress ?? "").trim() || "—",
+                      icon: "map-marker" as const,
+                    },
+                  ]
+                : [
+                    {
+                      label: "Registered GSTIN",
+                      value: (gstNumber ?? "").trim() || "Not Configured",
+                      icon: "file-text-o" as const,
+                    },
+                    {
+                      label: "Billing Address",
+                      value: (billingAddress ?? "").trim() || "Not Configured",
+                      icon: "map-marker" as const,
+                    },
+                  ]
+              ).map((item, idx, arr) => (
                 <View
                   key={item.label}
                   style={[
@@ -1441,8 +1666,9 @@ export function CounterpartyProfileSystemCard({
             </View>
           ) : null}
         </View>
+        ) : null}
 
-        {type === "client" && (
+        {type === "client" && !isPage && (
           <View style={styles.blockSpaced}>
             <View style={styles.blockHeadingRow}>
               <View style={[styles.sectionHeadingRow, styles.sectionHeadingRowInline]}>
@@ -1514,10 +1740,10 @@ export function CounterpartyProfileSystemCard({
               </View>
 
               <View style={styles.mtHead}>
-                <Text style={[styles.mtTh, { flex: 1.2 }]}>Pickup</Text>
+                <Text style={[styles.mtTh, { flex: 1.2 }]}>Lanes</Text>
                 <Text style={[styles.mtTh, { flex: 1.1 }]}>Destination</Text>
-                <Text style={[styles.mtTh, { width: 96 }]}>Vehicle</Text>
-                <Text style={[styles.mtTh, styles.mtThRight, { width: 100 }]}>Price</Text>
+                <Text style={[styles.mtTh, { width: 96 }]}>Truck Type</Text>
+                <Text style={[styles.mtTh, styles.mtThRight, { width: 120 }]}>Contract Rates</Text>
               </View>
 
               {filteredContracts.length === 0 ? (
@@ -1544,7 +1770,7 @@ export function CounterpartyProfileSystemCard({
                     <Text style={[styles.mtTdMuted, { width: 96 }]} numberOfLines={2}>
                       {(cnt.vehicleType ?? "").trim() || "—"}
                     </Text>
-                    <Text style={[styles.mtTdMoney, { width: 100 }]}>
+                    <Text style={[styles.mtTdMoney, { width: 120 }]}>
                       ₹{Math.round(cnt.price).toLocaleString("en-IN")}
                     </Text>
                   </View>
@@ -1788,8 +2014,8 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   viewScrollContentPage: {
-    paddingTop: 12,
-    paddingBottom: 40,
+    paddingTop: 6,
+    paddingBottom: 24,
     width: "100%",
     alignSelf: "center",
     gap: 10,
@@ -2177,6 +2403,99 @@ const styles = StyleSheet.create({
   registryLabelPage: { fontSize: 8, letterSpacing: 0.3, marginBottom: 0 },
   registryValue: { fontSize: 16, fontWeight: "700", color: Theme.textPrimary },
   registryValuePage: { fontSize: 12, fontWeight: "600", color: Theme.textPrimaryDark, lineHeight: 15 },
+  overviewBlock: { gap: 10, marginBottom: 4 },
+  overviewHeadingRow: { marginBottom: 0, minHeight: 0 },
+  overviewSectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Theme.textPrimaryDark,
+  },
+  overviewLaneToolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  overviewLaneCount: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Theme.textSecondary,
+  },
+  overviewGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    borderRadius: 8,
+    backgroundColor: Theme.cardWhite,
+    overflow: "hidden",
+  },
+  overviewTile: {
+    width: "25%",
+    minWidth: 148,
+    flexGrow: 1,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: Theme.borderInput,
+  },
+  overviewTileLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Theme.textRouteCard,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    marginBottom: 2,
+  },
+  overviewTileValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Theme.textPrimaryDark,
+    lineHeight: 16,
+  },
+  laneList: {
+    borderWidth: 1,
+    borderColor: Theme.borderInput,
+    borderRadius: 8,
+    backgroundColor: Theme.cardWhite,
+    overflow: "hidden",
+  },
+  laneCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Theme.borderInput,
+  },
+  laneCardLast: { borderBottomWidth: 0 },
+  laneCardRoute: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    fontWeight: "600",
+    color: Theme.textPrimaryDark,
+  },
+  laneCardArrow: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Theme.textMuted,
+  },
+  laneCardTruck: {
+    width: 96,
+    fontSize: 12,
+    fontWeight: "600",
+    color: Theme.textSecondary,
+  },
+  laneCardRate: {
+    width: 84,
+    textAlign: "right",
+    fontSize: 13,
+    fontWeight: "700",
+    color: Theme.textPrimaryDark,
+  },
   taxLabel: {
     fontSize: 10,
     fontWeight: "900",
