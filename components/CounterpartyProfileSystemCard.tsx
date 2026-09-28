@@ -45,7 +45,15 @@ const ASIDE_MAX = 320;
 const CONTRACTS_PAGE_SIZE = 5;
 
 type EditPanel = "BASIC" | "WAREHOUSES" | "CONTRACTS" | "KYC";
-type ViewTab = "OVERVIEW" | "HUBS" | "CONTRACTS" | "AGREEMENT" | "FINANCE" | "PERFORMANCE" | "MARGIN";
+type ViewTab =
+  | "OVERVIEW"
+  | "HUBS"
+  | "CONTRACTS"
+  | "AGREEMENT"
+  | "VAULT"
+  | "FINANCE"
+  | "PERFORMANCE"
+  | "MARGIN";
 
 type EditTab = {
   id: EditPanel;
@@ -1403,6 +1411,9 @@ export function CounterpartyProfileSystemCard({
                     { id: "AGREEMENT" as const, label: "Agreement" },
                   ] as const)
                 : []),
+              ...(type === "supplier" && supplierVaultSlot
+                ? ([{ id: "VAULT" as const, label: "Documents & Data" }] as const)
+                : []),
               { id: "FINANCE" as const, label: "Finance · Statement" },
               { id: "PERFORMANCE" as const, label: "Lane Performance" },
               { id: "MARGIN" as const, label: "Margin Analysis" },
@@ -1448,6 +1459,9 @@ export function CounterpartyProfileSystemCard({
           {(
             [
               { id: "OVERVIEW" as const, label: "Overview" },
+              ...(type === "supplier" && supplierVaultSlot
+                ? ([{ id: "VAULT" as const, label: "Documents & Data" }] as const)
+                : []),
               { id: "FINANCE" as const, label: "Finance · Statement" },
               { id: "PERFORMANCE" as const, label: "Lane Performance" },
               { id: "MARGIN" as const, label: "Margin Analysis" },
@@ -1550,6 +1564,16 @@ export function CounterpartyProfileSystemCard({
               <Text style={styles.emptyMuted}>No lane contracts on file.</Text>
             )}
           </View>
+        ) : viewTab === "VAULT" && type === "supplier" && supplierVaultSlot ? (
+          <View style={styles.overviewBlock}>
+            <View style={[styles.blockHeadingRow, styles.overviewHeadingRow]}>
+              <View style={styles.overviewTitleWrap}>
+                <View style={styles.accentNavy} />
+                <Text style={styles.overviewSectionTitle}>Documents & Data</Text>
+              </View>
+            </View>
+            {supplierVaultSlot}
+          </View>
         ) : viewTab === "AGREEMENT" && type === "client" && organizationId && clientId ? (
           <View style={styles.overviewBlock}>
             <ClientProfileAgreementSection
@@ -1611,23 +1635,36 @@ export function CounterpartyProfileSystemCard({
         </View>
         ) : null}
 
-        {type === "client" && isPage ? (
+        {isPage ? (
           <View style={styles.overviewBlock}>
             <View style={[styles.blockHeadingRow, styles.overviewHeadingRow]}>
               <View style={styles.overviewTitleWrap}>
                 <View style={styles.accentNavy} />
-                <Text style={styles.overviewSectionTitle}>Customer details</Text>
+                <Text style={styles.overviewSectionTitle}>
+                  {type === "client" ? "Customer details" : "Partner details"}
+                </Text>
               </View>
-              <TouchableOpacity
-                onPress={() => setViewTab("HUBS")}
-                hitSlop={8}
-              >
-                <Text style={styles.linkCta}>Manage hubs</Text>
-              </TouchableOpacity>
+              {type === "client" ? (
+                <TouchableOpacity
+                  onPress={() => setViewTab("HUBS")}
+                  hitSlop={8}
+                >
+                  <Text style={styles.linkCta}>Manage hubs</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
             <View style={styles.detailGrid}>
               {(() => {
-                const detailCells = [
+                const detailCells = type !== "client" ? [
+                  { label: "Partner Name", value: organizationName.trim() || "—" },
+                  { label: "Email", value: (email ?? "").trim() || "—" },
+                  { label: "GST", value: (gstNumber ?? "").trim() || "—" },
+                  { label: "PAN", value: (panNumber ?? "").trim() || "—" },
+                  { label: "Admin Name", value: (adminName ?? "").trim() || "—" },
+                  { label: "Phone", value: spocContactValue(phone) || "—" },
+                  { label: "Partner Type", value: isIntegrated ? "Integrated" : "Offline" },
+                  { label: "Billing Address", value: (billingAddress ?? "").trim() || "—" },
+                ] : [
                   { label: "Client Name", value: organizationName.trim() || "—" },
                   { label: "Email", value: (email ?? "").trim() || "—" },
                   { label: "GST", value: (gstNumber ?? "").trim() || "—" },
@@ -1673,6 +1710,8 @@ export function CounterpartyProfileSystemCard({
               })()}
             </View>
 
+            {type === "client" ? (
+            <>
             <View style={[styles.blockHeadingRow, styles.overviewHeadingRow]}>
               <View style={styles.overviewTitleWrap}>
                 <View style={styles.accentNavy} />
@@ -1765,10 +1804,12 @@ export function CounterpartyProfileSystemCard({
                 ))}
               </View>
             )}
+            </>
+            ) : null}
           </View>
         ) : null}
 
-        {!(type === "client" && isPage) ? (
+        {!isPage ? (
         <View
           style={[
             styles.twoCol,
@@ -2158,15 +2199,14 @@ export function CounterpartyProfileSystemCard({
           </View>
         )}
 
-        {(type === "supplier" || type === "client") && (
+        {/* Suppliers with the onboarding vault get it in the "Documents & Data" tab instead. */}
+        {(type === "client" || (type === "supplier" && !supplierVaultSlot)) && (
           <View style={styles.blockSpaced}>
             <View style={styles.sectionHeadingRow}>
               <View style={styles.accentNavy} />
               <Text style={[styles.sectionHeading, isPage && styles.sectionHeadingPage]}>Verification Vault</Text>
             </View>
-            {type === "supplier" && supplierVaultSlot ? (
-              supplierVaultSlot
-            ) : kycDocs.length === 0 ? (
+            {kycDocs.length === 0 ? (
               <View style={[styles.emptyPanel, isPage && styles.vaultEmpty]}>
                 {isPage ? (
                   <View style={styles.vaultIcon}>
