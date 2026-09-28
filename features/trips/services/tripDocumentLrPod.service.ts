@@ -8,7 +8,9 @@ import { parseLrFieldValues } from "@/features/trips/services/lrDocumentOcr.util
 
 /** After trip_documents SELECT uses can_read_trip_document, larger IN-lists
  *  are cheap. Keep a cap so PostgREST URLs stay bounded. */
-const TRIP_ID_CHUNK = 40;
+const TRIP_ID_CHUNK_REST = 40;
+/** SECURITY DEFINER batch RPC avoids per-row trip_documents RLS — larger chunks OK. */
+const TRIP_ID_CHUNK_RPC = 80;
 
 export type TripDocumentLrPodRow = {
   trip_id: string;
@@ -191,6 +193,167 @@ export type TripHardCopyPodReceipt = {
   actorId: string | null;
 };
 
+/** Hard-copy POD workflow status (header badge + sidebar). */
+export type HardCopyPodStatus = "PENDING" | "IN_TRANSIT" | "RECEIVED";
+
+export type HardCopyPodReceiptMethod = "person" | "courier";
+
+export type TripHardCopyPodState = {
+  status: HardCopyPodStatus;
+  receiptMethod: HardCopyPodReceiptMethod | null;
+  receivedAt: string | null;
+  receivedBy: string | null;
+  courier: string | null;
+  awbNumber: string | null;
+  dispatchDate: string | null;
+  expectedDeliveryDate: string | null;
+  courierContact: string | null;
+  remarks: string | null;
+  /** Operator-entered calendar date from comment payload (YYYY-MM-DD), when present. */
+  receivedDate: string | null;
+  receivedTime: string | null;
+  actorId: string | null;
+};
+
+type HardCopyPodCommentPayload = {
+  v: 1;
+  remarks?: string | null;
+  received_date?: string | null;
+  received_time?: string | null;
+  receipt_method?: HardCopyPodReceiptMethod | null;
+  dispatch_date?: string | null;
+  expected_delivery_date?: string | null;
+};
+
+export function resolveHardCopyPodStatus(trip: {
+  pod_received_at?: string | null;
+  pod_hard_copy_courier?: string | null;
+  pod_hard_copy_awb_number?: string | null;
+}): HardCopyPodStatus {
+  if (trip.pod_received_at) return "RECEIVED";
+  const courier = String(trip.pod_hard_copy_courier ?? "").trim();
+  const awb = String(trip.pod_hard_copy_awb_number ?? "").trim();
+  if (courier || awb) return "IN_TRANSIT";
+  return "PENDING";
+}
+
+export function encodeHardCopyPodComment(input: {
+  remarks?: string | null;
+  receivedDate?: string | null;
+  receivedTime?: string | null;
+  receiptMethod?: HardCopyPodReceiptMethod | null;
+  dispatchDate?: string | null;
+  expectedDeliveryDate?: string | null;
+}): string | null {
+  const remarks = String(input.remarks ?? "").trim() || null;
+  const receivedDate = String(input.receivedDate ?? "").trim() || null;
+  const receivedTime = String(input.receivedTime ?? "").trim() || null;
+  const receiptMethod = input.receiptMethod ?? null;
+  const dispatchDate = String(input.dispatchDate ?? "").trim() || null;
+  const expectedDeliveryDate = String(input.expectedDeliveryDate ?? "").trim() || null;
+  if (
+    !remarks &&
+    !receivedDate &&
+    !receivedTime &&
+    !receiptMethod &&
+    !dispatchDate &&
+    !expectedDeliveryDate
+  ) {
+    return null;
+  }
+  const payload: HardCopyPodCommentPayload = {
+    v: 1,
+    remarks,
+    received_date: receivedDate,
+    received_time: receivedTime,
+    receipt_method: receiptMethod,
+    dispatch_date: dispatchDate,
+    expected_delivery_date: expectedDeliveryDate,
+  };
+  return JSON.stringify(payload);
+}
+
+export function decodeHardCopyPodComment(raw: string | null | undefined): {
+  remarks: string | null;
+  receivedDate: string | null;
+  receivedTime: string | null;
+  receiptMethod: HardCopyPodReceiptMethod | null;
+  dispatchDate: string | null;
+  expectedDeliveryDate: string | null;
+} {
+  const empty = {
+    remarks: null,
+    receivedDate: null,
+    receivedTime: null,
+    receiptMethod: null,
+    dispatchDate: null,
+    expectedDeliveryDate: null,
+  };
+  const text = String(raw ?? "").trim();
+  if (!text) return empty;
+  if (text.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(text) as HardCopyPodCommentPayload;
+      if (parsed && parsed.v === 1) {
+        const method = parsed.receipt_method;
+        return {
+          remarks: String(parsed.remarks ?? "").trim() || null,
+          receivedDate: String(parsed.received_date ?? "").trim() || null,
+          receivedTime: String(parsed.received_time ?? "").trim() || null,
+          receiptMethod:
+            method === "person" || method === "courier" ? method : null,
+          dispatchDate: String(parsed.dispatch_date ?? "").trim() || null,
+          expectedDeliveryDate:
+            String(parsed.expected_delivery_date ?? "").trim() || null,
+        };
+      }
+    } catch {
+      // plain-text legacy comment
+    }
+  }
+  return { ...empty, remarks: text };
+}
+
+/**
+ * Log courier hard-copy POD as IN TRANSIT (does not stamp pod_received_at).
+ * Mark received later via {@link markTripHardCopyPodReceived}.
+ */
+export async function logTripHardCopyPodCourier(
+  tripId: string,
+  input: {
+    courier: string;
+    awbNumber: string;
+    dispatchDate: string;
+    expectedDeliveryDate?: string | null;
+    courierContact?: string | null;
+    remarks?: string | null;
+  },
+): Promise<{ error: Error | null; alreadyReceived?: boolean }> {
+  const id = String(tripId ?? "").trim();
+  if (!id) return { error: new Error("Trip is not linked.") };
+  const courier = String(input.courier ?? "").trim();
+  const awbNumber = String(input.awbNumber ?? "").trim();
+  const dispatchDate = String(input.dispatchDate ?? "").trim();
+  if (!courier) return { error: new Error("Courier name is required.") };
+  if (!awbNumber) return { error: new Error("Tracking / AWB number is required.") };
+  if (!dispatchDate) return { error: new Error("Dispatch date is required.") };
+
+  const { data, error } = await supabase().rpc("log_trip_hard_copy_pod_courier", {
+    p_trip_id: id,
+    p_courier: courier,
+    p_awb_number: awbNumber,
+    p_dispatch_date: dispatchDate,
+    p_expected_delivery_date: String(input.expectedDeliveryDate ?? "").trim() || null,
+    p_courier_contact: String(input.courierContact ?? "").trim() || null,
+    p_remarks: String(input.remarks ?? "").trim() || null,
+  });
+  if (error) {
+    console.error("[tripDocumentLrPod] log_trip_hard_copy_pod_courier:", error);
+    return { error: new Error(error.message) };
+  }
+  return { error: null, alreadyReceived: data === false };
+}
+
 /**
  * Supplementary read for display (Trip Detail's post-receipt state, Phase 4
  * Section 14) — courier/AWB/received-by live on `trips`, the comment lives
@@ -200,39 +363,174 @@ export type TripHardCopyPodReceipt = {
 export async function fetchTripHardCopyPodReceipt(
   tripId: string,
 ): Promise<{ error: Error | null; receipt: TripHardCopyPodReceipt | null }> {
+  const { error, state } = await fetchTripHardCopyPodState(tripId);
+  if (error) return { error, receipt: null };
+  if (!state) return { error: null, receipt: null };
+  return {
+    error: null,
+    receipt: {
+      received: state.status === "RECEIVED",
+      receivedAt: state.receivedAt,
+      courier: state.courier,
+      awbNumber: state.awbNumber,
+      receivedBy: state.receivedBy,
+      comment: state.remarks,
+      actorId: state.actorId,
+    },
+  };
+}
+
+/**
+ * Full hard-copy POD state for Manifest Management (PENDING / IN_TRANSIT / RECEIVED).
+ */
+export async function fetchTripHardCopyPodState(
+  tripId: string,
+): Promise<{ error: Error | null; state: TripHardCopyPodState | null }> {
   const id = String(tripId ?? "").trim();
-  if (!id) return { error: new Error("Trip is not linked."), receipt: null };
+  if (!id) return { error: new Error("Trip is not linked."), state: null };
 
   const { data: trip, error: tripError } = await supabase()
     .from("trips")
     .select("pod_received_at, pod_hard_copy_courier, pod_hard_copy_awb_number, pod_hard_copy_received_by")
     .eq("id", id)
     .maybeSingle();
-  if (tripError) return { error: new Error(tripError.message), receipt: null };
-  if (!trip?.pod_received_at) {
-    return { error: null, receipt: { received: false, receivedAt: null, courier: null, awbNumber: null, receivedBy: null, comment: null, actorId: null } };
+  if (tripError) return { error: new Error(tripError.message), state: null };
+  if (!trip) {
+    return {
+      error: null,
+      state: {
+        status: "PENDING",
+        receiptMethod: null,
+        receivedAt: null,
+        receivedBy: null,
+        courier: null,
+        awbNumber: null,
+        dispatchDate: null,
+        expectedDeliveryDate: null,
+        courierContact: null,
+        remarks: null,
+        receivedDate: null,
+        receivedTime: null,
+        actorId: null,
+      },
+    };
   }
 
-  const { data: event } = await supabase()
-    .from("trip_workflow_events")
-    .select("payload, actor_id")
-    .eq("trip_id", id)
-    .eq("event_type", "pod.hard_copy_received")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const payload = (event?.payload ?? {}) as { comment?: string | null };
+  const courier = (trip.pod_hard_copy_courier as string | null) ?? null;
+  const awbNumber = (trip.pod_hard_copy_awb_number as string | null) ?? null;
+  const receivedBy = (trip.pod_hard_copy_received_by as string | null) ?? null;
+  const receivedAt = (trip.pod_received_at as string | null) ?? null;
+  const status = resolveHardCopyPodStatus({
+    pod_received_at: receivedAt,
+    pod_hard_copy_courier: courier,
+    pod_hard_copy_awb_number: awbNumber,
+  });
+
+  let remarks: string | null = null;
+  let receivedDate: string | null = null;
+  let receivedTime: string | null = null;
+  let receiptMethod: HardCopyPodReceiptMethod | null = null;
+  let dispatchDate: string | null = null;
+  let expectedDeliveryDate: string | null = null;
+  let courierContact: string | null = null;
+  let actorId: string | null = null;
+
+  if (status === "RECEIVED") {
+    const { data: event } = await supabase()
+      .from("trip_workflow_events")
+      .select("payload, actor_id")
+      .eq("trip_id", id)
+      .eq("event_type", "pod.hard_copy_received")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const payload = (event?.payload ?? {}) as {
+      comment?: string | null;
+      courier?: string | null;
+      awb_number?: string | null;
+      received_by?: string | null;
+    };
+    const decoded = decodeHardCopyPodComment(payload.comment);
+    remarks = decoded.remarks;
+    receivedDate = decoded.receivedDate;
+    receivedTime = decoded.receivedTime;
+    dispatchDate = decoded.dispatchDate;
+    expectedDeliveryDate = decoded.expectedDeliveryDate;
+    receiptMethod =
+      decoded.receiptMethod ??
+      (courier || awbNumber || payload.courier || payload.awb_number
+        ? "courier"
+        : receivedBy || payload.received_by
+          ? "person"
+          : null);
+    actorId = (event?.actor_id as string | null) ?? null;
+
+    // Prefer courier dispatch event for dispatch/expected/contact when present.
+    if (courier || awbNumber) {
+      const { data: dispatchEvent } = await supabase()
+        .from("trip_workflow_events")
+        .select("payload")
+        .eq("trip_id", id)
+        .eq("event_type", "pod.hard_copy_courier_dispatched")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const dispatchPayload = (dispatchEvent?.payload ?? {}) as {
+        dispatch_date?: string | null;
+        expected_delivery_date?: string | null;
+        courier_contact?: string | null;
+        remarks?: string | null;
+      };
+      dispatchDate =
+        String(dispatchPayload.dispatch_date ?? "").trim() || dispatchDate;
+      expectedDeliveryDate =
+        String(dispatchPayload.expected_delivery_date ?? "").trim() ||
+        expectedDeliveryDate;
+      courierContact = String(dispatchPayload.courier_contact ?? "").trim() || null;
+      if (!remarks && dispatchPayload.remarks) {
+        remarks = String(dispatchPayload.remarks).trim() || null;
+      }
+    }
+  } else if (status === "IN_TRANSIT") {
+    receiptMethod = "courier";
+    const { data: dispatchEvent } = await supabase()
+      .from("trip_workflow_events")
+      .select("payload, actor_id")
+      .eq("trip_id", id)
+      .eq("event_type", "pod.hard_copy_courier_dispatched")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const dispatchPayload = (dispatchEvent?.payload ?? {}) as {
+      dispatch_date?: string | null;
+      expected_delivery_date?: string | null;
+      courier_contact?: string | null;
+      remarks?: string | null;
+    };
+    dispatchDate = String(dispatchPayload.dispatch_date ?? "").trim() || null;
+    expectedDeliveryDate =
+      String(dispatchPayload.expected_delivery_date ?? "").trim() || null;
+    courierContact = String(dispatchPayload.courier_contact ?? "").trim() || null;
+    remarks = String(dispatchPayload.remarks ?? "").trim() || null;
+    actorId = (dispatchEvent?.actor_id as string | null) ?? null;
+  }
 
   return {
     error: null,
-    receipt: {
-      received: true,
-      receivedAt: trip.pod_received_at as string,
-      courier: (trip.pod_hard_copy_courier as string | null) ?? null,
-      awbNumber: (trip.pod_hard_copy_awb_number as string | null) ?? null,
-      receivedBy: (trip.pod_hard_copy_received_by as string | null) ?? null,
-      comment: payload.comment ?? null,
-      actorId: (event?.actor_id as string | null) ?? null,
+    state: {
+      status,
+      receiptMethod,
+      receivedAt,
+      receivedBy,
+      courier,
+      awbNumber,
+      dispatchDate,
+      expectedDeliveryDate,
+      courierContact,
+      remarks,
+      receivedDate,
+      receivedTime,
+      actorId,
     },
   };
 }
@@ -247,13 +545,20 @@ export function receivedLrNumbersForTrip(
   return [];
 }
 
-function chunkIds(ids: string[]): string[][] {
+function chunkIds(ids: string[], chunkSize: number): string[][] {
   const unique = Array.from(new Set(ids.filter(Boolean)));
   const chunks: string[][] = [];
-  for (let i = 0; i < unique.length; i += TRIP_ID_CHUNK) {
-    chunks.push(unique.slice(i, i + TRIP_ID_CHUNK));
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    chunks.push(unique.slice(i, i + chunkSize));
   }
   return chunks;
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isTripUuid(id: string): boolean {
+  return UUID_RE.test(id);
 }
 
 /** Max simultaneous `trip_documents`/`trips` chunk queries per call — large orgs can
@@ -285,27 +590,75 @@ export async function runWithConcurrencyLimit<T, R>(
   return results;
 }
 
+async function fetchLrPodRowsViaRpc(
+  tripIds: string[],
+): Promise<TripDocumentLrPodRow[] | null> {
+  const uuidIds = tripIds.filter(isTripUuid);
+  // Non-UUID ids (tests / legacy) → REST path. Empty uuid set is not "RPC ok".
+  if (uuidIds.length === 0) return null;
+  const chunks = chunkIds(uuidIds, TRIP_ID_CHUNK_RPC);
+  try {
+    const parts = await runWithConcurrencyLimit(chunks, CHUNK_CONCURRENCY, async (chunk) => {
+      const { data, error } = await supabase().rpc(
+        "get_trip_documents_lr_pod_batch",
+        { p_trip_ids: chunk },
+      );
+      if (error) {
+        // Missing RPC / permission → fall back to REST path for the whole call.
+        throw error;
+      }
+      return (data ?? []) as TripDocumentLrPodRow[];
+    });
+    const rows: TripDocumentLrPodRow[] = [];
+    for (const part of parts) rows.push(...part);
+    return rows;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[tripDocumentLrPod] lr/pod RPC batch unavailable:", msg);
+    return null;
+  }
+}
+
+async function fetchLrPodRowsViaRest(
+  tripIds: string[],
+  documentTypes: string[],
+): Promise<TripDocumentLrPodRow[]> {
+  const chunks = chunkIds(tripIds, TRIP_ID_CHUNK_REST);
+  if (chunks.length === 0) return [];
+  const results = await runWithConcurrencyLimit(chunks, CHUNK_CONCURRENCY, async (chunk) => {
+    try {
+      const { data, error } = await supabase()
+        .from("trip_documents")
+        .select("trip_id, document_type, document_number")
+        .in("trip_id", chunk)
+        .in("document_type", documentTypes);
+      if (error) {
+        console.warn("[tripDocumentLrPod] trip_documents fetch:", error.message);
+        return [] as TripDocumentLrPodRow[];
+      }
+      return (data ?? []) as TripDocumentLrPodRow[];
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn("[tripDocumentLrPod] trip_documents fetch:", msg);
+      return [] as TripDocumentLrPodRow[];
+    }
+  });
+  const rows: TripDocumentLrPodRow[] = [];
+  for (const part of results) rows.push(...part);
+  return rows;
+}
+
 /** One bulk read of LR + POD metadata for many trips. */
 export async function loadLrPodIndexByTripIds(
   tripIds: string[],
 ): Promise<Map<string, TripLrPodIndex>> {
-  const chunks = chunkIds(tripIds);
-  if (chunks.length === 0) return new Map();
+  const unique = Array.from(new Set(tripIds.filter(Boolean)));
+  if (unique.length === 0) return new Map();
 
-  const rows: TripDocumentLrPodRow[] = [];
-  const results = await runWithConcurrencyLimit(chunks, CHUNK_CONCURRENCY, async (chunk) => {
-    const { data, error } = await supabase()
-      .from("trip_documents")
-      .select("trip_id, document_type, document_number")
-      .in("trip_id", chunk)
-      .in("document_type", ["lr", "pod", "soft_pod", "pod_soft"]);
-    if (error) {
-      console.warn("[tripDocumentLrPod] trip_documents fetch:", error.message);
-      return [] as TripDocumentLrPodRow[];
-    }
-    return (data ?? []) as TripDocumentLrPodRow[];
-  });
-  for (const part of results) rows.push(...part);
+  const viaRpc = await fetchLrPodRowsViaRpc(unique);
+  const rows =
+    viaRpc ??
+    (await fetchLrPodRowsViaRest(unique, ["lr", "pod", "soft_pod", "pod_soft"]));
   return indexLrPodDocuments(rows);
 }
 
@@ -315,9 +668,9 @@ export type HubPodReceiptFlags = {
 };
 
 /**
- * Pulse hub digital-POD chip: trip_documents document_type pod (chunked,
- * sequential). Hard-copy chips use already-loaded trips.pod_received_at —
- * do not re-select trips for that stamp.
+ * Pulse hub digital-POD chip: trip_documents document_type pod (chunked).
+ * Prefers SECURITY DEFINER batch RPC; falls back to REST. Hard-copy chips use
+ * already-loaded trips.pod_received_at — do not re-select trips for that stamp.
  */
 export async function loadHubPodReceiptFlags(
   tripIds: string[],
@@ -327,27 +680,16 @@ export async function loadHubPodReceiptFlags(
   );
   if (wanted.length === 0) return { softTripIds: [], hardTripIds: [] };
 
-  const chunks = chunkIds(wanted);
   const soft = new Set<string>();
+  const viaRpc = await fetchLrPodRowsViaRpc(wanted);
+  const rows =
+    viaRpc ??
+    (await fetchLrPodRowsViaRest(wanted, ["pod", "soft_pod", "pod_soft"]));
 
-  const docParts = await runWithConcurrencyLimit(chunks, 1, async (chunk) => {
-    const { data, error } = await supabase()
-      .from("trip_documents")
-      .select("trip_id, document_type")
-      .in("trip_id", chunk)
-      .in("document_type", ["pod", "soft_pod", "pod_soft"]);
-    if (error) {
-      console.warn("[tripDocumentLrPod] hub soft POD fetch:", error.message);
-      return [] as TripDocumentLrPodRow[];
-    }
-    return (data ?? []) as TripDocumentLrPodRow[];
-  });
-  for (const part of docParts) {
-    for (const row of part) {
-      if (!isSoftPodDocumentType(row.document_type)) continue;
-      const id = normalizeTripPodId(row.trip_id);
-      if (id) soft.add(id);
-    }
+  for (const row of rows) {
+    if (!isSoftPodDocumentType(row.document_type)) continue;
+    const id = normalizeTripPodId(row.trip_id);
+    if (id) soft.add(id);
   }
 
   return { softTripIds: [...soft], hardTripIds: [] };

@@ -7,8 +7,6 @@
 import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { PartyAvatar as SharedPartyAvatar } from "@/components/PartyAvatar";
 import { TripFeedbackModal } from '@/components/TripFeedbackModal';
-import type { TripPartyAvatarFields } from "@/features/trips/components/trip-detail/hooks/useTripDetail";
-import type { PartyEntityType } from "@/lib/partyAvatarDisplay";
 import { FinanceTxnTypography } from '@/constants/FinanceTxnTypography';
 import Theme from '@/constants/Theme';
 import { useOrganization } from '@/contexts/OrganizationContext';
@@ -21,14 +19,16 @@ import {
     getDriverById,
     getDriversByOrganization,
 } from '@/features/drivers/services/drivers.service';
+import { getTripOperationalDisplay } from "@/features/operations/display";
 import {
     getLinkedOrgProfileForSupplier,
     getSupplierById,
     getSupplierDetails,
 } from '@/features/suppliers/services/suppliers.service';
+import type { TripPartyAvatarFields } from "@/features/trips/components/trip-detail/hooks/useTripDetail";
 import type { TripRow } from '@/features/trips/services/trips.service';
-import { getTripOperationalDisplay } from "@/features/operations/display";
 import { getSignedAvatarUrl } from '@/lib/avatarUpload';
+import type { PartyEntityType } from "@/lib/partyAvatarDisplay";
 import { VALIDATION } from '@/lib/validation';
 import Feather from '@expo/vector-icons/Feather';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -1426,6 +1426,7 @@ export function TripRatingsBlock({
         <TouchableOpacity
           style={[
             styles.regCardMain,
+            isRegistrySidebar && styles.regCardMainSidebar,
             !hasFeedbackBody && styles.regCardMainTight,
           ]}
           activeOpacity={hasExistingRating ? 1 : auditDisabled ? 1 : 0.82}
@@ -1438,7 +1439,7 @@ export function TripRatingsBlock({
             <SharedPartyAvatar
               name={partyName}
               entityType={entityType}
-              size={isRegistrySidebar ? 44 : 40}
+              size={isRegistrySidebar ? 32 : 40}
               avatarUrl={avatarUrl}
               avatarSeed={partyAvatar?.avatarSeed ?? entitySeed ?? undefined}
               initialsColorSeed={entitySeed ?? partyAvatar?.avatarSeed ?? undefined}
@@ -2529,6 +2530,9 @@ const styles = StyleSheet.create({
   },
   wsWrapperSidebar: {
     marginBottom: 0,
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
   },
   wsCard: {
     backgroundColor: Theme.screenBackground,
@@ -2930,6 +2934,8 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     borderWidth: 0,
     backgroundColor: 'transparent',
+    flex: 1,
+    minHeight: 0,
     ...Platform.select({
       web: { boxShadow: 'none' },
       default: {},
@@ -2940,41 +2946,60 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     gap: 10,
   },
-  regWrapSidebar: { gap: 12 },
+  regWrapSidebar: {
+    gap: 0,
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+  },
   regStack: {
     width: "100%",
     alignSelf: "stretch",
     gap: 10,
   },
-  regStackSidebar: { gap: 12 },
+  regStackSidebar: {
+    gap: 6,
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+  },
   regCard: {
     width: "100%",
     alignSelf: "stretch",
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#E6E6E6",
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
     backgroundColor: Theme.cardWhite,
     overflow: "hidden",
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 3,
+        shadowColor: Theme.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
       },
       android: { elevation: 1 },
       default: {},
     }),
   },
   regCardSidebar: {
-    borderRadius: 14,
+    borderRadius: 8,
     borderColor: Theme.borderLight,
+    flex: 1,
+    minHeight: 0,
+    justifyContent: "space-between",
   },
   regCardMain: {
     paddingHorizontal: 14,
     paddingTop: 12,
     paddingBottom: 10,
     gap: 10,
+  },
+  regCardMainSidebar: {
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 6,
+    gap: 6,
   },
   regCardMainTight: {
     paddingBottom: 10,
@@ -3013,9 +3038,9 @@ const styles = StyleSheet.create({
     ...FinanceTxnTypography.chipLabel,
     fontSize: 9,
     lineHeight: 11,
-    color: '#9E9E9E',
-    letterSpacing: 0.5,
-    fontWeight: '600',
+    color: Theme.textMuted,
+    letterSpacing: 0.8,
+    fontWeight: '700',
   },
   regKickerSidebar: {
     fontSize: 10,
@@ -3032,16 +3057,16 @@ const styles = StyleSheet.create({
     textTransform: 'none',
   },
   regPartyNameSidebar: {
-    fontSize: 15,
+    fontSize: 14,
     lineHeight: 18,
   },
   regMetricEyebrowMuted: {
     ...FinanceTxnTypography.fieldLabel,
     fontSize: 8,
     lineHeight: 10,
-    color: '#9E9E9E',
+    color: Theme.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
     fontWeight: '600',
     textAlign: 'right',
     alignSelf: 'stretch',
@@ -3067,7 +3092,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   regGlobalPillTextSidebar: {
-    fontSize: 14,
+    fontSize: 13,
     lineHeight: 16,
   },
   regPerfLbl: {
@@ -3086,18 +3111,20 @@ const styles = StyleSheet.create({
     marginTop: 0,
     paddingTop: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#EEEEEE',
+    borderTopColor: Theme.borderLight,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Theme.surfaceGray,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    minHeight: 52,
+    minHeight: 48,
   },
   regCardFootSidebar: {
     marginTop: 0,
     paddingTop: 0,
-    paddingVertical: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    minHeight: 40,
   },
   regFootSide: {
     width: 76,
@@ -3110,7 +3137,7 @@ const styles = StyleSheet.create({
   regRatePrompt: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#616161',
+    color: Theme.textSecondary,
     lineHeight: 15,
   },
   regStarsRow: {
@@ -3136,14 +3163,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
     paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: Theme.borderLight,
     gap: 8,
   },
   regFeedbackHeading: {
     ...FinanceTxnTypography.fieldLabel,
     fontSize: 9,
     lineHeight: 11,
-    color: '#9E9E9E',
+    color: Theme.textMuted,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     fontWeight: '600',
@@ -3156,13 +3183,13 @@ const styles = StyleSheet.create({
   regFeedbackTagChip: {
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: '#F0F0F0',
+    borderRadius: 8,
+    backgroundColor: Theme.surfaceGray,
     borderWidth: 0,
   },
   regFeedbackTagText: {
     ...FinanceTxnTypography.chipLabel,
-    color: '#424242',
+    color: Theme.textSecondary,
     fontSize: 10,
     fontWeight: '600',
     letterSpacing: 0.2,
@@ -3172,7 +3199,7 @@ const styles = StyleSheet.create({
     ...FinanceTxnTypography.fieldValue,
     fontSize: 12,
     lineHeight: 17,
-    color: '#616161',
+    color: Theme.textSecondary,
     marginTop: 2,
   },
   regAuditTap: {
@@ -3180,12 +3207,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     flexShrink: 0,
+    ...(Platform.OS === 'web'
+      ? ({ cursor: 'pointer', transitionProperty: 'opacity', transitionDuration: '140ms' } as object)
+      : null),
   },
   regAuditTxt: {
     ...FinanceTxnTypography.buttonLabel,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '600',
-    color: Theme.primary,
+    color: Theme.analyticsHeroBg,
   },
   regAuditTxtSidebar: {
     fontSize: 11,

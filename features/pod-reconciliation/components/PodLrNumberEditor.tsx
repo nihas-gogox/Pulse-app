@@ -44,7 +44,10 @@ export function PodLrNumberCell({
         accessibilityRole="button"
         accessibilityLabel={label ? `Edit LR ${label}` : "Add LR number"}
         hitSlop={6}
-        onPress={onPress}
+        onPress={(event) => {
+          event.stopPropagation?.();
+          onPress();
+        }}
         style={({ hovered, pressed }) => [
           styles.trigger,
           hovered ? styles.triggerHover : null,
@@ -214,13 +217,12 @@ export function PodLrNumberEditorModal({
 
 const styles = StyleSheet.create({
   cell: {
-    width: 120,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: Theme.borderLight,
+    width: 118,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRightWidth: 0,
     justifyContent: "center",
-    minHeight: 48,
+    minHeight: 60,
   },
   trigger: {
     minHeight: 32,
@@ -229,10 +231,11 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 8,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "transparent",
     backgroundColor: "transparent",
+    alignSelf: "flex-start",
   },
   triggerHover: {
     backgroundColor: Theme.brandBlueWashSubtle,
@@ -242,18 +245,18 @@ const styles = StyleSheet.create({
     opacity: 0.86,
   },
   valueText: {
-    flex: 1,
+    flexShrink: 1,
     minWidth: 0,
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 12,
+    fontWeight: "600",
     fontFamily: "Menlo",
     color: Theme.textPrimaryDark,
   },
   addText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     color: Theme.primary,
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   overlay: {
     flex: 1,

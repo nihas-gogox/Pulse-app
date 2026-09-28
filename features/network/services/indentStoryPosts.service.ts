@@ -184,6 +184,9 @@ export async function listLiveOwnLoadStories(
 ): Promise<{ error: Error | null; posts: PostRow[] }> {
   if (!orgId) return { error: null, posts: [] };
 
+  const nowIso = new Date().toISOString();
+  // Bound the scan: active LOAD stories only, still within the reel window
+  // (null expires_at = legacy live). Avoid pulling every historical LOAD row.
   const { data, error } = await supabase()
     .from('posts')
     .select(
@@ -193,7 +196,9 @@ export async function listLiveOwnLoadStories(
     .eq('type', 'LOAD')
     .not('source_indent_id', 'is', null)
     .eq('is_active', true)
-    .order('created_at', { ascending: false });
+    .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+    .order('created_at', { ascending: false })
+    .limit(40);
 
   if (error) return { error: new Error(error.message), posts: [] };
 

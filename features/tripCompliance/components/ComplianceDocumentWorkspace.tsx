@@ -6,6 +6,8 @@ import {
   guessCompliancePreviewMime,
   signCompliancePreviewUrl,
 } from "@/features/tripCompliance/services/complianceDocumentView.service";
+import { NoDocumentPreviewEmpty, NoTripsFoundEmpty } from "@/features/tripCompliance/components/ComplianceEmptyState";
+import { ComplianceInputModal, type ComplianceInputField } from "@/features/tripCompliance/components/ComplianceInputModal";
 import { setTripDocumentVerification } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import {
   COMPLIANCE_DRIVER_DOCUMENT_TYPES,
@@ -27,6 +29,13 @@ import {
 import { complianceReviewDecisionActions } from "@/features/tripCompliance/utils/complianceReviewActions.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
+import { markTripHardCopyPodReceived } from "@/features/trips/services/tripDocumentLrPod.service";
+
+const HARD_COPY_POD_FIELDS: ComplianceInputField[] = [
+  { key: "courier", label: "Courier", placeholder: "e.g. BlueDart", required: true },
+  { key: "awb", label: "AWB / tracking number", required: true },
+  { key: "receivedBy", label: "Received by", required: true },
+];
 import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
 import { getTripExecutionModel } from "@/features/trips/domain/tripExecutionModel";
 import { markVehicleDocumentVerified } from "@/features/vehicles/services/vehicleDocuments.service";
@@ -210,18 +219,21 @@ async function readPdfPageCount(uri: string): Promise<number | null> {
   }
 }
 
-function DocumentScreen({
+export function DocumentScreen({
   visible,
   uri,
   isPdf,
   title,
   onClose,
+  presentation = "sheet",
 }: {
   visible: boolean;
   uri: string;
   isPdf: boolean;
   title: string;
   onClose: () => void;
+  /** `page` fills the screen. `sheet` stays a centered card. */
+  presentation?: "sheet" | "page";
 }) {
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -238,6 +250,8 @@ function DocumentScreen({
   const compact = windowWidth < 720;
   const sheetWidth = Math.min(1080, windowWidth - Math.max(insets.left, 12) - Math.max(insets.right, 12) - (compact ? 16 : 48));
   const sheetHeight = Math.min(windowHeight - insets.top - insets.bottom - (compact ? 16 : 48), compact ? windowHeight : 880);
+  const frameWidth = presentation === "page" ? windowWidth - Math.max(insets.left, 8) - Math.max(insets.right, 8) : sheetWidth;
+  const frameHeight = presentation === "page" ? windowHeight - Math.max(insets.top, 8) - Math.max(insets.bottom, 8) : sheetHeight;
 
   const applyView = useCallback((nextScale: number, nextPan: { x: number; y: number }, size = frame) => {
     const zoom = clampPreviewZoom(nextScale);
@@ -378,7 +392,7 @@ function DocumentScreen({
         accessibilityViewIsModal
       >
         <Pressable style={styles.screenBackdrop} onPress={onClose} accessibilityLabel="Close document preview" />
-        <View style={[styles.screenSheet, { width: sheetWidth, height: sheetHeight }]}>
+        <View style={[styles.screenSheet, { width: frameWidth, height: frameHeight }]}>
           <View style={[styles.screenBar, compact && styles.screenBarCompact]}>
             <Text style={styles.screenTitle} numberOfLines={1}>{title}</Text>
             {isPdf ? (
@@ -564,6 +578,7 @@ export function ComplianceDocumentWorkspace({
   style,
   canManageFinance = false,
   onPay,
+  selectedTripId = null,
 }: {
   summaries: ComplianceTripSummary[];
   organizationId: string;
@@ -575,8 +590,12 @@ export function ComplianceDocumentWorkspace({
   style?: StyleProp<ViewStyle>;
   canManageFinance?: boolean;
   onPay?: (summary: ComplianceTripSummary) => void;
+  /** Trip to show when opening the card view from the table. */
+  selectedTripId?: string | null;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(summaries[0]?.trip.id ?? null);
+  const listRef = useRef<ScrollView>(null);
+  const scrolledTripId = useRef<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(selectedTripId ?? summaries[0]?.trip.id ?? null);
   const [tab, setTab] = useState<DocTab>("trip");
   const [docIndex, setDocIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -586,6 +605,7 @@ export function ComplianceDocumentWorkspace({
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
+  const [podOpen, setPodOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
 
   const summary = summaries.find((item) => item.trip.id === selectedId) ?? summaries[0] ?? null;
@@ -594,10 +614,14 @@ export function ComplianceDocumentWorkspace({
   const activeRow = previewable[docIndex] ?? rows[docIndex] ?? null;
 
   useEffect(() => {
+    if (selectedTripId && summaries.some((item) => item.trip.id === selectedTripId)) {
+      setSelectedId(selectedTripId);
+      return;
+    }
     if (!summaries.some((item) => item.trip.id === selectedId)) {
       setSelectedId(summaries[0]?.trip.id ?? null);
     }
-  }, [summaries, selectedId]);
+  }, [summaries, selectedId, selectedTripId]);
 
   useEffect(() => {
     setDocIndex(0);
@@ -741,24 +765,46 @@ export function ComplianceDocumentWorkspace({
   return (
     <View style={[styles.workspace, stacked && styles.workspaceStacked, style]}>
       <View style={[styles.listPane, stacked && styles.listPaneStacked]}>
+        {summaries.length === 0 ? (
+          <View style={styles.listEmpty}>
+            <NoTripsFoundEmpty compact={stacked} />
+          </View>
+        ) : (
         <ScrollView
+          ref={listRef}
           style={styles.listScroll}
           nestedScrollEnabled
           showsVerticalScrollIndicator
           contentContainerStyle={styles.listContent}
         >
           {summaries.map((item) => (
-            <TripListRow
+            <View
               key={item.trip.id}
-              summary={item}
-              selected={item.trip.id === summary?.trip.id}
-              onPress={() => {
-                setSelectedId(item.trip.id);
-                setTab("trip");
-              }}
-            />
+              onLayout={
+                item.trip.id === selectedTripId
+                  ? (event) => {
+                      if (scrolledTripId.current === selectedTripId) return;
+                      scrolledTripId.current = selectedTripId;
+                      listRef.current?.scrollTo({
+                        y: Math.max(0, event.nativeEvent.layout.y - 8),
+                        animated: true,
+                      });
+                    }
+                  : undefined
+              }
+            >
+              <TripListRow
+                summary={item}
+                selected={item.trip.id === summary?.trip.id}
+                onPress={() => {
+                  setSelectedId(item.trip.id);
+                  setTab("trip");
+                }}
+              />
+            </View>
           ))}
         </ScrollView>
+        )}
       </View>
 
       <View style={styles.previewPane}>
@@ -780,6 +826,17 @@ export function ComplianceDocumentWorkspace({
             })}
           </View>
           <View style={styles.previewTools}>
+            <Pressable
+              style={[styles.podBtn, !summary && styles.btnDisabled]}
+              disabled={!summary}
+              onPress={() => setPodOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Log hardcopy POD"
+            >
+              <Text style={styles.podBtnText} numberOfLines={1}>
+                Log hardcopy POD
+              </Text>
+            </Pressable>
             <View style={styles.navPill}>
               <Pressable onPress={goPrev} hitSlop={8} accessibilityLabel="Previous document" disabled={previewable.length < 2}>
                 <ChevronLeft size={12} color={Theme.textPrimaryDark} />
@@ -821,10 +878,12 @@ export function ComplianceDocumentWorkspace({
               />
             </>
           ) : (
-            <View style={styles.stageBody}>
-              <Text style={styles.emptyPreview}>
-                {activeRow ? `${docTitle} has no file to preview.` : "Select a trip to preview documents."}
-              </Text>
+            <View style={styles.emptyStage}>
+              <NoDocumentPreviewEmpty
+                compact={stacked}
+                title={activeRow ? `${docTitle} has no file to preview.` : "No document to preview"}
+                hint={activeRow ? undefined : "Select a document from the list to view its details here."}
+              />
             </View>
           )}
         </View>
@@ -901,6 +960,33 @@ export function ComplianceDocumentWorkspace({
           onClose={() => setScreenOpen(false)}
         />
       ) : null}
+      <ComplianceInputModal
+        visible={podOpen}
+        title="Log hardcopy POD"
+        fields={HARD_COPY_POD_FIELDS}
+        confirmLabel="Log hardcopy POD"
+        onCancel={() => setPodOpen(false)}
+        onSubmit={(values) => {
+          if (!summary) return;
+          void (async () => {
+            const { error, alreadyReceived } = await markTripHardCopyPodReceived(summary.trip.id, {
+              courier: values.courier,
+              awbNumber: values.awb,
+              receivedBy: values.receivedBy,
+            });
+            if (error) {
+              alertMessage("Couldn't log hardcopy POD", error.message);
+              return;
+            }
+            setPodOpen(false);
+            if (alreadyReceived) {
+              alertMessage("Hardcopy POD", "This trip already has a hardcopy POD logged.");
+              return;
+            }
+            onChanged(summary.trip.id);
+          })();
+        }}
+      />
     </View>
   );
 }
@@ -985,6 +1071,13 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   listPaneStacked: { width: "100%", maxWidth: "100%", height: "42%", maxHeight: "42%" },
+  listEmpty: {
+    flex: 1,
+    minHeight: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
+  },
   listScroll: { flex: 1 },
   listContent: { padding: 10, gap: 8 },
   row: {
@@ -997,7 +1090,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   rowSelected: {
-    borderColor: Theme.complianceTripCardSelectedBg,
+    borderWidth: 1.5,
+    borderColor: Theme.complianceTripCardSelectedBorder,
     backgroundColor: Theme.complianceTripCardSelectedBg,
   },
   rowHead: { flexDirection: "row", alignItems: "center", gap: 10 },
@@ -1005,11 +1099,11 @@ const styles = StyleSheet.create({
   client: { fontSize: 12, fontWeight: "600", letterSpacing: 0.2, color: Theme.textPrimaryDark },
   clientSelected: { color: Theme.complianceTripCardOnSelected },
   idLine: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2, minWidth: 0 },
-  tripId: { flexShrink: 1, fontSize: 11, fontWeight: "500", color: Theme.complianceStageInfoFg },
+  tripId: { flexShrink: 1, fontSize: 11, fontWeight: "500", color: Theme.textSecondary },
   tripIdSelected: { color: Theme.complianceTripCardMutedOnSelected },
   modelTag: { flexShrink: 0, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 },
   modelTagAsset: { backgroundColor: Theme.positiveMuted },
-  modelTagAggregate: { backgroundColor: Theme.cardWhite },
+  modelTagAggregate: { backgroundColor: Theme.complianceStageInfoBg },
   modelTagText: { fontSize: 9, fontWeight: "600", letterSpacing: 0.2, lineHeight: 12 },
   modelTagTextAsset: { color: Theme.darkGreen },
   modelTagTextAggregate: { color: Theme.complianceStageInfoFg },
@@ -1152,7 +1246,28 @@ const styles = StyleSheet.create({
   },
   screenPage: { width: "100%", height: "100%" },
   screenFile: { width: "100%", height: "100%" },
-  previewTools: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6 },
+  previewTools: { flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 },
+  podBtn: {
+    flexShrink: 0,
+    height: 22,
+    minHeight: 22,
+    maxHeight: 22,
+    paddingVertical: 0,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  podBtnText: {
+    fontSize: 11,
+    fontWeight: "600",
+    lineHeight: 14,
+    color: Theme.textPrimaryDark,
+  },
   zoomBar: {
     flexShrink: 0,
     height: 22,
@@ -1175,7 +1290,15 @@ const styles = StyleSheet.create({
   stageFill: { width: "100%", height: "100%" },
   stageScrollCenter: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   stageScrollStart: { flexGrow: 1, alignItems: "flex-start", justifyContent: "flex-start" },
-  emptyPreview: { fontSize: 14, color: Theme.textMuted, textAlign: "center" },
+  emptyStage: {
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    paddingHorizontal: 24,
+  },
   navPill: {
     flexShrink: 1,
     minWidth: 0,

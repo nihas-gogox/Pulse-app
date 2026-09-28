@@ -1,13 +1,13 @@
+import Theme from "@/constants/Theme";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  View,
-  type StyleProp,
-  type ViewStyle,
+    ActivityIndicator,
+    StyleSheet,
+    Text,
+    View,
+    type StyleProp,
+    type ViewStyle,
 } from "react-native";
-import Theme from "@/constants/Theme";
 
 interface PdfViewerProps {
   pdfUri: string | null;

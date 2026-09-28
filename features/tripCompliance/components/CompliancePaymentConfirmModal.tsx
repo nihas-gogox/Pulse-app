@@ -1,9 +1,16 @@
 import Theme from "@/constants/Theme";
+import { DocumentScreen } from "@/features/tripCompliance/components/ComplianceDocumentWorkspace";
+import {
+  guessCompliancePreviewMime,
+  signCompliancePreviewUrl,
+} from "@/features/tripCompliance/services/complianceDocumentView.service";
 import type { ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
+import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import { getVehicleById, getVehicleForTripViewer } from "@/features/vehicles/services/vehicles.service";
 import { PAYMENT_MODES } from "@/lib/paymentModes";
+import { Eye } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -83,12 +90,17 @@ export function CompliancePaymentConfirmModal({
   const [modeId, setModeId] = useState<string>("UPI");
   const [remark, setRemark] = useState("");
   const [truckType, setTruckType] = useState<string | null>(null);
+  const [lrOpening, setLrOpening] = useState(false);
+  const [lrPreview, setLrPreview] = useState<{ url: string; mime: string | null } | null>(null);
 
   useEffect(() => {
     if (visible) {
       setAmount("");
       setModeId("UPI");
       setRemark("");
+    } else {
+      setLrPreview(null);
+      setLrOpening(false);
     }
   }, [visible, summary?.trip.id, category]);
 
@@ -123,11 +135,42 @@ export function CompliancePaymentConfirmModal({
   const categoryLabel = category === "compliance_balance" ? "balance" : "advance";
   const trip = summary?.trip as PaymentTripFacts | undefined;
   const tripLabel = trip?.booking_ref ?? trip?.id.slice(0, 8) ?? "—";
+  const lrDocument = summary?.documents.find((doc) => (doc.document_type ?? "").toLowerCase() === "lr") ?? null;
+
+  const openLrPreview = async () => {
+    const path = lrDocument?.storage_path?.trim();
+    const orgId = trip?.organization_id?.trim();
+    if (!path || !orgId) {
+      alertMessage("LR document", "This trip has no LR file to preview.");
+      return;
+    }
+    setLrOpening(true);
+    try {
+      const url = await signCompliancePreviewUrl({
+        storagePath: path,
+        source: "trip",
+        sourceEntityDocumentId: lrDocument?.source_entity_document_id,
+        organizationId: orgId,
+        docType: "lr",
+      });
+      if (!url) {
+        alertMessage("LR document", "This trip has no LR file to preview.");
+        return;
+      }
+      setLrPreview({
+        url,
+        mime: guessCompliancePreviewMime(lrDocument?.file_name || path, lrDocument?.mime_type),
+      });
+    } finally {
+      setLrOpening(false);
+    }
+  };
   const confirmText = amountOk
     ? `Confirm ${categoryLabel} payment of ₹${parsedAmount.toLocaleString("en-IN")}`
     : `Confirm ${categoryLabel} payment`;
 
   return (
+    <>
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={submitting ? undefined : onCancel} />
@@ -144,13 +187,34 @@ export function CompliancePaymentConfirmModal({
             </Text>
 
             <View style={styles.factCard}>
-              <FactRow label="Vendor name" value={trip?.supplier_name?.trim() || "—"} />
+              <FactRow label="Supplier" value={trip?.supplier_name?.trim() || "—"} />
               <FactRow label="Customer name" value={trip?.client_name?.trim() || "—"} />
               <FactRow label="Rate/MT" value={trip ? ratePerMtLabel(trip) : "—"} />
               <FactRow label="Loaded weight" value={loadedWeightLabel(trip?.load_tons)} />
               <FactRow label="Truck type" value={truckType?.trim() || "—"} />
               <FactRow label="Trip" value={tripLabel} />
               <FactRow label="Category" value={categoryLabel} />
+              <View style={styles.factRow}>
+                <Text style={styles.factLabel}>LR</Text>
+                <View style={styles.lrAction}>
+                  <Pressable
+                    style={styles.eyeBtn}
+                    onPress={() => void openLrPreview()}
+                    disabled={lrOpening || submitting}
+                    accessibilityRole="button"
+                    accessibilityLabel="Preview LR document"
+                  >
+                    {lrOpening ? (
+                      <ActivityIndicator size="small" color={Theme.textPrimaryDark} />
+                    ) : (
+                      <>
+                        <Eye size={13} color={Theme.textPrimaryDark} strokeWidth={2.2} />
+                        <Text style={styles.eyeText}>Preview</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
             </View>
 
             <View style={styles.field}>
@@ -249,6 +313,17 @@ export function CompliancePaymentConfirmModal({
         </View>
       </View>
     </Modal>
+    {lrPreview ? (
+      <DocumentScreen
+        visible
+        uri={lrPreview.url}
+        isPdf={(lrPreview.mime ?? "").includes("pdf")}
+        title="LR"
+        presentation="page"
+        onClose={() => setLrPreview(null)}
+      />
+    ) : null}
+    </>
   );
 }
 
@@ -301,6 +376,20 @@ const styles = StyleSheet.create({
     color: Theme.textPrimaryDark,
     textAlign: "right",
   },
+  lrAction: { flex: 1, minWidth: 0, alignItems: "flex-end" },
+  eyeBtn: {
+    height: 24,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    backgroundColor: Theme.cardWhite,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+  },
+  eyeText: { fontSize: 11, fontWeight: "600", color: Theme.textPrimaryDark },
   field: { gap: 4 },
   label: { fontSize: 11, fontWeight: "600", color: Theme.textMuted },
   input: {

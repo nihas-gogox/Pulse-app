@@ -1,37 +1,51 @@
 import React, { useMemo, useRef, useState } from 'react';
 import type { InvoicePdfData } from '@/components/InvoicePdf.types';
-import type { InvoicePdfTableRow } from '@/features/invoicing/services/invoiceCnDn.service';
+import { InvoiceGogoxWordmark } from '@/features/invoicing/components/InvoiceGogoxWordmark';
 import { buildInvoicePdfTableRows } from '@/features/invoicing/services/invoiceCnDn.service';
+import { resolveInvoiceHeaderLogo } from '@/features/invoicing/utils/invoiceLogo.util';
 import Theme from '@/constants/Theme';
-
-function formatCurrency(amount: number): string {
-  return `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 const font =
   'Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
 
-function pageStyle(): React.CSSProperties {
-  return {
-    backgroundColor: Theme.screenBackground,
-    width: '210mm',
-    minHeight: '297mm',
-    padding: '36px 40px 32px',
-    position: 'relative',
-    boxShadow: '0 18px 48px rgba(15, 23, 42, 0.08)',
-    boxSizing: 'border-box',
-    color: Theme.textPrimaryDark,
-    fontFamily: font,
-  };
+const ink = Theme.textPrimaryDark;
+const muted = Theme.textMuted;
+const softRule = Theme.borderMedium;
+const accent = Theme.accentBrown;
+const accentDeep = Theme.accentBrownDeep;
+
+function formatPlainAmount(amount: number): string {
+  return amount.toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
-function labelStyle(): React.CSSProperties {
+function formatTaxInvoiceDate(value: string | null | undefined): string {
+  const raw = (value ?? '').trim();
+  if (!raw) return '';
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  const dd = String(parsed.getDate()).padStart(2, '0');
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${parsed.getFullYear()}`;
+}
+
+function pageStyle(): React.CSSProperties {
   return {
-    fontSize: 10,
-    fontWeight: 600,
-    letterSpacing: '0.14em',
-    textTransform: 'uppercase',
-    color: Theme.textMuted,
+    backgroundColor: Theme.cardWhite,
+    width: '210mm',
+    minHeight: '297mm',
+    padding: '28px 32px 32px',
+    position: 'relative',
+    boxSizing: 'border-box',
+    color: ink,
+    fontFamily: font,
+    borderRadius: 12,
+    border: `1px solid ${softRule}`,
+    boxShadow: '0 8px 28px rgba(15, 23, 42, 0.06)',
   };
 }
 
@@ -45,16 +59,116 @@ function amountStyle(extra?: React.CSSProperties): React.CSSProperties {
   };
 }
 
-function referenceLabel(item: InvoicePdfTableRow): string {
-  if (item.rowRole === 'freight') return item.tripId;
-  if (item.rowRole === 'split') {
-    if (item.splitKind === 'cn') return 'CN';
-    if (item.splitKind === 'dn') return 'DN';
-    return 'Charge';
+function MetaPair({
+  label,
+  value,
+  align = 'left',
+}: {
+  label: string;
+  value: string | null | undefined;
+  align?: 'left' | 'right';
+}) {
+  if (!value) return null;
+  if (align === 'right') {
+    return (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(72px, 1fr) 104px',
+          columnGap: 12,
+          alignItems: 'baseline',
+          minHeight: 22,
+          marginBottom: 2,
+          fontSize: 12,
+          lineHeight: 1.4,
+        }}
+      >
+        <span style={{ color: muted, fontWeight: 500, textAlign: 'right' }}>{label}</span>
+        <span
+          style={{
+            color: ink,
+            fontWeight: 700,
+            textAlign: 'right',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {value}
+        </span>
+      </div>
+    );
   }
-  if (item.rowRole === 'revised') return 'Invoiced';
-  if (item.lineType === 'fuel') return 'Fuel';
-  return 'Charge';
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '92px minmax(0, 1fr)',
+        columnGap: 10,
+        alignItems: 'baseline',
+        minHeight: 22,
+        marginBottom: 2,
+        fontSize: 12,
+        lineHeight: 1.4,
+      }}
+    >
+      <span style={{ color: muted, fontWeight: 500 }}>{label}</span>
+      <span
+        style={{
+          color: ink,
+          fontWeight: 700,
+          minWidth: 0,
+          overflowWrap: 'anywhere',
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function TotalRow({
+  label,
+  value,
+  emphasis = false,
+  accentValue = false,
+}: {
+  label: string;
+  value: string;
+  emphasis?: boolean;
+  accentValue?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 108px',
+        columnGap: 12,
+        alignItems: 'baseline',
+        minHeight: 24,
+        marginBottom: 4,
+        fontSize: emphasis ? 13 : 12,
+      }}
+    >
+      <span
+        style={{
+          color: emphasis ? ink : muted,
+          fontWeight: emphasis ? 800 : 500,
+          textAlign: 'right',
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          ...amountStyle({
+            color: accentValue ? accentDeep : ink,
+            fontWeight: emphasis ? 800 : 700,
+          }),
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
 }
 
 interface InvoicePdfWebProps {
@@ -72,11 +186,33 @@ export default function InvoicePdfWeb({
   const [isGenerating, setIsGenerating] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
   const [showSplit, setShowSplit] = useState(initialShowSplit);
-  const logoUrl = logoFailed ? null : invoiceData.brandingLogoUrl;
   const tableRows = useMemo(
     () => buildInvoicePdfTableRows(invoiceData.items, { showSplit }),
     [invoiceData.items, showSplit],
   );
+  const shipment = invoiceData.shipment;
+  const title =
+    invoiceData.documentKind === 'draft' ? 'DRAFT TAX INVOICE' : 'ORIGINAL TAX INVOICE';
+  const headerLogo = useMemo(
+    () =>
+      resolveInvoiceHeaderLogo({
+        brandingLogoUrl: invoiceData.brandingLogoUrl,
+        companyName: invoiceData.brandingCompanyName,
+        remoteFailed: logoFailed,
+      }),
+    [
+      invoiceData.brandingCompanyName,
+      invoiceData.brandingLogoUrl,
+      logoFailed,
+    ],
+  );
+  const showMsmeText =
+    Boolean(invoiceData.issuerMsme) && !headerLogo?.includesMsmeCaption;
+
+  const taxLines = invoiceData.taxRows.filter((row) => {
+    if (row.label === 'GST' && /not applicable/i.test(row.value)) return false;
+    return true;
+  });
 
   const handleDownloadPdf = async () => {
     if (!printRef.current) return;
@@ -126,6 +262,9 @@ export default function InvoicePdfWeb({
       <div
         style={{
           flexShrink: 0,
+          position: 'sticky',
+          top: 0,
+          zIndex: 30,
           padding: '10px 20px',
           backgroundColor: Theme.screenBackground,
           borderBottom: `1px solid ${Theme.borderMedium}`,
@@ -135,30 +274,28 @@ export default function InvoicePdfWeb({
           gap: 12,
         }}
       >
-        {onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              background: 'none',
-              border: 'none',
-              padding: '8px 4px',
-              minHeight: 44,
-              cursor: 'pointer',
-              color: Theme.textPrimaryDark,
-              fontSize: 14,
-              fontWeight: 600,
-              fontFamily: font,
-            }}
-          >
-            ← Invoice draft
-          </button>
-        ) : (
-          <div />
-        )}
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={!onBack}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'none',
+            border: 'none',
+            padding: '8px 4px',
+            minHeight: 44,
+            cursor: onBack ? 'pointer' : 'default',
+            color: Theme.accentBrownDeep,
+            fontSize: 14,
+            fontWeight: 700,
+            fontFamily: font,
+            opacity: onBack ? 1 : 0.4,
+          }}
+        >
+          ← Back to draft
+        </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div
@@ -172,18 +309,10 @@ export default function InvoicePdfWeb({
               borderRadius: 999,
             }}
           >
-            <button
-              type="button"
-              onClick={() => setShowSplit(true)}
-              style={segmentStyle(showSplit)}
-            >
+            <button type="button" onClick={() => setShowSplit(true)} style={segmentStyle(showSplit)}>
               Show split
             </button>
-            <button
-              type="button"
-              onClick={() => setShowSplit(false)}
-              style={segmentStyle(!showSplit)}
-            >
+            <button type="button" onClick={() => setShowSplit(false)} style={segmentStyle(!showSplit)}>
               No split
             </button>
           </div>
@@ -220,241 +349,420 @@ export default function InvoicePdfWeb({
         }}
       >
         <div ref={printRef} style={pageStyle()}>
+          {/* Soft title watermark */}
           <div
             style={{
+              position: 'absolute',
+              top: 18,
+              right: 28,
+              fontSize: 42,
+              fontWeight: 800,
+              letterSpacing: '-0.03em',
+              color: Theme.borderLight,
+              pointerEvents: 'none',
+              zIndex: 0,
+              userSelect: 'none',
+            }}
+          >
+            Invoice
+          </div>
+
+          {invoiceData.documentKind === 'draft' ? (
+            <div
+              style={{
+                position: 'absolute',
+                top: '48%',
+                left: '50%',
+                transform: 'translate(-50%, -50%) rotate(-28deg)',
+                fontSize: 72,
+                fontWeight: 700,
+                letterSpacing: 10,
+                color: 'rgba(148, 163, 184, 0.18)',
+                pointerEvents: 'none',
+                whiteSpace: 'nowrap',
+                zIndex: 0,
+              }}
+            >
+              DRAFT
+            </div>
+          ) : null}
+
+          {/* Header: brand left · meta right */}
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 1,
               display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1.2fr) minmax(220px, 0.8fr)',
-              gap: 32,
+              gridTemplateColumns: '1fr 240px',
+              columnGap: 32,
               alignItems: 'start',
-              paddingBottom: 20,
-              borderBottom: `1px solid ${Theme.borderMedium}`,
             }}
           >
             <div>
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt="Company logo"
-                  style={{ height: 36, objectFit: 'contain', maxWidth: 200, marginBottom: 10 }}
-                  onError={() => setLogoFailed(true)}
-                />
-              ) : invoiceData.brandingCompanyName ? (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                 <div
                   style={{
-                    fontSize: 22,
-                    fontWeight: 600,
-                    letterSpacing: '-0.03em',
-                    lineHeight: 1.2,
-                    color: Theme.textPrimaryDark,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    gap: 6,
+                    flexShrink: 0,
+                  }}
+                >
+                  {headerLogo?.kind === 'remote' || headerLogo?.kind === 'bundled' ? (
+                    <img
+                      src={headerLogo.src}
+                      alt=""
+                      style={{
+                        height: headerLogo.kind === 'bundled' ? 56 : 44,
+                        maxWidth: headerLogo.kind === 'bundled' ? 148 : 132,
+                        width: 'auto',
+                        objectFit: 'contain',
+                        display: 'block',
+                      }}
+                      onError={() => {
+                        if (headerLogo.kind === 'remote') setLogoFailed(true);
+                      }}
+                    />
+                  ) : headerLogo?.kind === 'gogox_wordmark' ? (
+                    <InvoiceGogoxWordmark width={132} />
+                  ) : null}
+                  {showMsmeText ? (
+                    <div
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        color: muted,
+                        letterSpacing: 0.1,
+                      }}
+                    >
+                      MSME Reg No: {invoiceData.issuerMsme}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 14 }}>
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 800,
+                    letterSpacing: '-0.02em',
+                    textTransform: 'uppercase',
+                    lineHeight: 1.3,
+                    color: ink,
                   }}
                 >
                   {invoiceData.brandingCompanyName}
                 </div>
-              ) : (
-                <div style={{ fontSize: 13, color: Theme.textMuted }}>Workspace identity unavailable</div>
-              )}
-              <div style={{ marginTop: 10, maxWidth: 320 }}>
                 {invoiceData.issuerAddressLines.map((line, idx) => (
                   <div
-                    key={`issuer-addr-${idx}`}
-                    style={{ fontSize: 12, color: Theme.textRouteCard, lineHeight: 1.55 }}
+                    key={`addr-${idx}`}
+                    style={{
+                      fontSize: 12,
+                      lineHeight: 1.45,
+                      marginTop: idx === 0 ? 4 : 1,
+                      color: muted,
+                    }}
                   >
                     {line}
                   </div>
                 ))}
-                {invoiceData.issuerPan ? (
-                  <div style={{ fontSize: 12, color: Theme.textRouteCard, marginTop: 8 }}>
+                {invoiceData.issuerGstNotApplicable ? (
+                  <div style={{ fontSize: 12, marginTop: 4, color: muted }}>
+                    GST not applicable
+                  </div>
+                ) : invoiceData.issuerGstin ? (
+                  <div style={{ fontSize: 12, marginTop: 4, fontWeight: 600, color: ink }}>
+                    GSTIN {invoiceData.issuerGstin}
+                  </div>
+                ) : invoiceData.issuerPan ? (
+                  <div style={{ fontSize: 12, marginTop: 4, color: muted }}>
                     PAN {invoiceData.issuerPan}
                   </div>
                 ) : null}
-                {invoiceData.issuerGstNotApplicable ? (
-                  <div style={{ fontSize: 12, color: Theme.textRouteCard }}>GST not applicable</div>
-                ) : invoiceData.issuerGstin ? (
-                  <div style={{ fontSize: 12, color: Theme.textRouteCard }}>
-                    GSTIN {invoiceData.issuerGstin}
-                  </div>
-                ) : null}
               </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={labelStyle()}>Draft invoice</div>
+
+            <div style={{ width: '100%' }}>
               <div
                 style={{
-                  marginTop: 6,
-                  fontSize: 20,
-                  fontWeight: 600,
-                  letterSpacing: '0.04em',
-                  color: Theme.textPrimaryDark,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                  color: accentDeep,
+                  marginBottom: 12,
+                  textAlign: 'right',
                 }}
               >
-                #{invoiceData.invoiceNo}
+                {title}
               </div>
-              <div style={{ marginTop: 4, fontSize: 11, color: Theme.textMuted, lineHeight: 1.4 }}>
-                {invoiceData.invoiceNumberCaption}
-              </div>
-              <div
-                style={{
-                  marginTop: 16,
-                  display: 'grid',
-                  gridTemplateColumns: '1fr auto',
-                  columnGap: 16,
-                  rowGap: 6,
-                  justifyContent: 'end',
-                }}
-              >
-                <div style={{ ...labelStyle(), textAlign: 'left' }}>Preview date</div>
-                <div style={{ fontSize: 12, color: Theme.textPrimaryDark, textAlign: 'right' }}>
-                  {invoiceData.previewDate}
-                </div>
-                {invoiceData.indicativeDueDate ? (
-                  <>
-                    <div style={{ ...labelStyle(), textAlign: 'left' }}>Indicative due</div>
-                    <div style={{ fontSize: 12, color: Theme.textPrimaryDark, textAlign: 'right' }}>
-                      {invoiceData.indicativeDueDate}
-                    </div>
-                  </>
-                ) : null}
-              </div>
+              <MetaPair
+                align="right"
+                label="Invoice"
+                value={invoiceData.invoiceNo === 'DRAFT' ? 'DRAFT' : invoiceData.invoiceNo}
+              />
+              <MetaPair
+                align="right"
+                label="Date"
+                value={formatTaxInvoiceDate(invoiceData.previewDate)}
+              />
+              {invoiceData.paymentTerms ? (
+                <MetaPair align="right" label="Terms" value={invoiceData.paymentTerms} />
+              ) : null}
+              <MetaPair
+                align="right"
+                label="Due Date"
+                value={formatTaxInvoiceDate(invoiceData.indicativeDueDate)}
+              />
             </div>
           </div>
 
           <div
             style={{
-              position: 'absolute',
-              top: '46%',
-              left: '50%',
-              transform: 'translate(-50%, -50%) rotate(-28deg)',
-              fontSize: 72,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: 14,
-              color: 'rgba(15,23,42,0.045)',
-              pointerEvents: 'none',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            DRAFT
-          </div>
-
-          <div
-            style={{
-              marginTop: 22,
-              paddingBottom: 18,
-              borderBottom: `1px solid ${Theme.borderLight}`,
+              height: 1,
+              backgroundColor: softRule,
+              margin: '22px 0 18px',
               position: 'relative',
               zIndex: 1,
             }}
+          />
+
+          {/* Bill To + trip meta — shared top edge, equal columns */}
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 1,
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              columnGap: 32,
+              alignItems: 'start',
+              marginBottom: 20,
+            }}
           >
-            <div style={labelStyle()}>Bill to</div>
-            {invoiceData.billingLines.length > 0 ? (
-              invoiceData.billingLines.map((line, idx) => (
-                <div
-                  key={`billing-${idx}`}
-                  style={{
-                    fontSize: idx === 0 ? 14 : 12,
-                    fontWeight: idx === 0 ? 600 : 400,
-                    marginTop: idx === 0 ? 8 : 3,
-                    color: idx === 0 ? Theme.textPrimaryDark : Theme.textRouteCard,
-                    lineHeight: 1.45,
-                  }}
-                >
-                  {line}
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  letterSpacing: 0.4,
+                  textTransform: 'uppercase',
+                  color: muted,
+                  marginBottom: 8,
+                  minHeight: 16,
+                }}
+              >
+                Bill To
+              </div>
+              {invoiceData.billingLines.length > 0 ? (
+                invoiceData.billingLines.map((line, idx) => (
+                  <div
+                    key={`bill-${idx}`}
+                    style={{
+                      fontSize: idx === 0 ? 14 : 12,
+                      fontWeight: idx === 0 ? 800 : 500,
+                      lineHeight: 1.45,
+                      color: idx === 0 ? ink : muted,
+                      textTransform: idx === 0 ? 'uppercase' : undefined,
+                      marginBottom: idx === 0 ? 2 : 0,
+                    }}
+                  >
+                    {line}
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: 14, fontWeight: 800, color: ink }}>
+                  {invoiceData.clientName}
                 </div>
-              ))
-            ) : (
-              <div style={{ fontSize: 14, fontWeight: 600, marginTop: 8 }}>{invoiceData.clientName}</div>
-            )}
+              )}
+            </div>
+
+            <div>
+              {/* Spacer matches Bill To title row so trip fields share the same top edge */}
+              <div style={{ minHeight: 24, marginBottom: 0 }} aria-hidden />
+              {shipment.mode === 'single' ? (
+                <>
+                  <MetaPair label="Trip ID" value={shipment.trip_id} />
+                  <MetaPair
+                    label="Trip Date"
+                    value={formatTaxInvoiceDate(shipment.trip_date)}
+                  />
+                  <MetaPair label="LR Number" value={shipment.lr_number} />
+                  <MetaPair label="Pickup" value={shipment.pickup} />
+                  <MetaPair label="Delivery" value={shipment.delivery} />
+                  <MetaPair
+                    label="Truck No"
+                    value={shipment.truck_no || shipment.vehicle_notes}
+                  />
+                  <MetaPair label="Load Type" value={shipment.load_type} />
+                </>
+              ) : (
+                <>
+                  <MetaPair
+                    label="Trips"
+                    value={
+                      shipment.mode === 'multi'
+                        ? `${shipment.trip_count} trips billed as separate freight lines`
+                        : '—'
+                    }
+                  />
+                  {shipment.trips.slice(0, 3).map((trip) => (
+                    <MetaPair
+                      key={trip.trip_id}
+                      label={trip.trip_id}
+                      value={
+                        [trip.lr_number, trip.truck_no].filter(Boolean).join(' · ') ||
+                        trip.route
+                      }
+                    />
+                  ))}
+                </>
+              )}
+            </div>
           </div>
 
+          {/* Line items — fixed column widths */}
           <table
             style={{
               width: '100%',
-              marginTop: 8,
               borderCollapse: 'collapse',
               position: 'relative',
               zIndex: 1,
+              tableLayout: 'fixed',
             }}
           >
             <colgroup>
+              <col style={{ width: 40 }} />
               <col />
-              <col style={{ width: 168 }} />
-              <col style={{ width: 128 }} />
+              <col style={{ width: 72 }} />
+              <col style={{ width: 104 }} />
+              <col style={{ width: 112 }} />
             </colgroup>
             <thead>
               <tr>
-                <th style={thStyle('left')}>Description</th>
-                <th style={thStyle('left')}>Reference</th>
-                <th style={thStyle('right')}>Value (INR)</th>
+                {(
+                  [
+                    { label: '#', align: 'center' as const },
+                    { label: 'Item & Description', align: 'left' as const },
+                    { label: 'HSN/SAC', align: 'center' as const },
+                    { label: 'Rate', align: 'right' as const },
+                    { label: 'Amount', align: 'right' as const },
+                  ] as const
+                ).map((col) => (
+                  <th
+                    key={col.label}
+                    style={{
+                      backgroundColor: accent,
+                      color: Theme.cardWhite,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: 0.3,
+                      textAlign: col.align,
+                      padding: '10px 10px',
+                      border: 'none',
+                    }}
+                  >
+                    {col.label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {tableRows.map((item, index) => {
-                const next = tableRows[index + 1];
-                const prev = tableRows[index - 1];
-                const inGroup =
-                  item.rowRole === 'split' ||
-                  item.rowRole === 'revised' ||
-                  (item.rowRole === 'freight' && next?.rowRole === 'split');
                 const isSplit = item.rowRole === 'split';
                 const isRevised = item.rowRole === 'revised';
-                const closeGroup = isRevised || (item.rowRole === 'freight' && !inGroup);
-                const groupWash = inGroup ? Theme.surface : 'transparent';
-                const borderColor = closeGroup ? Theme.borderMedium : Theme.borderLight;
-
+                const displayIndex =
+                  item.rowRole === 'freight' || item.rowRole === 'other'
+                    ? String(
+                        tableRows
+                          .slice(0, index + 1)
+                          .filter((r) => r.rowRole === 'freight' || r.rowRole === 'other')
+                          .length,
+                      )
+                    : '';
+                const titleText = item.title || item.route;
+                const rate = item.rate ?? item.amount;
+                const rowBorder = `1px solid ${Theme.borderLight}`;
                 return (
-                  <tr key={item.key} style={{ backgroundColor: groupWash }}>
+                  <tr key={item.key}>
                     <td
                       style={{
-                        padding: isSplit
-                          ? '5px 12px 5px 28px'
-                          : isRevised
-                            ? '8px 12px 12px 28px'
-                            : prev?.rowRole === 'revised'
-                              ? '16px 12px 10px'
-                              : '12px 12px 10px',
-                        borderBottom: `1px solid ${borderColor}`,
-                        verticalAlign: 'middle',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        padding: '12px 10px',
+                        borderBottom: rowBorder,
+                        color: muted,
+                        verticalAlign: 'top',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {displayIndex}
+                    </td>
+                    <td
+                      style={{
+                        fontSize: 12,
+                        padding: '12px 10px',
+                        borderBottom: rowBorder,
+                        verticalAlign: 'top',
                       }}
                     >
                       <div
                         style={{
-                          fontWeight: isSplit ? 400 : 600,
-                          color: isSplit ? Theme.textRouteCard : Theme.textPrimaryDark,
-                          fontSize: isSplit ? 12.5 : 13.5,
-                          lineHeight: 1.4,
-                          letterSpacing: isSplit ? 0 : '-0.01em',
+                          fontWeight: isSplit || isRevised ? 500 : 700,
+                          textTransform: isSplit ? 'none' : 'uppercase',
+                          color: ink,
+                          lineHeight: 1.35,
                         }}
                       >
-                        {item.route}
+                        {titleText}
                       </div>
+                      {item.subtitle && !isSplit ? (
+                        <div style={{ marginTop: 3, color: muted, fontSize: 11, lineHeight: 1.35 }}>
+                          {item.subtitle}
+                        </div>
+                      ) : null}
                     </td>
                     <td
                       style={{
-                        padding: isSplit || isRevised ? '5px 12px' : '12px',
-                        borderBottom: `1px solid ${borderColor}`,
-                        verticalAlign: 'middle',
+                        fontSize: 12,
+                        padding: '12px 8px',
+                        borderBottom: rowBorder,
+                        color: muted,
+                        verticalAlign: 'top',
+                        textAlign: 'center',
                       }}
                     >
-                      <ReferenceCell item={item} label={referenceLabel(item)} />
+                      {!isSplit && !isRevised ? item.hsnSac || '—' : ''}
                     </td>
                     <td
                       style={{
-                        padding: isSplit || isRevised ? '5px 12px' : '12px',
-                        borderBottom: `1px solid ${borderColor}`,
-                        verticalAlign: 'middle',
+                        ...amountStyle({ fontSize: 12, color: ink }),
+                        padding: '12px 10px',
+                        borderBottom: rowBorder,
+                        verticalAlign: 'top',
+                      }}
+                    >
+                      {!isSplit && !isRevised ? formatPlainAmount(rate) : ''}
+                    </td>
+                    <td
+                      style={{
                         ...amountStyle({
-                          fontWeight: isRevised || item.rowRole === 'freight' ? 600 : 500,
-                          fontSize: isSplit ? 12.5 : 13.5,
+                          fontSize: 12,
+                          fontWeight: 700,
                           color:
                             item.splitKind === 'cn'
                               ? Theme.negative
                               : item.splitKind === 'dn'
                                 ? Theme.positive
-                                : Theme.textPrimaryDark,
+                                : ink,
                         }),
+                        padding: '12px 10px',
+                        borderBottom: rowBorder,
+                        verticalAlign: 'top',
                       }}
                     >
-                      {formatCurrency(item.amount)}
+                      {formatPlainAmount(item.amount)}
                     </td>
                   </tr>
                 );
@@ -462,108 +770,135 @@ export default function InvoicePdfWeb({
             </tbody>
           </table>
 
+          {/* Notes + totals — aligned columns */}
           <div
             style={{
-              marginTop: 28,
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1fr) 280px',
-              gap: 28,
-              alignItems: 'start',
               position: 'relative',
               zIndex: 1,
+              display: 'grid',
+              gridTemplateColumns: '1fr 240px',
+              columnGap: 36,
+              marginTop: 20,
+              alignItems: 'start',
             }}
           >
             <div>
+              {invoiceData.amountInWords ? (
+                <div style={{ marginBottom: 14 }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      letterSpacing: 0.3,
+                      textTransform: 'uppercase',
+                      color: muted,
+                      marginBottom: 4,
+                    }}
+                  >
+                    Total In Words
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontStyle: 'italic',
+                      fontWeight: 600,
+                      color: ink,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {invoiceData.amountInWords}
+                  </div>
+                </div>
+              ) : null}
+
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  letterSpacing: 0.3,
+                  textTransform: 'uppercase',
+                  color: muted,
+                  marginBottom: 4,
+                }}
+              >
+                Note
+              </div>
+              {invoiceData.notes ? (
+                <div
+                  style={{
+                    fontSize: 12,
+                    lineHeight: 1.55,
+                    color: muted,
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {invoiceData.notes}
+                </div>
+              ) : invoiceData.taxWarning ? (
+                <div style={{ fontSize: 12, color: Theme.warning }}>{invoiceData.taxWarning}</div>
+              ) : (
+                <div style={{ fontSize: 12, color: muted }}>
+                  {invoiceData.invoiceNumberCaption}
+                </div>
+              )}
+
               {invoiceData.bankDetailsLines.length > 0 ? (
-                <div style={{ marginBottom: 16 }}>
-                  <div style={labelStyle()}>Bank transfer</div>
-                  {invoiceData.bankDetailsLines.map((line, idx) => (
+                <div style={{ marginTop: 14 }}>
+                  {invoiceData.bankDetailsLines.map((line) => (
                     <div
-                      key={`bank-${idx}`}
-                      style={{ fontSize: 12, color: Theme.textRouteCard, marginTop: idx === 0 ? 8 : 3, lineHeight: 1.5 }}
+                      key={line}
+                      style={{ fontSize: 12, lineHeight: 1.5, fontWeight: 600, color: ink }}
                     >
                       {line}
                     </div>
                   ))}
                 </div>
               ) : null}
-              {invoiceData.paymentTerms ? (
-                <div style={{ fontSize: 12, color: Theme.textPrimaryDark, lineHeight: 1.5 }}>
-                  <span style={{ color: Theme.textMuted }}>Payment terms · </span>
-                  {invoiceData.paymentTerms}
-                </div>
-              ) : null}
-              {invoiceData.notes ? (
-                <div style={{ marginTop: 6, fontSize: 12, color: Theme.textRouteCard, lineHeight: 1.5 }}>
-                  {invoiceData.notes}
-                </div>
-              ) : null}
-              <div style={{ marginTop: 12, fontSize: 11, color: Theme.textMuted, lineHeight: 1.5 }}>
-                This is a draft preview. An invoice number is assigned on issue.
-              </div>
             </div>
-            <div>
-              {invoiceData.taxWarning ? (
-                <div style={{ marginBottom: 12, fontSize: 12, color: Theme.warning, lineHeight: 1.4 }}>
-                  {invoiceData.taxWarning}
-                </div>
-              ) : null}
-              {invoiceData.taxRows.map((row) => (
-                <div
+
+            <div style={{ width: '100%' }}>
+              {taxLines.map((row) => (
+                <TotalRow
                   key={row.label}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto',
-                    gap: 16,
-                    marginBottom: 8,
-                    fontSize: 12.5,
-                    color: Theme.textRouteCard,
-                  }}
-                >
-                  <span>{row.label}</span>
-                  <span style={amountStyle({ color: Theme.textPrimaryDark, fontWeight: 500 })}>
-                    {row.value}
-                  </span>
-                </div>
+                  label={row.label === 'Taxable amount' ? 'Sub total' : row.label}
+                  value={row.value.replace(/^₹\s?/, '')}
+                />
               ))}
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr auto',
-                  gap: 16,
-                  marginTop: 10,
-                  paddingTop: 10,
-                  borderTop: `1px solid ${Theme.textPrimaryDark}`,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: Theme.textPrimaryDark,
+                  height: 1,
+                  backgroundColor: softRule,
+                  margin: '8px 0 10px',
+                }}
+              />
+              <TotalRow
+                label="Total"
+                value={formatPlainAmount(invoiceData.grandTotal)}
+                emphasis
+              />
+              <TotalRow
+                label="Balance Due"
+                value={formatPlainAmount(invoiceData.grandTotal)}
+                emphasis
+                accentValue
+              />
+
+              <div
+                style={{
+                  marginTop: 28,
+                  minHeight: 64,
+                  borderBottom: `1px solid ${softRule}`,
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  justifyContent: 'center',
+                  paddingBottom: 6,
                 }}
               >
-                <span>Total</span>
-                <span style={amountStyle({ fontWeight: 600 })}>
-                  {formatCurrency(invoiceData.grandTotal)}
+                <span style={{ fontSize: 11, color: muted, fontWeight: 600 }}>
+                  Authorized Signature
                 </span>
               </div>
             </div>
-          </div>
-
-          <div
-            style={{
-              marginTop: 28,
-              paddingTop: 12,
-              borderTop: `1px solid ${Theme.borderLight}`,
-              fontSize: 10,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: Theme.textMuted,
-              display: 'flex',
-              justifyContent: 'space-between',
-              position: 'relative',
-              zIndex: 1,
-            }}
-          >
-            <span>Draft — not an issued invoice</span>
-            <span>Page 1 of 1</span>
           </div>
         </div>
       </div>
@@ -585,59 +920,4 @@ function segmentStyle(active: boolean): React.CSSProperties {
     boxShadow: active ? '0 1px 2px rgba(15, 23, 42, 0.08)' : 'none',
     fontFamily: font,
   };
-}
-
-function thStyle(align: 'left' | 'right'): React.CSSProperties {
-  return {
-    padding: '10px 12px',
-    borderBottom: `1px solid ${Theme.borderMedium}`,
-    fontSize: 10,
-    fontWeight: 600,
-    letterSpacing: '0.12em',
-    textTransform: 'uppercase',
-    color: Theme.textMuted,
-    textAlign: align,
-  };
-}
-
-function ReferenceCell({
-  item,
-  label,
-}: {
-  item: InvoicePdfTableRow;
-  label: string;
-}) {
-  if (item.rowRole === 'split' && (item.splitKind === 'cn' || item.splitKind === 'dn')) {
-    const isCn = item.splitKind === 'cn';
-    return (
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minWidth: 32,
-          padding: '2px 8px',
-          borderRadius: 999,
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: '0.06em',
-          backgroundColor: isCn ? Theme.brandBlueWashSubtle : Theme.positiveMuted,
-          color: isCn ? Theme.primary : Theme.positive,
-        }}
-      >
-        {label}
-      </span>
-    );
-  }
-  return (
-    <span
-      style={{
-        fontSize: 11.5,
-        color: Theme.textMuted,
-        letterSpacing: item.rowRole === 'freight' ? '0.01em' : 0,
-      }}
-    >
-      {label}
-    </span>
-  );
 }

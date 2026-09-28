@@ -14,6 +14,8 @@ import { describeStopProofDocument } from "@/features/driver/job-card/deliveryPr
 import { type TripDocumentRow } from "@/features/trips/services/tripDocuments.service";
 import { resolveTripDocumentPreviewUrl } from "@/features/tripCompliance/services/vehicleDocumentReuse.service";
 import { markTripHardCopyPodReceived } from "@/features/trips/services/tripDocumentLrPod.service";
+import { syncHardCopyPodRecord } from "@/lib/queries/invalidateHardCopyPodCaches";
+import { useQueryClient } from "@tanstack/react-query";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import {
   canMarkComplianceVerified,
@@ -116,6 +118,7 @@ export function ComplianceSection({
   canManageFinance,
   onUpdated,
 }: Props) {
+  const queryClient = useQueryClient();
   const tripId = trip.id;
   const [complianceById, setComplianceById] = useState<
     Record<string, Pick<ComplianceDocumentRow, "status" | "verified_by" | "verified_at" | "rejection_reason">>
@@ -317,6 +320,10 @@ export function ComplianceSection({
             receivedBy: values.receivedBy,
           });
           if (error) throw error;
+          await syncHardCopyPodRecord(queryClient, {
+            tripId,
+            organizationId,
+          });
         } else if (modalKind === "editAdvance" || modalKind === "editBalance") {
           const existing = modalKind === "editAdvance" ? payments.advance : payments.balance;
           if (!existing) throw new Error("Payment not found");
@@ -346,7 +353,7 @@ export function ComplianceSection({
         setSubmitting(false);
       }
     },
-    [modalKind, modalDoc, actorId, organizationId, tripId, trip, payments, closeModal, onUpdated],
+    [modalKind, modalDoc, actorId, organizationId, tripId, trip, payments, closeModal, onUpdated, queryClient],
   );
 
   const modalConfig: { title: string; fields: ComplianceInputField[] } | null =

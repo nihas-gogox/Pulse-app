@@ -67,7 +67,7 @@ describe("Invoice Issue action ownership (F1)", () => {
   });
 
   it("issued invoice visibility helper remains independent of POD Required", () => {
-    expect(executeSrc).toMatch(/IssuedInvoicesPanel/);
+    expect(executeSrc).toMatch(/PendingBillingInsightPanel/);
     const utilSrc = readFileSync(
       join(__dirname, "../../utils/invoicePodRequired.util.ts"),
       "utf8",

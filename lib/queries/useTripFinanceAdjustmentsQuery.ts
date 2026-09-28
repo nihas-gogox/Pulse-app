@@ -27,7 +27,7 @@ export function tripFinanceAdjustmentsQueryOptions(
     queryKey: [...queryKeys.tripFinanceAdjustmentsRoot, organizationId ?? "", sortedKey] as const,
     queryFn: () => fetchTripFinanceAdjustmentsByTripIds(filteredIds),
     enabled: !!organizationId && filteredIds.length > 0,
-    staleTime: STALE.frequent,
+    staleTime: STALE.moderate,
   };
 }
 

@@ -1,8 +1,9 @@
 /**
- * Single issued-invoice row card (Pending Billing side rail + Issued tab).
+ * Single issued-invoice row card (Pending Billing side rail).
  */
 import Theme from "@/constants/Theme";
 import type { IssuedInvoiceListRow } from "@/features/invoicing/services/invoiceList.service";
+import { FileText } from "lucide-react-native";
 import { financeInvoiceHistoryFields } from "@/features/invoicing/utils/invoiceSource.util";
 import { StyleSheet, Text, View } from "react-native";
 
@@ -29,55 +30,91 @@ export function IssuedInvoiceCard({
     trip_ids: item.trip_ids,
   });
   return (
-    <View
-      style={[
-        styles.card,
-        compact && styles.cardCompact,
-        selected && styles.cardSelected,
-      ]}
-    >
-      <View style={styles.cardTop}>
-        <Text style={styles.number} numberOfLines={1}>
-          {item.invoice_number || "—"}
-        </Text>
-        <Text style={styles.status} numberOfLines={1}>
-          {item.status}
-        </Text>
+    <View style={[styles.card, compact && styles.cardCompact, selected && styles.cardSelected]}>
+      <View style={styles.row}>
+        <View style={styles.iconWrap}>
+          <FileText size={14} color={Theme.darkGreen} strokeWidth={2.25} />
+        </View>
+        <View style={styles.main}>
+          <View style={styles.cardTop}>
+            <Text style={styles.number} numberOfLines={1}>
+              {item.invoice_number || "—"}
+            </Text>
+            <Text style={styles.status} numberOfLines={1}>
+              {item.status}
+            </Text>
+          </View>
+          <Text style={styles.client} numberOfLines={1}>
+            {item.client_name || "—"}
+          </Text>
+          <View style={styles.metaRow}>
+            <Text style={styles.meta} numberOfLines={1}>
+              {item.invoice_date || "—"}
+            </Text>
+            <Text style={styles.total} numberOfLines={1}>
+              {formatInr(item.total_amount)}
+            </Text>
+          </View>
+          <View style={styles.metaRow}>
+            <Text style={styles.meta} numberOfLines={1}>
+              Due {item.due_date || "—"}
+            </Text>
+            <Text style={styles.meta}>
+              {item.trip_ids.length} trip
+              {item.trip_ids.length === 1 ? "" : "s"}
+            </Text>
+          </View>
+          <Text style={styles.meta} numberOfLines={1}>
+            {source.source} · {source.reference}
+          </Text>
+          {!compact ? (
+            <Text style={styles.unsupported}>
+              Invoice-level payment / allocation is not supported on this
+              surface.
+            </Text>
+          ) : null}
+        </View>
       </View>
-      <Text style={styles.client} numberOfLines={1}>
-        {item.client_name || "—"}
-      </Text>
-      <View style={styles.metaRow}>
-        <Text style={styles.meta}>Date {item.invoice_date || "—"}</Text>
-        <Text style={styles.meta}>Due {item.due_date || "—"}</Text>
-      </View>
-      <View style={styles.metaRow}>
-        <Text style={styles.total}>{formatInr(item.total_amount)}</Text>
-        <Text style={styles.meta}>
-          {source.source} · {source.reference}
-        </Text>
-      </View>
-      <Text style={styles.unsupported}>
-        Invoice-level payment / allocation is not supported on this surface.
-      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Theme.surface,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Theme.border,
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.borderMedium,
     padding: 12,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   cardCompact: {
-    padding: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     marginBottom: 6,
-    borderRadius: 6,
-    borderColor: Theme.borderMedium,
+    borderWidth: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderRadius: 0,
+    borderColor: Theme.borderLight,
+    backgroundColor: Theme.cardWhite,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  iconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Theme.positiveMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  main: {
+    flex: 1,
+    minWidth: 0,
   },
   cardSelected: {
     borderColor: Theme.primary,
@@ -94,7 +131,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontSize: 13,
     fontWeight: "800",
-    color: Theme.textPrimary,
+    color: Theme.textPrimaryDark,
     letterSpacing: -0.1,
   },
   status: {
@@ -111,14 +148,23 @@ const styles = StyleSheet.create({
     color: Theme.textPrimary,
   },
   metaRow: {
-    marginTop: 8,
+    marginTop: 6,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 8,
   },
-  meta: { fontSize: 11, fontWeight: "600", color: Theme.textSecondary },
-  total: { fontSize: 14, fontWeight: "800", color: Theme.textPrimary },
+  meta: {
+    flexShrink: 1,
+    fontSize: 11,
+    fontWeight: "600",
+    color: Theme.textSecondary,
+  },
+  total: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: Theme.teslaRed,
+  },
   unsupported: {
     marginTop: 8,
     fontSize: 10,

@@ -25,7 +25,7 @@ export function TripCompletionStatusTag({
         ]}
         numberOfLines={1}
       >
-        {completed ? "COMPLETED" : "NOT COMPLETED"}
+        {completed ? "Completed" : "Not completed"}
       </Text>
     </View>
   );
@@ -55,7 +55,7 @@ export function TripCompletionOrPodTags({
           <PodTag
             compact={compact}
             received={softCopyReceived}
-            label="POD · SOFT"
+            label="Soft"
             accessibilityLabel={
               softCopyReceived
                 ? "Soft copy POD received"
@@ -65,7 +65,7 @@ export function TripCompletionOrPodTags({
           <PodTag
             compact={compact}
             received={hardCopyReceived}
-            label="POD · HARD"
+            label="Hard"
             accessibilityLabel={
               hardCopyReceived
                 ? "Hard copy POD received"
@@ -88,11 +88,11 @@ export function TripPodStatusTags({
   compact?: boolean;
 }) {
   return (
-    <View style={styles.row} accessibilityRole="text">
+    <View style={[styles.row, styles.rowInline]} accessibilityRole="text">
       <PodTag
         compact={compact}
         received={softCopyReceived}
-        label="POD · SOFT"
+        label="Soft"
         accessibilityLabel={
           softCopyReceived ? "Soft copy POD received" : "Soft copy POD missing"
         }
@@ -100,7 +100,7 @@ export function TripPodStatusTags({
       <PodTag
         compact={compact}
         received={hardCopyReceived}
-        label="POD · HARD"
+        label="Hard"
         accessibilityLabel={
           hardCopyReceived ? "Hard copy POD received" : "Hard copy POD pending"
         }
@@ -148,34 +148,35 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
+  },
+  rowInline: {
+    flexWrap: "nowrap",
   },
   tag: {
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 0,
   },
   tagCompact: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   tagReceived: {
-    backgroundColor: "transparent",
-    borderColor: Theme.positive,
+    backgroundColor: Theme.positiveMuted,
   },
   tagPending: {
-    backgroundColor: "transparent",
-    borderColor: Theme.negative,
+    backgroundColor: Theme.negativeMuted,
   },
   tagText: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 0.4,
+    letterSpacing: 0.1,
   },
   tagTextCompact: {
-    fontSize: 8,
-    letterSpacing: 0.3,
+    fontSize: 10,
+    letterSpacing: 0,
   },
   tagTextReceived: {
     color: Theme.positive,
@@ -184,8 +185,7 @@ const styles = StyleSheet.create({
     color: Theme.negative,
   },
   tagIncomplete: {
-    backgroundColor: "transparent",
-    borderColor: Theme.warning,
+    backgroundColor: Theme.warningMuted,
   },
   tagTextIncomplete: {
     color: Theme.warning,

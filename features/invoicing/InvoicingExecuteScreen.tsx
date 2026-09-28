@@ -9,7 +9,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTabBarAwareScrollProps } from "@/contexts/DemoTabBarScrollContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useActiveWorkspace } from "@/contexts/ActiveWorkspaceContext";
-import { InvoicePreviewPanel } from "@/features/invoicing/components/InvoicePreviewPanel";
 import { InvoiceDraftsPanel } from "@/features/invoicing/components/InvoiceDraftsPanel";
 import { IssuedInvoicesPanel } from "@/features/invoicing/components/IssuedInvoicesPanel";
 import { PendingBillingInsightPanel } from "@/features/invoicing/components/PendingBillingInsightPanel";
@@ -61,6 +60,7 @@ import type { IssuedInvoiceListRow } from "@/features/invoicing/services/invoice
 import { invoiceSourceLabel } from "@/features/invoicing/utils/invoiceSource.util";
 import type { InvoiceLineSnapshot } from "@/features/invoicing/services/invoiceDocumentSnapshot.service";
 import { ROUTES } from "@/lib/routes";
+import { useLoadingStuck } from "@/lib/hooks/useLoadingStuck";
 import { TripCompletionFilterBar } from "@/features/trips/components/TripCompletionFilterBar";
 import {
   TripCompletionOrPodTags,
@@ -122,7 +122,15 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePulseProductShell } from "@/features/product-shell/PulseProductShell";
 import { useRouter, usePathname, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
     Alert,
     FlatList,
@@ -140,6 +148,13 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLayoutInsets } from "@/lib/layoutInsets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const InvoicePreviewPanel = lazy(async () => {
+  const mod = await import(
+    "@/features/invoicing/components/InvoicePreviewPanel"
+  );
+  return { default: mod.InvoicePreviewPanel };
+});
 
 function parseCreateTripIdsParam(
   value: string | string[] | undefined,
@@ -309,6 +324,7 @@ export function InvoicingExecuteScreen({
   const productShell = usePulseProductShell();
   const inProductShell =
     productShell === "finance-pro" ||
+    productShell === "invoice" ||
     pathname === "/invoicing-execute" ||
     pathname.startsWith("/invoicing-execute/") ||
     pathname === "/pulse-invoice" ||
@@ -316,8 +332,17 @@ export function InvoicingExecuteScreen({
       !pathname.startsWith("/pulse-invoice/order"));
   const { profile, user } = useAuth();
   const caps = useCapabilities();
-  const { currentOrganization, isLoading: orgLoading } = useOrganization();
-  const { activeWorkspace } = useActiveWorkspace();
+  const {
+    currentOrganization,
+    isLoading: orgLoading,
+    refreshOrganization,
+  } = useOrganization();
+  const {
+    activeWorkspace,
+    isLoading: workspaceLoading,
+    refresh: refreshWorkspace,
+    error: workspaceError,
+  } = useActiveWorkspace();
   const orgId = currentOrganization?.id ?? null;
   const workspaceId = activeWorkspace?.id ?? null;
   const tripScopeId = workspaceId ?? orgId;
@@ -334,6 +359,16 @@ export function InvoicingExecuteScreen({
     refetch,
     isRefetching,
   } = useInvoicingExecuteTripsQuery(tripScopeId);
+
+  const bootLoading = (workspaceLoading || orgLoading) && !tripScopeId;
+  const tripsLoading = Boolean(tripScopeId) && isLoading;
+  const bootStuck = useLoadingStuck(bootLoading, 10_000);
+  const tripsStuck = useLoadingStuck(tripsLoading, 15_000);
+
+  const retryBoot = useCallback(() => {
+    void refreshWorkspace();
+    void refreshOrganization();
+  }, [refreshOrganization, refreshWorkspace]);
   const invoiceClientIds = useMemo(
     () =>
       Array.from(
@@ -749,6 +784,8 @@ export function InvoicingExecuteScreen({
         billing_address: null,
         state: null,
         email: null,
+        contact_person: null,
+        phone: null,
       },
       lines,
       subtotal: inspectedIssuedInvoice.subtotal ?? inspectedIssuedInvoice.total_amount,
@@ -1619,14 +1656,59 @@ export function InvoicingExecuteScreen({
     );
   }
 
-  if (orgLoading || !orgId)
+  if (bootLoading && !bootStuck) {
+    return <CenteredLoadingView message="Loading..." />;
+  }
+  if (!tripScopeId) {
     return (
-      <CenteredLoadingView
-        message={orgLoading ? "Loading..." : "No organization"}
-      />
+      <View
+        style={[
+          styles.blocked,
+          { paddingTop: insets.top + 24, paddingBottom: insets.bottom },
+        ]}
+      >
+        <Text style={styles.blockedTitle}>
+          {bootStuck ? "Still loading workspace" : "No organization"}
+        </Text>
+        <Text style={styles.blockedBody}>
+          {workspaceError?.message ||
+            (bootStuck
+              ? "Workspace setup is taking longer than usual. Retry to continue."
+              : "Select or create a workspace, then open Pulse Invoice again.")}
+        </Text>
+        <Pressable style={styles.blockedBtn} onPress={retryBoot}>
+          <Text style={styles.blockedBtnText}>Retry</Text>
+        </Pressable>
+      </View>
     );
-  if (isLoading)
+  }
+  if (tripsLoading && !tripsStuck) {
     return <CenteredLoadingView message="Syncing with Supabase..." />;
+  }
+  if (tripsLoading && tripsStuck) {
+    return (
+      <View
+        style={[
+          styles.blocked,
+          { paddingTop: insets.top + 24, paddingBottom: insets.bottom },
+        ]}
+      >
+        <Text style={styles.blockedTitle}>Still syncing trips</Text>
+        <Text style={styles.blockedBody}>
+          Trip sync is taking longer than usual. You can retry without leaving
+          this page.
+        </Text>
+        <Pressable
+          style={styles.blockedBtn}
+          onPress={() => {
+            void refetch();
+          }}
+        >
+          <Text style={styles.blockedBtnText}>Retry</Text>
+        </Pressable>
+      </View>
+    );
+  }
   if (isError) {
     return (
       <View style={[styles.blocked, { paddingTop: insets.top + 24 }]}>
@@ -1807,20 +1889,26 @@ export function InvoicingExecuteScreen({
           </View>
         ) : (
           <View style={styles.createPageBody}>
-            <InvoicePreviewPanel
-              onPreview={handlePreview}
-              onIssue={handleIssueInvoice}
-              isFinalizing={false}
-              isIssuing={issueMutation.isPending}
-              activeClient={activeClientLabel}
-              selectedTrips={selectedTrips}
-              isStandalone={true}
-              issuer={issuer}
-              workspaceOrgId={workspaceId}
-              onEditClient={(clientId) => void openClientEditor(clientId)}
-              invoiceBuildBlockedReason={buildBlockedReason}
-              invoiceIssueBlockedReason={selectedInvoiceIssueBlockedReason}
-            />
+            <Suspense
+              fallback={
+                <CenteredLoadingView message="Opening invoice draft..." />
+              }
+            >
+              <InvoicePreviewPanel
+                onPreview={handlePreview}
+                onIssue={handleIssueInvoice}
+                isFinalizing={false}
+                isIssuing={issueMutation.isPending}
+                activeClient={activeClientLabel}
+                selectedTrips={selectedTrips}
+                isStandalone={true}
+                issuer={issuer}
+                workspaceOrgId={workspaceId ?? orgId}
+                onEditClient={(clientId) => void openClientEditor(clientId)}
+                invoiceBuildBlockedReason={buildBlockedReason}
+                invoiceIssueBlockedReason={selectedInvoiceIssueBlockedReason}
+              />
+            </Suspense>
           </View>
         )}
       </View>
@@ -2550,7 +2638,7 @@ export function InvoicingExecuteScreen({
       </View>
       )}
 
-      {!isLargeScreen && invoiceSurface === "pending" && step === 1 && (
+      {!isLargeScreen && step === 1 && (
         <View
           style={[
             styles.footer,
@@ -3456,18 +3544,6 @@ const styles = StyleSheet.create({
   statValOk: { fontSize: 13, fontWeight: "800", color: "#059669" },
 
   contentArea: { flex: 1, backgroundColor: Theme.surfaceGray },
-  billingChrome: {
-    flexDirection: "row",
-    flexWrap: "nowrap",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    backgroundColor: Theme.screenBackground,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Theme.border,
-    paddingRight: Layout.screenPaddingHorizontal,
-    minHeight: 44,
-  },
   billingTabs: {
     flexDirection: "row",
     flexWrap: "nowrap",
@@ -3504,6 +3580,25 @@ const styles = StyleSheet.create({
     height: 2,
     borderRadius: 1,
     backgroundColor: Theme.primary,
+  },
+  billingChrome: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    backgroundColor: Theme.screenBackground,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Theme.border,
+    paddingHorizontal: Layout.screenPaddingHorizontal,
+    minHeight: 44,
+  },
+  billingChromeTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    color: Theme.textPrimaryDark,
+    textTransform: "uppercase",
   },
   splitLayout: { flex: 1, flexDirection: "row" },
   sidebar: {

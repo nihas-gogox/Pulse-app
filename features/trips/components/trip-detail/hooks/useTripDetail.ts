@@ -71,6 +71,8 @@ import {
     type BundleDocument,
     type BundleTransaction,
 } from "@/lib/queries/useTripDetailBundleQuery";
+import { applyHardCopyPodColumnsToTrip } from "@/lib/queries/hardCopyPodCache.util";
+import { useTripHardCopyPodQuery } from "@/lib/queries/useTripHardCopyPodQuery";
 import { queryKeys } from "@/lib/queryKeys";
 import * as driverLocationService from "@/features/driver/services/driverLocation.service";
 import { getMoverAssetClientPaid } from "@/features/trips/services/moverAssetPayment.service";
@@ -294,7 +296,14 @@ export type DriverActivityTimelineRow =
       id: string;
       status_label: string;
       changed_at: string;
-      status_context: "started" | "in_transit" | "completed" | "created" | "accepted" | "assigned";
+      status_context:
+        | "started"
+        | "in_transit"
+        | "completed"
+        | "created"
+        | "accepted"
+        | "assigned"
+        | "pod_received";
       detail_line: string;
     };
 
@@ -429,6 +438,7 @@ export function useTripDetail({
   const { profile, user } = useAuth();
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
+  const { state: hardCopyPod } = useTripHardCopyPodQuery(tripId);
   void onBack;
 
   // ── Trip data ─────────────────────────────────────────────────────────────
@@ -900,8 +910,33 @@ export function useTripDetail({
       });
     }
 
+    if (trip.pod_received_at || hardCopyPod?.status === "RECEIVED" || hardCopyPod?.status === "IN_TRANSIT") {
+      const received = hardCopyPod?.status === "RECEIVED" || Boolean(trip.pod_received_at);
+      rows.push({
+        kind: "status",
+        id: `hard-copy-pod-${trip.id}`,
+        status_label: received ? "Hard copy POD received" : "Hard copy POD in transit",
+        changed_at:
+          hardCopyPod?.receivedAt ??
+          trip.pod_received_at ??
+          trip.updated_at ??
+          new Date().toISOString(),
+        status_context: "pod_received",
+        detail_line: [
+          received ? "RECEIVED" : "IN TRANSIT",
+          hardCopyPod?.receivedBy ? `Received by ${hardCopyPod.receivedBy}` : null,
+          hardCopyPod?.courier ? `Courier ${hardCopyPod.courier}` : null,
+          hardCopyPod?.receivedDate,
+          hardCopyPod?.receivedTime,
+          hardCopyPod?.remarks,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      });
+    }
+
     return rows;
-  }, [trip, assignmentAuditRows, assignmentDriverNames, assignmentVehicleLabels]);
+  }, [trip, hardCopyPod, assignmentAuditRows, assignmentDriverNames, assignmentVehicleLabels]);
 
   // Phase 3b: single-RPC bundle replacing 18-24 serial calls.
   // When ENABLE_TRIP_DETAIL_BUNDLE is true (global), bundleActive is true for all orgs.
@@ -2466,7 +2501,13 @@ export function useTripDetail({
     if (!bundle) return;
     bundleSeededRef.current = true;
 
-    setTrip(bundle.trip as unknown as TripRow);
+    setTrip(
+      applyHardCopyPodColumnsToTrip(
+        bundle.trip as unknown as TripRow,
+        queryClient.getQueryData(queryKeys.trips.hardCopyPod(bundle.trip.id)) ??
+          hardCopyPod,
+      ),
+    );
     setLoading(false);
     setError(null);
     loadCompletedForIdRef.current = bundle.trip.id;
@@ -2586,7 +2627,17 @@ export function useTripDetail({
           : null,
       );
     }
-  }, [bundle]);
+  }, [bundle, hardCopyPod, queryClient]);
+
+  // Bundle JSON omits trips.pod_received_at. Keep the open trip row aligned
+  // with the shared POD record so every section on this page reads it.
+  useEffect(() => {
+    if (!hardCopyPod || !tripId) return;
+    setTrip((prev) => {
+      if (!prev || prev.id !== tripId) return prev;
+      return applyHardCopyPodColumnsToTrip(prev, hardCopyPod);
+    });
+  }, [hardCopyPod, tripId]);
 
   // List/award TripRow seed + trip-id switch: apply before paint so we never
   // show the previous trip. Cached bundle wins over the partial list seed.

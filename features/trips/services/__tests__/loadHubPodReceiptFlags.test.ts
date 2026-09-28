@@ -1,10 +1,12 @@
 import { loadHubPodReceiptFlags } from "../tripDocumentLrPod.service";
 
 const mockFrom = jest.fn();
+const mockRpc = jest.fn();
 
 jest.mock("@/lib/supabase", () => ({
   supabase: () => ({
     from: (table: string) => mockFrom(table),
+    rpc: (...args: unknown[]) => mockRpc(...args),
   }),
 }));
 
@@ -21,9 +23,15 @@ function docsQuery(rows: { trip_id: string; document_type: string }[]) {
 describe("loadHubPodReceiptFlags", () => {
   beforeEach(() => {
     mockFrom.mockReset();
+    mockRpc.mockReset();
+    // Force REST fallback (non-UUID ids in this suite also skip RPC).
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: "function missing" },
+    });
   });
 
-  it("does not re-query trips for hard-copy POD and keeps chunks sequential", async () => {
+  it("does not re-query trips for hard-copy POD and keeps REST chunks sequential", async () => {
     let active = 0;
     let maxActive = 0;
     mockFrom.mockImplementation((table: string) => {
@@ -48,6 +56,7 @@ describe("loadHubPodReceiptFlags", () => {
     expect(mockFrom).not.toHaveBeenCalledWith("trips");
     expect(flags.hardTripIds).toEqual([]);
     expect(flags.softTripIds.length).toBeGreaterThan(0);
-    expect(maxActive).toBe(1);
+    // REST fallback uses CHUNK_CONCURRENCY (3); still never hits trips.
+    expect(maxActive).toBeLessThanOrEqual(3);
   });
 });

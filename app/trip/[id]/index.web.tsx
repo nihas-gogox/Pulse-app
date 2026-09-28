@@ -1,6 +1,6 @@
 import { LazySuspenseInlineFallback } from '@/components/LazySuspenseFallback';
 import type { TripDetailScreenProps } from '@/features/trips/components/trip-detail/TripDetailScreen.types';
-import { parseTripDetailRouteParams } from '@/lib/routes';
+import { parseTripDetailRouteParams, ROUTES } from '@/lib/routes';
 import { useSafeBack } from '@/lib/useSafeBack';
 import { useLocalSearchParams } from 'expo-router';
 import { Suspense, lazy } from 'react';
@@ -19,7 +19,7 @@ export default function TripDetailRoute() {
     clientIdFromContext?: string;
     clientNameFromContext?: string;
   }>();
-  const safeBack = useSafeBack();
+  const safeBack = useSafeBack(ROUTES.TABS.TRIPS);
 
   const parsed = parseTripDetailRouteParams(raw);
 

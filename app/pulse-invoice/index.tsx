@@ -4,6 +4,7 @@ import { shouldMountAuthenticatedDataPlane } from "@/lib/bootGate";
 import { useAuth } from "@/contexts/AuthContext";
 import { Redirect } from "expo-router";
 
+/** Pulse Invoice home — Pending Billing (landing CTA removed). */
 export default function PulseInvoiceRoute() {
   const { sessionAttached } = useAuth();
   if (!shouldMountAuthenticatedDataPlane(sessionAttached)) {

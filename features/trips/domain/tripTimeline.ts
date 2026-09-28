@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { throwIfCancelled, withAbortSignal } from "@/lib/supabaseAbort.util";
+import { decodeHardCopyPodComment } from "@/features/trips/services/tripDocumentLrPod.service";
 import {
   getTripWorkflowEvents,
   getTripWorkflowEventsForTrips,
@@ -32,6 +33,7 @@ export type TripTimelineEventType =
   | "entered_drop"
   | "exited_drop"
   | "pod_uploaded"
+  | "hard_copy_pod"
   | "completed";
 
 export type TripTimelineSeverity = "info" | "success" | "warning";
@@ -197,7 +199,43 @@ async function getDriverAcceptedTimelineEventsForTrips(
   return { error: null, eventsByTripId };
 }
 
+function hardCopyPodTimelineDescription(
+  payload: Record<string, unknown>,
+): string | undefined {
+  const decoded = decodeHardCopyPodComment(
+    typeof payload.comment === "string" ? payload.comment : null,
+  );
+  const receivedBy =
+    typeof payload.received_by === "string" ? payload.received_by.trim() : "";
+  const courier = typeof payload.courier === "string" ? payload.courier.trim() : "";
+  const parts = [
+    decoded.receiptMethod === "person"
+      ? "Received by Person"
+      : decoded.receiptMethod === "courier"
+        ? "Received by Courier"
+        : null,
+    receivedBy ? `Received by ${receivedBy}` : null,
+    courier ? `Courier ${courier}` : null,
+    decoded.receivedDate,
+    decoded.receivedTime,
+    decoded.remarks,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
 function mapWorkflowRow(row: TripWorkflowEvent): TripTimelineEvent | null {
+  const eventType = String(row.event_type);
+  if (eventType === "pod.hard_copy_received" || eventType === "pod.hard_copy_courier_dispatched") {
+    const received = eventType === "pod.hard_copy_received";
+    return {
+      id: `workflow:${row.id}`,
+      occurredAt: row.created_at,
+      type: "hard_copy_pod",
+      title: received ? "Hard copy POD received" : "Hard copy POD in transit",
+      description: hardCopyPodTimelineDescription(row.payload ?? {}),
+      severity: received ? "success" : "info",
+    };
+  }
   if (row.event_type === "pod.uploaded") {
     return {
       id: `workflow:${row.id}`,

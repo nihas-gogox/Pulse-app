@@ -1,7 +1,10 @@
 import {
+  decodeHardCopyPodComment,
+  encodeHardCopyPodComment,
   indexLrPodDocuments,
   isSoftPodDocumentType,
   receivedLrNumbersForTrip,
+  resolveHardCopyPodStatus,
   tripHasHubPodFlag,
   tripPodIsReceived,
   tripPodStatusFlags,
@@ -215,5 +218,54 @@ describe("tripPodStatusFlags — independent soft vs hard POD", () => {
         pod_received_at: "2026-09-11T00:00:00Z",
       }),
     ).toEqual({ softCopyReceived: true, hardCopyReceived: true });
+  });
+});
+
+describe("resolveHardCopyPodStatus", () => {
+  it("maps received / courier-in-transit / pending from existing trips columns", () => {
+    expect(
+      resolveHardCopyPodStatus({ pod_received_at: "2026-09-22T10:00:00Z" }),
+    ).toBe("RECEIVED");
+    expect(
+      resolveHardCopyPodStatus({
+        pod_received_at: null,
+        pod_hard_copy_courier: "DHL",
+        pod_hard_copy_awb_number: "AWB1",
+      }),
+    ).toBe("IN_TRANSIT");
+    expect(
+      resolveHardCopyPodStatus({
+        pod_received_at: null,
+        pod_hard_copy_courier: null,
+        pod_hard_copy_awb_number: null,
+      }),
+    ).toBe("PENDING");
+  });
+});
+
+describe("encodeHardCopyPodComment / decodeHardCopyPodComment", () => {
+  it("round-trips structured person receipt metadata and keeps plain comments readable", () => {
+    const encoded = encodeHardCopyPodComment({
+      remarks: "At gate",
+      receivedDate: "2026-09-22",
+      receivedTime: "14:30",
+      receiptMethod: "person",
+    });
+    expect(decodeHardCopyPodComment(encoded)).toEqual({
+      remarks: "At gate",
+      receivedDate: "2026-09-22",
+      receivedTime: "14:30",
+      receiptMethod: "person",
+      dispatchDate: null,
+      expectedDeliveryDate: null,
+    });
+    expect(decodeHardCopyPodComment("Checked at gate")).toEqual({
+      remarks: "Checked at gate",
+      receivedDate: null,
+      receivedTime: null,
+      receiptMethod: null,
+      dispatchDate: null,
+      expectedDeliveryDate: null,
+    });
   });
 });

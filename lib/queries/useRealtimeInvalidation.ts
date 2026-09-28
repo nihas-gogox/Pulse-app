@@ -28,6 +28,8 @@ export function useRealtimeTripsInvalidation(organizationId: string | null) {
       ],
       (payload) => {
         const tripId = (payload.new as { id?: string })?.id ?? (payload.old as { id?: string })?.id;
+        const newRow = payload.new as Record<string, unknown> | null;
+        const oldRow = payload.old as Record<string, unknown> | null;
 
         // Silent merge on UPDATE — avoids refetch storm when status is mirrored in chat payloads.
         if (tripId && payload.eventType === 'UPDATE' && payload.new && typeof payload.new === 'object') {
@@ -57,12 +59,22 @@ export function useRealtimeTripsInvalidation(organizationId: string | null) {
               return old.map((t: { id: string }) => (t.id === tripId ? { ...t, ...updated } : t));
             },
           );
+          const podChanged =
+            newRow?.pod_received_at !== oldRow?.pod_received_at ||
+            newRow?.pod_hard_copy_courier !== oldRow?.pod_hard_copy_courier ||
+            newRow?.pod_hard_copy_awb_number !== oldRow?.pod_hard_copy_awb_number ||
+            newRow?.pod_hard_copy_received_by !== oldRow?.pod_hard_copy_received_by;
+          if (podChanged && tripId) {
+            qc.invalidateQueries({ queryKey: queryKeys.trips.hardCopyPod(tripId) });
+            qc.invalidateQueries({ queryKey: queryKeys.trips.timeline(tripId) });
+            qc.invalidateQueries({ queryKey: ["q", "tripCompliance"] });
+            qc.invalidateQueries({ queryKey: ["q", "invoicing"] });
+            qc.invalidateQueries({ queryKey: ["q", "log-pods"] });
+          }
         }
 
         // Shipper names only change when client_id or client_name changes — not on status/location
         // updates. Firing this on every realtime event caused a spurious RPC call on every GPS ping.
-        const newRow = payload.new as Record<string, unknown> | null;
-        const oldRow = payload.old as Record<string, unknown> | null;
         const clientChanged =
           payload.eventType !== 'UPDATE' ||
           newRow?.client_id !== oldRow?.client_id ||

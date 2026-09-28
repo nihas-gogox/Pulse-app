@@ -42,10 +42,15 @@ function trip(overrides: Partial<InvoicingTripView> = {}): InvoicingTripView {
     client: 'Acme Logistics',
     supplier_name: 'Supplier',
     route: 'Chennai ➔ Bangalore',
+    pickup: 'Chennai',
+    delivery: 'Bangalore',
     date: '2026-09-01',
     amount: 10000,
     status: 'approved',
     details: 'tracking-should-not-appear',
+    vehicle_number: null,
+    load_type: null,
+    lr_number: null,
     checks: { poMatch: true, idConfirmed: true, podReceived: true },
     physicalPodReceived: true,
     digitalPodPresent: true,
@@ -69,6 +74,8 @@ function clientRow(overrides: Partial<InvoiceDraftClientRow> = {}): InvoiceDraft
     billing_address: '12 Industrial Estate',
     state: 'Tamil Nadu',
     email: 'ap@acme.example',
+    contact_person: 'Mazumdhar',
+    phone: '+919876543212',
     ...overrides,
   };
 }
@@ -113,6 +120,7 @@ describe('buildInvoiceDraftModel', () => {
     expect(model.client.gstin).toBe('33AAAAA0000A1Z5');
     const pdf = mapInvoiceDraftModelToPdfData(model);
     expect(pdf.bankDetailsLines).toEqual([]);
+    expect(pdf.issuerMsme).toBeNull();
   });
 
   it('GST-not-applicable draft shows zero GST', () => {
@@ -366,6 +374,45 @@ describe('buildInvoiceDraftModel', () => {
     expect(model.lines.some((line) => line.description.includes('tracking'))).toBe(false);
   });
 
+  it('maps truck, load type, and LR from trip fields into shipment (read-only)', () => {
+    const model = buildInvoiceDraftModel({
+      issuer: issuer(),
+      trips: [
+        trip({
+          vehicle_number: 'TN29AW6349',
+          load_type: '24 Ton Open Body',
+          lr_number: '1015',
+          pickup: 'Hosur',
+          delivery: 'Ahmedabad',
+          route: 'Hosur ➔ Ahmedabad',
+        }),
+      ],
+      config: gstOnConfig,
+      previewDate: PREVIEW_DATE,
+      paymentTerms: null,
+      notes: null,
+      fetchedClients: [clientRow()],
+    });
+    expect(model.shipment.mode).toBe('single');
+    expect(model.shipment.truck_no).toBe('TN29AW6349');
+    expect(model.shipment.load_type).toBe('24 Ton Open Body');
+    expect(model.shipment.lr_number).toBe('1015');
+    expect(model.shipment.pickup).toBe('Hosur');
+    expect(model.shipment.delivery).toBe('Ahmedabad');
+    const pdf = mapInvoiceDraftModelToPdfData(model, {
+      bankDetailsLines: ['BANK NAME: HSBC'],
+      msmeNumber: 'UDYAM-TN-02-0197543',
+    });
+    expect(pdf.shipment.truck_no).toBe('TN29AW6349');
+    expect(pdf.amountInWords).toMatch(/Indian Rupee/i);
+    expect(pdf.notes).toMatch(/GST applied/i);
+    expect(pdf.issuerMsme).toBe('UDYAM-TN-02-0197543');
+    expect(pdf.bankDetailsLines).toEqual(['BANK NAME: HSBC']);
+    expect(pdf.taxRows.some((r) => r.label === 'Taxable amount')).toBe(true);
+    expect(JSON.stringify(pdf)).not.toContain('996511');
+    expect(JSON.stringify(pdf).toLowerCase()).not.toContain('reverse charge');
+  });
+
   it('omits missing client tax fields instead of faking them', () => {
     const model = buildInvoiceDraftModel({
       issuer: issuer(),
@@ -382,6 +429,8 @@ describe('buildInvoiceDraftModel', () => {
           billing_address: null,
           state: null,
           email: null,
+          contact_person: null,
+          phone: null,
         }),
       ],
     });
@@ -391,6 +440,37 @@ describe('buildInvoiceDraftModel', () => {
     const pdf = mapInvoiceDraftModelToPdfData(model);
     expect(pdf.billingLines.join(' ')).not.toMatch(/GSTIN/);
     expect(pdf.billingLines.join(' ')).not.toMatch(/\bPAN\b/);
+  });
+
+  it('resolves ledger GSTIN/PAN/contact by client name when trip has no client_id', () => {
+    const model = buildInvoiceDraftModel({
+      issuer: issuer(),
+      trips: [trip({ client_id: null, client: 'berger india pvt ltd' })],
+      config: gstOnConfig,
+      previewDate: PREVIEW_DATE,
+      paymentTerms: 'Net 30',
+      notes: null,
+      fetchedClients: [
+        clientRow({
+          name: 'BERGER INDIA PVT LTD',
+          legal_name: 'BERGER INDIA PVT LTD',
+          gstin: '33AACHGJ1774N1Z',
+          pan: null,
+          contact_person: 'Mazumdhar',
+          phone: '+919876543212',
+          billing_address: null,
+        }),
+      ],
+      displayNameFallback: 'berger india pvt ltd',
+    });
+    expect(model.client.client_id).toBe(CLIENT_A);
+    expect(model.client.gstin).toBe('33AACHGJ1774N1Z');
+    expect(model.client.contact_person).toBe('Mazumdhar');
+    expect(model.client.phone).toBe('+919876543212');
+    expect(model.client.display_name).toBe('BERGER INDIA PVT LTD');
+    const pdf = mapInvoiceDraftModelToPdfData(model);
+    expect(pdf.billingLines.join(' ')).toContain('GSTIN 33AACHGJ1774N1Z');
+    expect(pdf.billingLines.join(' ')).toContain('Mazumdhar');
   });
 
   it('groups GST-on by client_id not display name', () => {

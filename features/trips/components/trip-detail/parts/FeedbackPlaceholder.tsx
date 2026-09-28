@@ -5,7 +5,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { StyleSheet, Text, View } from "react-native";
 
-import { Theme } from "@/constants/Theme";
+import Theme from "@/constants/Theme";
 
 export function FeedbackPlaceholder() {
   return (
@@ -13,7 +13,7 @@ export function FeedbackPlaceholder() {
       <View style={fbStyles.headerRow}>
         <View style={fbStyles.titleCluster}>
           <View style={fbStyles.awardCircle}>
-            <Feather name="award" size={22} color={Theme.primary} />
+            <Feather name="award" size={18} color={Theme.analyticsHeroBg} />
           </View>
           <View style={fbStyles.titleTextWrap}>
             <Text style={fbStyles.title}>Ratings</Text>
@@ -24,7 +24,7 @@ export function FeedbackPlaceholder() {
         </View>
       </View>
       <View style={fbStyles.body}>
-        <Feather name="clock" size={32} color={Theme.borderLight} />
+        <Feather name="clock" size={28} color={Theme.borderMedium} />
         <Text style={fbStyles.message}>
           Feedback available once the trip is completed
         </Text>
@@ -39,73 +39,73 @@ export function FeedbackPlaceholder() {
 
 const fbStyles = StyleSheet.create({
   card: {
-    backgroundColor: Theme.surface,
+    backgroundColor: Theme.cardWhite,
     borderWidth: 1,
     borderColor: Theme.borderLight,
+    borderRadius: 12,
     overflow: "hidden",
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     marginBottom: 4,
     shadowColor: Theme.shadow,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   titleCluster: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 12,
   },
   awardCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: Theme.primary + "18",
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(43,49,113,0.08)",
     alignItems: "center",
     justifyContent: "center",
   },
   titleTextWrap: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    gap: 3,
   },
   title: {
-    fontSize: 18,
-    fontWeight: "900",
-    fontStyle: "italic",
+    fontSize: 14,
+    fontWeight: "800",
     color: Theme.textPrimaryDark,
     textTransform: "uppercase",
-    letterSpacing: -0.3,
+    letterSpacing: 0.6,
   },
   subtitle: {
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: "600",
     color: Theme.textMuted,
     textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginTop: 2,
+    letterSpacing: 0.6,
+    marginTop: 1,
   },
   body: {
-    paddingVertical: 28,
+    paddingVertical: 20,
     paddingHorizontal: 8,
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
   message: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
     color: Theme.textSecondary,
     textAlign: "center",
   },
   sub: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "500",
     color: Theme.textMuted,
     textAlign: "center",
     maxWidth: 440,

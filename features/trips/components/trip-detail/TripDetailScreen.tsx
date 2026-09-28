@@ -34,10 +34,11 @@ import {
   pushTripLedgerQuickEntry,
 } from "@/features/finance/ledger/tripLedgerEntryChooser";
 import { TripPayableReceivableSummaryCard } from "@/features/trips/components/trip-detail/adjustment/TripPayableReceivableSummaryCard";
-import { TripMarginHero } from "@/features/trips/components/trip-detail/TripMarginHero";
 import { TripLedgerTransactionPreviewModal } from "@/features/trips/components/trip-detail/TripLedgerTransactionPreviewModal";
 import { TripAuditLogPanel } from "@/features/trips/components/trip-detail/TripAuditLogPanel";
 import { TripPodStatusSection } from "@/features/trips/components/trip-detail/TripPodStatusSection";
+import { LogHardCopyPodModal } from "@/features/trips/components/trip-detail/LogHardCopyPodModal";
+import { HardCopyPodStatusCard } from "@/features/trips/components/trip-detail/HardCopyPodStatusCard";
 import { ComplianceSection } from "@/features/tripCompliance/components/ComplianceSection";
 import { useWorkspaceProductsQuery } from "@/lib/queries/useWorkspaceProductsQuery";
 import type { LedgerRow } from "@/features/finance/services/finance.service";
@@ -46,7 +47,11 @@ import { latestTripSettlementLedgerEntry } from "@/features/trips/utils/tripSett
 import { computePartnerIndentFreightCost } from "@/features/finance/utils/partnerIndentFreightCost.util";
 import { resolveTripLedgerTripType } from "@/features/finance/utils/tripLedgerPayoutMode.util";
 import { TripRatingsBlock } from "@/features/ratings/components/TripRatingsBlock";
-import { isAggregateTrip } from "@/features/drivers/utils/driverUtils.util";
+import {
+  isAggregateTrip,
+  shouldShowManifestHeroDriverParty,
+  type AggregateTripKindPillContext,
+} from "@/features/drivers/utils/driverUtils.util";
 import { ROUTES, tripExpenseEntryEditRoute } from "@/lib/routes";
 import { useMemberAccess } from "@/lib/useMemberAccess";
 import { formatINR, formatIndianVehicleNumber } from "@/lib/format";
@@ -265,7 +270,12 @@ const TripExpensesScreen = lazy(() =>
 import { isAssetExecutionTrip, shouldShowTripExpenseHub } from "@/features/trips/domain/tripExecutionModel";
 import { isDcoOperatingTrip } from "@/features/trips/domain/tripDcoOperating";
 import { getMoverAssetTripIdForIndent } from "@/features/trips/services/trips.service";
-import { tripIsDeliveredStatus, tripPodIsReceived } from "@/features/trips/services/tripDocumentLrPod.service";
+import {
+  resolveHardCopyPodStatus,
+  tripIsDeliveredStatus,
+  tripPodIsReceived,
+} from "@/features/trips/services/tripDocumentLrPod.service";
+import { useTripHardCopyPodQuery } from "@/lib/queries/useTripHardCopyPodQuery";
 import { FeedbackPlaceholder } from "./parts/FeedbackPlaceholder";
 import { ManifestPulseStepIcon } from "./parts/ManifestPulseStepIcon";
 import { ExpenseListCard } from "./parts/ExpenseListCard";
@@ -678,6 +688,7 @@ export default function TripDetailScreen({
     (p) => p.product_id === "pulse_compliance" && (p.status === "active" || p.status === "trial"),
   );
   const canViewCompliance = complianceEnabled && canSurface("trip_compliance.tab");
+  const canManageHardCopyPod = canSurface("trip_compliance.pod.manage");
   const { memberPlatformRole } = useOptionalActiveWorkspace() ?? {};
   const isGroundOpsOnly = memberPlatformRole === "ground_ops";
   const groundOpsDocUploadQuery = useQuery({
@@ -987,6 +998,19 @@ export default function TripDetailScreen({
   ]);
 
   const [tripRoomOpen, setTripRoomOpen] = useState(false);
+  const [hardCopyPodModalVisible, setHardCopyPodModalVisible] = useState(false);
+  const [hardCopyPodModalMode, setHardCopyPodModalMode] = useState<
+    "create" | "view" | "mark_received"
+  >("create");
+  const { state: hardCopyPodState } = useTripHardCopyPodQuery(detail.trip?.id);
+
+  const openHardCopyPodModal = useCallback(
+    (mode: "create" | "view" | "mark_received" = "create") => {
+      setHardCopyPodModalMode(mode);
+      setHardCopyPodModalVisible(true);
+    },
+    [],
+  );
 
   const openOdometerVerification = useCallback(
     (side: "start" | "end") => {
@@ -2444,6 +2468,24 @@ export default function TripDetailScreen({
     [detail.trip?.id, detail.currentUserId, detail.loadTripDocuments],
   );
 
+  const manifestHeroPartyContext = useMemo<AggregateTripKindPillContext>(
+    () => ({
+      viewerOrganizationId: currentOrganization?.id ?? null,
+      supplierLinkedOrganizationId: detail.partnerOrgId ?? null,
+    }),
+    [currentOrganization?.id, detail.partnerOrgId],
+  );
+  const showManifestHeroDriver = useMemo(
+    () =>
+      detail.trip
+        ? shouldShowManifestHeroDriverParty(
+            detail.trip,
+            manifestHeroPartyContext,
+          )
+        : false,
+    [detail.trip, manifestHeroPartyContext],
+  );
+
   const { open: openVaultChatPreview, node: vaultChatPreviewNode } =
     useDocumentPreview();
 
@@ -3223,6 +3265,16 @@ export default function TripDetailScreen({
   };
 
   const tripCompleted = isTripCompleted(trip);
+  const hardCopyPodStatusResolved =
+    hardCopyPodState?.status ??
+    resolveHardCopyPodStatus({
+      pod_received_at: trip.pod_received_at,
+      pod_hard_copy_courier: trip.pod_hard_copy_courier,
+      pod_hard_copy_awb_number: trip.pod_hard_copy_awb_number,
+    });
+  /** Log action only after delivery/completion; view/update remain available once logged. */
+  const hardCopyPodLogLocked =
+    hardCopyPodStatusResolved === "PENDING" && !tripCompleted;
   const canChangeManifestAssets =
     detail.canAssign && canTripReassign && !tripCompleted;
   const canOpenReassign =
@@ -3641,15 +3693,6 @@ export default function TripDetailScreen({
       }}
       onEditAdjustment={openProvisionEdit}
       capturePaymentSlot={financeCapturePaymentSlot}
-    />
-  );
-
-  /** Shared mobile + desktop: trip margin hero only (detail in adjustments panel below). */
-  const financeManifestSummaryBlock = (
-    <TripMarginHero
-      amount={netManifestYield}
-      basisLabel={marginBasisLabel}
-      layout={isDesktop ? "desktop" : "mobile"}
     />
   );
 
@@ -4093,6 +4136,327 @@ export default function TripDetailScreen({
   void openVehicleDetails;
   void fmtAuditDate;
 
+  const routeHeroEl = (
+                <View style={[neoStyles.hero, neoStyles.heroFinance]}>
+                  <View style={neoStyles.heroGlow} />
+                  <View style={[neoStyles.heroBridge, neoStyles.heroBridgeFinance]}>
+                    <View style={neoStyles.heroParty}>
+                      <PartyAvatar
+                        name={clientNameForParty}
+                        entityType="client"
+                        size={22}
+                        organizationImageUrl={
+                          detail.clientPartyAvatarFields
+                            ?.organizationImageUrl ?? undefined
+                        }
+                        organizationAvatarSeed={
+                          detail.clientPartyAvatarFields
+                            ?.organizationAvatarSeed ?? undefined
+                        }
+                        avatarUrl={
+                          detail.clientPartyAvatarFields?.avatarUrl ?? undefined
+                        }
+                        avatarSeed={
+                          detail.clientPartyAvatarFields?.avatarSeed ??
+                          undefined
+                        }
+                        isIntegrated={clientPartyIntegrated}
+                        showIntegrationBadge={false}
+                      />
+                      <View style={neoStyles.heroPartyText}>
+                        <Text style={[neoStyles.heroKicker, neoStyles.heroKickerFinance]}>CLIENT</Text>
+                        <Text
+                          style={[neoStyles.heroPartyName, neoStyles.heroPartyNameFinance]}
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
+                          {clientNameCard}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[neoStyles.swapIcon, neoStyles.swapIconFinance]}>
+                      <FontAwesome name="exchange" size={11} color={Theme.textMuted} />
+                    </View>
+                    {showManifestHeroDriver ? (
+                      <NeoManifestHeroBridgePartyEnd
+                        roleLabel="DRIVER"
+                        partyName={allocatedDriverName}
+                        partyPhone={detail.driverPhone}
+                        entityType="driver"
+                        avatarSize={22}
+                        avatarUrl={detail.driverAvatarUri}
+                        avatarSeed={trip.driver_id}
+                        vehicleLabel={allocatedVehicleLabel}
+                        vehicleId={trip.vehicle_id}
+                        styles={neoStyles}
+                        partyStyles={manifestHeroBridgePartyStyles}
+                      />
+                    ) : (
+                      <NeoManifestHeroBridgePartyEnd
+                        roleLabel="SUPPLIER"
+                        partyName={supplierName}
+                        entityType="supplier"
+                        avatarSize={22}
+                        avatarUrl={detail.supplierPartyAvatarFields?.avatarUrl}
+                        avatarSeed={
+                          detail.supplierPartyAvatarFields?.avatarSeed
+                        }
+                        organizationImageUrl={
+                          detail.supplierPartyAvatarFields?.organizationImageUrl
+                        }
+                        organizationAvatarSeed={
+                          detail.supplierPartyAvatarFields
+                            ?.organizationAvatarSeed
+                        }
+                        isIntegrated={supplierPartyIntegrated}
+                        styles={neoStyles}
+                        partyStyles={manifestHeroBridgePartyStyles}
+                      />
+                    )}
+                  </View>
+
+                  <View style={[neoStyles.routeHeroRow, neoStyles.routeHeroRowFinance]}>
+                    <View style={neoStyles.routeHeroSide}>
+                      <Text style={[neoStyles.routeHeroCity, neoStyles.routeHeroCityFinance]} numberOfLines={1}>
+                        {originSplit.primary.toUpperCase()}
+                      </Text>
+                      <Text style={[neoStyles.routeHeroSub, neoStyles.routeHeroSubFinance]} numberOfLines={1}>
+                        {originStateLabel.toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={neoStyles.routeVector}>
+                      <View style={neoStyles.routeVectorLine} />
+                      <View style={[neoStyles.routeVectorTruck, neoStyles.routeVectorTruckFinance]}>
+                        <Feather name="truck" size={12} color={Theme.textMuted} />
+                      </View>
+                      <View style={neoStyles.routeVectorLine} />
+                    </View>
+                    <View
+                      style={[
+                        neoStyles.routeHeroSide,
+                        neoStyles.routeHeroSideRight,
+                      ]}
+                    >
+                      <Text
+                        style={[neoStyles.routeHeroCity, neoStyles.routeHeroCityFinance, neoStyles.alignRight]}
+                        numberOfLines={1}
+                      >
+                        {destinationSplit.primary.toUpperCase()}
+                      </Text>
+                      <Text
+                        style={[neoStyles.routeHeroSub, neoStyles.routeHeroSubFinance, neoStyles.alignRight]}
+                        numberOfLines={1}
+                      >
+                        {destinationStateLabel.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={[neoStyles.heroMetrics, neoStyles.heroMetricsFinance]}>
+                    <View style={[neoStyles.heroMetric, neoStyles.heroMetricFinance]}>
+                      <Text style={neoStyles.heroMetricLabel}>
+                        Manifest Range
+                      </Text>
+                      <Text style={neoStyles.heroMetricValue}>
+                        {resolvedDistanceLabel
+                          ? resolvedDistanceLabel.replace(/\s*km$/i, " KM")
+                          : "—"}
+                      </Text>
+                    </View>
+                    <View style={[neoStyles.heroMetricDivider, neoStyles.heroMetricDividerFinance]} />
+                    <View style={[neoStyles.heroMetric, neoStyles.heroMetricFinance]}>
+                      <Text style={neoStyles.heroMetricLabel}>
+                        ETA Manifest
+                      </Text>
+                      <Text style={neoStyles.heroMetricValue}>
+                        {liveTrackingPresentation?.eta.label ?? '—'}
+                      </Text>
+                    </View>
+                    <View style={[neoStyles.heroMetricDivider, neoStyles.heroMetricDividerFinance]} />
+                    <View style={[neoStyles.heroMetric, neoStyles.heroMetricFinance]}>
+                      <Text style={neoStyles.heroMetricLabel}>Status</Text>
+                      <View
+                        style={[
+                          neoStyles.heroMetricStatusPill,
+                          neoStyles.heroMetricStatusPillFinance,
+                          { backgroundColor: statusColor },
+                        ]}
+                      >
+                        <Text style={neoStyles.heroMetricStatusPillText}>
+                          {statusLabel.toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+  );
+
+  const financeLedgerPreviewEl = canViewTripLedger ? (
+                            <View
+                              style={[
+                                neoStyles.financeLedgerPreviewCard,
+                                isDesktop && neoStyles.financeLedgerPreviewCardDesktop,
+                                isDesktop && neoStyles.financeLedgerBesideHero,
+                              ]}
+                            >
+                              <View style={neoStyles.financeLedgerPreviewHead}>
+                                <Text
+                                  style={[
+                                    neoStyles.financeLedgerPreviewTitle,
+                                    isDesktop && neoStyles.financeLedgerPreviewTitleDesktop,
+                                  ]}
+                                >
+                                  Ledger snapshot
+                                </Text>
+                                <TouchableOpacity
+                                  style={neoStyles.financeLedgerPreviewLink}
+                                  onPress={() =>
+                                    setFinanceSubTab("transactions")
+                                  }
+                                  activeOpacity={0.85}
+                                  accessibilityRole="button"
+                                  accessibilityLabel="View full transaction list"
+                                >
+                                  <Text
+                                    style={
+                                      neoStyles.financeLedgerPreviewLinkText
+                                    }
+                                  >
+                                    View all
+                                  </Text>
+                                  <Feather
+                                    name="chevron-right"
+                                    size={14}
+                                    color="#4D3636"
+                                  />
+                                </TouchableOpacity>
+                              </View>
+                              <Text
+                                style={[
+                                  neoStyles.financeLedgerPreviewSub,
+                                  isDesktop && neoStyles.financeLedgerPreviewSubDesktop,
+                                ]}
+                              >
+                                {ledgerEntries.length === 0 && ledgerEntriesLoading
+                                  ? "Loading ledger…"
+                                  : ledgerEntries.length === 0 && ledgerEntriesError
+                                  ? "Couldn’t load ledger"
+                                  : financeHistoryRows.length === 0
+                                  ? "No cash movements on this trip yet"
+                                  : `${financeHistoryRows.length} movement${
+                                      financeHistoryRows.length === 1 ? "" : "s"
+                                    } · newest first`}
+                              </Text>
+                              <ScrollView
+                                style={[
+                                  neoStyles.financeLedgerPreviewScroll,
+                                  isDesktop && neoStyles.financeLedgerBesideHeroScroll,
+                                ]}
+                                contentContainerStyle={
+                                  neoStyles.financeLedgerPreviewScrollContent
+                                }
+                                nestedScrollEnabled
+                                showsVerticalScrollIndicator={false}
+                              >
+                                {ledgerEntries.length === 0 && ledgerEntriesLoading ? (
+                                  <Text
+                                    style={neoStyles.financeLedgerPreviewEmpty}
+                                  >
+                                    Loading ledger…
+                                  </Text>
+                                ) : ledgerEntries.length === 0 && ledgerEntriesError ? (
+                                  <Text
+                                    style={neoStyles.financeLedgerPreviewEmpty}
+                                  >
+                                    Couldn’t load ledger
+                                  </Text>
+                                ) : financeHistoryRows.length === 0 ? (
+                                  <Text
+                                    style={neoStyles.financeLedgerPreviewEmpty}
+                                  >
+                                    Trip ledger entries appear here when you
+                                    record receipts or payouts.
+                                  </Text>
+                                ) : (
+                                  financeHistoryRows.slice(0, 8).map((row) => (
+                                    <TouchableOpacity
+                                      key={row.key}
+                                      style={[
+                                        neoStyles.financePreviewTxnRow,
+                                        isDesktop && neoStyles.financePreviewTxnRowBesideHero,
+                                      ]}
+                                      activeOpacity={0.85}
+                                      onPress={() => setPreviewLedgerTx(row.tx)}
+                                      accessibilityRole="button"
+                                      accessibilityLabel="Preview transaction"
+                                    >
+                                      <View
+                                        style={[
+                                          neoStyles.financePreviewTxnIcon,
+                                          isDesktop && neoStyles.financePreviewTxnIconBesideHero,
+                                          row.isIn
+                                            ? neoStyles.financePreviewTxnIconIn
+                                            : neoStyles.financePreviewTxnIconOut,
+                                        ]}
+                                      >
+                                        <Feather
+                                          name={
+                                            row.isIn
+                                              ? "arrow-down-left"
+                                              : "arrow-up-right"
+                                          }
+                                          size={isDesktop ? 13 : 14}
+                                          color={
+                                            row.isIn ? "#10b981" : "#f43f5e"
+                                          }
+                                        />
+                                      </View>
+                                      <View
+                                        style={neoStyles.financePreviewTxnMid}
+                                      >
+                                        <Text
+                                          style={[
+                                            neoStyles.financePreviewTxnTitle,
+                                            isDesktop &&
+                                              neoStyles.financePreviewTxnTitleDesktop,
+                                          ]}
+                                          numberOfLines={1}
+                                        >
+                                          {ledgerHistoryTitle(row.tx, row.isIn)}
+                                        </Text>
+                                        <Text
+                                          style={[
+                                            neoStyles.financePreviewTxnMeta,
+                                            isDesktop &&
+                                              neoStyles.financePreviewTxnMetaDesktop,
+                                          ]}
+                                          numberOfLines={1}
+                                        >
+                                          {formatLedgerDate(
+                                            row.tx.transaction_date,
+                                          )}{" "}
+                                          · {row.tx.payment_mode || "Wallet"}
+                                        </Text>
+                                      </View>
+                                      <Text
+                                        style={[
+                                          neoStyles.financePreviewTxnAmt,
+                                          isDesktop &&
+                                            neoStyles.financePreviewTxnAmtDesktop,
+                                          row.isIn
+                                            ? neoStyles.financePreviewTxnAmtIn
+                                            : neoStyles.financePreviewTxnAmtOut,
+                                        ]}
+                                      >
+                                        {formatINR(row.amount)}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  ))
+                                )}
+                              </ScrollView>
+                            </View>
+  ) : null;
+
   return (
     <TripProvider
       value={{
@@ -4120,7 +4484,7 @@ export default function TripDetailScreen({
                 style={neoStyles.manifestBackBtn}
                 activeOpacity={0.8}
               >
-                <FontAwesome name="chevron-left" size={13} color="#0f172a" />
+                <FontAwesome name="chevron-left" size={13} color={Theme.textPrimaryDark} />
               </TouchableOpacity>
               <View style={neoStyles.manifestNavDivider} />
               <View>
@@ -4166,9 +4530,78 @@ export default function TripDetailScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Open trip activity"
               >
-                <Feather name="clock" size={16} color="#94a3b8" />
+                <Feather name="clock" size={16} color={Theme.textMuted} />
                 <Text style={neoStyles.auditBtnText}>Activity</Text>
               </TouchableOpacity>
+              {canManageHardCopyPod ||
+              hardCopyPodStatusResolved !== "PENDING" ? (
+                <TouchableOpacity
+                  style={[
+                    neoStyles.auditBtn,
+                    neoStyles.hardCopyPodBtn,
+                    hardCopyPodStatusResolved === "RECEIVED" &&
+                      neoStyles.hardCopyPodBtnReceived,
+                    hardCopyPodStatusResolved === "IN_TRANSIT" &&
+                      neoStyles.hardCopyPodBtnInTransit,
+                    hardCopyPodLogLocked && neoStyles.hardCopyPodBtnLocked,
+                  ]}
+                  activeOpacity={hardCopyPodLogLocked ? 1 : 0.85}
+                  disabled={hardCopyPodLogLocked}
+                  onPress={() => {
+                    if (hardCopyPodLogLocked) return;
+                    openHardCopyPodModal(
+                      hardCopyPodStatusResolved === "PENDING"
+                        ? "create"
+                        : "view",
+                    );
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: hardCopyPodLogLocked }}
+                  accessibilityLabel={
+                    hardCopyPodLogLocked
+                      ? "Log Hard Copy POD locked until trip is completed"
+                      : hardCopyPodStatusResolved !== "PENDING"
+                        ? `Hard copy POD ${hardCopyPodStatusResolved === "IN_TRANSIT" ? "in transit" : hardCopyPodStatusResolved.toLowerCase()}`
+                        : "Log Hard Copy POD"
+                  }
+                  accessibilityHint={
+                    hardCopyPodLogLocked
+                      ? "Available after the trip is completed"
+                      : "Log Hard Copy POD"
+                  }
+                >
+                  <Feather
+                    name="file-text"
+                    size={15}
+                    color={
+                      hardCopyPodLogLocked
+                        ? Theme.textMuted
+                        : hardCopyPodStatusResolved === "RECEIVED"
+                          ? Theme.positive
+                          : hardCopyPodStatusResolved === "IN_TRANSIT"
+                            ? Theme.warning
+                            : Theme.textMuted
+                    }
+                  />
+                  <Text
+                    style={[
+                      neoStyles.auditBtnText,
+                      hardCopyPodStatusResolved === "RECEIVED" &&
+                        neoStyles.hardCopyPodBtnTextReceived,
+                      hardCopyPodStatusResolved === "IN_TRANSIT" &&
+                        neoStyles.hardCopyPodBtnTextInTransit,
+                      hardCopyPodLogLocked && neoStyles.hardCopyPodBtnTextLocked,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {hardCopyPodStatusResolved === "PENDING"
+                      ? "Log Hard Copy POD"
+                      : hardCopyPodStatusResolved === "IN_TRANSIT"
+                        ? "POD · IN TRANSIT"
+                        : "POD · RECEIVED"}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 style={neoStyles.manifestChatBtn}
                 activeOpacity={0.85}
@@ -4212,6 +4645,50 @@ export default function TripDetailScreen({
                 <Feather name="help-circle" size={15} color="#2874F0" />
                 <Text style={styles.navHelpText}>Help</Text>
               </TouchableOpacity>
+              {canManageHardCopyPod ||
+              hardCopyPodStatusResolved !== "PENDING" ? (
+                <TouchableOpacity
+                  style={[
+                    styles.navIconHit,
+                    hardCopyPodStatusResolved === "RECEIVED" &&
+                      neoStyles.hardCopyPodMobileReceived,
+                    hardCopyPodStatusResolved === "IN_TRANSIT" &&
+                      neoStyles.hardCopyPodMobileInTransit,
+                    hardCopyPodLogLocked && neoStyles.hardCopyPodBtnLocked,
+                  ]}
+                  activeOpacity={hardCopyPodLogLocked ? 1 : 0.85}
+                  disabled={hardCopyPodLogLocked}
+                  onPress={() => {
+                    if (hardCopyPodLogLocked) return;
+                    openHardCopyPodModal(
+                      hardCopyPodStatusResolved === "PENDING"
+                        ? "create"
+                        : "view",
+                    );
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: hardCopyPodLogLocked }}
+                  accessibilityLabel={
+                    hardCopyPodLogLocked
+                      ? "Log Hard Copy POD locked until trip is completed"
+                      : "Log Hard Copy POD"
+                  }
+                >
+                  <Feather
+                    name="file-text"
+                    size={16}
+                    color={
+                      hardCopyPodLogLocked
+                        ? Theme.textMuted
+                        : hardCopyPodStatusResolved === "RECEIVED"
+                          ? Theme.positive
+                          : hardCopyPodStatusResolved === "IN_TRANSIT"
+                            ? Theme.warning
+                            : Theme.analyticsHeroBg
+                    }
+                  />
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 style={styles.navIconHit}
                 activeOpacity={0.85}
@@ -4257,8 +4734,8 @@ export default function TripDetailScreen({
           styles.scrollContent,
           isDesktop && styles.scrollContentDesktop,
           {
-            padding: isDesktop ? 24 : isMobile ? 0 : 18,
-            gap: isDesktop ? 24 : isMobile ? 0 : 16,
+            padding: isDesktop ? 20 : isMobile ? 0 : 18,
+            gap: isDesktop ? 16 : isMobile ? 0 : 16,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -4695,134 +5172,6 @@ export default function TripDetailScreen({
 
         {isDesktop ? (
           <View style={neoStyles.shell}>
-            <View style={neoStyles.grid}>
-              <View style={neoStyles.mainCol}>
-                <View style={neoStyles.hero}>
-                  <View style={neoStyles.heroGlow} />
-                  <View style={neoStyles.heroBridge}>
-                    <View style={neoStyles.heroParty}>
-                      <PartyAvatar
-                        name={clientNameForParty}
-                        entityType="client"
-                        size={MANIFEST_HERO_AVATAR_DESKTOP}
-                        organizationImageUrl={
-                          detail.clientPartyAvatarFields
-                            ?.organizationImageUrl ?? undefined
-                        }
-                        organizationAvatarSeed={
-                          detail.clientPartyAvatarFields
-                            ?.organizationAvatarSeed ?? undefined
-                        }
-                        avatarUrl={
-                          detail.clientPartyAvatarFields?.avatarUrl ?? undefined
-                        }
-                        avatarSeed={
-                          detail.clientPartyAvatarFields?.avatarSeed ??
-                          undefined
-                        }
-                        isIntegrated={clientPartyIntegrated}
-                        showIntegrationBadge={false}
-                      />
-                      <View style={neoStyles.heroPartyText}>
-                        <Text style={neoStyles.heroKicker}>CLIENT</Text>
-                        <Text
-                          style={neoStyles.heroPartyName}
-                          numberOfLines={2}
-                          ellipsizeMode="tail"
-                        >
-                          {clientNameCard}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={neoStyles.swapIcon}>
-                      <FontAwesome name="exchange" size={11} color="#64748b" />
-                    </View>
-                    <NeoManifestHeroBridgePartyEnd
-                      roleLabel="DRIVER"
-                      partyName={allocatedDriverName}
-                      partyPhone={detail.driverPhone}
-                      entityType="driver"
-                      avatarSize={MANIFEST_HERO_AVATAR_DESKTOP}
-                      avatarUrl={detail.driverAvatarUri}
-                      avatarSeed={trip.driver_id}
-                      vehicleLabel={allocatedVehicleLabel}
-                      vehicleId={trip.vehicle_id}
-                      styles={neoStyles}
-                      partyStyles={manifestHeroBridgePartyStyles}
-                    />
-                  </View>
-
-                  <View style={neoStyles.routeHeroRow}>
-                    <View style={neoStyles.routeHeroSide}>
-                      <Text style={neoStyles.routeHeroCity} numberOfLines={2}>
-                        {originSplit.primary.toUpperCase()}
-                      </Text>
-                      <Text style={neoStyles.routeHeroSub}>
-                        {originStateLabel.toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={neoStyles.routeVector}>
-                      <View style={neoStyles.routeVectorLine} />
-                      <View style={neoStyles.routeVectorTruck}>
-                        <Feather name="truck" size={15} color="#cbd5e1" />
-                      </View>
-                      <View style={neoStyles.routeVectorLine} />
-                    </View>
-                    <View
-                      style={[
-                        neoStyles.routeHeroSide,
-                        neoStyles.routeHeroSideRight,
-                      ]}
-                    >
-                      <Text
-                        style={[neoStyles.routeHeroCity, neoStyles.alignRight]}
-                        numberOfLines={2}
-                      >
-                        {destinationSplit.primary.toUpperCase()}
-                      </Text>
-                      <Text
-                        style={[neoStyles.routeHeroSub, neoStyles.alignRight]}
-                      >
-                        {destinationStateLabel.toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={neoStyles.heroMetrics}>
-                    <View style={neoStyles.heroMetric}>
-                      <Text style={neoStyles.heroMetricLabel}>
-                        Manifest Range
-                      </Text>
-                      <Text style={neoStyles.heroMetricValue}>
-                        {resolvedDistanceLabel
-                          ? resolvedDistanceLabel.replace(/\s*km$/i, " KM")
-                          : "—"}
-                      </Text>
-                    </View>
-                    <View style={neoStyles.heroMetricDivider} />
-                    <View style={neoStyles.heroMetric}>
-                      <Text style={neoStyles.heroMetricLabel}>
-                        ETA Manifest
-                      </Text>
-                      <Text style={neoStyles.heroMetricValue}>
-                        {liveTrackingPresentation?.eta.label ?? '—'}
-                      </Text>
-                    </View>
-                    <View style={neoStyles.heroMetricDivider} />
-                    <View style={neoStyles.heroMetric}>
-                      <Text style={neoStyles.heroMetricLabel}>Status</Text>
-                      <Text
-                        style={[
-                          neoStyles.heroMetricValue,
-                          { color: statusColor },
-                        ]}
-                      >
-                        {statusLabel.toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
                 <View style={neoStyles.tabShell}>
                   {(
                     [
@@ -4874,7 +5223,7 @@ export default function TripDetailScreen({
                         <Feather
                           name={tab.icon}
                           size={15}
-                          color={active ? "#818cf8" : "#94a3b8"}
+                          color={active ? Theme.cardWhite : Theme.textMuted}
                         />
                         <Text
                           style={[
@@ -4888,7 +5237,48 @@ export default function TripDetailScreen({
                     );
                   })}
                 </View>
+                {activeTab === "finance" ? (
+                  <View style={neoStyles.financeSubTabs}>
+                    {(["summary", "transactions"] as const).map((sub) => {
+                      const active = financeSubTab === sub;
+                      return (
+                        <TouchableOpacity
+                          key={sub}
+                          style={neoStyles.financeSubTab}
+                          onPress={() => setFinanceSubTab(sub)}
+                          activeOpacity={0.86}
+                        >
+                          <Text
+                            style={[
+                              neoStyles.financeSubTabText,
+                              isDesktop && neoStyles.financeSubTabTextDesktop,
+                              active && neoStyles.financeSubTabTextActive,
+                            ]}
+                          >
+                            {sub}
+                          </Text>
+                          {active ? <View style={neoStyles.financeSubLine} /> : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : null}
+                {activeTab !== "trip" && !(activeTab === "finance" && isDesktop) ? (
+                  routeHeroEl
+                ) : null}
 
+            <View
+              style={[
+                neoStyles.grid,
+                activeTab === "finance" && isDesktop && neoStyles.gridFinance,
+              ]}
+            >
+              <View
+                style={[
+                  neoStyles.mainCol,
+                  activeTab === "finance" && isDesktop && neoStyles.mainColFinance,
+                ]}
+              >
                 {activeTab === "trip" ? (
                   <View
                     style={[
@@ -4898,337 +5288,161 @@ export default function TripDetailScreen({
                   >
                     <View
                       style={[
-                        neoStyles.timelineCard,
-                        isMobile && neoStyles.timelineCardMobile,
+                        neoStyles.trackingMapCol,
+                        isMobile && neoStyles.trackingMapColMobile,
                       ]}
                     >
-                      <View
-                        pointerEvents="none"
-                        accessibilityElementsHidden
-                        importantForAccessibility="no-hide-descendants"
-                        style={[
-                          neoStyles.timelineWatermarkWrap,
-                          isMobile && neoStyles.timelineWatermarkWrapMobile,
-                        ]}
-                      >
-                        <LottieView
-                          key={timelineWatermarkKey}
-                          source={timelineWatermarkAnimation}
-                          autoPlay
-                          loop
-                          speed={0.85}
-                          style={neoStyles.timelineWatermark}
-                        />
-                      </View>
-                      <View style={neoStyles.timelineCardContent}>
-                        <View
-                          style={[
-                            neoStyles.cardTitleRow,
-                            isMobile && neoStyles.cardTitleRowMobile,
-                          ]}
+                      <View style={[neoStyles.hero, neoStyles.heroCompact]}>
+                        <View style={neoStyles.heroGlow} />
+                  <View style={neoStyles.heroBridge}>
+                    <View style={neoStyles.heroParty}>
+                      <PartyAvatar
+                        name={clientNameForParty}
+                        entityType="client"
+                        size={MANIFEST_HERO_AVATAR_DESKTOP}
+                        organizationImageUrl={
+                          detail.clientPartyAvatarFields
+                            ?.organizationImageUrl ?? undefined
+                        }
+                        organizationAvatarSeed={
+                          detail.clientPartyAvatarFields
+                            ?.organizationAvatarSeed ?? undefined
+                        }
+                        avatarUrl={
+                          detail.clientPartyAvatarFields?.avatarUrl ?? undefined
+                        }
+                        avatarSeed={
+                          detail.clientPartyAvatarFields?.avatarSeed ??
+                          undefined
+                        }
+                        isIntegrated={clientPartyIntegrated}
+                        showIntegrationBadge={false}
+                      />
+                      <View style={neoStyles.heroPartyText}>
+                        <Text style={neoStyles.heroKicker}>CLIENT</Text>
+                        <Text
+                          style={neoStyles.heroPartyName}
+                          numberOfLines={2}
+                          ellipsizeMode="tail"
                         >
-                          <View style={neoStyles.manifestPulseTitleGroup}>
-                            <Activity size={24} color="#5856D6" strokeWidth={2.5} />
-                            <Text
-                              style={[
-                                neoStyles.cardTitleDark,
-                                isMobile && neoStyles.cardTitleDarkMobile,
-                              ]}
-                            >
-                              MANIFEST PULSE
-                            </Text>
-                          </View>
-                          <View style={neoStyles.simActions}>
-                            {canRevokeLastSimulation ? (
-                              <TouchableOpacity
-                                style={[
-                                  neoStyles.simBtn,
-                                  neoStyles.simBtnRevoke,
-                                  isMobile && neoStyles.simBtnMobile,
-                                ]}
-                                onPress={handleRevokeLastSimulation}
-                                activeOpacity={0.85}
-                                disabled={simulating || revokingSimulation}
-                              >
-                                {revokingSimulation ? (
-                                  <LoadingIndicator size="small" color="#f59e0b" />
-                                ) : (
-                                  <Feather name="rotate-ccw" size={13} color="#f59e0b" />
-                                )}
-                                <Text
-                                  style={[
-                                    neoStyles.simBtnText,
-                                    isMobile && neoStyles.simBtnTextMobile,
-                                  ]}
-                                >
-                                  {revokingSimulation ? "Revoking…" : "Revoke Last"}
-                                </Text>
-                              </TouchableOpacity>
-                            ) : null}
-                            {nextSimulateStep && !tripCompleted ? (
-                              <TouchableOpacity
-                                style={[neoStyles.simBtn, isMobile && neoStyles.simBtnMobile]}
-                                onPress={() => setSimConfirmStep(nextSimulateStep)}
-                                activeOpacity={0.85}
-                                disabled={revokingSimulation}
-                              >
-                                <Zap size={14} color="#f59e0b" fill="#f59e0b" />
-                                <Text
-                                  style={[
-                                    neoStyles.simBtnText,
-                                    isMobile && neoStyles.simBtnTextMobile,
-                                  ]}
-                                >
-                                  {nextSimulateStep.targetStatus === "completed"
-                                    ? "Simulate Complete"
-                                    : "Simulate"}
-                                </Text>
-                              </TouchableOpacity>
-                            ) : null}
-                          </View>
-                        </View>
-                        {visibleJourneyLogs.map((log, index) => {
-                          const expanded = expandedLog === index;
-                          const isLast = index === visibleJourneyLogs.length - 1;
-                          const isCurrent =
-                            !manifestJourneyComplete && isLast;
-                          const phase: "completed" | "current" | "pending" = isCurrent
-                            ? "current"
-                            : "completed";
-                          const stepIndex = manifestStepIndexForLog(log.stepKey);
-                          const stepSimLogs = manifestSimLogsForStepIndex(
-                            stepIndex,
-                            simLogEntries,
-                          );
-                          return (
-                            <View
-                              key={`${log.stepKey}-${index}`}
-                              style={[
-                                neoStyles.timelineItemWrap,
-                                !isLast && neoStyles.timelineItemWrapSpaced,
-                                isMobile &&
-                                  !isLast &&
-                                  neoStyles.timelineItemWrapSpacedMobile,
-                              ]}
-                            >
-                              {!isLast ? (
-                                <View
-                                  style={[
-                                    neoStyles.timelineConnector,
-                                    { backgroundColor: "#40B876" },
-                                  ]}
-                                />
-                              ) : null}
-                              <TouchableOpacity
-                                style={[
-                                  neoStyles.timelineItem,
-                                  isMobile && neoStyles.timelineItemMobile,
-                                  expanded && neoStyles.timelineItemActive,
-                                ]}
-                                onPress={() =>
-                                  setExpandedLog(expanded ? null : index)
-                                }
-                                activeOpacity={0.9}
-                              >
-                                <View style={neoStyles.manifestPulseIconColumn}>
-                                  <ManifestPulseStepIcon phase={phase} />
-                                </View>
-                                <View style={neoStyles.timelineBody}>
-                                  <View style={neoStyles.timelineTop}>
-                                    <Text
-                                      style={[
-                                        neoStyles.timelineStatus,
-                                        isMobile && neoStyles.timelineStatusMobile,
-                                      ]}
-                                    >
-                                      {log.status}
-                                    </Text>
-                                    <Text
-                                      style={[
-                                        neoStyles.timelineTime,
-                                        isMobile && neoStyles.timelineTimeMobile,
-                                      ]}
-                                    >
-                                      {log.time}
-                                    </Text>
-                                  </View>
-                                  <Text
-                                    style={[
-                                      neoStyles.timelineLocation,
-                                      isMobile && neoStyles.timelineLocationMobile,
-                                    ]}
-                                    numberOfLines={expanded ? undefined : 2}
-                                  >
-                                    {log.location}
-                                  </Text>
-                                  {log.locationCoords ? (
-                                    <Text
-                                      style={[
-                                        neoStyles.timelineLocationCoords,
-                                        isMobile &&
-                                          neoStyles.timelineLocationCoordsMobile,
-                                      ]}
-                                      numberOfLines={expanded ? undefined : 2}
-                                    >
-                                      {log.locationCoords}
-                                    </Text>
-                                  ) : null}
-                                  {expanded ? (
-                                    <Text style={neoStyles.timelineDetails}>
-                                      {log.details}
-                                    </Text>
-                                  ) : null}
-                                  {expanded && stepIndex === 3 ? (
-                                    <ManifestDriverPingList pings={manifestDriverPings} />
-                                  ) : null}
-                                  {/* Business simulation log badges */}
-                                  {stepSimLogs.map((sim, si) => (
-                                    <View
-                                      key={si}
-                                      style={[
-                                        neoStyles.simLogBadge,
-                                        isMobile && neoStyles.simLogBadgeMobile,
-                                      ]}
-                                    >
-                                      <Feather
-                                        name="zap"
-                                        size={10}
-                                        color="#f59e0b"
-                                      />
-                                      <View style={{ flex: 1, minWidth: 0 }}>
-                                        <Text
-                                          style={[
-                                            neoStyles.simLogBadgeText,
-                                            isMobile &&
-                                              neoStyles.simLogBadgeTextMobile,
-                                          ]}
-                                        >
-                                          Business simulated · {sim.userName}
-                                        </Text>
-                                        {sim.timestamp ? (
-                                          <Text
-                                            style={[
-                                              neoStyles.simLogBadgeTime,
-                                              isMobile &&
-                                                neoStyles.simLogBadgeTimeMobile,
-                                            ]}
-                                          >
-                                            {formatTrackingDateTime(sim.timestamp)}
-                                          </Text>
-                                        ) : null}
-                                      </View>
-                                    </View>
-                                  ))}
-                                </View>
-                              </TouchableOpacity>
-                            </View>
-                          );
-                        })}
+                          {clientNameCard}
+                        </Text>
                       </View>
                     </View>
+                    <View style={neoStyles.swapIcon}>
+                      <FontAwesome name="exchange" size={11} color={Theme.textMuted} />
+                    </View>
+                    {showManifestHeroDriver ? (
+                      <NeoManifestHeroBridgePartyEnd
+                        roleLabel="DRIVER"
+                        partyName={allocatedDriverName}
+                        partyPhone={detail.driverPhone}
+                        entityType="driver"
+                        avatarSize={MANIFEST_HERO_AVATAR_DESKTOP}
+                        avatarUrl={detail.driverAvatarUri}
+                        avatarSeed={trip.driver_id}
+                        vehicleLabel={allocatedVehicleLabel}
+                        vehicleId={trip.vehicle_id}
+                        styles={neoStyles}
+                        partyStyles={manifestHeroBridgePartyStyles}
+                      />
+                    ) : (
+                      <NeoManifestHeroBridgePartyEnd
+                        roleLabel="SUPPLIER"
+                        partyName={supplierName}
+                        entityType="supplier"
+                        avatarSize={MANIFEST_HERO_AVATAR_DESKTOP}
+                        avatarUrl={detail.supplierPartyAvatarFields?.avatarUrl}
+                        avatarSeed={
+                          detail.supplierPartyAvatarFields?.avatarSeed
+                        }
+                        organizationImageUrl={
+                          detail.supplierPartyAvatarFields?.organizationImageUrl
+                        }
+                        organizationAvatarSeed={
+                          detail.supplierPartyAvatarFields
+                            ?.organizationAvatarSeed
+                        }
+                        isIntegrated={supplierPartyIntegrated}
+                        styles={neoStyles}
+                        partyStyles={manifestHeroBridgePartyStyles}
+                      />
+                    )}
+                  </View>
 
-                    {/* Business Simulate Confirmation Modal */}
-                    {simConfirmStep ? (
-                      <Modal
-                        transparent
-                        animationType="fade"
-                        visible
-                        onRequestClose={() => setSimConfirmStep(null)}
+                  <View style={neoStyles.routeHeroRow}>
+                    <View style={neoStyles.routeHeroSide}>
+                      <Text style={neoStyles.routeHeroCity} numberOfLines={2}>
+                        {originSplit.primary.toUpperCase()}
+                      </Text>
+                      <Text style={neoStyles.routeHeroSub}>
+                        {originStateLabel.toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={neoStyles.routeVector}>
+                      <View style={neoStyles.routeVectorLine} />
+                      <View style={neoStyles.routeVectorTruck}>
+                        <Feather name="truck" size={14} color={Theme.textMuted} />
+                      </View>
+                      <View style={neoStyles.routeVectorLine} />
+                    </View>
+                    <View
+                      style={[
+                        neoStyles.routeHeroSide,
+                        neoStyles.routeHeroSideRight,
+                      ]}
+                    >
+                      <Text
+                        style={[neoStyles.routeHeroCity, neoStyles.alignRight]}
+                        numberOfLines={2}
                       >
-                        <View style={neoStyles.simModalBackdrop}>
-                          <View style={neoStyles.simModal}>
-                            <View style={neoStyles.simModalHeader}>
-                              <Feather name="zap" size={18} color="#f59e0b" />
-                              <Text style={neoStyles.simModalTitle}>
-                                Simulate Stage
-                              </Text>
-                            </View>
-                            <Text style={neoStyles.simModalAction}>
-                              {simConfirmStep.label}
-                            </Text>
-                            <View style={neoStyles.simModalDivider} />
-                            {simConfirmStep.driverLat != null ? (
-                              <View style={neoStyles.simModalLocRow}>
-                                <Feather
-                                  name="map-pin"
-                                  size={13}
-                                  color="#10b981"
-                                />
-                                <View style={{ flex: 1, minWidth: 0 }}>
-                                  <Text style={neoStyles.simModalLocLabel}>
-                                    Driver location
-                                  </Text>
-                                  <Text
-                                    style={neoStyles.simModalLocValue}
-                                    numberOfLines={2}
-                                  >
-                                    {simConfirmStep.driverLocLabel ||
-                                      `${simConfirmStep.driverLat.toFixed(5)}°N, ${simConfirmStep.driverLng?.toFixed(5) ?? "—"}°E`}
-                                  </Text>
-                                  <Text style={neoStyles.simModalLocCoords}>
-                                    {simConfirmStep.driverLat.toFixed(5)}°N{" "}
-                                    {simConfirmStep.driverLng?.toFixed(5) ??
-                                      "—"}
-                                    °E
-                                  </Text>
-                                </View>
-                              </View>
-                            ) : (
-                              <Text style={neoStyles.simModalNoLoc}>
-                                No driver GPS data available
-                              </Text>
-                            )}
-                            {simError ? (
-                              <Text style={neoStyles.simModalError}>
-                                {simError}
-                              </Text>
-                            ) : null}
-                            <View style={neoStyles.simModalBtns}>
-                              <TouchableOpacity
-                                style={neoStyles.simModalCancel}
-                                onPress={() => {
-                                  simulateAbortRef.current?.abort();
-                                  simulateAbortRef.current = null;
-                                  setSimConfirmStep(null);
-                                  setSimError(null);
-                                  setSimulating(false);
-                                }}
-                                activeOpacity={0.8}
-                              >
-                                <Text style={neoStyles.simModalCancelText}>
-                                  Cancel
-                                </Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={[
-                                  neoStyles.simModalConfirm,
-                                  simulating && { opacity: 0.6 },
-                                ]}
-                                onPress={handleConfirmSimulate}
-                                disabled={simulating}
-                                activeOpacity={0.85}
-                              >
-                                {simulating ? (
-                                  <LoadingIndicator
-                                    size="small"
-                                    color="#fff"
-                                  />
-                                ) : (
-                                  <Feather name="zap" size={14} color="#fff" />
-                                )}
-                                <Text style={neoStyles.simModalConfirmText}>
-                                  {simulating
-                                    ? "Simulating…"
-                                    : "Confirm Simulate"}
-                                </Text>
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        </View>
-                      </Modal>
-                    ) : null}
+                        {destinationSplit.primary.toUpperCase()}
+                      </Text>
+                      <Text
+                        style={[neoStyles.routeHeroSub, neoStyles.alignRight]}
+                      >
+                        {destinationStateLabel.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
 
-                    <View style={neoStyles.radarCard}>
+                  <View style={neoStyles.heroMetrics}>
+                    <View style={neoStyles.heroMetric}>
+                      <Text style={neoStyles.heroMetricLabel}>
+                        Manifest Range
+                      </Text>
+                      <Text style={neoStyles.heroMetricValue}>
+                        {resolvedDistanceLabel
+                          ? resolvedDistanceLabel.replace(/\s*km$/i, " KM")
+                          : "—"}
+                      </Text>
+                    </View>
+                    <View style={neoStyles.heroMetricDivider} />
+                    <View style={neoStyles.heroMetric}>
+                      <Text style={neoStyles.heroMetricLabel}>
+                        ETA Manifest
+                      </Text>
+                      <Text style={neoStyles.heroMetricValue}>
+                        {liveTrackingPresentation?.eta.label ?? '—'}
+                      </Text>
+                    </View>
+                    <View style={neoStyles.heroMetricDivider} />
+                    <View style={neoStyles.heroMetric}>
+                      <Text style={neoStyles.heroMetricLabel}>Status</Text>
+                      <View
+                        style={[
+                          neoStyles.heroMetricStatusPill,
+                          { backgroundColor: statusColor },
+                        ]}
+                      >
+                        <Text style={neoStyles.heroMetricStatusPillText}>
+                          {statusLabel.toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+                    <View style={[neoStyles.radarCard, neoStyles.trackingMapPane]}>
                       <View style={neoStyles.radarMapLayer}>
                         <WaitingForDriverLocationOverlay
                           visible={detail.waitingForNewDriverLocation}
@@ -5382,35 +5596,466 @@ export default function TripDetailScreen({
                         ) : null}
                       </View>
                     </View>
-                  </View>
-                ) : activeTab === "finance" ? (
-                  <View style={neoStyles.financeStack}>
-                    <View style={neoStyles.financeSubTabs}>
-                      {(["summary", "transactions"] as const).map((sub) => {
-                        const active = financeSubTab === sub;
-                        return (
-                          <TouchableOpacity
-                            key={sub}
-                            style={neoStyles.financeSubTab}
-                            onPress={() => setFinanceSubTab(sub)}
-                            activeOpacity={0.86}
+                    </View>
+                    <View
+                      style={[
+                        neoStyles.trackingInfoRail,
+                        isMobile && neoStyles.trackingInfoRailMobile,
+                      ]}
+                    >
+                    <View
+                      style={[
+                        neoStyles.trackingAssetsColumn,
+                        isMobile && neoStyles.trackingAssetsColumnMobile,
+                      ]}
+                    >
+                      <View style={neoStyles.trackingAssetsCard}>
+                        <View style={neoStyles.trackingPanelHeader}>
+                          <Feather
+                            name="activity"
+                            size={13}
+                            color={Theme.textMuted}
+                          />
+                          <Text style={neoStyles.sideHeadingText}>
+                            Manifest Assets
+                          </Text>
+                        </View>
+                        <View style={neoStyles.trackingAssetsStack}>
+                          <View style={neoStyles.trackingAssetSlot}>
+                            <ManifestRefAssetCard
+                              desktop
+                              roleLabel="Driver"
+                              primaryText={allocatedDriverName}
+                              variant="driver"
+                              phone={detail.driverPhone}
+                              ratingAvg={manifestDriverInsights.ratingAvg}
+                              docsIssue={manifestDriverInsights.docsIssue}
+                              insightsLoading={manifestRefAssetInsights.isLoading}
+                              driverName={detail.driverName}
+                              driverAvatarUrl={detail.driverAvatarUri}
+                              driverId={trip.driver_id}
+                              showChange={canChangeManifestAssets}
+                              onChange={() => openAssignmentFlow("driver")}
+                              style={neoStyles.assetCardWrap}
+                            />
+                          </View>
+                          <View style={neoStyles.trackingAssetSlot}>
+                            <ManifestRefAssetCard
+                              desktop
+                              roleLabel="Vehicle"
+                              primaryText={allocatedVehicleLabel}
+                              variant="vehicle"
+                              vehicleType={vehicleTypeLabel}
+                              docsIssue={manifestVehicleInsights.docsIssue}
+                              insightsLoading={manifestRefAssetInsights.isLoading}
+                              showChange={canChangeManifestAssets}
+                              onChange={() => openAssignmentFlow("vehicle")}
+                              style={neoStyles.assetCardWrap}
+                            />
+                          </View>
+                          <View style={neoStyles.trackingPodSlot}>
+                            <HardCopyPodStatusCard
+                              state={hardCopyPodState}
+                              canManage={canManageHardCopyPod}
+                              tripCompleted={tripCompleted}
+                              onViewDetails={() => openHardCopyPodModal("view")}
+                              onUpdatePod={() =>
+                                openHardCopyPodModal("mark_received")
+                              }
+                              onLogPod={() => openHardCopyPodModal("create")}
+                            />
+                          </View>
+                        </View>
+                      </View>
+                      {canTripRatings ? (
+                        <View
+                          style={[
+                            neoStyles.sideCard,
+                            neoStyles.trackingRatingsCard,
+                          ]}
+                        >
+                          <View
+                            style={neoStyles.trackingPanelHeader}
+                            accessibilityElementsHidden
+                            importantForAccessibility="no-hide-descendants"
                           >
+                            <Feather
+                              name="star"
+                              size={13}
+                              color={Theme.textMuted}
+                            />
+                            <Text style={neoStyles.sideHeadingText}>
+                              Reviews
+                            </Text>
+                          </View>
+                          <View style={neoStyles.trackingRatingsBody}>
+                            <TripRatingsBlock
+                              trip={trip}
+                              organizationId={currentOrganization?.id ?? null}
+                              partnerName={detail.partnerName}
+                              driverName={detail.driverName}
+                              driverAvatarUri={detail.driverAvatarUri}
+                              clientName={
+                                detail.displayClientName ??
+                                trip.client_name ??
+                                null
+                              }
+                              clientPartyAvatarFields={
+                                detail.clientPartyAvatarFields
+                              }
+                              supplierPartyAvatarFields={
+                                detail.supplierPartyAvatarFields
+                              }
+                              paymentCaptured={detail.tripLedgerEntries.some(
+                                (row) =>
+                                  row.contact_type === "client" &&
+                                  Number(row.amount_in ?? 0) > 0,
+                              )}
+                              layoutVariant="registry"
+                              embeddedSidebar
+                              skipHistoricalPartyRatings={tripCompleted}
+                            />
+                          </View>
+                        </View>
+                      ) : null}
+                    </View>
+                    <View
+                      style={[
+                        neoStyles.timelineCard,
+                        isMobile && neoStyles.timelineCardMobile,
+                      ]}
+                    >
+                      <View
+                        pointerEvents="none"
+                        accessibilityElementsHidden
+                        importantForAccessibility="no-hide-descendants"
+                        style={[
+                          neoStyles.timelineWatermarkWrap,
+                          isMobile && neoStyles.timelineWatermarkWrapMobile,
+                        ]}
+                      >
+                        <LottieView
+                          key={timelineWatermarkKey}
+                          source={timelineWatermarkAnimation}
+                          autoPlay
+                          loop
+                          speed={0.85}
+                          style={neoStyles.timelineWatermark}
+                        />
+                      </View>
+                      <View style={neoStyles.timelineCardContent}>
+                        <View
+                          style={[
+                            neoStyles.cardTitleRow,
+                            isMobile && neoStyles.cardTitleRowMobile,
+                          ]}
+                        >
+                          <View style={neoStyles.manifestPulseTitleGroup}>
+                            <Activity size={18} color={Theme.analyticsHeroBg} strokeWidth={2.4} />
                             <Text
                               style={[
-                                neoStyles.financeSubTabText,
-                                isDesktop && neoStyles.financeSubTabTextDesktop,
-                                active && neoStyles.financeSubTabTextActive,
+                                neoStyles.cardTitleDark,
+                                isMobile && neoStyles.cardTitleDarkMobile,
                               ]}
                             >
-                              {sub}
+                              MANIFEST PULSE
                             </Text>
-                            {active ? (
-                              <View style={neoStyles.financeSubLine} />
+                          </View>
+                          <View style={neoStyles.simActions}>
+                            {canRevokeLastSimulation ? (
+                              <TouchableOpacity
+                                style={[
+                                  neoStyles.simBtn,
+                                  neoStyles.simBtnRevoke,
+                                  isMobile && neoStyles.simBtnMobile,
+                                ]}
+                                onPress={handleRevokeLastSimulation}
+                                activeOpacity={0.85}
+                                disabled={simulating || revokingSimulation}
+                              >
+                                {revokingSimulation ? (
+                                  <LoadingIndicator size="small" color={Theme.warning} />
+                                ) : (
+                                  <Feather name="rotate-ccw" size={13} color={Theme.warning} />
+                                )}
+                                <Text
+                                  style={[
+                                    neoStyles.simBtnText,
+                                    isMobile && neoStyles.simBtnTextMobile,
+                                  ]}
+                                >
+                                  {revokingSimulation ? "Revoking…" : "Revoke Last"}
+                                </Text>
+                              </TouchableOpacity>
                             ) : null}
-                          </TouchableOpacity>
-                        );
-                      })}
+                            {nextSimulateStep && !tripCompleted ? (
+                              <TouchableOpacity
+                                style={[neoStyles.simBtn, isMobile && neoStyles.simBtnMobile]}
+                                onPress={() => setSimConfirmStep(nextSimulateStep)}
+                                activeOpacity={0.85}
+                                disabled={revokingSimulation}
+                              >
+                                <Zap size={14} color={Theme.warning} fill={Theme.warning} />
+                                <Text
+                                  style={[
+                                    neoStyles.simBtnText,
+                                    isMobile && neoStyles.simBtnTextMobile,
+                                  ]}
+                                >
+                                  {nextSimulateStep.targetStatus === "completed"
+                                    ? "Simulate Complete"
+                                    : "Simulate"}
+                                </Text>
+                              </TouchableOpacity>
+                            ) : null}
+                          </View>
+                        </View>
+                        {visibleJourneyLogs.map((log, index) => {
+                          const expanded = expandedLog === index;
+                          const isLast = index === visibleJourneyLogs.length - 1;
+                          const isCurrent =
+                            !manifestJourneyComplete && isLast;
+                          const phase: "completed" | "current" | "pending" = isCurrent
+                            ? "current"
+                            : "completed";
+                          const stepIndex = manifestStepIndexForLog(log.stepKey);
+                          const stepSimLogs = manifestSimLogsForStepIndex(
+                            stepIndex,
+                            simLogEntries,
+                          );
+                          return (
+                            <View
+                              key={`${log.stepKey}-${index}`}
+                              style={[
+                                neoStyles.timelineItemWrap,
+                                !isLast && neoStyles.timelineItemWrapSpaced,
+                                isMobile &&
+                                  !isLast &&
+                                  neoStyles.timelineItemWrapSpacedMobile,
+                              ]}
+                            >
+                              {!isLast ? (
+                                <View
+                                  style={[
+                                    neoStyles.timelineConnector,
+                                    { backgroundColor: Theme.driverEmerald },
+                                  ]}
+                                />
+                              ) : null}
+                              <TouchableOpacity
+                                style={[
+                                  neoStyles.timelineItem,
+                                  isMobile && neoStyles.timelineItemMobile,
+                                  isCurrent && neoStyles.timelineItemCurrent,
+                                  expanded && neoStyles.timelineItemActive,
+                                ]}
+                                onPress={() =>
+                                  setExpandedLog(expanded ? null : index)
+                                }
+                                activeOpacity={0.9}
+                              >
+                                <View style={neoStyles.manifestPulseIconColumn}>
+                                  <ManifestPulseStepIcon phase={phase} />
+                                </View>
+                                <View style={neoStyles.timelineBody}>
+                                  <View style={neoStyles.timelineTop}>
+                                    <Text
+                                      style={[
+                                        neoStyles.timelineStatus,
+                                        isMobile && neoStyles.timelineStatusMobile,
+                                        isCurrent && neoStyles.timelineStatusCurrent,
+                                      ]}
+                                    >
+                                      {log.status}
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        neoStyles.timelineTime,
+                                        isMobile && neoStyles.timelineTimeMobile,
+                                      ]}
+                                    >
+                                      {log.time}
+                                    </Text>
+                                  </View>
+                                  <Text
+                                    style={[
+                                      neoStyles.timelineLocation,
+                                      isMobile && neoStyles.timelineLocationMobile,
+                                    ]}
+                                    numberOfLines={expanded ? undefined : 2}
+                                  >
+                                    {log.location}
+                                  </Text>
+                                  {log.locationCoords ? (
+                                    <Text
+                                      style={[
+                                        neoStyles.timelineLocationCoords,
+                                        isMobile &&
+                                          neoStyles.timelineLocationCoordsMobile,
+                                      ]}
+                                      numberOfLines={expanded ? undefined : 2}
+                                    >
+                                      {log.locationCoords}
+                                    </Text>
+                                  ) : null}
+                                  {expanded ? (
+                                    <Text style={neoStyles.timelineDetails}>
+                                      {log.details}
+                                    </Text>
+                                  ) : null}
+                                  {expanded && stepIndex === 3 ? (
+                                    <ManifestDriverPingList pings={manifestDriverPings} />
+                                  ) : null}
+                                  {/* Business simulation log badges */}
+                                  {stepSimLogs.map((sim, si) => (
+                                    <View
+                                      key={si}
+                                      style={[
+                                        neoStyles.simLogBadge,
+                                        isMobile && neoStyles.simLogBadgeMobile,
+                                      ]}
+                                    >
+                                      <Feather
+                                        name="zap"
+                                        size={10}
+                                        color={Theme.warning}
+                                      />
+                                      <View style={{ flex: 1, minWidth: 0 }}>
+                                        <Text
+                                          style={[
+                                            neoStyles.simLogBadgeText,
+                                            isMobile &&
+                                              neoStyles.simLogBadgeTextMobile,
+                                          ]}
+                                        >
+                                          Business simulated · {sim.userName}
+                                        </Text>
+                                        {sim.timestamp ? (
+                                          <Text
+                                            style={[
+                                              neoStyles.simLogBadgeTime,
+                                              isMobile &&
+                                                neoStyles.simLogBadgeTimeMobile,
+                                            ]}
+                                          >
+                                            {formatTrackingDateTime(sim.timestamp)}
+                                          </Text>
+                                        ) : null}
+                                      </View>
+                                    </View>
+                                  ))}
+                                </View>
+                              </TouchableOpacity>
+                            </View>
+                          );
+                        })}
+                      </View>
                     </View>
+
+                    {/* Business Simulate Confirmation Modal */}
+                    {simConfirmStep ? (
+                      <Modal
+                        transparent
+                        animationType="fade"
+                        visible
+                        onRequestClose={() => setSimConfirmStep(null)}
+                      >
+                        <View style={neoStyles.simModalBackdrop}>
+                          <View style={neoStyles.simModal}>
+                            <View style={neoStyles.simModalHeader}>
+                              <Feather name="zap" size={18} color="#f59e0b" />
+                              <Text style={neoStyles.simModalTitle}>
+                                Simulate Stage
+                              </Text>
+                            </View>
+                            <Text style={neoStyles.simModalAction}>
+                              {simConfirmStep.label}
+                            </Text>
+                            <View style={neoStyles.simModalDivider} />
+                            {simConfirmStep.driverLat != null ? (
+                              <View style={neoStyles.simModalLocRow}>
+                                <Feather
+                                  name="map-pin"
+                                  size={13}
+                                  color="#10b981"
+                                />
+                                <View style={{ flex: 1, minWidth: 0 }}>
+                                  <Text style={neoStyles.simModalLocLabel}>
+                                    Driver location
+                                  </Text>
+                                  <Text
+                                    style={neoStyles.simModalLocValue}
+                                    numberOfLines={2}
+                                  >
+                                    {simConfirmStep.driverLocLabel ||
+                                      `${simConfirmStep.driverLat.toFixed(5)}°N, ${simConfirmStep.driverLng?.toFixed(5) ?? "—"}°E`}
+                                  </Text>
+                                  <Text style={neoStyles.simModalLocCoords}>
+                                    {simConfirmStep.driverLat.toFixed(5)}°N{" "}
+                                    {simConfirmStep.driverLng?.toFixed(5) ??
+                                      "—"}
+                                    °E
+                                  </Text>
+                                </View>
+                              </View>
+                            ) : (
+                              <Text style={neoStyles.simModalNoLoc}>
+                                No driver GPS data available
+                              </Text>
+                            )}
+                            {simError ? (
+                              <Text style={neoStyles.simModalError}>
+                                {simError}
+                              </Text>
+                            ) : null}
+                            <View style={neoStyles.simModalBtns}>
+                              <TouchableOpacity
+                                style={neoStyles.simModalCancel}
+                                onPress={() => {
+                                  setSimConfirmStep(null);
+                                  setSimError(null);
+                                }}
+                                activeOpacity={0.8}
+                              >
+                                <Text style={neoStyles.simModalCancelText}>
+                                  Cancel
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[
+                                  neoStyles.simModalConfirm,
+                                  simulating && { opacity: 0.6 },
+                                ]}
+                                onPress={handleConfirmSimulate}
+                                disabled={simulating}
+                                activeOpacity={0.85}
+                              >
+                                {simulating ? (
+                                  <LoadingIndicator
+                                    size="small"
+                                    color="#fff"
+                                  />
+                                ) : (
+                                  <Feather name="zap" size={14} color="#fff" />
+                                )}
+                                <Text style={neoStyles.simModalConfirmText}>
+                                  {simulating
+                                    ? "Simulating…"
+                                    : "Confirm Simulate"}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        </View>
+                      </Modal>
+                    ) : null}
+
+
+                    </View>
+                  </View>
+                ) : activeTab === "finance" ? (
+                  <View style={[neoStyles.financeStack, isDesktop && neoStyles.financeStackDesktop]}>
+                    {isDesktop ? routeHeroEl : null}
                     {financeSubTab === "summary" ? (
                       <>
                         <View
@@ -5431,178 +6076,19 @@ export default function TripDetailScreen({
                                 isDesktop && neoStyles.financeManifestInPaneDesktop,
                               ]}
                             >
-                              {financeManifestSummaryBlock}
                               {financeAdjustmentSummaryWrappedEl}
                             </View>
                           </View>
+                          {!isDesktop ? (
                           <View
                             style={[
                               neoStyles.financeSummaryPaneRight,
                               isDesktop && neoStyles.financeSummaryPaneRightDesktop,
                             ]}
                           >
-                            {canViewTripLedger && (
-                            <View
-                              style={[
-                                neoStyles.financeLedgerPreviewCard,
-                                isDesktop && neoStyles.financeLedgerPreviewCardDesktop,
-                              ]}
-                            >
-                              <View style={neoStyles.financeLedgerPreviewHead}>
-                                <Text
-                                  style={[
-                                    neoStyles.financeLedgerPreviewTitle,
-                                    isDesktop && neoStyles.financeLedgerPreviewTitleDesktop,
-                                  ]}
-                                >
-                                  Ledger snapshot
-                                </Text>
-                                <TouchableOpacity
-                                  style={neoStyles.financeLedgerPreviewLink}
-                                  onPress={() =>
-                                    setFinanceSubTab("transactions")
-                                  }
-                                  activeOpacity={0.85}
-                                  accessibilityRole="button"
-                                  accessibilityLabel="View full transaction list"
-                                >
-                                  <Text
-                                    style={
-                                      neoStyles.financeLedgerPreviewLinkText
-                                    }
-                                  >
-                                    View all
-                                  </Text>
-                                  <Feather
-                                    name="chevron-right"
-                                    size={14}
-                                    color="#4D3636"
-                                  />
-                                </TouchableOpacity>
-                              </View>
-                              <Text
-                                style={[
-                                  neoStyles.financeLedgerPreviewSub,
-                                  isDesktop && neoStyles.financeLedgerPreviewSubDesktop,
-                                ]}
-                              >
-                                {ledgerEntries.length === 0 && ledgerEntriesLoading
-                                  ? "Loading ledger…"
-                                  : ledgerEntries.length === 0 && ledgerEntriesError
-                                  ? "Couldn’t load ledger"
-                                  : financeHistoryRows.length === 0
-                                  ? "No cash movements on this trip yet"
-                                  : `${financeHistoryRows.length} movement${
-                                      financeHistoryRows.length === 1 ? "" : "s"
-                                    } · newest first`}
-                              </Text>
-                              <ScrollView
-                                style={neoStyles.financeLedgerPreviewScroll}
-                                contentContainerStyle={
-                                  neoStyles.financeLedgerPreviewScrollContent
-                                }
-                                nestedScrollEnabled
-                                showsVerticalScrollIndicator={false}
-                              >
-                                {ledgerEntries.length === 0 && ledgerEntriesLoading ? (
-                                  <Text
-                                    style={neoStyles.financeLedgerPreviewEmpty}
-                                  >
-                                    Loading ledger…
-                                  </Text>
-                                ) : ledgerEntries.length === 0 && ledgerEntriesError ? (
-                                  <Text
-                                    style={neoStyles.financeLedgerPreviewEmpty}
-                                  >
-                                    Couldn’t load ledger
-                                  </Text>
-                                ) : financeHistoryRows.length === 0 ? (
-                                  <Text
-                                    style={neoStyles.financeLedgerPreviewEmpty}
-                                  >
-                                    Trip ledger entries appear here when you
-                                    record receipts or payouts.
-                                  </Text>
-                                ) : (
-                                  financeHistoryRows.slice(0, 8).map((row) => (
-                                    <TouchableOpacity
-                                      key={row.key}
-                                      style={[
-                                        neoStyles.financePreviewTxnRow,
-                                        isDesktop && neoStyles.financePreviewTxnRowDesktop,
-                                      ]}
-                                      activeOpacity={0.85}
-                                      onPress={() => setPreviewLedgerTx(row.tx)}
-                                      accessibilityRole="button"
-                                      accessibilityLabel="Preview transaction"
-                                    >
-                                      <View
-                                        style={[
-                                          neoStyles.financePreviewTxnIcon,
-                                          isDesktop && neoStyles.financePreviewTxnIconDesktop,
-                                          row.isIn
-                                            ? neoStyles.financePreviewTxnIconIn
-                                            : neoStyles.financePreviewTxnIconOut,
-                                        ]}
-                                      >
-                                        <Feather
-                                          name={
-                                            row.isIn
-                                              ? "arrow-down-left"
-                                              : "arrow-up-right"
-                                          }
-                                          size={isDesktop ? 16 : 14}
-                                          color={
-                                            row.isIn ? "#10b981" : "#f43f5e"
-                                          }
-                                        />
-                                      </View>
-                                      <View
-                                        style={neoStyles.financePreviewTxnMid}
-                                      >
-                                        <Text
-                                          style={[
-                                            neoStyles.financePreviewTxnTitle,
-                                            isDesktop &&
-                                              neoStyles.financePreviewTxnTitleDesktop,
-                                          ]}
-                                          numberOfLines={1}
-                                        >
-                                          {ledgerHistoryTitle(row.tx, row.isIn)}
-                                        </Text>
-                                        <Text
-                                          style={[
-                                            neoStyles.financePreviewTxnMeta,
-                                            isDesktop &&
-                                              neoStyles.financePreviewTxnMetaDesktop,
-                                          ]}
-                                          numberOfLines={1}
-                                        >
-                                          {formatLedgerDate(
-                                            row.tx.transaction_date,
-                                          )}{" "}
-                                          · {row.tx.payment_mode || "Wallet"}
-                                        </Text>
-                                      </View>
-                                      <Text
-                                        style={[
-                                          neoStyles.financePreviewTxnAmt,
-                                          isDesktop &&
-                                            neoStyles.financePreviewTxnAmtDesktop,
-                                          row.isIn
-                                            ? neoStyles.financePreviewTxnAmtIn
-                                            : neoStyles.financePreviewTxnAmtOut,
-                                        ]}
-                                      >
-                                        {formatINR(row.amount)}
-                                      </Text>
-                                    </TouchableOpacity>
-                                  ))
-                                )}
-                              </ScrollView>
-                            </View>
-                            )}
+                            {financeLedgerPreviewEl}
                           </View>
+                          ) : null}
                         </View>
 
                         {false && showFinanceProvisionPanel ? (
@@ -5901,11 +6387,32 @@ export default function TripDetailScreen({
                 )}
               </View>
 
-              <View style={neoStyles.sideCol}>
-                <View style={neoStyles.sideCard}>
-                  <View style={neoStyles.sideSection}>
+              {activeTab !== "trip" ? (
+              <View
+                style={[
+                  neoStyles.sideCol,
+                  activeTab === "finance" && isDesktop && neoStyles.sideColFinance,
+                ]}
+              >
+                {activeTab === "finance" &&
+                financeSubTab === "summary" &&
+                isDesktop
+                  ? financeLedgerPreviewEl
+                  : null}
+                <View
+                  style={[
+                    neoStyles.sideCard,
+                    activeTab === "finance" && isDesktop && neoStyles.sideCardFinance,
+                  ]}
+                >
+                  <View
+                    style={[
+                      neoStyles.sideSection,
+                      activeTab === "finance" && isDesktop && neoStyles.sideSectionFinance,
+                    ]}
+                  >
                     <View style={neoStyles.sideHeading}>
-                      <Feather name="activity" size={16} color="#cbd5e1" />
+                      <Feather name="activity" size={15} color={Theme.textMuted} />
                       <Text style={neoStyles.sideHeadingText}>
                         Manifest Assets
                       </Text>
@@ -5924,7 +6431,10 @@ export default function TripDetailScreen({
                       driverId={trip.driver_id}
                 showChange={canChangeManifestAssets}
                       onChange={() => openAssignmentFlow("driver")}
-                      style={neoStyles.assetCardWrap}
+                      style={[
+                        neoStyles.assetCardWrap,
+                        activeTab === "finance" && isDesktop && neoStyles.assetCardWrapFinance,
+                      ]}
                     />
                     <ManifestRefAssetCard
                       desktop
@@ -5936,7 +6446,18 @@ export default function TripDetailScreen({
                       insightsLoading={manifestRefAssetInsights.isLoading}
                       showChange={canChangeManifestAssets}
                       onChange={() => openAssignmentFlow("vehicle")}
-                      style={neoStyles.assetCardWrap}
+                      style={[
+                        neoStyles.assetCardWrap,
+                        activeTab === "finance" && isDesktop && neoStyles.assetCardWrapFinance,
+                      ]}
+                    />
+                    <HardCopyPodStatusCard
+                      state={hardCopyPodState}
+                      canManage={canManageHardCopyPod}
+                      tripCompleted={tripCompleted}
+                      onViewDetails={() => openHardCopyPodModal("view")}
+                      onUpdatePod={() => openHardCopyPodModal("mark_received")}
+                      onLogPod={() => openHardCopyPodModal("create")}
                     />
                   </View>
                 </View>
@@ -5966,6 +6487,7 @@ export default function TripDetailScreen({
                 </View>
                 ) : null}
               </View>
+              ) : null}
             </View>
           </View>
         ) : null}
@@ -6203,7 +6725,11 @@ export default function TripDetailScreen({
                   tripDocuments={detail.tripDocuments}
                   tripDelivered={tripIsDeliveredStatus(trip.status)}
                   complianceVerifiedAt={trip.compliance_verified_at ?? null}
-                  hardCopyPodReceived={tripPodIsReceived({ pod_received_at: trip.pod_received_at })}
+                  hardCopyPodReceived={
+                    hardCopyPodState
+                      ? hardCopyPodState?.status === "RECEIVED"
+                      : tripPodIsReceived({ pod_received_at: trip.pod_received_at })
+                  }
                   canVerifyDocuments={canSurface("trip_compliance.documents.verify")}
                   canMarkVerified={canSurface("trip_compliance.trip.mark_verified")}
                   canManagePod={canSurface("trip_compliance.pod.manage")}
@@ -6977,6 +7503,30 @@ export default function TripDetailScreen({
         timelineRows={detail.driverActivityTimelineRows ?? []}
         tripLedgerEntries={detail.tripLedgerEntries}
         driverDisplayName={detail.driverName}
+        hardCopyPod={hardCopyPodState}
+      />
+
+      <LogHardCopyPodModal
+        visible={hardCopyPodModalVisible}
+        onClose={() => setHardCopyPodModalVisible(false)}
+        tripId={trip.id}
+        organizationId={currentOrganization?.id ?? trip.organization_id}
+        canManage={canManageHardCopyPod}
+        initialMode={hardCopyPodModalMode}
+        summary={{
+          manifestId: getTripDisplayNumber(trip, currentOrganization?.id),
+          clientName:
+            detail.displayClientName?.trim() ||
+            trip.client_name?.trim() ||
+            "—",
+          pickup: trip.pickup_area?.trim() || "—",
+          delivery: trip.drop_location?.trim() || "—",
+          driverName: allocatedDriverName,
+          vehicleLabel: allocatedVehicleLabel,
+        }}
+        onUpdated={() => {
+          void detail.load();
+        }}
       />
 
       {vaultChatPreviewNode}

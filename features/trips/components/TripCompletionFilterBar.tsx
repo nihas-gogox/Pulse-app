@@ -51,9 +51,11 @@ export function TripCompletionFilterBar({
               {opt.label}
             </Text>
             {count != null ? (
-              <Text style={[styles.count, active && styles.countOn]}>
-                {count}
-              </Text>
+              <View style={[styles.countPill, active && styles.countPillOn]}>
+                <Text style={[styles.count, active && styles.countOn]}>
+                  {count}
+                </Text>
+              </View>
             ) : null}
           </Pressable>
         );
@@ -70,28 +72,39 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chip: {
-    minHeight: Layout.minTouchTargetSize,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: Theme.borderMedium,
     backgroundColor: Theme.cardWhite,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
   chipOn: {
-    backgroundColor: Theme.brandBlueWashSubtle,
+    backgroundColor: Theme.primary,
     borderColor: Theme.primary,
   },
   chipText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     color: Theme.textRouteCard,
   },
   chipTextOn: {
-    color: Theme.primary,
+    color: Theme.cardWhite,
+  },
+  countPill: {
+    minWidth: 22,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: Theme.surfaceGray,
+    alignItems: "center",
+  },
+  countPillOn: {
+    backgroundColor: "rgba(255,255,255,0.22)",
   },
   count: {
     fontSize: 11,
@@ -100,6 +113,6 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   countOn: {
-    color: Theme.primary,
+    color: Theme.cardWhite,
   },
 });

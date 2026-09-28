@@ -59,6 +59,7 @@ import {
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { isTripDocumentsStoragePathConflict, uploadTripDocument, type TripDocumentType } from "@/features/trips/services/tripDocuments.service";
 import { TripVaultFilePreview } from "@/features/trips/components/trip-detail/TripVaultFilePreview";
+import { DocumentScreen } from "@/features/tripCompliance/components/ComplianceDocumentWorkspace";
 import {
     markVehicleDocumentVerified,
     resolveVehicleDocumentsWriteTarget,
@@ -68,10 +69,11 @@ import {
 import { getVehicleById } from "@/features/vehicles/services/vehicles.service";
 import type { VehicleComplianceDocType } from "@/features/vehicles/utils/vehicleDocuments.util";
 import * as DocumentPicker from "expo-document-picker";
-import { ChevronLeft, Eye, Upload, X } from "lucide-react-native";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Eye, Upload, X } from "lucide-react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    LayoutAnimation,
     Modal,
     Platform,
     Pressable,
@@ -88,6 +90,17 @@ import {
 const REF = HUB_MOBILE_TICKET_REF;
 /** Side-by-side Pending | Verified columns when the sheet has room. */
 const REVIEW_SPLIT_MIN_WIDTH = 640;
+/** Document list starts near 30% of the review body and can be dragged between a usable minimum and 40%. */
+const LIST_PANEL_MIN_PX = 300;
+const LIST_PANEL_MAX_RATIO = 0.4;
+const LIST_PANEL_DEFAULT_RATIO = 0.3;
+
+function clampListPanelWidth(available: number, width: number): number {
+  if (available <= 0) return 0;
+  const max = Math.floor(available * LIST_PANEL_MAX_RATIO);
+  const min = Math.min(LIST_PANEL_MIN_PX, max);
+  return Math.round(Math.min(max, Math.max(min, width)));
+}
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -175,6 +188,19 @@ export function ComplianceDocumentReviewSheet({
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const splitColumns = windowWidth >= REVIEW_SPLIT_MIN_WIDTH;
   const sideBySide = windowWidth >= 960;
+  const [listCollapsed, setListCollapsed] = useState(false);
+  const [listRatio, setListRatio] = useState(LIST_PANEL_DEFAULT_RATIO);
+  const [splitTrackWidth, setSplitTrackWidth] = useState(0);
+  const [dividerDragging, setDividerDragging] = useState(false);
+  const splitTrackWidthRef = useRef(0);
+  const listRatioRef = useRef(LIST_PANEL_DEFAULT_RATIO);
+  const dragWidthRef = useRef(0);
+  const dragXRef = useRef(0);
+  listRatioRef.current = listRatio;
+  const openListWidth =
+    splitTrackWidth > 0
+      ? clampListPanelWidth(splitTrackWidth, splitTrackWidth * listRatio)
+      : null;
   const rows = useMemo(() => {
     if (scope === "vehicle") return deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, vehicleDocuments);
     if (scope === "driver") return deriveEntityComplianceRows(COMPLIANCE_DRIVER_DOCUMENT_TYPES, driverDocuments);
@@ -198,6 +224,7 @@ export function ComplianceDocumentReviewSheet({
   const [approvingException, setApprovingException] = useState(false);
   const [exceptionError, setExceptionError] = useState<string | null>(null);
   const [viewingKey, setViewingKey] = useState<string | null>(null);
+  const [pageViewer, setPageViewer] = useState(false);
   const [lightbox, setLightbox] = useState<{
     rowKey: string;
     title: string;
@@ -241,12 +268,53 @@ export function ComplianceDocumentReviewSheet({
       setSelectedKey(initialSelectedKey);
     } else {
       setLightbox(null);
+      setPageViewer(false);
       setExceptionPanelOpen(false);
       setExceptionComment("");
       setExceptionError(null);
+      setListCollapsed(false);
+      setListRatio(LIST_PANEL_DEFAULT_RATIO);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, tripId, scope]);
+
+  useEffect(() => {
+    if (!dividerDragging || Platform.OS !== "web" || typeof window === "undefined") return;
+    const body = typeof document !== "undefined" ? document.body : null;
+    const previousUserSelect = body?.style.userSelect ?? "";
+    const previousCursor = body?.style.cursor ?? "";
+    if (body) {
+      body.style.userSelect = "none";
+      body.style.cursor = "col-resize";
+    }
+    const move = (event: PointerEvent) => {
+      const available = splitTrackWidthRef.current;
+      const next = clampListPanelWidth(available, dragWidthRef.current + (event.pageX - dragXRef.current));
+      const ratio = available > 0 ? next / available : LIST_PANEL_DEFAULT_RATIO;
+      listRatioRef.current = ratio;
+      setListRatio(ratio);
+    };
+    const up = () => setDividerDragging(false);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => {
+      if (body) {
+        body.style.userSelect = previousUserSelect;
+        body.style.cursor = previousCursor;
+      }
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+  }, [dividerDragging]);
+
+  const toggleListPanel = () => {
+    if (Platform.OS !== "web") {
+      LayoutAnimation.configureNext(
+        LayoutAnimation.create(180, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity),
+      );
+    }
+    setListCollapsed((open) => !open);
+  };
 
   const promptExpiryDate = useCallback((docType: string) => {
     return new Promise<string | null>((resolve) => {
@@ -1017,15 +1085,16 @@ export function ComplianceDocumentReviewSheet({
     verifiedTotal != null ? `${verifiedCount}/${verifiedTotal}` : String(verifiedCount);
 
   return (
+    <>
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, sideBySide && styles.overlayWide]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View
           style={[
             styles.sheet,
             splitColumns && !sideBySide && styles.sheetWide,
             sideBySide && styles.sheetSplit,
-            sideBySide ? { height: Math.round(windowHeight * 0.88) } : null,
+            sideBySide ? { height: Math.round(windowHeight * 0.92), width: windowWidth - 20, maxWidth: windowWidth - 20 } : null,
           ]}
         >
           <View style={styles.header}>
@@ -1074,7 +1143,35 @@ export function ComplianceDocumentReviewSheet({
           </View>
 
           {(sideBySide || !selected) ? (
-            <View style={sideBySide ? styles.splitBody : undefined}>
+            <View
+              style={sideBySide ? styles.splitBody : undefined}
+              onLayout={
+                sideBySide
+                  ? (event) => {
+                      const width = event.nativeEvent.layout.width;
+                      if (width === splitTrackWidthRef.current) return;
+                      splitTrackWidthRef.current = width;
+                      setSplitTrackWidth(width);
+                    }
+                  : undefined
+              }
+            >
+            <View
+              style={
+                sideBySide
+                  ? [
+                      styles.splitListSlot,
+                      {
+                        width: listCollapsed ? 0 : (openListWidth ?? "30%"),
+                        maxWidth: listCollapsed ? 0 : "40%",
+                      },
+                      Platform.OS === "web" && !dividerDragging
+                        ? ({ transition: "width 180ms ease, max-width 180ms ease" } as ViewStyle)
+                        : null,
+                    ]
+                  : undefined
+              }
+            >
             <ScrollView
               style={sideBySide ? styles.splitList : styles.listScroll}
               contentContainerStyle={styles.listContent}
@@ -1154,11 +1251,11 @@ export function ComplianceDocumentReviewSheet({
                 <View style={styles.footerActionsBlock}>
                   {!exceptionPanelOpen ? (
                     <TouchableOpacity
-                      style={[styles.primaryCta, !exceptionCheck.ok && styles.primaryCtaDisabled]}
+                      style={[styles.exceptionCta, !exceptionCheck.ok && styles.primaryCtaDisabled]}
                       disabled={!exceptionCheck.ok}
                       onPress={() => setExceptionPanelOpen(true)}
                     >
-                      <Text style={styles.primaryCtaText}>Approve with Exception</Text>
+                      <Text style={styles.exceptionCtaText}>Approve with Exception</Text>
                     </TouchableOpacity>
                   ) : (
                     <View style={styles.exceptionPanel}>
@@ -1219,6 +1316,54 @@ export function ComplianceDocumentReviewSheet({
                 </View>
               ) : null}
             </ScrollView>
+            </View>
+            {sideBySide ? (
+              <View style={styles.splitDivider}>
+                <View pointerEvents="none" style={styles.splitDividerLine} />
+                {listCollapsed ? null : (
+                  <View
+                    style={styles.splitDividerGrab}
+                    accessibilityLabel="Resize document list"
+                    onStartShouldSetResponder={() => true}
+                    onMoveShouldSetResponder={() => true}
+                    onResponderTerminationRequest={() => false}
+                    onResponderGrant={(event) => {
+                      const available = splitTrackWidthRef.current;
+                      dragWidthRef.current = clampListPanelWidth(
+                        available,
+                        available * listRatioRef.current,
+                      );
+                      dragXRef.current = event.nativeEvent.pageX;
+                      setDividerDragging(true);
+                    }}
+                    onResponderMove={(event) => {
+                      if (Platform.OS === "web") return;
+                      const available = splitTrackWidthRef.current;
+                      const dx = event.nativeEvent.pageX - dragXRef.current;
+                      const next = clampListPanelWidth(available, dragWidthRef.current + dx);
+                      const ratio = available > 0 ? next / available : LIST_PANEL_DEFAULT_RATIO;
+                      listRatioRef.current = ratio;
+                      setListRatio(ratio);
+                    }}
+                    onResponderRelease={() => setDividerDragging(false)}
+                    onResponderTerminate={() => setDividerDragging(false)}
+                  />
+                )}
+                <Pressable
+                  style={styles.splitDividerBtn}
+                  onPress={toggleListPanel}
+                  hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={listCollapsed ? "Expand document list" : "Collapse document list"}
+                >
+                  {listCollapsed ? (
+                    <ChevronRight size={14} color={Theme.textPrimary} strokeWidth={2.4} />
+                  ) : (
+                    <ChevronLeft size={14} color={Theme.textPrimary} strokeWidth={2.4} />
+                  )}
+                </Pressable>
+              </View>
+            ) : null}
             {sideBySide ? (
               <View style={styles.splitPreview}>
                 {!selected ? (
@@ -1226,14 +1371,22 @@ export function ComplianceDocumentReviewSheet({
                 ) : lightbox?.loading || viewingKey === selected.key ? (
                   <ActivityIndicator color={Theme.textPrimaryDark} />
                 ) : lightbox?.url ? (
-                  <TripVaultFilePreview
-                    uri={lightbox.url}
-                    isPdf={(lightbox.mime ?? "").includes("pdf")}
-                    showToolbar
-                    sizing="fit"
-                    style={styles.splitFile}
-                    accessibilityLabel={lightbox.title}
-                  />
+                  <>
+                    <TripVaultFilePreview
+                      uri={lightbox.url}
+                      isPdf={(lightbox.mime ?? "").includes("pdf")}
+                      showToolbar
+                      sizing="fit"
+                      style={styles.splitFile}
+                      accessibilityLabel={lightbox.title}
+                    />
+                    <Pressable
+                      style={styles.splitOpen}
+                      onPress={() => setPageViewer(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${lightbox.title}`}
+                    />
+                  </>
                 ) : lightbox?.placeProof ? (
                   <Text style={styles.splitEmpty}>{lightbox.placeProof.note ?? lightbox.placeProof.label}</Text>
                 ) : (
@@ -1358,6 +1511,17 @@ export function ComplianceDocumentReviewSheet({
         onClose={() => setLightbox(null)}
       />
     </Modal>
+    {pageViewer && lightbox?.url ? (
+      <DocumentScreen
+        visible
+        presentation="page"
+        uri={lightbox.url}
+        isPdf={(lightbox.mime ?? "").includes("pdf")}
+        title={lightbox.title}
+        onClose={() => setPageViewer(false)}
+      />
+    ) : null}
+    </>
   );
 }
 
@@ -1391,29 +1555,78 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  overlayWide: { padding: 10 },
   /** Desktop table review: document list on the left, file on the right. */
   sheetSplit: {
     width: "100%",
-    maxWidth: 1180,
-    maxHeight: "88%",
+    maxWidth: "100%",
+    maxHeight: "92%",
   },
-  splitBody: { flex: 1, minHeight: 0, flexDirection: "row" },
+  splitBody: { flex: 1, minHeight: 0, flexDirection: "row", alignItems: "stretch" },
+  splitListSlot: {
+    flexGrow: 0,
+    flexShrink: 0,
+    minWidth: 0,
+    alignSelf: "stretch",
+    overflow: "hidden",
+  },
   splitList: {
-    width: 540,
-    maxWidth: "50%",
-    borderRightWidth: 1,
-    borderRightColor: Theme.complianceCardBorder,
+    flexGrow: 1,
+    flexShrink: 1,
+    width: "100%",
+    minWidth: 0,
+    minHeight: 0,
+  },
+  splitDivider: {
+    width: 22,
+    flexGrow: 0,
+    flexShrink: 0,
+    alignSelf: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    zIndex: 5,
+  },
+  splitDividerLine: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 10,
+    width: 1,
+    backgroundColor: Theme.complianceCardBorder,
+  },
+  splitDividerGrab: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 22,
+    ...(Platform.OS === "web" ? ({ cursor: "col-resize" } as unknown as ViewStyle) : null),
+  },
+  splitDividerBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Theme.cardWhite,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+    ...(Platform.OS === "web" ? ({ cursor: "pointer" } as ViewStyle) : null),
   },
   splitPreview: {
     flex: 1,
     minWidth: 0,
     minHeight: 0,
+    position: "relative",
+    zIndex: 1,
     backgroundColor: Theme.compliancePageBg,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
   splitFile: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
+  splitOpen: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 2 },
   splitEmpty: {
     paddingHorizontal: 24,
     fontSize: 13,
@@ -1432,7 +1645,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: REF.hairline,
   },
@@ -1507,7 +1720,7 @@ const styles = StyleSheet.create({
   backBtn: { flexDirection: "row", alignItems: "center", gap: 4, flex: 1, minWidth: 0 },
   backBtnText: { fontSize: 13, fontWeight: "600", color: Theme.textPrimary },
   listScroll: { flexGrow: 1 },
-  listContent: { paddingHorizontal: 14, paddingTop: 6, paddingBottom: 14, gap: 6 },
+  listContent: { paddingHorizontal: 14, paddingTop: 4, paddingBottom: 8, gap: 4 },
   requiredSummary: {
     gap: 8,
     padding: 12,
@@ -1527,7 +1740,7 @@ const styles = StyleSheet.create({
     width: "100%",
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 16,
+    gap: 12,
   },
   boardRowStack: {
     flexDirection: "column",
@@ -1537,7 +1750,7 @@ const styles = StyleSheet.create({
   boardColumn: {
     flexGrow: 1,
     flexShrink: 1,
-    flexBasis: 0,
+    flexBasis: "48%",
     minWidth: 0,
     gap: 4,
   },
@@ -1579,7 +1792,7 @@ const styles = StyleSheet.create({
   boardEmpty: {
     fontSize: 12,
     color: REF.muted,
-    paddingVertical: 12,
+    paddingVertical: 6,
     paddingHorizontal: 10,
     textAlign: "center",
     borderRadius: 10,
@@ -1587,8 +1800,8 @@ const styles = StyleSheet.create({
     borderColor: REF.hairline,
     backgroundColor: Theme.compliancePageBg,
   },
-  pendingGroups: { flexGrow: 1, gap: 8, width: "100%" },
-  pendingSubgroup: { flexGrow: 1, width: "100%", gap: 4 },
+  pendingGroups: { flexGrow: 1, gap: 4, width: "100%" },
+  pendingSubgroup: { flexGrow: 1, width: "100%", gap: 2 },
   pendingSubgroupHeader: {
     width: "100%",
     minHeight: 18,
@@ -1597,7 +1810,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 2,
   },
-  verifiedColumnBody: { flexGrow: 1, width: "100%", gap: 8 },
+  verifiedColumnBody: { flexGrow: 1, width: "100%", gap: 4 },
   pendingSubgroupTitle: {
     fontSize: 10,
     fontWeight: "700",
@@ -1627,7 +1840,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     gap: 8,
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 4,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: REF.hairline,
     backgroundColor: Theme.compliancePageBg,
@@ -1657,10 +1870,9 @@ const styles = StyleSheet.create({
   },
   docBlock: {
     paddingHorizontal: 8,
-    paddingVertical: 6,
-    minHeight: 44,
+    paddingVertical: 2,
+    minHeight: 34,
     justifyContent: "center",
-    gap: 2,
   },
   docBlockBorder: {
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -1669,7 +1881,8 @@ const styles = StyleSheet.create({
   docRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    justifyContent: "space-between",
+    gap: 8,
   },
   docRowMain: { flex: 1, minWidth: 0 },
   docCopy: { flex: 1, minWidth: 0, gap: 2 },
@@ -1677,7 +1890,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    flexWrap: "wrap",
   },
   docRowLabel: {
     fontSize: 13,
@@ -1718,8 +1930,8 @@ const styles = StyleSheet.create({
   },
   decisionApproveBtn: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    minHeight: 32,
+    paddingVertical: 2,
+    minHeight: 26,
     borderRadius: 8,
     backgroundColor: Theme.success,
     alignItems: "center",
@@ -1727,16 +1939,16 @@ const styles = StyleSheet.create({
   },
   decisionDeclineBtn: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    minHeight: 32,
+    paddingVertical: 2,
+    minHeight: 26,
     borderRadius: 8,
     backgroundColor: Theme.complianceDocNeedBg,
     alignItems: "center",
     justifyContent: "center",
   },
   eyeBtn: {
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -1745,7 +1957,7 @@ const styles = StyleSheet.create({
     borderColor: REF.hairline,
   },
   addBtn: {
-    minHeight: 30,
+    minHeight: 26,
     paddingHorizontal: 8,
     borderRadius: Theme.buttonPrimaryRadius,
     backgroundColor: Theme.buttonPrimary,
@@ -1762,15 +1974,16 @@ const styles = StyleSheet.create({
     color: REF.muted,
     lineHeight: 14,
     textAlign: "left",
+    marginBottom: 0,
   },
   inlineStatus: { fontSize: 12, color: Theme.textMuted, fontWeight: "600" },
-  footerActionsBlock: { gap: 10, marginTop: 4 },
+  footerActionsBlock: { gap: 6, marginTop: 2, alignItems: "flex-start" },
   verifiedBanner: {
     flex: 1,
     minWidth: 0,
-    minHeight: 44,
+    minHeight: 34,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 4,
     borderRadius: 10,
     backgroundColor: Theme.complianceVerifiedPillBg,
     borderWidth: 1,
@@ -1779,9 +1992,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   verifiedPayRow: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "stretch",
     gap: 8,
+    marginTop: 4,
   },
   verifiedPayItem: {
     flex: 1,
@@ -1793,8 +2008,25 @@ const styles = StyleSheet.create({
     color: Theme.complianceVerifiedPillFg,
     textAlign: "center",
   },
+  exceptionCta: {
+    alignSelf: "flex-start",
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: Theme.buttonPrimary,
+    borderWidth: 1,
+    borderColor: Theme.buttonPrimaryBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  exceptionCtaText: {
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 14,
+    color: Theme.buttonPrimaryText,
+  },
   primaryCta: {
-    minHeight: 44,
+    minHeight: 34,
     paddingHorizontal: 16,
     borderRadius: Theme.buttonPrimaryRadius,
     backgroundColor: Theme.buttonPrimary,

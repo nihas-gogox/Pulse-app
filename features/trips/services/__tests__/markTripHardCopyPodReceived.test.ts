@@ -13,7 +13,7 @@ jest.mock("@/lib/supabase", () => ({
   }),
 }));
 
-import { markTripHardCopyPodReceived, fetchTripHardCopyPodReceipt } from "../tripDocumentLrPod.service";
+import { markTripHardCopyPodReceived, fetchTripHardCopyPodReceipt, logTripHardCopyPodCourier } from "../tripDocumentLrPod.service";
 
 describe("markTripHardCopyPodReceived", () => {
   beforeEach(() => {
@@ -73,6 +73,43 @@ describe("markTripHardCopyPodReceived", () => {
     mockRpc.mockResolvedValue({ data: null, error: { message: "not authorized to record hard-copy POD for this organization" } });
     const result = await markTripHardCopyPodReceived("trip-1");
     expect(result.error?.message).toMatch(/not authorized/i);
+  });
+});
+
+describe("logTripHardCopyPodCourier", () => {
+  beforeEach(() => {
+    mockRpc.mockReset();
+  });
+
+  it("rejects missing required fields locally", async () => {
+    const missingCourier = await logTripHardCopyPodCourier("trip-1", {
+      courier: "",
+      awbNumber: "AWB",
+      dispatchDate: "2026-09-22",
+    });
+    expect(missingCourier.error?.message).toMatch(/courier name/i);
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("calls log_trip_hard_copy_pod_courier with trimmed fields", async () => {
+    mockRpc.mockResolvedValue({ data: true, error: null });
+    await logTripHardCopyPodCourier("trip-1", {
+      courier: " DHL ",
+      awbNumber: " AWB99 ",
+      dispatchDate: "2026-09-22",
+      expectedDeliveryDate: "2026-09-25",
+      courierContact: " 999 ",
+      remarks: " fragile ",
+    });
+    expect(mockRpc).toHaveBeenCalledWith("log_trip_hard_copy_pod_courier", {
+      p_trip_id: "trip-1",
+      p_courier: "DHL",
+      p_awb_number: "AWB99",
+      p_dispatch_date: "2026-09-22",
+      p_expected_delivery_date: "2026-09-25",
+      p_courier_contact: "999",
+      p_remarks: "fragile",
+    });
   });
 });
 

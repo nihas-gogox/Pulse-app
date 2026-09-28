@@ -13,6 +13,7 @@ import {
   type MarkHardCopyPodsReceivedInput,
 } from '@/features/log-pods/services/logPods.service';
 import { queryKeys } from '@/lib/queryKeys';
+import { syncHardCopyPodRecord } from '@/lib/queries/invalidateHardCopyPodCaches';
 import { STALE } from '@/lib/queryClient';
 
 export function useLogIncomingPodsTripsQuery(
@@ -118,19 +119,14 @@ export function useLogIncomingPodsMutation(orgId: string | null) {
       const affectedTripIds = Object.keys(payload.selectedLRs).filter(
         (id) => payload.selectedLRs[id].length > 0,
       );
-      for (const tripId of affectedTripIds) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.trips.detail(tripId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.trips.bundle(tripId) });
-      }
-      queryClient.invalidateQueries({ queryKey: ["q", "trips"] });
-      if (orgId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.logPods.trips(orgId) });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.logPods.tripsIncludingReceived(orgId),
-        });
-        queryClient.invalidateQueries({ queryKey: queryKeys.invoicing.trips(orgId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.invoicing.summary(orgId) });
-      }
+      void Promise.all(
+        affectedTripIds.map((tripId) =>
+          syncHardCopyPodRecord(queryClient, {
+            tripId,
+            organizationId: orgId,
+          }),
+        ),
+      );
       queryClient.invalidateQueries({ queryKey: queryKeys.logPods.courierPartners() });
     },
   });
@@ -146,19 +142,14 @@ export function useMarkHardCopyPodsReceivedMutation(orgId: string | null) {
       return result;
     },
     onSuccess: (_result, input) => {
-      for (const tripId of input.tripInternalIds) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.trips.detail(tripId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.trips.bundle(tripId) });
-      }
-      queryClient.invalidateQueries({ queryKey: ["q", "trips"] });
-      if (orgId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.logPods.trips(orgId) });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.logPods.tripsIncludingReceived(orgId),
-        });
-        queryClient.invalidateQueries({ queryKey: queryKeys.invoicing.trips(orgId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.invoicing.summary(orgId) });
-      }
+      void Promise.all(
+        input.tripInternalIds.map((tripId) =>
+          syncHardCopyPodRecord(queryClient, {
+            tripId,
+            organizationId: orgId,
+          }),
+        ),
+      );
     },
   });
 }

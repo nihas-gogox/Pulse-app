@@ -1,10 +1,10 @@
 import React from "react";
 import {
-  Text,
-  View,
-  StyleSheet,
-  type StyleProp,
-  type ViewStyle,
+    StyleSheet,
+    Text,
+    View,
+    type StyleProp,
+    type ViewStyle,
 } from "react-native";
 
 import { NativeHtmlWebView } from "@/components/NativeHtmlWebView";

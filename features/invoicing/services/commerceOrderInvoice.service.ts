@@ -27,6 +27,7 @@ import {
 } from "@/features/invoicing/utils/commerceOrderInvoiceStatus.util";
 import { invoiceHsnIssueBlock } from "@/features/invoicing/utils/invoiceLineHsn.util";
 import { discardInvoiceDraft } from "@/features/invoicing/services/invoiceDraft.service";
+import { buildShipmentView } from "@/features/invoicing/services/invoicePreviewModel.service";
 import type { InvoiceIssuerWorkspace } from "@/features/invoicing/services/invoiceIssuerIdentity.service";
 import { isCommerceDataQueryEnabled } from "@/lib/suite/productLock";
 
@@ -270,6 +271,8 @@ export function buildCommerceOrderInvoiceDraft(args: {
   return {
     document_kind: issued ? "issued" : "draft",
     invoice_number_label: invoiceNumber,
+    // Commerce orders are not trip-based — empty shipment block.
+    shipment: buildShipmentView([]),
     preview_date,
     indicative_due_date: null,
     payment_terms: args.paymentTerms ?? null,
@@ -284,6 +287,8 @@ export function buildCommerceOrderInvoiceDraft(args: {
       billing_address: args.bundle.customer.billing_address,
       state: args.bundle.customer.state,
       email: args.bundle.customer.email,
+      contact_person: null,
+      phone: null,
     },
     lines: invoiceLines.map((l) => ({
       trip_id: null,

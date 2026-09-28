@@ -14,6 +14,7 @@ import {
   withIssuedInvoiceOverlay,
 } from "@/features/pod-reconciliation/services/podReconciliationService";
 import {
+  loadLrPodIndexByTripIds,
   tripIsDeliveredStatus,
   tripPodIsReceived,
 } from "@/features/trips/services/tripDocumentLrPod.service";
@@ -66,12 +67,22 @@ export interface InvoicingTripView {
   client: string;
   supplier_name: string;
   driver_name?: string | null;
-  lr_number?: string | null;
   route: string;
+  /** Explicit pickup (from trips.pickup_area) — aligned with tax-invoice header. */
+  pickup: string | null;
+  /** Explicit delivery (from trips.drop_location). */
+  delivery: string | null;
   date: string;
   amount: number;
   status: TripStatus;
+  /** Trip notes only — never used as truck / LR stand-in. */
   details: string;
+  /** Vehicle registration / display number from trips (read-only). */
+  vehicle_number: string | null;
+  /** Cargo / body type from trips.load_type (read-only). */
+  load_type: string | null;
+  /** LR number(s) from trip_documents document_type=lr (read-only). */
+  lr_number: string | null;
   checks: TripChecks;
   /** trips.pod_received_at — physical/hard-copy receipt, not a digital POD file. */
   physicalPodReceived: boolean;
@@ -113,7 +124,7 @@ export interface PodReconciliationSummary {
 }
 
 const LIVE_TRIP_SELECT =
-  "id, organization_id, trip_operational_code, trip_code, display_trip_id, trip_number, booking_ref, supplier_id, driver_id, driver_display_name, client_id, client_name, client_price, status, pickup_date, pickup_area, drop_location, notes, created_at, pod_received_at";
+  "id, organization_id, trip_operational_code, trip_code, display_trip_id, trip_number, booking_ref, supplier_id, driver_id, driver_display_name, client_id, client_name, client_price, status, pickup_date, pickup_area, drop_location, notes, created_at, pod_received_at, vehicle_id, vehicle_display_number, load_type";
 
 const POD_IN_CHUNK = 40;
 const UUID_RE =
@@ -142,6 +153,9 @@ type TripRecord = Pick<
   pod_received_at?: string | null;
   driver_id?: string | null;
   driver_display_name?: string | null;
+  vehicle_id?: string | null;
+  vehicle_display_number?: string | null;
+  load_type?: string | null;
 };
 
 function str(v: unknown): string {
@@ -404,6 +418,10 @@ function mapRowToView(
   issuedInvoiceNumber: string | null,
   inDraft = false,
   draftInvoiceNumber: string | null = null,
+  extras?: {
+    vehicleNumber?: string | null;
+    lrNumber?: string | null;
+  },
 ): InvoicingTripView {
   const tripDate = str((row as { pickup_date?: string | null }).pickup_date);
   const ppLocation = str((row as { pickup_area?: string | null }).pickup_area);
@@ -411,6 +429,13 @@ function mapRowToView(
     (row as { drop_location?: string | null }).drop_location,
   );
   const route = `${ppLocation || "Unknown"} ➔ ${dropPoint || "Unknown"}`;
+  const displayVehicle = str(
+    (row as { vehicle_display_number?: string | null }).vehicle_display_number,
+  );
+  const vehicleNumber =
+    str(extras?.vehicleNumber) || displayVehicle || "";
+  const loadType = str((row as { load_type?: string | null }).load_type);
+  const lrNumber = str(extras?.lrNumber);
 
   const clientId = str((row as { client_id?: string | null }).client_id);
   const organizationId = str(row.organization_id);
@@ -433,10 +458,9 @@ function mapRowToView(
           : "",
       ),
     }),
-    lr_number: resolveInvoiceTripLrNumber({
-      bookingRef: str((row as { booking_ref?: string | null }).booking_ref),
-    }),
     route,
+    pickup: ppLocation || null,
+    delivery: dropPoint || null,
     date: tripDate,
     amount:
       num((row as { total_client_value?: unknown }).total_client_value) ||
@@ -444,6 +468,14 @@ function mapRowToView(
       0,
     status: hasPod ? "approved" : physicalPodReceived ? "received" : "pending",
     details: str((row as { notes?: string | null }).notes),
+    vehicle_number: vehicleNumber || null,
+    load_type: loadType || null,
+    lr_number:
+      lrNumber ||
+      resolveInvoiceTripLrNumber({
+        bookingRef: str((row as { booking_ref?: string | null }).booking_ref),
+      }) ||
+      null,
     checks: {
       poMatch: true,
       idConfirmed: true,
@@ -457,6 +489,34 @@ function mapRowToView(
     inDraft,
     draftInvoiceNumber,
   };
+}
+
+/** Resolve missing vehicle_display_number from vehicles.vehicle_number (read-only). */
+async function fetchVehicleNumbersByIds(
+  vehicleIds: string[],
+): Promise<Map<string, string>> {
+  const found = new Map<string, string>();
+  const unique = Array.from(new Set(vehicleIds.filter(Boolean)));
+  if (unique.length === 0) return found;
+  for (let i = 0; i < unique.length; i += POD_IN_CHUNK) {
+    const chunk = unique.slice(i, i + POD_IN_CHUNK);
+    const { data, error } = await supabase()
+      .from("vehicles")
+      .select("id, vehicle_number")
+      .in("id", chunk);
+    if (error) {
+      console.warn("[invoicing] vehicles lookup:", error.message);
+      continue;
+    }
+    for (const row of data ?? []) {
+      const id = str((row as { id?: string | null }).id);
+      const number = str(
+        (row as { vehicle_number?: string | null }).vehicle_number,
+      );
+      if (id && number) found.set(id, number);
+    }
+  }
+  return found;
 }
 
 export async function fetchInvoicingTrips(
@@ -489,10 +549,29 @@ export async function fetchInvoicingTrips(
       const row = map.get(id);
       return row != null && !("pod_received_at" in row);
     });
-    const [allocations, physicalStampById] = await Promise.all([
+    const [allocations, physicalStampById, lrPodByTripId] = await Promise.all([
       fetchInvoiceAllocationsForOrg(orgId),
       fetchPhysicalPodReceivedAtByIds(missingPhysicalStampIds),
+      loadLrPodIndexByTripIds(mergedIds),
     ]);
+
+    const vehicleIdsNeedingLookup = Array.from(
+      new Set(
+        merged
+          .map((trip) => {
+            const display = str(
+              (trip as { vehicle_display_number?: string | null })
+                .vehicle_display_number,
+            );
+            if (display) return "";
+            return str((trip as { vehicle_id?: string | null }).vehicle_id);
+          })
+          .filter(Boolean),
+      ),
+    );
+    const vehicleNumberById = await fetchVehicleNumbersByIds(
+      vehicleIdsNeedingLookup,
+    );
 
     const supplierIds = Array.from(
       new Set(
@@ -547,16 +626,32 @@ export async function fetchInvoicingTrips(
         row.pod_received_at !== undefined
           ? row.pod_received_at
           : (physicalStampById.get(id) ?? null);
+      const lrIndex = lrPodByTripId.get(id.toLowerCase()) ?? lrPodByTripId.get(id);
+      const lrJoined = (lrIndex?.lrNumbers ?? []).filter(Boolean).join(", ");
+      const vehicleId = str(
+        (row as { vehicle_id?: string | null }).vehicle_id,
+      );
+      const resolvedVehicle =
+        str(
+          (row as { vehicle_display_number?: string | null })
+            .vehicle_display_number,
+        ) ||
+        (vehicleId ? str(vehicleNumberById.get(vehicleId)) : "") ||
+        "";
       return mapRowToView(
         row,
         supplierNameById,
         driverNameById,
-        false,
+        Boolean(lrIndex?.hasPodDocument),
         tripPodIsReceived({ pod_received_at: stamp }),
         allocations.invoicedIds.has(id),
         allocations.invoiceNumberByTripId.get(id) ?? null,
         allocations.draftIds.has(id),
         allocations.draftNumberByTripId.get(id) ?? null,
+        {
+          vehicleNumber: resolvedVehicle || null,
+          lrNumber: lrJoined || null,
+        },
       );
     });
     return { error: null, trips: views };
@@ -573,7 +668,7 @@ export async function syncInvoicingTripsWithCache(
     const trips = await syncDomainRows<InvoicingTripView>({
       domain: "invoicing",
       orgId,
-      schemaVersion: "2",
+      schemaVersion: "3",
       policy: { maxDeltaLagMs: 2 * 60_000, fullSyncEveryMs: 60 * 60_000 },
       currentRows,
       getFull: async () => {

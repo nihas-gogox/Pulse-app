@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
   wrapDesktop: {
     flexDirection: "row",
     alignItems: "stretch",
-    gap: 14,
+    gap: 8,
   },
   card: {
     borderWidth: 1,
@@ -479,9 +479,11 @@ const styles = StyleSheet.create({
   cardDesktop: {
     flex: 1,
     minWidth: 0,
-    padding: 12,
-    borderRadius: 14,
-    gap: 8,
+    alignSelf: "stretch",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 4,
   },
   cardModal: {
     padding: 14,
@@ -539,9 +541,9 @@ const styles = StyleSheet.create({
     borderTopColor: "#eef2f7",
   },
   metricsBarDesktop: {
-    gap: 14,
-    paddingTop: 10,
-    paddingBottom: 6,
+    gap: 8,
+    paddingTop: 6,
+    paddingBottom: 0,
   },
   metricsBarModal: {
     gap: 12,
@@ -599,8 +601,8 @@ const styles = StyleSheet.create({
     lineHeight: 26,
   },
   metricValueHeroDesktop: {
-    fontSize: 24,
-    lineHeight: 28,
+    fontSize: 20,
+    lineHeight: 24,
   },
   metricValueHeroModal: {
     fontSize: 26,

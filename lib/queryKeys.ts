@@ -60,6 +60,8 @@ export const queryKeys = {
       ["q", "trips", "assignment-audit", tripIdsKey] as const,
     /** Phase 3a: single-RPC bundle for trip detail hydration. */
     bundle: (tripId: string) => ["q", "trips", "bundle", tripId] as const,
+    /** Hard-copy POD receipt for one trip (trips.pod_* + workflow event). */
+    hardCopyPod: (tripId: string) => ["q", "trips", "hard-copy-pod", tripId] as const,
     /** Hub list: last ping time / offline for in-transit trips. */
     hubInTransitPings: (orgId: string, tripIdsKey: string) =>
       ["q", "trips", "hub", orgId, "in-transit-pings", tripIdsKey] as const,

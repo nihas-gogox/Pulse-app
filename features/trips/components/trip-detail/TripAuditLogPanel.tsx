@@ -8,6 +8,7 @@ import type { LedgerRow } from "@/features/finance/services/finance.service";
 import { getOrganizationMembers } from "@/features/organization/services/members.service";
 import type { DriverActivityTimelineRow } from "@/features/trips/components/trip-detail/hooks/useTripDetail";
 import type { TripAssignmentAuditRow } from "@/features/trips/services/trip-assignment-audit.service";
+import type { TripHardCopyPodState } from "@/features/trips/services/tripDocumentLrPod.service";
 import {
   getTripDisplayNumber,
   type TripRow,
@@ -42,6 +43,7 @@ export type TripAuditLogPanelProps = {
   timelineRows: DriverActivityTimelineRow[];
   tripLedgerEntries: LedgerRow[];
   driverDisplayName?: string | null;
+  hardCopyPod?: TripHardCopyPodState | null;
   loading?: boolean;
 };
 
@@ -80,6 +82,7 @@ export function TripAuditLogPanel({
   timelineRows,
   tripLedgerEntries,
   driverDisplayName,
+  hardCopyPod = null,
   loading = false,
 }: TripAuditLogPanelProps) {
   const insets = useSafeAreaInsets();
@@ -198,6 +201,7 @@ export function TripAuditLogPanel({
         userDisplayById,
         userProfileById,
         driverDisplayName: driverDisplayName ?? trip.driver_display_name,
+        hardCopyPod,
       }),
     [
       trip,
@@ -211,6 +215,7 @@ export function TripAuditLogPanel({
       userDisplayById,
       userProfileById,
       driverDisplayName,
+      hardCopyPod,
     ],
   );
 

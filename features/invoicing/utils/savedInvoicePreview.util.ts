@@ -4,6 +4,7 @@ import type {
   InvoiceDraftClientView,
   InvoiceDraftModel,
 } from "@/features/invoicing/services/invoicePreviewModel.service";
+import { buildShipmentView } from "@/features/invoicing/services/invoicePreviewModel.service";
 import type { InvoiceTaxResult } from "@/features/invoicing/services/invoiceTax.service";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -94,6 +95,8 @@ export function buildSavedInvoicePreviewModel(input: {
   return {
     document_kind: "issued",
     invoice_number_label: input.invoiceNumber.trim() || "INV",
+    // Saved invoices are rebuilt from stored lines, not trips — shipment block is empty.
+    shipment: buildShipmentView([]),
     preview_date: input.invoiceDate,
     indicative_due_date: null,
     payment_terms: input.paymentTerms,

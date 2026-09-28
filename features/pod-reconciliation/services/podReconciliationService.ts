@@ -242,29 +242,53 @@ export async function fetchReconciliationTrips(
     let supplierNameById = new Map<string, string>();
     let driverNameById = new Map<string, string>();
 
+    // Enrichment must never blank Overview: trip_documents RLS + drivers list can
+    // statement-timeout under load; KPIs already loaded from a separate query.
     if (supplierIds.length > 0) {
-      const { data: supData } = await supabase()
-        .from('suppliers')
-        .select('id, name, company_name')
-        .in('id', supplierIds);
-      
-      (supData || []).forEach(s => {
-        supplierNameById.set(s.id, str(s.name || s.company_name));
-      });
+      try {
+        const { data: supData } = await supabase()
+          .from('suppliers')
+          .select('id, name, company_name')
+          .in('id', supplierIds);
+
+        (supData || []).forEach(s => {
+          supplierNameById.set(s.id, str(s.name || s.company_name));
+        });
+      } catch (e) {
+        console.warn(
+          '[podReconciliation] suppliers enrich skipped:',
+          e instanceof Error ? e.message : String(e),
+        );
+      }
     }
 
     if (driverIds.length > 0) {
-      const { data: driverData } = await supabase()
-        .from("drivers")
-        .select("id, name")
-        .in("id", driverIds);
-      (driverData || []).forEach((d) => {
-        if (d.id) driverNameById.set(d.id, str(d.name));
-      });
+      try {
+        const { data: driverData } = await supabase()
+          .from("drivers")
+          .select("id, name")
+          .in("id", driverIds);
+        (driverData || []).forEach((d) => {
+          if (d.id) driverNameById.set(d.id, str(d.name));
+        });
+      } catch (e) {
+        console.warn(
+          '[podReconciliation] drivers enrich skipped:',
+          e instanceof Error ? e.message : String(e),
+        );
+      }
     }
 
     if (internalIds.length > 0) {
-      lrByTripId = await loadLrPodIndexByTripIds(internalIds);
+      try {
+        lrByTripId = await loadLrPodIndexByTripIds(internalIds);
+      } catch (e) {
+        console.warn(
+          '[podReconciliation] LR/POD enrich skipped:',
+          e instanceof Error ? e.message : String(e),
+        );
+        lrByTripId = new Map();
+      }
     }
 
     const policyClientIds = Array.from(

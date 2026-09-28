@@ -66,7 +66,10 @@ export function useIndentStoryStatesQuery(
 }
 
 /** Live own LOAD stories (Load Center green Pulse) for Mine queue + story segments. */
-export function useLiveOwnLoadStoriesQuery(orgId: string | null) {
+export function useLiveOwnLoadStoriesQuery(
+  orgId: string | null,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: queryKeys.posts.liveOwnLoadStories(orgId ?? ''),
     queryFn: async () => {
@@ -77,8 +80,8 @@ export function useLiveOwnLoadStoriesQuery(orgId: string | null) {
       if (res.error) throw res.error;
       return res.posts;
     },
-    enabled: !!orgId,
-    staleTime: STALE.frequent,
+    enabled: !!orgId && options?.enabled !== false,
+    staleTime: STALE.moderate,
   });
 }
 

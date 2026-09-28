@@ -3091,6 +3091,7 @@ export function ChatScreen() {
                 orgName={currentOrganization?.name ?? undefined}
                 onCreatePost={() => router.push("/(modals)/create-post")}
                 networkPartnerOrgIds={chatNetworkPartnerOrgIds}
+                fetchLiveOwnLoads={false}
               />
               {storiesLoading && integratedNetworkStories.length === 0 ? (
                 <View style={s.chatStoryLoadingRow}>
@@ -4345,6 +4346,7 @@ export function ChatScreen() {
                 orgName={currentOrganization?.name ?? undefined}
                 onCreatePost={() => router.push("/(modals)/create-post")}
                 networkPartnerOrgIds={chatNetworkPartnerOrgIds}
+                fetchLiveOwnLoads={false}
               />
             )}
           </View>

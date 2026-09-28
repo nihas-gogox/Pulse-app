@@ -16,6 +16,7 @@ import {
 import type { AdditionalCharge, InvoiceConfig, InvoicingTripView } from '@/features/invoicing/services/invoicing.service';
 import type { InvoiceDraftClientRow } from '@/features/invoicing/services/invoicePreviewClients.service';
 import { splitChargesForInvoiceTrips } from '@/features/invoicing/services/invoiceCnDn.service';
+import { formatInvoiceAmountInWords } from '@/features/invoicing/utils/invoiceAmountInWords.util';
 
 export const INVOICE_DRAFT_NUMBER_LABEL = 'DRAFT' as const;
 export const INVOICE_DRAFT_NUMBER_CAPTION = 'Invoice number assigned on issue';
@@ -29,6 +30,8 @@ export type InvoiceDraftClientView = {
   billing_address: string | null;
   state: string | null;
   email: string | null;
+  contact_person: string | null;
+  phone: string | null;
 };
 
 export type InvoiceDraftModel = {
@@ -38,11 +41,156 @@ export type InvoiceDraftModel = {
   indicative_due_date: string | null;
   payment_terms: string | null;
   notes: string | null;
+  /** Single-trip header fields vs multi-trip line-item style (matches issued tax invoices). */
+  shipment: InvoiceDraftShipmentView;
   issuer: InvoiceIssuerIdentity;
   client: InvoiceDraftClientView;
   lines: InvoiceLineSnapshot[];
   tax: InvoiceTaxResult;
 };
+
+export type InvoiceDraftShipmentView = {
+  mode: 'single' | 'multi' | 'empty';
+  trip_count: number;
+  trip_id: string | null;
+  trip_date: string | null;
+  pickup: string | null;
+  delivery: string | null;
+  /** @deprecated Prefer truck_no — kept for older PDF callers. */
+  vehicle_notes: string | null;
+  truck_no: string | null;
+  load_type: string | null;
+  lr_number: string | null;
+  /** Compact rows for multi-trip draft form / PDF context. */
+  trips: Array<{
+    trip_id: string;
+    trip_date: string;
+    route: string;
+    amount: number;
+    truck_no: string | null;
+    load_type: string | null;
+    lr_number: string | null;
+  }>;
+};
+
+/** Split `pickup ➔ delivery` routes used by invoicing trip views. */
+export function splitInvoiceRoute(route: string | null | undefined): {
+  pickup: string;
+  delivery: string;
+} {
+  const parts = (route ?? '')
+    .split(/\s*(?:->|→|➔|⇒)\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return {
+    pickup: parts[0] || '',
+    delivery: parts[1] || '',
+  };
+}
+
+export function buildFreightLineDescription(
+  trip: InvoicingTripView,
+  multiTrip: boolean,
+): string {
+  const tripId = trimOrNull(trip.id) || '—';
+  const route = trimOrNull(trip.route) || 'Freight';
+  if (multiTrip) {
+    const vehicle = trimOrNull(trip.vehicle_number);
+    return vehicle
+      ? `Freight charges · Trip ID-${tripId} · ${route} · ${vehicle}`
+      : `Freight charges · Trip ID-${tripId} · ${route}`;
+  }
+  return 'Base freight';
+}
+
+export function buildShipmentView(trips: InvoicingTripView[]): InvoiceDraftShipmentView {
+  const rows = trips.map((trip) => {
+    const fromFields = {
+      pickup: trimOrNull(trip.pickup),
+      delivery: trimOrNull(trip.delivery),
+    };
+    const split =
+      fromFields.pickup || fromFields.delivery
+        ? fromFields
+        : splitInvoiceRoute(trip.route);
+    const truck = trimOrNull(trip.vehicle_number);
+    const load = trimOrNull(trip.load_type);
+    const lr = trimOrNull(trip.lr_number);
+    return {
+      trip_id: trimOrNull(trip.id) || '—',
+      trip_date: trimOrNull(trip.date) || '',
+      route: trimOrNull(trip.route) || '—',
+      amount: Number.isFinite(trip.amount) ? trip.amount : 0,
+      pickup: split.pickup || '',
+      delivery: split.delivery || '',
+      truck_no: truck,
+      load_type: load,
+      lr_number: lr,
+    };
+  });
+  if (rows.length === 0) {
+    return {
+      mode: 'empty',
+      trip_count: 0,
+      trip_id: null,
+      trip_date: null,
+      pickup: null,
+      delivery: null,
+      vehicle_notes: null,
+      truck_no: null,
+      load_type: null,
+      lr_number: null,
+      trips: [],
+    };
+  }
+  if (rows.length === 1) {
+    const only = rows[0]!;
+    return {
+      mode: 'single',
+      trip_count: 1,
+      trip_id: only.trip_id,
+      trip_date: only.trip_date || null,
+      pickup: only.pickup || null,
+      delivery: only.delivery || null,
+      vehicle_notes: only.truck_no,
+      truck_no: only.truck_no,
+      load_type: only.load_type,
+      lr_number: only.lr_number,
+      trips: [
+        {
+          trip_id: only.trip_id,
+          trip_date: only.trip_date,
+          route: only.route,
+          amount: only.amount,
+          truck_no: only.truck_no,
+          load_type: only.load_type,
+          lr_number: only.lr_number,
+        },
+      ],
+    };
+  }
+  return {
+    mode: 'multi',
+    trip_count: rows.length,
+    trip_id: null,
+    trip_date: null,
+    pickup: null,
+    delivery: null,
+    vehicle_notes: null,
+    truck_no: null,
+    load_type: null,
+    lr_number: null,
+    trips: rows.map((r) => ({
+      trip_id: r.trip_id,
+      trip_date: r.trip_date,
+      route: r.route,
+      amount: r.amount,
+      truck_no: r.truck_no,
+      load_type: r.load_type,
+      lr_number: r.lr_number,
+    })),
+  };
+}
 
 export type InvoiceDraftTaxDisplayRow = {
   key: string;
@@ -234,7 +382,7 @@ function buildDraftLines(
       buildInvoiceLineSnapshot({
         trip_id: trimOrNull(trip.internal_id),
         trip_ref: trimOrNull(trip.id),
-        description: trimOrNull(trip.route) || 'Freight',
+        description: buildFreightLineDescription(trip, trips.length > 1),
         qty: 1,
         unit: 'trip',
         rate: amount,
@@ -275,6 +423,60 @@ function buildDraftLines(
   return lines;
 }
 
+function emptyDraftClient(display_name: string): InvoiceDraftClientView {
+  return {
+    client_id: null,
+    legal_name: null,
+    display_name,
+    gstin: null,
+    pan: null,
+    billing_address: null,
+    state: null,
+    email: null,
+    contact_person: null,
+    phone: null,
+  };
+}
+
+function normalizeClientNameKey(value: string | null | undefined): string {
+  return (value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function viewFromClientRow(
+  row: InvoiceDraftClientRow,
+  fallbackName: string,
+): InvoiceDraftClientView {
+  return {
+    client_id: row.id,
+    legal_name: row.legal_name ?? null,
+    display_name: row.legal_name || row.name || fallbackName,
+    gstin: row.gstin ?? null,
+    pan: row.pan ?? null,
+    billing_address: row.billing_address ?? null,
+    state: row.state ?? null,
+    email: row.email ?? null,
+    contact_person: row.contact_person ?? null,
+    phone: row.phone ?? null,
+  };
+}
+
+function findFetchedClientByName(
+  fetched: InvoiceDraftClientRow[],
+  name: string | null,
+): InvoiceDraftClientRow | null {
+  const key = normalizeClientNameKey(name);
+  if (!key) return null;
+  return (
+    fetched.find((row) => {
+      const candidates = [
+        normalizeClientNameKey(row.name),
+        normalizeClientNameKey(row.legal_name),
+      ];
+      return candidates.includes(key);
+    }) ?? null
+  );
+}
+
 function resolveDraftClient(args: {
   trips: InvoicingTripView[];
   fetched: InvoiceDraftClientRow[];
@@ -290,43 +492,33 @@ function resolveDraftClient(args: {
     'Select a client';
 
   if (ids.length > 1) {
-    return {
-      client_id: null,
-      legal_name: null,
-      display_name: 'Multiple clients',
-      gstin: null,
-      pan: null,
-      billing_address: null,
-      state: null,
-      email: null,
-    };
+    return emptyDraftClient('Multiple clients');
   }
 
   if (ids.length === 1) {
     const row = byId.get(ids[0]);
     const tripName = args.trips.find((t) => t.client_id === ids[0])?.client;
+    if (row) {
+      return viewFromClientRow(row, trimOrNull(tripName) || fallbackName);
+    }
+    // client_id present but row missing — try name match from ledger fetch
+    const byName =
+      findFetchedClientByName(args.fetched, tripName ?? null) ||
+      findFetchedClientByName(args.fetched, fallbackName);
+    if (byName) return viewFromClientRow(byName, trimOrNull(tripName) || fallbackName);
     return {
+      ...emptyDraftClient(trimOrNull(tripName) || fallbackName),
       client_id: ids[0],
-      legal_name: row?.legal_name ?? null,
-      display_name: row?.legal_name || row?.name || trimOrNull(tripName) || fallbackName,
-      gstin: row?.gstin ?? null,
-      pan: row?.pan ?? null,
-      billing_address: row?.billing_address ?? null,
-      state: row?.state ?? null,
-      email: row?.email ?? null,
     };
   }
 
-  return {
-    client_id: null,
-    legal_name: null,
-    display_name: fallbackName,
-    gstin: null,
-    pan: null,
-    billing_address: null,
-    state: null,
-    email: null,
-  };
+  // No client_id on trips — resolve from ledger by customer name
+  const byName =
+    findFetchedClientByName(args.fetched, fallbackName) ||
+    findFetchedClientByName(args.fetched, args.trips[0]?.client ?? null);
+  if (byName) return viewFromClientRow(byName, fallbackName);
+
+  return emptyDraftClient(fallbackName);
 }
 
 function taxClientsForEngine(
@@ -338,11 +530,15 @@ function taxClientsForEngine(
   const clients: InvoiceTaxClientInput[] = [];
   for (const trip of trips) {
     const id = trimOrNull(trip.client_id);
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    const row = byId.get(id);
+    let row = id ? byId.get(id) : undefined;
+    if (!row) {
+      row = findFetchedClientByName(fetched, trip.client) ?? undefined;
+    }
+    const resolvedId = id || row?.id || null;
+    if (!resolvedId || seen.has(resolvedId)) continue;
+    seen.add(resolvedId);
     clients.push({
-      client_id: id,
+      client_id: resolvedId,
       gstin: row?.gstin ?? null,
       state: row?.state ?? null,
       organization_id: row?.organization_id ?? trip.organization_id ?? null,
@@ -406,6 +602,7 @@ export function buildInvoiceDraftModel(input: {
     indicative_due_date: indicativeDueDateFromPreview(preview_date, payment_terms),
     payment_terms,
     notes,
+    shipment: buildShipmentView(input.trips),
     issuer: input.issuer,
     client,
     lines: buildDraftLines(input.trips, input.config, gstRateForLines),
@@ -460,6 +657,7 @@ export function buildInvoiceDraftModelFromManualLines(input: {
     notes,
     issuer: input.issuer,
     client: input.client,
+    shipment: buildShipmentView([]),
     lines: input.lines,
     tax,
   };
@@ -469,20 +667,46 @@ function billingLinesFromClient(client: InvoiceDraftClientView): string[] {
   const lines: string[] = [];
   const name = trimOrNull(client.legal_name) || trimOrNull(client.display_name);
   if (name) lines.push(name);
+  if (client.contact_person) lines.push(client.contact_person);
   if (client.billing_address) lines.push(client.billing_address);
   if (client.state) lines.push(client.state);
   if (client.gstin) lines.push(`GSTIN ${client.gstin}`);
   if (client.pan) lines.push(`PAN ${client.pan}`);
+  if (client.phone) lines.push(client.phone);
   if (client.email) lines.push(client.email);
   return lines;
 }
 
-export function mapInvoiceDraftModelToPdfData(model: InvoiceDraftModel): InvoicePdfData {
+/** GST supply note for invoice footer — never invents reverse-charge or HSN. */
+export function invoiceGstSupplyNote(tax: InvoiceTaxResult): string | null {
+  if (tax.status !== 'ok') return null;
+  if (tax.supply_type === 'intra') {
+    return `GST applied · Intra-state supply (CGST + SGST @ ${tax.gst_rate}%)`;
+  }
+  if (tax.supply_type === 'inter') {
+    return `GST applied · Inter-state supply (IGST @ ${tax.gst_rate}%)`;
+  }
+  if (tax.supply_type === 'not_applicable') {
+    return 'GST not applicable for this issuer';
+  }
+  if (tax.supply_type === 'gst_off') {
+    return 'GST not applied on this draft';
+  }
+  return null;
+}
+
+export function mapInvoiceDraftModelToPdfData(
+  model: InvoiceDraftModel,
+  options?: { bankDetailsLines?: string[]; msmeNumber?: string | null },
+): InvoicePdfData {
   const { rows, warning } = invoiceDraftTaxDisplay(model.tax);
   const taxRows: InvoicePdfTaxRow[] = rows.map((row) => ({
     label: row.label,
     value: row.value,
   }));
+  const routeByTripRef = new Map(
+    model.shipment.trips.map((t) => [t.trip_id, t.route] as const),
+  );
   const items: InvoicePdfItem[] = model.lines.map((line, index) => {
     const nested = line.line_type === 'additional' && Boolean(line.trip_id);
     const desc = line.description ?? '';
@@ -493,18 +717,46 @@ export function mapInvoiceDraftModelToPdfData(model: InvoiceDraftModel): Invoice
           ? 'dn'
           : null
       : null;
+    const tripRef = trimOrNull(line.trip_ref);
+    const freightRoute =
+      line.line_type === 'freight' && tripRef
+        ? routeByTripRef.get(tripRef) || desc
+        : desc;
     return {
       key: `${line.line_type}-${line.trip_id ?? line.trip_ref ?? index}-${index}`,
-      tripId: line.trip_ref || line.description,
-      route: line.description,
-      date: '',
+      tripId: tripRef || line.description,
+      route: line.line_type === 'freight' ? freightRoute : desc,
+      title:
+        line.line_type === 'freight'
+          ? model.shipment.mode === 'multi'
+            ? desc
+            : 'BASE FREIGHT'
+          : desc,
+      subtitle:
+        line.line_type === 'freight' && model.shipment.mode === 'single'
+          ? freightRoute
+          : line.line_type === 'freight' && tripRef
+            ? `Trip ID · ${tripRef}`
+            : null,
+      date:
+        line.line_type === 'freight' && tripRef
+          ? model.shipment.trips.find((t) => t.trip_id === tripRef)?.trip_date ||
+            ''
+          : '',
       amount: line.taxable_value,
+      rate: line.rate,
       lineType: line.line_type,
       tripKey: line.trip_id,
       nested,
       splitKind,
+      hsnSac: line.hsn_sac,
     };
   });
+
+  const gstNote = invoiceGstSupplyNote(model.tax);
+  const userNotes = model.notes;
+  const combinedNotes =
+    [gstNote, userNotes].filter(Boolean).join('\n') || null;
 
   return {
     brandingCompanyName: model.issuer.businessName,
@@ -523,10 +775,16 @@ export function mapInvoiceDraftModelToPdfData(model: InvoiceDraftModel): Invoice
     issuerPan: model.issuer.pan,
     issuerGstin: model.issuer.gstin,
     issuerGstNotApplicable: model.issuer.gstNotApplicable,
+    issuerMsme: options?.msmeNumber?.trim() ? options.msmeNumber.trim() : null,
     billingLines: billingLinesFromClient(model.client),
     paymentTerms: model.payment_terms,
-    notes: model.notes,
-    bankDetailsLines: [],
+    notes: combinedNotes,
+    bankDetailsLines: options?.bankDetailsLines ?? [],
+    amountInWords: formatInvoiceAmountInWords(model.tax.total_amount),
+    shipment: {
+      ...model.shipment,
+      vehicle_notes: model.shipment.truck_no ?? model.shipment.vehicle_notes,
+    },
     items,
     taxableBase: model.tax.taxable_base,
     taxRows,
@@ -539,5 +797,11 @@ export function mapInvoiceDraftModelToPdfData(model: InvoiceDraftModel): Invoice
 export function uniqueTripClientIds(trips: InvoicingTripView[]): string[] {
   return Array.from(
     new Set(trips.map((t) => trimOrNull(t.client_id)).filter((id): id is string => Boolean(id))),
+  );
+}
+
+export function uniqueTripClientNames(trips: InvoicingTripView[]): string[] {
+  return Array.from(
+    new Set(trips.map((t) => trimOrNull(t.client)).filter((name): name is string => Boolean(name))),
   );
 }

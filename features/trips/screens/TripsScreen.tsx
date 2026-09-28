@@ -27,6 +27,7 @@ import Theme from "@/constants/Theme";
 import { useTabBarAwareScrollProps } from "@/contexts/DemoTabBarScrollContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useOptionalOrganization } from "@/contexts/OrganizationContext";
+import { useOptionalActiveWorkspace } from "@/contexts/ActiveWorkspaceContext";
 import { useAlertRegistryFinanceHandlers } from "@/lib/hooks/useAlertRegistryFinanceHandlers";
 import { useLoadingStuck } from "@/lib/hooks/useLoadingStuck";
 import { isInfrastructureErrorMessage } from "@/lib/supabaseHttp.util";
@@ -272,6 +273,7 @@ export default function TripsScreen() {
   );
   const { t: tr } = useLanguage();
   const orgCtx = useOptionalOrganization();
+  const workspaceCtx = useOptionalActiveWorkspace();
   const { finance } = useAlertRegistryFinanceHandlers();
   const salaryRequestRows = useGlobalSyncStore((s) => s.salaryRequestRows);
   const [refreshing, setRefreshing] = useState(false);
@@ -339,7 +341,8 @@ export default function TripsScreen() {
     ? "cards"
     : listLayout;
 
-  const { can: canSurface, orgCapabilities } = useMemberAccess();
+  const { can: canSurface, orgCapabilities, isLoading: memberAccessLoading } =
+    useMemberAccess();
   // Org model decides whether trips exist at all; the surface decides whether
   // this member may open them. Gating on member-filtered capabilities too would
   // hide the list from finance members, who hold `tripops.trips.view` as a
@@ -365,7 +368,10 @@ export default function TripsScreen() {
   const orgLoading = orgCtx?.isLoading ?? !orgCtx;
   const organizationError = orgCtx?.error ?? null;
   const refreshOrganization = orgCtx?.refreshOrganization;
-  const orgBootPending = orgLoading;
+  const workspaceResolving =
+    Boolean(workspaceCtx) &&
+    (workspaceCtx!.isLoading || !workspaceCtx!.membershipResolved);
+  const orgBootPending = orgLoading || workspaceResolving;
   const orgId = canAccess ? (currentOrganization?.id ?? null) : null;
   const cachedTripsForOrg = orgId
     ? (queryClient.getQueryData(queryKeys.trips.finite(orgId)) as TripRow[] | undefined)
@@ -1938,6 +1944,12 @@ export default function TripsScreen() {
     !isMobileViewport &&
     tripsHubPaginationTotal > 0;
 
+  if (memberAccessLoading || orgBootPending) {
+    if (!bootStuck) {
+      return <SceneLoadingSplash variant="preparing" message={tr("loading")} />;
+    }
+  }
+
   if (!canAccess) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
@@ -1963,6 +1975,11 @@ export default function TripsScreen() {
           />
         </View>
       );
+    }
+    // Authenticated but workspace still settling — hold splash, don't flash
+    // "No organization linked" on route focus / back navigation races.
+    if (workspaceResolving || orgLoading) {
+      return <SceneLoadingSplash variant="preparing" message={tr("loading")} />;
     }
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>

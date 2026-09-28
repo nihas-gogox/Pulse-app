@@ -1,6 +1,7 @@
 import { getDoubleEntryDisplayLabel } from "@/features/finance/accounting/accountingModel";
 import type { LedgerRow } from "@/features/finance/services/finance.service";
 import type { TripAssignmentAuditRow } from "@/features/trips/services/trip-assignment-audit.service";
+import type { TripHardCopyPodState } from "@/features/trips/services/tripDocumentLrPod.service";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import type { DriverActivityTimelineRow } from "@/features/trips/components/trip-detail/hooks/useTripDetail";
 import type { RegistryNotificationAvatar } from "@/lib/alertRegistry/registryNotificationAvatar.util";
@@ -132,7 +133,8 @@ type StatusActivityContext =
   | "completed"
   | "created"
   | "accepted"
-  | "assigned";
+  | "assigned"
+  | "pod_received";
 
 function statusActivityTitle(
   context: StatusActivityContext,
@@ -148,6 +150,8 @@ function statusActivityTitle(
       return "marked in transit";
     case "completed":
       return "marked complete";
+    case "pod_received":
+      return "recorded hard copy POD";
     default:
       return fallbackLabel.charAt(0).toLowerCase() + fallbackLabel.slice(1);
   }
@@ -236,6 +240,8 @@ export function buildTripAuditLog(params: {
   userDisplayById?: Record<string, string>;
   userProfileById?: Record<string, TripActivityUserProfile>;
   driverDisplayName?: string | null;
+  /** Current hard-copy POD record. Activity renders this; it is not a second copy. */
+  hardCopyPod?: TripHardCopyPodState | null;
 }): TripAuditLogEntry[] {
   const {
     trip,
@@ -249,6 +255,7 @@ export function buildTripAuditLog(params: {
     userDisplayById = {},
     userProfileById = {},
     driverDisplayName,
+    hardCopyPod,
   } = params;
 
   const entries: TripAuditLogEntry[] = [];
@@ -398,6 +405,7 @@ export function buildTripAuditLog(params: {
   for (const item of timelineRows) {
     if (item.kind !== "status") continue;
     if (item.status_context === "assigned") continue;
+    if (item.status_context === "pod_received" && hardCopyPod) continue;
 
     const actor = resolveStatusActor(
       item,
@@ -568,6 +576,60 @@ export function buildTripAuditLog(params: {
       ),
       contextLabel: "Trip created",
       detail: `${creator} created ${tripRef}`,
+    });
+  }
+
+  if (hardCopyPod && hardCopyPod.status !== "PENDING") {
+    const at =
+      hardCopyPod.receivedAt ??
+      trip.pod_received_at ??
+      trip.updated_at ??
+      trip.created_at ??
+      new Date().toISOString();
+    const actorId = hardCopyPod.actorId;
+    const actor = resolveTripActivityUserLabel(
+      actorId,
+      currentUserId,
+      userDisplayById,
+      "Staff",
+      userProfileById,
+    );
+    const methodLabel =
+      hardCopyPod.receiptMethod === "person"
+        ? "Received by Person"
+        : hardCopyPod.receiptMethod === "courier"
+          ? "Received by Courier"
+          : null;
+    const detail = [
+      hardCopyPod.status === "RECEIVED" ? "RECEIVED" : "IN TRANSIT",
+      methodLabel,
+      hardCopyPod.receivedBy ? `Received by ${hardCopyPod.receivedBy}` : null,
+      hardCopyPod.courier ? `Courier ${hardCopyPod.courier}` : null,
+      hardCopyPod.receivedDate,
+      hardCopyPod.receivedTime,
+      hardCopyPod.remarks,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    entries.push({
+      id: `hard-copy-pod-${trip.id}`,
+      at,
+      category: "status",
+      categoryLabel: categoryLabel("status"),
+      title:
+        hardCopyPod.status === "RECEIVED"
+          ? "recorded hard copy POD"
+          : "logged hard copy POD",
+      recordedAtLabel: formatAuditTimestamp(at),
+      recordedBy: actor,
+      actorAvatar: resolveActivityActorAvatar(
+        actor,
+        actorId,
+        userProfileById,
+        "client",
+      ),
+      contextLabel: "Hard copy POD",
+      detail: detail || `${actor} updated hard copy POD for ${tripRef}`,
     });
   }
 

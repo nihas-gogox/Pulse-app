@@ -1,5 +1,6 @@
 /**
- * Pending Billing right rail: partner summary, interpretation, issued invoice cards.
+ * Pending Billing right rail — summary metrics, interpretation, issued invoices.
+ * Visual language inspired by finance dashboard scorecards (colored headers, grid metrics).
  * Create Invoice stays in the trip-list header — not duplicated here.
  */
 import Layout from "@/constants/Layout";
@@ -7,6 +8,7 @@ import Theme from "@/constants/Theme";
 import { IssuedInvoiceCard } from "@/features/invoicing/components/IssuedInvoiceCard";
 import type { IssuedInvoiceListRow } from "@/features/invoicing/services/invoiceList.service";
 import { issuedInvoicesForPodToggle } from "@/features/invoicing/utils/invoicePodRequired.util";
+import { FileText } from "lucide-react-native";
 import { issuedInvoicesForClient } from "@/features/invoicing/utils/issuedInvoiceMatch.util";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -64,7 +66,7 @@ export function PendingBillingInsightPanel({
     0,
   );
 
-  const interpretation = buildInterpretation({
+  const interpretationLines = buildInterpretationLines({
     partnerLabel,
     tripCount,
     unbilledTripCount,
@@ -84,98 +86,158 @@ export function PendingBillingInsightPanel({
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionEyebrow}>Summary</Text>
-        <Text style={styles.sectionTitle} numberOfLines={1}>
-          {partnerLabel ? partnerLabel : "Select a partner"}
-        </Text>
-        {!partnerLabel ? (
-          <Text style={styles.body}>
-            Choose a strategic partner to see ready-to-invoice volume, selection,
-            and issued billing for that client.
-          </Text>
-        ) : (
-          <>
-            <View style={styles.metricGrid}>
-              <Metric label="Completed" value={String(completedTripCount)} />
-              <Metric label="Blocked — POD pending" value={String(podPendingTripCount)} />
-              <Metric label="Eligible" value={String(eligibleCount)} />
-              <Metric label="In draft" value={String(draftTripCount)} />
-              <Metric label="Already invoiced" value={String(invoicedTripCount)} />
-              <Metric label="Selected" value={String(selectedCount)} />
-              <Metric
-                label="Selected freight"
-                value={formatInr(selectedFreight)}
-              />
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Pending freight (listed)</Text>
-              <Text style={styles.statValue}>{formatInr(pendingFreight)}</Text>
-            </View>
-            <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Issued to this partner</Text>
-              <Text style={styles.statValue}>
-                {partnerInvoices.length} · {formatInr(issuedTotal)}
-              </Text>
-            </View>
-          </>
-        )}
-      </View>
-
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionEyebrow}>Interpretation</Text>
-        <Text style={styles.interpretation}>{interpretation}</Text>
-        {blockedReason ? (
-          <Text style={styles.blocked}>{blockedReason}</Text>
-        ) : null}
-      </View>
-
-      <View style={styles.issuedBlock}>
-        <View style={styles.issuedHeader}>
-          <Text style={styles.sectionEyebrow}>
-            {partnerLabel ? "Issued invoices" : "Recent issued invoices"}
-          </Text>
-          <Text style={styles.issuedCount}>
-            {partnerInvoices.length}
+      {/* Summary — colored header + metric grid */}
+      <View style={styles.panel}>
+        <View style={[styles.panelHeader, styles.panelHeaderSummary]}>
+          <Text style={styles.panelHeaderLabel}>Summary</Text>
+          <Text style={styles.panelHeaderTitle} numberOfLines={1}>
+            {partnerLabel || "Select a partner"}
           </Text>
         </View>
-        {partnerInvoices.length === 0 ? (
-          <View style={styles.emptyIssued}>
-            <Text style={styles.emptyTitle}>
-              {partnerLabel
-                ? "No issued invoices for this partner"
-                : "No issued invoices yet"}
+        <View style={styles.panelBody}>
+          {!partnerLabel ? (
+            <Text style={styles.body}>
+              Choose a strategic partner to see ready-to-invoice volume,
+              selection, and issued billing for that client.
             </Text>
-            <Text style={styles.emptySub}>
-              Use Create Invoice above once eligible trips are selected. Issued
-              documents stay visible here regardless of POD Required.
+          ) : (
+            <>
+              <View style={styles.metricGrid}>
+                <Metric label="Completed" value={String(completedTripCount)} tone="neutral" />
+                <Metric label="Blocked — POD pending" value={String(podPendingTripCount)} tone="neutral" />
+                <Metric label="Eligible" value={String(eligibleCount)} tone="positive" />
+                <Metric label="In draft" value={String(draftTripCount)} tone="neutral" />
+                <Metric label="Already invoiced" value={String(invoicedTripCount)} tone="neutral" />
+                <Metric label="Selected" value={String(selectedCount)} tone="accent" />
+                <Metric
+                  label="Selected freight"
+                  value={formatInr(selectedFreight)}
+                  tone="accent"
+                />
+              </View>
+              <View style={styles.footerStats}>
+                <View style={styles.footerStatRow}>
+                  <Text style={styles.footerStatLabel}>Pending freight (listed)</Text>
+                  <Text style={styles.footerStatValue}>
+                    {formatInr(pendingFreight)}
+                  </Text>
+                </View>
+                <View style={styles.footerStatRow}>
+                  <Text style={styles.footerStatLabel}>Issued to this partner</Text>
+                  <Text style={styles.footerStatValue}>
+                    {partnerInvoices.length} · {formatInr(issuedTotal)}
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+
+      {/* Interpretation */}
+      <View style={styles.panel}>
+        <View style={[styles.panelHeader, styles.panelHeaderInterpret]}>
+          <Text style={styles.panelHeaderLabelOnDark}>Interpretation</Text>
+          <View
+            style={[
+              styles.podPill,
+              podRequired ? styles.podPillOn : styles.podPillOff,
+            ]}
+          >
+            <Text
+              style={[
+                styles.podPillText,
+                podRequired ? styles.podPillTextOn : styles.podPillTextOff,
+              ]}
+            >
+              POD {podRequired ? "ON" : "OFF"}
             </Text>
           </View>
-        ) : (
-          partnerInvoices.map((item) => (
-            <IssuedInvoiceCard key={item.id} item={item} compact />
-          ))
-        )}
+        </View>
+        <View style={styles.panelBody}>
+          {interpretationLines.map((line) => (
+            <View key={line} style={styles.interpretRow}>
+              <View style={styles.interpretDot} />
+              <Text style={styles.interpretText}>{line}</Text>
+            </View>
+          ))}
+          {blockedReason ? (
+            <View style={styles.blockedBox}>
+              <Text style={styles.blocked}>{blockedReason}</Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+
+      {/* Issued invoices list */}
+      <View style={styles.panel}>
+        <View style={[styles.panelHeader, styles.panelHeaderIssued]}>
+          <Text style={styles.panelHeaderLabelOnDark}>
+            {partnerLabel ? "Issued invoices" : "Recent issued"}
+          </Text>
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>{partnerInvoices.length}</Text>
+          </View>
+        </View>
+        <View style={styles.panelBodyTight}>
+          {partnerInvoices.length === 0 ? (
+            <View style={styles.emptyIssued}>
+              <View style={styles.emptyIconWrap}>
+                <FileText
+                  size={20}
+                  color={Theme.darkGreen}
+                  strokeWidth={2}
+                />
+              </View>
+              <Text style={styles.emptyTitle}>
+                {partnerLabel
+                  ? "No issued invoices for this partner"
+                  : "No issued invoices yet"}
+              </Text>
+              <Text style={styles.emptySub}>
+                Use Create Invoice above once eligible trips are selected.
+                Issued documents stay visible here regardless of POD Required.
+              </Text>
+            </View>
+          ) : (
+            partnerInvoices.map((item) => (
+              <IssuedInvoiceCard key={item.id} item={item} compact />
+            ))
+          )}
+        </View>
       </View>
     </ScrollView>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "neutral" | "positive" | "accent";
+}) {
+  const valueStyle =
+    tone === "positive"
+      ? styles.metricValuePositive
+      : tone === "accent"
+        ? styles.metricValueAccent
+        : styles.metricValue;
   return (
     <View style={styles.metricCell}>
-      <Text style={styles.metricValue} numberOfLines={1}>
+      <Text style={valueStyle} numberOfLines={1}>
         {value}
       </Text>
-      <Text style={styles.metricLabel} numberOfLines={1}>
+      <Text style={styles.metricLabel} numberOfLines={2}>
         {label}
       </Text>
     </View>
   );
 }
 
-function buildInterpretation({
+function buildInterpretationLines({
   partnerLabel,
   tripCount,
   unbilledTripCount,
@@ -199,20 +261,36 @@ function buildInterpretation({
   podRequired: boolean;
   blockedReason?: string | null;
   issuedCount: number;
-}): string {
+}): string[] {
   if (!partnerLabel) {
-    return "Pending Billing lists partners with unbilled trip exposure. Select a client to review eligibility against their invoicing POD policy, then create an invoice from the trip list header.";
+    return [
+      "Select a partner to review eligibility against their invoicing POD policy.",
+      "Create Invoice stays in the trip list header once trips are selected.",
+    ];
   }
   if (blockedReason) {
-    return `Invoice creation is currently gated. ${blockedReason} Keep using the trip list to prepare selection; Create Invoice stays in the header above when the gate clears.`;
+    return [
+      "Invoice creation is currently gated for this workspace.",
+      "Keep preparing selection in the trip list; Create Invoice unlocks when the gate clears.",
+    ];
   }
   const podLine = podRequired
     ? "POD Required is ON — issue stays blocked for trips missing the client's required proof of delivery."
     : "POD Required is OFF — eligibility still follows each client's invoicing POD policy.";
-  if (selectedCount === 0) {
-    return `${partnerLabel} has ${unbilledTripCount} unbilled trip${unbilledTripCount === 1 ? "" : "s"} of ${tripCount} completed/open (${completedTripCount} completed, ${notCompletedTripCount} not completed). ${eligibleCount} are eligible to invoice. ${invoicedTripCount} trip${invoicedTripCount === 1 ? "" : "s"} already allocated to issued invoices. ${podLine} Select eligible rows, then Create Invoice above. ${issuedCount} issued invoice${issuedCount === 1 ? "" : "s"} already on file for this partner.`;
+  const lines: string[] = [
+    `${selectedCount} of ${eligibleCount} eligible trips selected (${unbilledTripCount} unbilled of ${tripCount} listed).`,
+    `Completion: ${completedTripCount} completed · ${notCompletedTripCount} not completed.`,
+    `${invoicedTripCount} trip${invoicedTripCount === 1 ? "" : "s"} already allocated to issued invoices.`,
+    podLine,
+  ];
+  if (issuedCount > 0) {
+    lines.push(
+      `${issuedCount} prior invoice${issuedCount === 1 ? "" : "s"} on file below.`,
+    );
+  } else {
+    lines.push("No prior invoices for this partner yet.");
   }
-  return `${selectedCount} trip${selectedCount === 1 ? "" : "s"} selected for ${partnerLabel} (${eligibleCount} eligible of ${unbilledTripCount} unbilled). ${podLine} Review the draft on the Create Invoice page before issuing. ${issuedCount} prior invoice${issuedCount === 1 ? "" : "s"} shown below.`;
+  return lines;
 }
 
 const styles = StyleSheet.create({
@@ -222,31 +300,69 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.analyticsCanvas,
   },
   content: {
-    padding: 16,
+    padding: 14,
     paddingBottom: 28,
     gap: 12,
   },
-  sectionCard: {
+  panel: {
     backgroundColor: Theme.cardWhite,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Theme.borderMedium,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 8,
+    overflow: "hidden",
   },
-  sectionEyebrow: {
+  panelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 44,
+  },
+  panelHeaderSummary: {
+    backgroundColor: Theme.accentBrownWash,
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.accentBrownBorder,
+  },
+  panelHeaderInterpret: {
+    backgroundColor: Theme.analyticsHeroBg,
+  },
+  panelHeaderIssued: {
+    backgroundColor: Theme.darkGreen,
+  },
+  panelHeaderLabel: {
     fontSize: 10,
     fontWeight: "800",
-    color: Theme.textMuted,
+    color: Theme.accentBrown,
     textTransform: "uppercase",
     letterSpacing: 0.7,
   },
-  sectionTitle: {
-    fontSize: 16,
+  panelHeaderLabelOnDark: {
+    fontSize: 10,
     fontWeight: "800",
-    color: Theme.textPrimaryDark,
+    color: Theme.textOnDark,
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  panelHeaderTitle: {
+    flex: 1,
+    minWidth: 0,
+    textAlign: "right",
+    fontSize: 13,
+    fontWeight: "800",
+    color: Theme.accentBrownDeep,
     letterSpacing: -0.2,
+  },
+  panelBody: {
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 10,
+  },
+  panelBodyTight: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    gap: 0,
   },
   body: {
     fontSize: 13,
@@ -255,7 +371,6 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   metricGrid: {
-    marginTop: 4,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
@@ -264,87 +379,153 @@ const styles = StyleSheet.create({
     width: "47%",
     flexGrow: 1,
     minWidth: 0,
-    backgroundColor: Theme.analyticsCanvas,
+    backgroundColor: Theme.surface,
     borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Theme.borderLight,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: Theme.borderMedium,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    alignItems: "flex-start",
   },
   metricValue: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: "800",
     color: Theme.textPrimaryDark,
+    letterSpacing: -0.3,
+  },
+  metricValuePositive: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: Theme.darkGreen,
+    letterSpacing: -0.3,
+  },
+  metricValueAccent: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: Theme.analyticsHeroBg,
+    letterSpacing: -0.3,
   },
   metricLabel: {
-    marginTop: 2,
+    marginTop: 4,
     fontSize: 10,
     fontWeight: "700",
     color: Theme.textMuted,
     textTransform: "uppercase",
     letterSpacing: 0.4,
+    lineHeight: 13,
   },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Theme.borderLight,
-    marginVertical: 4,
+  footerStats: {
+    marginTop: 2,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Theme.borderLight,
+    paddingTop: 10,
+    gap: 8,
   },
-  statRow: {
+  footerStatRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
   },
-  statLabel: {
+  footerStatLabel: {
     flex: 1,
     minWidth: 0,
     fontSize: 12,
     fontWeight: "600",
     color: Theme.textSecondary,
   },
-  statValue: {
-    fontSize: 12,
+  footerStatValue: {
+    fontSize: 13,
     fontWeight: "800",
     color: Theme.textPrimaryDark,
   },
-  interpretation: {
+  podPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  podPillOn: {
+    backgroundColor: Theme.warningMuted,
+    borderColor: Theme.warning,
+  },
+  podPillOff: {
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.35)",
+  },
+  podPillText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+  },
+  podPillTextOn: {
+    color: Theme.warning,
+  },
+  podPillTextOff: {
+    color: Theme.textOnDark,
+  },
+  interpretRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  interpretDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 6,
+    backgroundColor: Theme.analyticsHeroBg,
+  },
+  interpretText: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 13,
     fontWeight: "500",
     color: Theme.textPrimary,
     lineHeight: 19,
   },
-  blocked: {
+  blockedBox: {
     marginTop: 4,
+    backgroundColor: Theme.warningMuted,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.warning,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  blocked: {
     fontSize: 12,
     fontWeight: "700",
     color: Theme.warning,
     lineHeight: 17,
   },
-  issuedBlock: {
-    gap: 8,
-  },
-  issuedHeader: {
-    flexDirection: "row",
+  countBadge: {
+    minWidth: 24,
+    height: 22,
+    paddingHorizontal: 7,
+    borderRadius: 11,
+    backgroundColor: "rgba(255,255,255,0.22)",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 2,
-    marginBottom: 2,
+    justifyContent: "center",
   },
-  issuedCount: {
+  countBadgeText: {
     fontSize: 11,
     fontWeight: "800",
-    color: Theme.textMuted,
-    minWidth: 20,
-    textAlign: "right",
+    color: Theme.textOnDark,
   },
   emptyIssued: {
-    backgroundColor: Theme.cardWhite,
-    borderWidth: 1,
-    borderColor: Theme.borderMedium,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 20,
     alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 18,
+  },
+  emptyIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Theme.positiveMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
   },
   emptyTitle: {
     fontSize: 12,
@@ -352,7 +533,7 @@ const styles = StyleSheet.create({
     color: Theme.textPrimaryDark,
     textAlign: "center",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   emptySub: {
     marginTop: Layout.spacingSmall,

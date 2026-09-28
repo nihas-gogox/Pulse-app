@@ -1,7 +1,11 @@
 /**
  * Canonical linked-org display cache, scoped by viewer organization.
  * Overlapping ID sets in the same workspace share one map; the batch RPC
- * runs only for missing IDs. Maps are not shared across workspaces.
+ * runs only for missing IDs.
+ *
+ * Concurrent ensures for the same viewer org fetch in parallel (keyed by the
+ * missing-id set). Writes merge via functional setQueryData so a small trip-page
+ * branding lookup is never stuck behind an unrelated large batch.
  */
 import {
   getLinkedOrgProfilesBatch,
@@ -23,7 +27,11 @@ export type LinkedOrgDisplayProfile = {
   orgCreatedAt?: string;
 };
 
-const inflightByOrg = new Map<string, Promise<void>>();
+/** In-flight fetches keyed by `${viewerOrgId}::${sortedMissingIds}`. */
+const inflightByMissingKey = new Map<
+  string,
+  Promise<Record<string, LinkedOrgDisplayProfile>>
+>();
 
 /** Viewer org bound by OrganizationProvider — used to drop stale writes. */
 let activeViewerOrgId: string | null = null;
@@ -42,6 +50,7 @@ export function purgeLinkedOrgDisplayQueries(qc: QueryClient): void {
   qc.removeQueries({
     predicate: (q) => isLinkedOrgDisplayQueryKey(q.queryKey),
   });
+  inflightByMissingKey.clear();
 }
 
 function uniqueSortedIds(ids: readonly string[]): string[] {
@@ -102,24 +111,26 @@ export function mergeLinkedOrgDisplayProfiles(
   profiles: Record<string, OrgDisplayProfile | LinkedOrgDisplayProfile>,
 ): void {
   if (!viewerOrgId || Object.keys(profiles).length === 0) return;
+  if (activeViewerOrgId !== viewerOrgId) return;
   const key = canonicalKey(viewerOrgId);
-  const cached =
-    qc.getQueryData<Record<string, LinkedOrgDisplayProfile>>(key) ?? {};
-  const next = { ...cached };
+  const mapped: Record<string, LinkedOrgDisplayProfile> = {};
   for (const [id, profile] of Object.entries(profiles)) {
     if (!profile) continue;
-    next[id] =
+    mapped[id] =
       "contactPerson" in profile
         ? toLinkedOrgDisplayProfile(profile as OrgDisplayProfile)
         : (profile as LinkedOrgDisplayProfile);
   }
-  if (activeViewerOrgId !== viewerOrgId) return;
-  qc.setQueryData(key, next);
+  qc.setQueryData<Record<string, LinkedOrgDisplayProfile>>(key, (prev) => ({
+    ...(prev ?? {}),
+    ...mapped,
+  }));
 }
 
 /**
  * Returns display profiles for `ids`, fetching only those missing from the
- * viewer-org canonical map. Concurrent callers for the same org are serialized.
+ * viewer-org canonical map. Identical missing-id sets share one in-flight RPC;
+ * different sets run in parallel and merge into the canonical map.
  */
 export async function ensureLinkedOrgDisplayProfiles(
   ids: readonly string[],
@@ -130,38 +141,40 @@ export async function ensureLinkedOrgDisplayProfiles(
   if (!viewerOrgId || wanted.length === 0) return {};
 
   const key = canonicalKey(viewerOrgId);
-  let picked: Record<string, LinkedOrgDisplayProfile> = {};
-  const prev = inflightByOrg.get(viewerOrgId) ?? Promise.resolve();
-  const run = prev.then(async () => {
-    const cached =
-      qc.getQueryData<Record<string, LinkedOrgDisplayProfile>>(key) ?? {};
-    const missing = wanted.filter((id) => !cached[id]);
-    let next = cached;
-    if (missing.length > 0) {
+  const cached =
+    qc.getQueryData<Record<string, LinkedOrgDisplayProfile>>(key) ?? {};
+  const missing = wanted.filter((id) => !cached[id]);
+  if (missing.length === 0) return pickWanted(cached, wanted);
+
+  const flightKey = `${viewerOrgId}::${missing.join(",")}`;
+  let flight = inflightByMissingKey.get(flightKey);
+  if (!flight) {
+    flight = (async () => {
       const fresh = await getLinkedOrgProfilesBatch(missing);
       const mapped: Record<string, LinkedOrgDisplayProfile> = {};
       for (const [id, profile] of Object.entries(fresh)) {
         mapped[id] = toLinkedOrgDisplayProfile(profile);
       }
-      next = {
-        ...(qc.getQueryData<Record<string, LinkedOrgDisplayProfile>>(key) ?? {}),
-        ...mapped,
-      };
-      // Org A fetch must not write after a switch/logout (including back into A
-      // after the org-switch wipe, which would persist into the next session).
       if (activeViewerOrgId === viewerOrgId) {
-        qc.setQueryData(key, next);
+        qc.setQueryData<Record<string, LinkedOrgDisplayProfile>>(key, (prev) => ({
+          ...(prev ?? {}),
+          ...mapped,
+        }));
       }
-    }
-    picked = pickWanted(next, wanted);
-  });
-  inflightByOrg.set(
-    viewerOrgId,
-    run.then(
-      () => undefined,
-      () => undefined,
-    ),
-  );
-  await run;
-  return picked;
+      return mapped;
+    })().finally(() => {
+      inflightByMissingKey.delete(flightKey);
+    });
+    inflightByMissingKey.set(flightKey, flight);
+  }
+
+  try {
+    await flight;
+  } catch {
+    /* leave partial cache */
+  }
+
+  const next =
+    qc.getQueryData<Record<string, LinkedOrgDisplayProfile>>(key) ?? cached;
+  return pickWanted(next, wanted);
 }

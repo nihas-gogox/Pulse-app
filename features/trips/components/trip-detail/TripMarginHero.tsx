@@ -15,7 +15,7 @@ export type TripMarginHeroProps = {
   layout?: "mobile" | "desktop";
 };
 
-const LOTTIE_SIZE = { mobile: 52, desktop: 64 } as const;
+const LOTTIE_SIZE = { mobile: 44, desktop: 40 } as const;
 const LOTTIE_RENDER_SCALE = 1.75;
 const LOTTIE_SPEED: Record<TripMarginTone, number> = {
   profit: 0.9,
@@ -89,19 +89,20 @@ export const TripMarginHero = memo(function TripMarginHero({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Theme.cardWhite,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e6edf5",
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     alignItems: "center",
+    alignSelf: "stretch",
     overflow: "hidden",
   },
   cardDesktop: {
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    borderRadius: 16,
-    marginBottom: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 0,
   },
   cardLoss: {
     borderColor: "rgba(220,38,38,0.25)",
@@ -114,7 +115,7 @@ const styles = StyleSheet.create({
   lottieSlot: {
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 4,
     overflow: "visible",
   },
   label: {

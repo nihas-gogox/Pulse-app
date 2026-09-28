@@ -39,6 +39,11 @@ interface StoryReelProps {
    * call sites keep compiling; safe to drop from callers.
    */
   networkPartnerOrgIds?: ReadonlySet<string>;
+  /**
+   * When false, skip the live-own-LOAD stories query (e.g. trip/chat embeds that
+   * already pass partner posts). Default true for Network / Load Center.
+   */
+  fetchLiveOwnLoads?: boolean;
 }
 
 type StoryMetrics = {
@@ -410,12 +415,15 @@ export function StoryReel({
   onCreatePost,
   embedded = false,
   canCreatePost = true,
+  fetchLiveOwnLoads = true,
 }: StoryReelProps) {
   const router = useRouter();
   const { profile } = useAuth();
   const { currentOrganization } = useOrganization();
   /** Same source as Load Center green Pulse — not limited to network-feed rows. */
-  const liveOwnLoadsQ = useLiveOwnLoadStoriesQuery(orgId ?? null);
+  const liveOwnLoadsQ = useLiveOwnLoadStoriesQuery(orgId ?? null, {
+    enabled: fetchLiveOwnLoads,
+  });
   const [seenKeys, setSeenKeys] = useState<Record<string, true>>({});
   const seenStorageKey = `q:stories:seen:${orgId ?? "global"}`;
   /** Impression (v1): sponsored story rendered into this strip — NOT "seen
