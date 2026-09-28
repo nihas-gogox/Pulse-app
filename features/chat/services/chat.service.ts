@@ -1,6 +1,6 @@
 import type { RatedType, RatingRow } from "@/features/ratings/types";
 import { markStart, markEnd, recordMarkConversationRead } from "@/lib/chatPerf";
-import { supabase } from "@/lib/supabase";
+import { getAccessToken, supabase } from "@/lib/supabase";
 import type {
   ChatTripFlow,
   ConversationPartyType,
@@ -1235,6 +1235,7 @@ export async function getIntegratedPartners(
 ): Promise<NetworkPartner[]> {
   const { isSupabaseCircuitOpen } = await import("@/lib/supabaseHttp.util");
   if (isSupabaseCircuitOpen()) return [];
+  if (!(await getAccessToken())) return [];
   const { data, error } = await supabase().rpc("get_integrated_partners", { p_org_id: orgId });
   if (error || data == null) return [];
 

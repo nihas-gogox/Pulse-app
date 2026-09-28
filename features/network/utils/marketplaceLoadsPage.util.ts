@@ -1,6 +1,9 @@
 /** First marketplace page on Load — keep the RPC small so network indents stay first. */
 export const MARKETPLACE_LOAD_PAGE_SIZE = 15;
 
+/** How close to the bottom (px) before the next page paints. */
+export const LOAD_SCROLL_PAGE_THRESHOLD_PX = 140;
+
 export function sliceMarketplaceLoadsPage<T>(
   rows: T[],
   offset: number,
@@ -37,4 +40,14 @@ export function growVisibleLoadCount(
   pageSize: number = MARKETPLACE_LOAD_PAGE_SIZE,
 ): number {
   return Math.min(total, visibleCount + pageSize);
+}
+
+export function isScrollNearListEnd(
+  layoutHeight: number,
+  offsetY: number,
+  contentHeight: number,
+  thresholdPx: number = LOAD_SCROLL_PAGE_THRESHOLD_PX,
+): boolean {
+  if (contentHeight <= 0 || layoutHeight <= 0) return false;
+  return layoutHeight + offsetY >= contentHeight - thresholdPx;
 }

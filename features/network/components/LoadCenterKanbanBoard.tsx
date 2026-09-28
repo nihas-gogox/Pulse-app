@@ -5,10 +5,12 @@
  */
 import Theme from "@/constants/Theme";
 import type { IndentRow } from "@/features/indents";
+import { useScrollPagedItems } from "@/features/network/hooks/useScrollPagedItems";
+import { MARKETPLACE_LOAD_PAGE_SIZE } from "@/features/network/utils/marketplaceLoadsPage.util";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Maximize2 } from "lucide-react-native";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Platform,
   Pressable,
@@ -36,8 +38,8 @@ export type LoadCenterKanbanColumn = {
   accent: string;
   loads: IndentRow[];
   /**
-   * How many cards to paint before "Load more".
-   * The header badge stays `loads.length` — the page size is not the total.
+   * How many cards to paint before the next scroll page.
+   * The header badge stays `loads.length` (full catalog) — never the painted prefix.
    */
   pageSize?: number;
   /**
@@ -82,18 +84,11 @@ function KanbanColumn({
   const activeTab =
     tabs.find((t) => t.id === activeTabId) ?? tabs[0] ?? null;
   const stageLoads = hasTabs ? (activeTab?.loads ?? []) : column.loads;
-  const pageSize = column.pageSize;
-  const [shownCount, setShownCount] = useState(
-    pageSize ?? stageLoads.length,
-  );
-  useEffect(() => {
-    setShownCount(pageSize ?? stageLoads.length);
-  }, [column.id, activeTabId, pageSize, stageLoads.length]);
-  const visibleLoads =
-    pageSize != null ? stageLoads.slice(0, shownCount) : stageLoads;
+  const pageSize = column.pageSize ?? MARKETPLACE_LOAD_PAGE_SIZE;
+  const { visibleItems: visibleLoads, hasMore, remaining, onScroll } =
+    useScrollPagedItems(stageLoads, pageSize, `${column.id}:${activeTabId}`);
   const badgeCount = column.loads.length;
-  const hiddenCount = Math.max(0, stageLoads.length - visibleLoads.length);
-  const showEmpty = visibleLoads.length === 0;
+  const showEmpty = stageLoads.length === 0;
 
   return (
     <View
@@ -179,6 +174,8 @@ function KanbanColumn({
         contentContainerStyle={styles.columnScrollContent}
         showsVerticalScrollIndicator={hovered || Platform.OS !== "web"}
         nestedScrollEnabled
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
         {showEmpty ? (
           <View style={styles.emptyColumn}>
@@ -200,24 +197,12 @@ function KanbanColumn({
             </View>
           ))
         )}
-        {hiddenCount > 0 ? (
-          <Pressable
-            onPress={() =>
-              setShownCount((n) =>
-                Math.min(stageLoads.length, n + (pageSize ?? stageLoads.length)),
-              )
-            }
-            style={({ pressed }) => [
-              styles.loadMoreBtn,
-              pressed && styles.loadMoreBtnPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={`Load more ${column.label}`}
-          >
+        {hasMore ? (
+          <View style={styles.loadMoreHint} accessibilityLabel={`${remaining} more ${column.label}`}>
             <Text style={styles.loadMoreBtnText}>
-              Load more ({hiddenCount} more)
+              Scroll for more · {remaining} of {badgeCount} remaining
             </Text>
-          </Pressable>
+          </View>
         ) : null}
       </ScrollView>
     </View>
@@ -513,21 +498,14 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  loadMoreBtn: {
+  loadMoreHint: {
     alignSelf: "stretch",
-    minHeight: 44,
+    minHeight: 36,
     marginTop: 4,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Theme.borderLight,
-    backgroundColor: Theme.screenBackground,
+    paddingVertical: 8,
     justifyContent: "center",
     alignItems: "center",
-  },
-  loadMoreBtnPressed: {
-    opacity: 0.85,
   },
   loadMoreBtnText: {
     fontSize: 13,

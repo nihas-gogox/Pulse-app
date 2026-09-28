@@ -298,8 +298,9 @@ export function IntegratedChatProvider({
   children: ReactNode;
   isActive?: boolean;
 }) {
-  const { profile } = useAuth();
+  const { profile, status } = useAuth();
   const selfUid = profile?.uid ?? null;
+  const sessionReady = status === "authenticated";
   const org = useOptionalOrganization();
   const currentOrganization = org?.currentOrganization ?? null;
   const orgId = currentOrganization?.id ?? null;
@@ -390,7 +391,7 @@ export function IntegratedChatProvider({
   }, []);
 
   const loadData = useCallback(async () => {
-    if (!orgId || !selfUid) return;
+    if (!orgId || !selfUid || !sessionReady) return;
     setIsLoading(true);
     try {
       const { conversations: convs, partners: pts } =
@@ -417,30 +418,30 @@ export function IntegratedChatProvider({
     } finally {
       setIsLoading(false);
     }
-  }, [orgId, selfUid]);
+  }, [orgId, selfUid, sessionReady]);
   loadDataRef.current = loadData;
 
   useEffect(() => {
-    if (orgId && selfUid) return;
+    if (orgId && selfUid && sessionReady) return;
     setConversations([]);
     setPartners([]);
     setIsLoading(false);
     bootstrappedOrgRef.current = null;
-  }, [orgId, selfUid]);
+  }, [orgId, selfUid, sessionReady]);
 
   // Lightweight bootstrap load (for FAB preview/unread badges even when chat screen is not focused).
   useEffect(() => {
-    if (!orgId || !selfUid) return;
+    if (!orgId || !selfUid || !sessionReady) return;
     if (bootstrappedOrgRef.current === orgId) return;
     bootstrappedOrgRef.current = orgId;
     void loadData();
-  }, [orgId, selfUid, loadData]);
+  }, [orgId, selfUid, sessionReady, loadData]);
 
   useEffect(() => {
-    if (!isActive || !selfUid) return;
+    if (!isActive || !selfUid || !sessionReady) return;
     if (Date.now() - lastFetchedAtRef.current < 5 * 60_000) return;
     loadData();
-  }, [isActive, selfUid, loadData]);
+  }, [isActive, selfUid, sessionReady, loadData]);
 
   const queueRefreshData = useCallback(() => {
     if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);

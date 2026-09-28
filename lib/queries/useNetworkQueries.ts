@@ -9,6 +9,7 @@ export {
 } from '@/lib/hooks/useConnectionRequestsFromGlobalSync';
 
 import { getDriverInvitesSent } from '@/features/drivers/services/drivers.service';
+import { useAuth } from '@/contexts/AuthContext';
 import { invalidateFleetDriverConnectionCaches } from '@/lib/invalidateFleetDriverConnectionCaches';
 import { useQueryBootDefer } from '@/lib/hooks/useQueryBootDefer';
 import { refetchOnMountIfEntityListEmpty } from '@/lib/queries/entityListQueryOptions';
@@ -26,10 +27,12 @@ export function useDriverInvitesSentQuery(
   orgId: string | null,
   options?: DriverInvitesOptions,
 ) {
+  const { status } = useAuth();
   const deferMs = options?.bootDeferMs ?? 1500;
   const deferReady = useQueryBootDefer(orgId, deferMs);
   const enabled =
     !!orgId &&
+    status === 'authenticated' &&
     options?.enabled !== false &&
     (deferMs === 0 ? true : deferReady);
 

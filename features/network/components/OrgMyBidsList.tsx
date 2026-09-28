@@ -25,6 +25,8 @@ import { formatStoryDate } from "@/features/network/utils/storyDisplay";
 import {
   createMarketplaceFeeOrder,
   createTestMarketplaceFeeOrder,
+  marketplaceFeeGateSatisfied,
+  settleMarketplaceFeeAsCash,
   simulateTestMarketplaceFeePayment,
   type TestMarketplaceFeeProvider,
 } from "@/features/network/services/marketBids.service";
@@ -39,6 +41,7 @@ import {
 import { RazorpayTestPreviewSheet } from "@/features/driver/components/RazorpayTestPreviewSheet";
 import { getTripByIndentId } from "@/features/trips/services/trips.service";
 import { showAppAlert } from "@/lib/appAlert";
+import { confirmDialog } from "@/lib/confirmDialog";
 import { ROUTES } from "@/lib/routes";
 import { useRouter } from "expo-router";
 import { ChevronRight, Inbox } from "lucide-react-native";
@@ -96,16 +99,11 @@ function routeLabel(bid: MyOrgMarketBidRow): string {
   return `${from} → ${to}`;
 }
 
-/** A8.6.2 — the Marketplace fee gates trip creation now, not just award. */
-function feePaymentGateSatisfied(status: FeePaymentStatus): boolean {
-  return status === "paid" || status === "not_required";
-}
-
 function feePendingLabel(status: FeePaymentStatus, feeAmount: number | null): string {
   const feeLabel = feeAmount != null ? formatAmount(feeAmount) : "the Marketplace fee";
   switch (status) {
     case "pending":
-      return `Payment of ${feeLabel} is processing…`;
+      return `Payment of ${feeLabel} did not finish. Complete cash payment to unlock Assign.`;
     case "failed":
       return `Payment of ${feeLabel} failed — retry to unlock this load.`;
     case "required":
@@ -220,7 +218,7 @@ function BidCard({
   const isAccepted = bid.status === "accepted";
   const isRejected = bid.status === "rejected";
   const phoneDisplay = bid.owner_phone ?? bid.owner_masked_phone;
-  const feeGateSatisfied = feePaymentGateSatisfied(bid.fee_payment_status);
+  const feeGateSatisfied = marketplaceFeeGateSatisfied(bid.fee_payment_status);
   const [isNavigating, setIsNavigating] = useState(false);
   const [isStartingPayment, setIsStartingPayment] = useState(false);
   const [checkoutOrder, setCheckoutOrder] = useState<{
@@ -243,7 +241,11 @@ function BidCard({
   const [isStartingTestPayment, setIsStartingTestPayment] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
 
-  const canPay = isAccepted && (bid.fee_payment_status === "required" || bid.fee_payment_status === "failed");
+  const canPay =
+    isAccepted &&
+    (bid.fee_payment_status === "required" ||
+      bid.fee_payment_status === "failed" ||
+      bid.fee_payment_status === "pending");
   const shipper = titleCaseWord(
     (bid.owner_organization_name ?? "").trim() || "Unknown shipper",
   );
@@ -277,8 +279,43 @@ function BidCard({
     onPaymentUpdated?.();
   };
 
+  const handleCashSettle = async () => {
+    if (isSimulating) return;
+    setMethodSheetOpen(false);
+    const feeLabel = formatAmount(bid.platform_fee_amount);
+    const confirmed = await confirmDialog({
+      title: "Pay Marketplace fee with cash",
+      message: `Record ${feeLabel} as cash paid to Pulse? This unlocks Assign.`,
+      confirmLabel: "Confirm cash paid",
+    });
+    if (!confirmed) return;
+    setIsSimulating(true);
+    try {
+      const { error } = await settleMarketplaceFeeAsCash(bid.id);
+      if (error) {
+        showAppAlert("Could not record fee", error.message);
+        return;
+      }
+      onPaymentUpdated?.();
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
   const handleStartTestPayment = async (provider: TestMarketplaceFeeProvider) => {
+    if (provider === "cash") {
+      await handleCashSettle();
+      return;
+    }
     if (isStartingTestPayment) return;
+    if (bid.fee_payment_status === "pending") {
+      setMethodSheetOpen(false);
+      setTestOrder({
+        provider,
+        amount: Number(bid.platform_fee_amount) || 0,
+      });
+      return;
+    }
     setIsStartingTestPayment(true);
     try {
       const { error, order } = await createTestMarketplaceFeeOrder(bid.id, provider);
@@ -325,6 +362,10 @@ function BidCard({
   // "Get Load -> Allocate" CTA) -- mirrors IndentDetailScreen's handleSupplierAllocate:
   // route to the trip if allocation already happened elsewhere, otherwise open Allocation.
   const handleAssignVehicle = async () => {
+    if (!marketplaceFeeGateSatisfied(bid.fee_payment_status)) {
+      setMethodSheetOpen(true);
+      return;
+    }
     if (isNavigating) return;
     setIsNavigating(true);
     try {
@@ -415,11 +456,15 @@ function BidCard({
         {isAccepted && !feeGateSatisfied && canPay ? (
           <Pressable
             onPress={() => setMethodSheetOpen(true)}
-            disabled={isStartingPayment}
+            disabled={isStartingPayment || isSimulating}
             style={({ pressed }) => [styles.payButton, pressed && styles.assignRowPressed]}
           >
             <Text style={styles.payButtonText} numberOfLines={1}>
-              {isStartingPayment ? "Starting…" : "Pay fee"}
+              {isStartingPayment || isSimulating
+                ? "Working…"
+                : bid.fee_payment_status === "pending"
+                  ? "Complete payment"
+                  : "Pay fee"}
             </Text>
           </Pressable>
         ) : null}
@@ -456,7 +501,7 @@ function BidCard({
       ) : null}
       <PilotPaymentMethodSheet
         visible={methodSheetOpen}
-        busy={isStartingPayment || isStartingTestPayment}
+        busy={isStartingPayment || isStartingTestPayment || isSimulating}
         onClose={() => setMethodSheetOpen(false)}
         onRazorpay={() => {
           setMethodSheetOpen(false);

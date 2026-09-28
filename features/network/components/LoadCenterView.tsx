@@ -126,6 +126,7 @@ import {
 } from "@/lib/hooks/appQueryGate.util";
 import {
   growVisibleLoadCount,
+  isScrollNearListEnd,
   MARKETPLACE_LOAD_PAGE_SIZE,
   takeVisibleLoadPage,
 } from "@/features/network/utils/marketplaceLoadsPage.util";
@@ -483,6 +484,17 @@ export function LoadCenterView({
     loadMatchesSearch,
   } = filters;
 
+  const advertisedNetworkLoads = useMemo(
+    () =>
+      findWorkLoads.filter((load) => {
+        if (searchQuery.trim() && !loadMatchesSearch(load, searchQuery)) {
+          return false;
+        }
+        return !myQuoteByIndentId.has(load.id);
+      }),
+    [findWorkLoads, loadMatchesSearch, searchQuery, myQuoteByIndentId],
+  );
+
   const [networkVisibleCount, setNetworkVisibleCount] = useState(
     MARKETPLACE_LOAD_PAGE_SIZE,
   );
@@ -504,24 +516,10 @@ export function LoadCenterView({
   const renderNetworkLoadMore = () => {
     if (!hasMoreNetworkLoads) return null;
     return (
-      <Pressable
-        onPress={() =>
-          setNetworkVisibleCount((n) =>
-            growVisibleLoadCount(n, filteredFindWorkList.length),
-          )
-        }
-        style={({ pressed }) => [
-          styles.loadMoreBtn,
-          pressed && styles.loadMoreBtnPressed,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="Load more network loads"
-      >
-        <Text style={styles.loadMoreBtnText}>
-          Load more ({filteredFindWorkList.length - visibleFindWorkList.length}{" "}
-          more)
-        </Text>
-      </Pressable>
+      <Text style={styles.loadMoreBtnText}>
+        Scroll for more · {filteredFindWorkList.length - visibleFindWorkList.length} of{" "}
+        {filteredFindWorkList.length} remaining
+      </Text>
     );
   };
 
@@ -639,6 +637,7 @@ export function LoadCenterView({
           label: giveLoadKanbanColumnLabel(id),
           accent: accents[id],
           loads: buckets.DONE,
+          pageSize: MARKETPLACE_LOAD_PAGE_SIZE,
           defaultTabId: "IN_TRANSIT",
           tabs: [
             {
@@ -659,6 +658,7 @@ export function LoadCenterView({
         label: giveLoadKanbanColumnLabel(id),
         accent: accents[id],
         loads: buckets[id],
+        pageSize: MARKETPLACE_LOAD_PAGE_SIZE,
       };
     });
   }, [
@@ -699,6 +699,7 @@ export function LoadCenterView({
           label: getLoadKanbanColumnLabel(id),
           accent: accents[id],
           loads: buckets.CLAIMED,
+          pageSize: MARKETPLACE_LOAD_PAGE_SIZE,
           defaultTabId: "IN_TRANSIT",
           tabs: [
             {
@@ -719,7 +720,7 @@ export function LoadCenterView({
         label: getLoadKanbanColumnLabel(id),
         accent: accents[id],
         loads: buckets[id],
-        pageSize: id === "OPEN" ? MARKETPLACE_LOAD_PAGE_SIZE : undefined,
+        pageSize: MARKETPLACE_LOAD_PAGE_SIZE,
       };
     });
   }, [
@@ -2067,8 +2068,25 @@ export function LoadCenterView({
           ]}
           showsVerticalScrollIndicator={false}
           nestedScrollEnabled
-          scrollEventThrottle={400}
+          scrollEventThrottle={16}
           {...(isMobileView ? tabBarScrollProps : {})}
+          onScroll={(e) => {
+            if (isMobileView) tabBarScrollProps.onScroll?.(e);
+            if (loadSubTab !== "GET_LOAD" || !hasMoreNetworkLoads) return;
+            const { layoutMeasurement, contentOffset, contentSize } =
+              e.nativeEvent;
+            if (
+              isScrollNearListEnd(
+                layoutMeasurement.height,
+                contentOffset.y,
+                contentSize.height,
+              )
+            ) {
+              setNetworkVisibleCount((n) =>
+                growVisibleLoadCount(n, filteredFindWorkList.length),
+              );
+            }
+          }}
           refreshControl={
             loadSubTab === "GET_LOAD" ? (
               <RefreshControl
@@ -2234,6 +2252,8 @@ export function LoadCenterView({
                         clientOrgIds={connectedClientOrgIds}
                         embedded
                         sidebarStack
+                        indentLoads={advertisedNetworkLoads}
+                        renderIndentCard={renderGetLoadGridCard}
                       />
                       <Pressable
                         onPress={() => setFindMarketplaceMode("get")}
@@ -2683,6 +2703,12 @@ export function LoadCenterView({
         orgId={orgId}
         supplierOrgIds={connectedSupplierOrgIds}
         clientOrgIds={connectedClientOrgIds}
+        indentLoads={
+          findMarketplaceMode === "get" ? advertisedNetworkLoads : undefined
+        }
+        renderIndentCard={
+          findMarketplaceMode === "get" ? renderGetLoadGridCard : undefined
+        }
       />
 
       {expandedKanbanColumn == null ? (

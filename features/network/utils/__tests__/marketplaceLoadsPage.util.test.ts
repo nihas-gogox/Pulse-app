@@ -1,5 +1,6 @@
 import {
   growVisibleLoadCount,
+  isScrollNearListEnd,
   MARKETPLACE_LOAD_PAGE_SIZE,
   nextMarketplacePageOffset,
   sliceMarketplaceLoadsPage,
@@ -38,5 +39,11 @@ describe("marketplaceLoadsPage", () => {
     expect(takeVisibleLoadPage(rows, 15)).toHaveLength(15);
     expect(takeVisibleLoadPage(rows, 30)).toHaveLength(20);
     expect(rows).toHaveLength(20);
+  });
+
+  it("detects scroll near the list end without using painted length as the total", () => {
+    expect(isScrollNearListEnd(400, 860, 1400, 140)).toBe(true);
+    expect(isScrollNearListEnd(400, 200, 1400, 140)).toBe(false);
+    expect(growVisibleLoadCount(15, 87)).toBe(30);
   });
 });
