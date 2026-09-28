@@ -23,8 +23,10 @@ import {
   calculateMarketplacePlatformFee,
   createMarketTripAfterFeePayment,
   rejectMarketBid,
+  revokeIndentAward,
 } from "@/features/network/services/marketBids.service";
 import { formatMarketplaceTransactionError } from "@/features/marketplace/utils/marketplaceErrorFormat.util";
+import { indentHasAwardRevokedTag } from "@/features/trips/utils/indentHubCardPresentation";
 import { useMarketBidsForIndentQuery } from "@/lib/queries/useBidsQuery";
 import { useInvalidateIndents } from "@/lib/queries";
 import { queryKeys } from "@/lib/queryKeys";
@@ -79,6 +81,7 @@ export function AwardModal({ visible, award, onViewIndent, insets }: AwardModalP
   const [counterQuoteId, setCounterQuoteId] = useState<string | null>(null);
   const [submittingCounter, setSubmittingCounter] = useState(false);
   const [marketBidActionId, setMarketBidActionId] = useState<string | null>(null);
+  const [revokingAward, setRevokingAward] = useState(false);
   const invalidateIndents = useInvalidateIndents();
 
   const {
@@ -188,6 +191,55 @@ export function AwardModal({ visible, award, onViewIndent, insets }: AwardModalP
     [currentLoad?.id, currentLoad?.organization_id, queryClient, invalidateIndents],
   );
 
+  const handleRevokeAward = useCallback(async () => {
+    if (!currentLoad?.id) return;
+    const confirmed = await confirmDialog({
+      title: "Revoke award",
+      message:
+        "Move this load back to open bidding? The previous winner is tagged Award revoked. You can award the same offer or another one.",
+      confirmLabel: "Revoke award",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      setRevokingAward(true);
+      const { error, awardRevokedAt } = await revokeIndentAward(currentLoad.id);
+      if (error) {
+        showAppAlert("Could not revoke award", formatMarketplaceTransactionError(error.message));
+        return;
+      }
+      award.open({
+        ...currentLoad,
+        status: "open",
+        assigned_supplier_id: null,
+        assigned_supplier_rate: null,
+        award_revoked_at: awardRevokedAt ?? new Date().toISOString(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bids.marketForIndent(currentLoad.id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["indents", currentLoad.id, "direct-quotes"],
+      });
+      if (currentLoad.organization_id) {
+        invalidateIndents(currentLoad.organization_id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["indents", "offer-counts"] });
+      showAppAlert(
+        "Award revoked",
+        "This load is open for bidding again. Award the same supplier or pick another offer.",
+      );
+    } catch (e) {
+      const msg =
+        e instanceof Error
+          ? formatMarketplaceTransactionError(e.message)
+          : "Something went wrong. Please try again.";
+      showAppAlert("Could not revoke award", msg);
+    } finally {
+      setRevokingAward(false);
+    }
+  }, [award, currentLoad, invalidateIndents, queryClient]);
+
   const handleRejectMarketBid = useCallback(
     async (bidId: string, bidderLabel: string) => {
       const confirmed = await confirmDialog({
@@ -243,6 +295,14 @@ export function AwardModal({ visible, award, onViewIndent, insets }: AwardModalP
   const lifecycleLabel = opportunity
     ? LIFECYCLE_LABEL[opportunity.lifecycleState] ?? opportunity.lifecycleState
     : null;
+  const loadStatusLower = (currentLoad?.status || "").trim().toLowerCase();
+  const isAwardedView =
+    loadStatusLower === "awarded" ||
+    opportunity?.lifecycleState === "awarded";
+  const showAwardRevokedTag = indentHasAwardRevokedTag(
+    currentLoad?.status,
+    currentLoad?.award_revoked_at,
+  );
 
   const selectedIsPending = sortedQuotes.some(
     (q) =>
@@ -314,15 +374,19 @@ export function AwardModal({ visible, award, onViewIndent, insets }: AwardModalP
     !hasPendingSelection ||
     !(opportunity?.permissions.canAward ?? false);
 
-  const awardCtaLabel = awarding
-    ? "Awarding…"
-    : opportunity?.actions.primary?.kind === "award"
-      ? "Award selected"
-      : opportunity?.permissions.canAward
+  const awardCtaLabel = isAwardedView
+    ? revokingAward
+      ? "Revoking…"
+      : "Revoke award"
+    : awarding
+      ? "Awarding…"
+      : opportunity?.actions.primary?.kind === "award"
         ? "Award selected"
-        : lifecycleLabel
-          ? `${lifecycleLabel} — viewing only`
-          : "Award selected";
+        : opportunity?.permissions.canAward
+          ? "Award selected"
+          : lifecycleLabel
+            ? `${lifecycleLabel} — viewing only`
+            : "Award selected";
 
   const close = () => {
     award.close();
@@ -349,7 +413,21 @@ export function AwardModal({ visible, award, onViewIndent, insets }: AwardModalP
             </Text>
           ) : null}
         </View>
-        <View style={styles.reviewHubModalHeaderSpacer} />
+        {isAwardedView ? (
+          <TouchableOpacity
+            onPress={() => void handleRevokeAward()}
+            disabled={revokingAward}
+            hitSlop={8}
+            style={styles.reviewHubRevokeHeaderBtn}
+            accessibilityLabel="Revoke award"
+          >
+            <Text style={styles.reviewHubRevokeHeaderBtnText} numberOfLines={1}>
+              {revokingAward ? "…" : "Revoke"}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.reviewHubModalHeaderSpacer} />
+        )}
       </View>
 
       <View style={styles.bodyColumn}>
@@ -364,6 +442,11 @@ export function AwardModal({ visible, award, onViewIndent, insets }: AwardModalP
             <Text style={indentReviewHubStyles.reviewHubHeroKicker}>
               Target route
             </Text>
+            {showAwardRevokedTag ? (
+              <View style={styles.revokedTag} accessibilityLabel="Award revoked">
+                <Text style={styles.revokedTagText}>AWARD REVOKED</Text>
+              </View>
+            ) : null}
             <Text
               style={indentReviewHubStyles.reviewHubHeroRoute}
               numberOfLines={2}
@@ -538,7 +621,20 @@ export function AwardModal({ visible, award, onViewIndent, insets }: AwardModalP
         <View style={styles.footerActions}>
           {/* Unconnected bidder: awarding is blocked until they accept a
               supplier invite, so the primary action becomes the invite. */}
-          {needsInvite ? (
+          {isAwardedView ? (
+            <TouchableOpacity
+              style={[
+                styles.modalSubmit,
+                revokingAward && styles.modalSubmitDisabled,
+              ]}
+              onPress={() => void handleRevokeAward()}
+              activeOpacity={0.9}
+              disabled={revokingAward}
+              accessibilityLabel="Revoke award"
+            >
+              <Text style={styles.modalSubmitText}>{awardCtaLabel}</Text>
+            </TouchableOpacity>
+          ) : needsInvite ? (
             <TouchableOpacity
               style={[
                 styles.modalSubmit,
@@ -664,6 +760,24 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
   },
+  reviewHubRevokeHeaderBtn: {
+    minWidth: 72,
+    minHeight: 40,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Theme.warningMuted,
+    borderWidth: 1,
+    borderColor: Theme.warning,
+  },
+  reviewHubRevokeHeaderBtnText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: Theme.warning,
+  },
   modalHeaderTitleWrap: {
     flex: 1,
     justifyContent: "center",
@@ -769,6 +883,20 @@ const styles = StyleSheet.create({
     color: Theme.textOnPrimary,
     textTransform: "uppercase",
     letterSpacing: 1.2,
+  },
+  revokedTag: {
+    alignSelf: "flex-start",
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: Theme.warningMuted,
+  },
+  revokedTagText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    color: Theme.warning,
   },
   viewIndentBtn: {
     paddingVertical: 14,

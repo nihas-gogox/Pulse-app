@@ -292,6 +292,8 @@ export type CounterpartyProfileSystemCardProps = {
   editableWarehouses?: ClientWarehouseExtended[];
   editableLaneRates?: ClientLaneRate[];
   onProfileEntitiesChange?: () => void;
+  /** Supplier onboarding vault rendered by the feature screen; replaces the 3-slot vault. */
+  supplierVaultSlot?: ReactNode;
 };
 
 function completionPercent(input: {
@@ -487,6 +489,7 @@ export function CounterpartyProfileSystemCard({
   editableWarehouses = [],
   editableLaneRates = [],
   onProfileEntitiesChange,
+  supplierVaultSlot,
 }: CounterpartyProfileSystemCardProps) {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -1254,14 +1257,16 @@ export function CounterpartyProfileSystemCard({
                 <View style={styles.editSectionBarEmerald} />
                 <Text style={styles.editSectionTitle}>Verification Vault</Text>
                 <Text style={styles.editSectionHint}>Supplier regulatory compliance records</Text>
-                <VerificationVaultCards
-                  docs={kycDocs}
-                  uploadingId={kycUploadingId}
-                  canUpload={canUploadSupplierKyc}
-                  error={kycUploadError}
-                  onUpdate={(doc) => void handleUpdateKycFile(doc)}
-                  onView={(doc) => void handleViewKycFile(doc)}
-                />
+                {supplierVaultSlot ?? (
+                  <VerificationVaultCards
+                    docs={kycDocs}
+                    uploadingId={kycUploadingId}
+                    canUpload={canUploadSupplierKyc}
+                    error={kycUploadError}
+                    onUpdate={(doc) => void handleUpdateKycFile(doc)}
+                    onView={(doc) => void handleViewKycFile(doc)}
+                  />
+                )}
               </View>
             )}
           </ScrollView>
@@ -2053,7 +2058,9 @@ export function CounterpartyProfileSystemCard({
               <View style={styles.accentNavy} />
               <Text style={[styles.sectionHeading, isPage && styles.sectionHeadingPage]}>Verification Vault</Text>
             </View>
-            {kycDocs.length === 0 ? (
+            {type === "supplier" && supplierVaultSlot ? (
+              supplierVaultSlot
+            ) : kycDocs.length === 0 ? (
               <View style={styles.emptyPanel}>
                 <Text style={styles.emptyMuted}>No KYC documents on file.</Text>
               </View>

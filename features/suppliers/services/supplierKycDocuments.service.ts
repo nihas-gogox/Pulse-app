@@ -23,6 +23,7 @@ const ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
 export type UpsertSupplierKycDocData = {
   doc_type: SupplierKycDocType;
   doc_label?: string;
+  doc_number?: string;
   storage_path?: string;
   file_name?: string;
   mime_type?: string;
@@ -153,12 +154,53 @@ export async function upsertSupplierKycDocument(
   return { error: null, document: data as SupplierKycDocument };
 }
 
+/** Adds another file of the same doc_type (multi-file sections) — never overwrites. */
+export async function appendSupplierKycDocument(
+  orgId: string,
+  supplierId: string,
+  payload: UpsertSupplierKycDocData,
+): Promise<{ error: Error | null; document: SupplierKycDocument | null }> {
+  const { data, error } = await supabase()
+    .from("supplier_kyc_documents")
+    .insert({
+      organization_id: orgId,
+      supplier_id: supplierId,
+      ...payload,
+      status: "pending",
+      version_number: 1,
+    })
+    .select()
+    .single();
+  if (error) return { error: new Error(error.message), document: null };
+  return { error: null, document: data as SupplierKycDocument };
+}
+
+/** Soft-deletes the row and removes its file from the bucket. */
+export async function removeSupplierKycDocument(
+  doc: Pick<SupplierKycDocument, "id" | "storage_path">,
+): Promise<{ error: Error | null }> {
+  const { error } = await supabase()
+    .from("supplier_kyc_documents")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", doc.id);
+  if (error) return { error: new Error(error.message) };
+  const path = (doc.storage_path ?? "").trim();
+  if (path) {
+    const { error: storageErr } = await supabase().storage.from(SUPPLIER_KYC_BUCKET).remove([path]);
+    if (storageErr) return { error: new Error(storageErr.message) };
+  }
+  return { error: null };
+}
+
 export async function uploadSupplierKycFile(input: {
   orgId: string;
   supplierId: string;
   docType: SupplierKycDocType;
   docLabel?: string;
+  docNumber?: string;
   isMandatory?: boolean;
+  /** `replace` (default) keeps one row per doc_type; `append` adds another file. */
+  mode?: "replace" | "append";
   file: SupplierKycUploadFile;
 }): Promise<{ error: Error | null; document: SupplierKycDocument | null }> {
   const mimeType = normalizeMime(input.file.mimeType, input.file.fileName);
@@ -187,18 +229,16 @@ export async function uploadSupplierKycFile(input: {
     return { error: new Error(uploadErr.message), document: null };
   }
 
-  const { error, document } = await upsertSupplierKycDocument(
-    input.orgId,
-    input.supplierId,
-    {
-      doc_type: input.docType,
-      doc_label: input.docLabel,
-      storage_path: storagePath,
-      file_name: input.file.fileName,
-      mime_type: mimeType,
-      is_mandatory: input.isMandatory,
-    },
-  );
+  const save = input.mode === "append" ? appendSupplierKycDocument : upsertSupplierKycDocument;
+  const { error, document } = await save(input.orgId, input.supplierId, {
+    doc_type: input.docType,
+    doc_label: input.docLabel,
+    doc_number: input.docNumber,
+    storage_path: storagePath,
+    file_name: input.file.fileName,
+    mime_type: mimeType,
+    is_mandatory: input.isMandatory,
+  });
 
   if (error || !document) {
     await supabase().storage.from(SUPPLIER_KYC_BUCKET).remove([storagePath]);

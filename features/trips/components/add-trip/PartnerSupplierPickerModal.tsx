@@ -8,6 +8,7 @@ import { PartyAvatar } from "@/components/PartyAvatar";
 import Layout from "@/constants/Layout";
 import Theme from "@/constants/Theme";
 import type { SupplierRow } from "@/features/suppliers/services/suppliers.service";
+import { getBlacklistedSupplierIds } from "@/features/suppliers/services/supplierVendorOnboarding.service";
 import { X } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -72,10 +73,23 @@ export function PartnerSupplierPickerModal({
 }: PartnerSupplierPickerModalProps) {
   const { width: winW } = useWindowDimensions();
   const [query, setQuery] = useState("");
+  const [blacklistedIds, setBlacklistedIds] = useState<Set<string>>(() => new Set());
+  const orgId = suppliers[0]?.organization_id ?? null;
 
   useEffect(() => {
     if (visible) setQuery("");
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible || !orgId) return;
+    let cancelled = false;
+    void getBlacklistedSupplierIds(orgId).then((ids) => {
+      if (!cancelled) setBlacklistedIds(ids);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, orgId]);
 
   const filtered = useMemo(() => {
     const q = normalizeSearch(query);
@@ -176,6 +190,7 @@ export function PartnerSupplierPickerModal({
                 <SupplierPickerRow
                   supplier={item}
                   selected={selectedId === item.id}
+                  blacklisted={blacklistedIds.has(item.id)}
                   onSelect={() => {
                     onSelect(selectedId === item.id ? null : item.id);
                   }}
@@ -192,12 +207,16 @@ export function PartnerSupplierPickerModal({
 function SupplierPickerRow({
   supplier,
   selected,
+  blacklisted,
   onSelect,
 }: {
   supplier: SupplierRow;
   selected: boolean;
+  /** Blacklisted vendors can't be picked (deselecting stays allowed). */
+  blacklisted: boolean;
   onSelect: () => void;
 }) {
+  const locked = blacklisted && !selected;
   const webCursor =
     Platform.OS === "web" ? ({ cursor: "pointer" } as ViewStyle) : null;
   const primary = supplierPrimary(supplier);
@@ -229,16 +248,24 @@ function SupplierPickerRow({
             {secondary.toUpperCase()}
           </Text>
         ) : null}
+        {blacklisted ? <Text style={styles.rowBlacklisted}>BLACKLISTED</Text> : null}
       </View>
       <TouchableOpacity
-        style={[styles.selectPill, selected && styles.selectPillSelected, webCursor]}
+        style={[
+          styles.selectPill,
+          selected && styles.selectPillSelected,
+          locked && styles.selectPillLocked,
+          !locked && webCursor,
+        ]}
         onPress={onSelect}
+        disabled={locked}
         activeOpacity={0.8}
+        accessibilityState={{ disabled: locked, selected }}
       >
         <Text
           style={[styles.selectPillText, selected && styles.selectPillTextSelected]}
         >
-          {selected ? "Selected" : "Select"}
+          {selected ? "Selected" : locked ? "Blocked" : "Select"}
         </Text>
       </TouchableOpacity>
     </View>
@@ -368,6 +395,16 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     letterSpacing: 0.6,
     color: Theme.textMuted,
+  },
+  rowBlacklisted: {
+    marginTop: 4,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    color: Theme.negative,
+  },
+  selectPillLocked: {
+    opacity: 0.45,
   },
   selectPill: {
     paddingVertical: 8,

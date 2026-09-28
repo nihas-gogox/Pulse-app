@@ -3,9 +3,11 @@ import { tGlobal } from '@/contexts/LanguageContext';
 import { registerAppAlertImplementation } from '@/lib/appAlert';
 import { platformShadow } from '@/lib/platformShadow';
 import { pe } from '@/lib/platformViewStyle.util';
+import { WebOverlayPortal, webFixedFill } from '@/lib/webOverlayPortal';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -38,31 +40,41 @@ export function AppAlertHost() {
     return () => registerAppAlertImplementation(null);
   }, [show]);
 
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={hide}>
-      <View style={[styles.backdrop, pe('box-none')]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={hide} accessibilityRole="button" />
-        <View
-          style={[styles.card, isCompact && styles.cardCompact]}
-          accessibilityRole="alert"
-          accessibilityViewIsModal
-        >
-          <View style={styles.iconWrap}>
-            <Text style={styles.iconChar}>!</Text>
-          </View>
-          <Text style={styles.title}>{title}</Text>
-          {message ? (
-            <Text style={styles.body}>{message}</Text>
-          ) : null}
-          <Pressable
-            onPress={hide}
-            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-            accessibilityRole="button"
-          >
-            <Text style={styles.buttonLabel}>{tGlobal('dismiss')}</Text>
-          </Pressable>
+  if (!visible) return null;
+
+  const overlay = (
+    <View style={[styles.backdrop, webFixedFill, pe('box-none')]}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={hide} accessibilityRole="button" />
+      <View
+        style={[styles.card, isCompact && styles.cardCompact]}
+        accessibilityRole="alert"
+        accessibilityViewIsModal
+      >
+        <View style={styles.iconWrap}>
+          <Text style={styles.iconChar}>!</Text>
         </View>
+        <Text style={styles.title}>{title}</Text>
+        {message ? (
+          <Text style={styles.body}>{message}</Text>
+        ) : null}
+        <Pressable
+          onPress={hide}
+          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+          accessibilityRole="button"
+        >
+          <Text style={styles.buttonLabel}>{tGlobal('dismiss')}</Text>
+        </Pressable>
       </View>
+    </View>
+  );
+
+  if (Platform.OS === 'web') {
+    return <WebOverlayPortal>{overlay}</WebOverlayPortal>;
+  }
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={hide}>
+      {overlay}
     </Modal>
   );
 }
@@ -77,8 +89,10 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   card: {
-    width: '100%',
-    maxWidth: 380,
+    alignSelf: 'center',
+    width: 380,
+    maxWidth: '100%',
+    zIndex: 1,
     borderRadius: 28,
     borderWidth: 1,
     borderColor: Theme.borderLight,
@@ -96,6 +110,7 @@ const styles = StyleSheet.create({
     }),
   },
   cardCompact: {
+    width: '100%',
     borderRadius: 24,
     paddingHorizontal: 18,
   },

@@ -30,6 +30,44 @@ export interface ReportDriverLocationResult {
   skipped?: boolean;
 }
 
+/** After a timeout, stop location reads so the fallback table scan cannot fill the pool. */
+let locationReadPausedUntil = 0;
+
+function isDbPressureError(
+  error: { message?: string; code?: string; name?: string; status?: number } | null | undefined,
+  httpStatus?: number,
+): boolean {
+  if (error?.name === "TimeoutError") return true;
+  const status = httpStatus ?? error?.status;
+  if (status === 503 || status === 504) return true;
+  const raw = `${error?.code ?? ""} ${error?.message ?? ""}`;
+  return /57014|statement timeout|timed out|timeout|503|504|PGRST002|too many connections|connection/i.test(
+    raw,
+  );
+}
+
+function noteLocationReadPressure(
+  error: { message?: string; code?: string; name?: string; status?: number } | null | undefined,
+  httpStatus?: number,
+): boolean {
+  if (!isDbPressureError(error, httpStatus)) return false;
+  locationReadPausedUntil = Date.now() + 120_000;
+  return true;
+}
+
+/** Test-only. Production pause expiry is the 2-minute timestamp. */
+export function resetLocationReadPauseForTests(): void {
+  locationReadPausedUntil = 0;
+}
+
+function locationReadsPaused(): { error: Error; location: null } | null {
+  if (Date.now() >= locationReadPausedUntil) return null;
+  return {
+    error: new Error("Location reads paused while the database recovers."),
+    location: null,
+  };
+}
+
 export function shouldPersistDriverLocation(opts: {
   sessionUserId: string | null | undefined;
   ownerUserId: string | null | undefined;
@@ -137,9 +175,15 @@ export async function reportDriverLocation(
 export async function getLatestDriverLocationForTrip(
   tripId: string
 ): Promise<{ error: Error | null; location: DriverLocationRow | null }> {
-  const { data, error } = await supabase().rpc('get_latest_driver_location_for_trip', {
+  const paused = locationReadsPaused();
+  if (paused) return paused;
+
+  const { data, error, status } = await supabase().rpc('get_latest_driver_location_for_trip', {
     p_trip_id: tripId,
   });
+  if (noteLocationReadPressure(error, status)) {
+    return { error: new Error(error?.message ?? "Location read timed out."), location: null };
+  }
   if (!error && data != null && typeof data === 'object' && 'latitude' in data) {
     const row = data as { latitude: number; longitude: number; accuracy?: number | null; recorded_at: string };
     return {
@@ -153,18 +197,21 @@ export async function getLatestDriverLocationForTrip(
     };
   }
   if (!error) return { error: null, location: null };
-  if (error) {
-    const { data: tableData, error: tableError } = await supabase()
-      .from('driver_locations')
-      .select('latitude, longitude, accuracy, recorded_at')
-      .eq('trip_id', tripId)
-      .order('recorded_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (tableError) return { error: new Error(tableError.message), location: null };
-    return { error: null, location: tableData as DriverLocationRow | null };
+  const missingFn = /does not exist|Could not find the function|PGRST202/i.test(
+    error.message ?? "",
+  );
+  if (!missingFn) {
+    return { error: new Error(error.message), location: null };
   }
-  return { error: null, location: null };
+  const { data: tableData, error: tableError } = await supabase()
+    .from('driver_locations')
+    .select('latitude, longitude, accuracy, recorded_at')
+    .eq('trip_id', tripId)
+    .order('recorded_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (tableError) return { error: new Error(tableError.message), location: null };
+  return { error: null, location: tableData as DriverLocationRow | null };
 }
 
 /**
@@ -229,7 +276,10 @@ export async function getTripLocationHistory(
   tripId: string,
   limit = 100
 ): Promise<{ error: Error | null; points: { latitude: number; longitude: number; recorded_at: string }[] }> {
-  const { data, error } = await supabase().rpc('get_driver_location_history_for_trip', {
+  const paused = locationReadsPaused();
+  if (paused) return { error: paused.error, points: [] };
+
+  const { data, error, status } = await supabase().rpc('get_driver_location_history_for_trip', {
     p_trip_id: tripId,
     p_limit: limit,
   });
@@ -242,6 +292,13 @@ export async function getTripLocationHistory(
     return { error: null, points };
   }
   if (error) {
+    noteLocationReadPressure(error, status);
+    const missingFn = /does not exist|Could not find the function|PGRST202/i.test(
+      error.message ?? "",
+    );
+    if (!missingFn) {
+      return { error: new Error(error.message), points: [] };
+    }
     const { data: tableData, error: tableError } = await supabase()
       .from('driver_locations')
       .select('latitude, longitude, recorded_at')
@@ -267,13 +324,12 @@ export async function getLatestDriverLocationForTripOrDriver(
 
   if (tripId) {
     const byTrip = await getLatestDriverLocationForTrip(tripId);
-    if (!byTrip.error && byTrip.location) return byTrip;
-    if (!driverId || byTrip.error) {
-      if (!driverId) return byTrip;
-    }
+    if (byTrip.location || byTrip.error) return byTrip;
   }
 
   if (!driverId) return { error: null, location: null };
+  const paused = locationReadsPaused();
+  if (paused) return paused;
 
   const { data, error } = await supabase()
     .from('driver_locations')

@@ -135,6 +135,8 @@ export interface IndentRow {
   trip_number?: string | null;
   assigned_supplier_id?: string | null;
   assigned_supplier_rate?: number | null;
+  /** Set when a shipper revokes an award; cleared on the next award. */
+  award_revoked_at?: string | null;
   [key: string]: unknown;
 }
 

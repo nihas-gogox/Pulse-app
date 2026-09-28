@@ -162,7 +162,9 @@ export async function pickAndUploadSupplierKycDocument(input: {
   supplierId: string;
   docType: SupplierKycDocType;
   docLabel?: string;
+  docNumber?: string;
   isMandatory?: boolean;
+  mode?: "replace" | "append";
 }): Promise<UploadSupplierKycResult> {
   const picked = await pickSupplierKycFile();
   if (picked.status !== "ok") return picked;
@@ -173,7 +175,9 @@ export async function pickAndUploadSupplierKycDocument(input: {
       supplierId: input.supplierId,
       docType: input.docType,
       docLabel: input.docLabel,
+      docNumber: input.docNumber,
       isMandatory: input.isMandatory,
+      mode: input.mode,
       file: {
         arrayBuffer,
         mimeType: picked.file.mimeType,

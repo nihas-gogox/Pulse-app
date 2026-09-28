@@ -141,6 +141,20 @@ export async function createMarketTripAfterFeePayment(
   return { error: null, tripId };
 }
 
+export async function revokeIndentAward(indentId: string): Promise<{
+  error: Error | null;
+  awardRevokedAt: string | null;
+}> {
+  const { data, error } = await supabase().rpc('revoke_indent_award', {
+    p_indent_id: indentId,
+  });
+  if (error) {
+    return { error: new Error(error.message), awardRevokedAt: null };
+  }
+  const result = data as { award_revoked_at?: string } | null;
+  return { error: null, awardRevokedAt: result?.award_revoked_at ?? null };
+}
+
 export async function rejectMarketBid(bidId: string): Promise<{ error: Error | null }> {
   const { error } = await supabase().rpc('reject_market_bid', { p_bid_id: bidId });
   if (error) return { error: new Error(error.message) };

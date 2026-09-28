@@ -4710,6 +4710,7 @@ export type Database = {
         Row: {
           assigned_supplier_id: string | null
           assigned_supplier_rate: number | null
+          award_revoked_at: string | null
           circulation_target: string | null
           client_id: string | null
           client_name: string
@@ -4747,6 +4748,7 @@ export type Database = {
         Insert: {
           assigned_supplier_id?: string | null
           assigned_supplier_rate?: number | null
+          award_revoked_at?: string | null
           circulation_target?: string | null
           client_id?: string | null
           client_name: string
@@ -4784,6 +4786,7 @@ export type Database = {
         Update: {
           assigned_supplier_id?: string | null
           assigned_supplier_rate?: number | null
+          award_revoked_at?: string | null
           circulation_target?: string | null
           client_id?: string | null
           client_name?: string
@@ -9491,6 +9494,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           doc_label: string | null
+          doc_number: string | null
           doc_type: string
           expiry_date: string | null
           file_name: string | null
@@ -9513,6 +9517,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           doc_label?: string | null
+          doc_number?: string | null
           doc_type: string
           expiry_date?: string | null
           file_name?: string | null
@@ -9535,6 +9540,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           doc_label?: string | null
+          doc_number?: string | null
           doc_type?: string
           expiry_date?: string | null
           file_name?: string | null
@@ -9569,6 +9575,57 @@ export type Database = {
           },
           {
             foreignKeyName: "supplier_kyc_documents_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_tds_rates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          financial_year: string
+          id: string
+          organization_id: string
+          rate_percent: number
+          supplier_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          financial_year: string
+          id?: string
+          organization_id: string
+          rate_percent: number
+          supplier_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          financial_year?: string
+          id?: string
+          organization_id?: string
+          rate_percent?: number
+          supplier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_tds_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_tds_rates_supplier_id_fkey"
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
@@ -9690,9 +9747,12 @@ export type Database = {
       }
       suppliers: {
         Row: {
+          aadhaar_number: string | null
           address: string | null
+          advance_percentage: number | null
           avatar_seed: string | null
           avatar_url: string | null
+          blacklist_reason: string | null
           cin: string | null
           company_name: string | null
           contact: string | null
@@ -9702,6 +9762,7 @@ export type Database = {
           email: string | null
           gst_number: string | null
           gstin: string | null
+          gumasta_number: string | null
           id: string
           iec_number: string | null
           is_active: boolean
@@ -9718,15 +9779,22 @@ export type Database = {
           owner_full_name: string | null
           pan_number: string | null
           phone: string | null
+          secondary_phone: string | null
+          status_changed_at: string | null
+          vendor_status: string
+          status_changed_by: string | null
           supplier_type: string | null
           tan_number: string | null
           updated_at: string | null
           vehicle_types: string[] | null
         }
         Insert: {
+          aadhaar_number?: string | null
           address?: string | null
+          advance_percentage?: number | null
           avatar_seed?: string | null
           avatar_url?: string | null
+          blacklist_reason?: string | null
           cin?: string | null
           company_name?: string | null
           contact?: string | null
@@ -9736,6 +9804,7 @@ export type Database = {
           email?: string | null
           gst_number?: string | null
           gstin?: string | null
+          gumasta_number?: string | null
           id?: string
           iec_number?: string | null
           is_active?: boolean
@@ -9752,15 +9821,22 @@ export type Database = {
           owner_full_name?: string | null
           pan_number?: string | null
           phone?: string | null
+          secondary_phone?: string | null
+          status_changed_at?: string | null
+          vendor_status?: string
+          status_changed_by?: string | null
           supplier_type?: string | null
           tan_number?: string | null
           updated_at?: string | null
           vehicle_types?: string[] | null
         }
         Update: {
+          aadhaar_number?: string | null
           address?: string | null
+          advance_percentage?: number | null
           avatar_seed?: string | null
           avatar_url?: string | null
+          blacklist_reason?: string | null
           cin?: string | null
           company_name?: string | null
           contact?: string | null
@@ -9770,6 +9846,7 @@ export type Database = {
           email?: string | null
           gst_number?: string | null
           gstin?: string | null
+          gumasta_number?: string | null
           id?: string
           iec_number?: string | null
           is_active?: boolean
@@ -9786,6 +9863,10 @@ export type Database = {
           owner_full_name?: string | null
           pan_number?: string | null
           phone?: string | null
+          secondary_phone?: string | null
+          status_changed_at?: string | null
+          vendor_status?: string
+          status_changed_by?: string | null
           supplier_type?: string | null
           tan_number?: string | null
           updated_at?: string | null
@@ -14702,6 +14783,7 @@ export type Database = {
         }
       }
       award_market_bid: { Args: { p_bid_id: string }; Returns: Json }
+      revoke_indent_award: { Args: { p_indent_id: string }; Returns: Json }
       backfill_trip_room_operational_batch: {
         Args: { p_limit?: number }
         Returns: number

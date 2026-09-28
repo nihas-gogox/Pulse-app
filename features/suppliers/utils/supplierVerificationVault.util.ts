@@ -36,6 +36,12 @@ const SUPPLIER_KYC_TYPES = new Set<string>(
     "aadhaar_front",
     "aadhaar_back",
     "msme",
+    "udyam",
+    "gumasta",
+    "bank_statement",
+    "bank_proof_other",
+    "physical_verification",
+    "signed_agreement",
     "other",
   ]),
 );

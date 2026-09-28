@@ -84,6 +84,11 @@ import {
     useMyDirectQuotesQuery,
 } from "@/lib/queries/useIndentsQuery";
 import { mergeIndentReviewHubOffers } from "@/features/indents/utils/bidding/indentReviewHubOffers.util";
+import { revokeIndentAward } from "@/features/network/services/marketBids.service";
+import { formatMarketplaceTransactionError } from "@/features/marketplace/utils/marketplaceErrorFormat.util";
+import { indentHasAwardRevokedTag } from "@/features/trips/utils/indentHubCardPresentation";
+import { showAppAlert } from "@/lib/appAlert";
+import { confirmDialog } from "@/lib/confirmDialog";
 import { useInvalidatePosts, useIndentStoryStatesQuery } from "@/lib/queries/usePostsQuery";
 import { BoostSheet } from "@/features/reach/components/BoostSheet";
 import { queryKeys } from "@/lib/queryKeys";
@@ -269,6 +274,7 @@ export function IndentDetailScreen({
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [awarding, setAwarding] = useState(false);
+  const [revokingAward, setRevokingAward] = useState(false);
   const [awardConfirmQuoteId, setAwardConfirmQuoteId] = useState<string | null>(
     null,
   );
@@ -635,6 +641,59 @@ export function IndentDetailScreen({
     },
     [indentId, indent, awarding, selectedQuoteId, quotes],
   );
+
+  const handleRevokeAward = useCallback(async () => {
+    if (!indent?.id || revokingAward) return;
+    const confirmed = await confirmDialog({
+      title: "Revoke award",
+      message:
+        "Move this load back to open bidding? The previous winner is tagged Award revoked. You can award the same offer or another one.",
+      confirmLabel: "Revoke award",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      setRevokingAward(true);
+      const { error, awardRevokedAt } = await revokeIndentAward(indent.id);
+      if (error) {
+        showAppAlert(
+          "Could not revoke award",
+          formatMarketplaceTransactionError(error.message),
+        );
+        return;
+      }
+      setIndent({
+        ...indent,
+        status: "open",
+        assigned_supplier_id: null,
+        assigned_supplier_rate: null,
+        award_revoked_at: awardRevokedAt ?? new Date().toISOString(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bids.marketForIndent(indent.id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["indents", indent.id, "direct-quotes"],
+      });
+      if (indent.organization_id) {
+        invalidateIndents(indent.organization_id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["indents", "offer-counts"] });
+      void refetchQuotes();
+      showAppAlert(
+        "Award revoked",
+        "This load is open for bidding again. Award the same supplier or pick another offer.",
+      );
+    } catch (e) {
+      const msg =
+        e instanceof Error
+          ? formatMarketplaceTransactionError(e.message)
+          : "Something went wrong. Please try again.";
+      showAppAlert("Could not revoke award", msg);
+    } finally {
+      setRevokingAward(false);
+    }
+  }, [indent, invalidateIndents, queryClient, refetchQuotes, revokingAward]);
 
   const awardConfirmQuote =
     awardConfirmQuoteId != null
@@ -1093,8 +1152,9 @@ export function IndentDetailScreen({
   const showMobileAwardFooter =
     stackedHub &&
     isOwner &&
-    canAward &&
-    quotes.some((q) => normalizeStatus(q.status) === "pending");
+    (statusLower === "awarded" ||
+      (canAward &&
+        quotes.some((q) => normalizeStatus(q.status) === "pending")));
   const hideStickyFooter = stackedHub && !showMobileAwardFooter;
   const contentFooterReserve = hideStickyFooter
     ? 8
@@ -1113,6 +1173,14 @@ export function IndentDetailScreen({
     myCounterAmount > 0;
 
   const mobilePrimaryAction = (() => {
+    if (isOwner && statusLower === "awarded") {
+      return {
+        label: revokingAward ? "Revoking…" : "Revoke award",
+        onPress: () => {
+          void handleRevokeAward();
+        },
+      };
+    }
     if (linkedTrip?.id) {
       return {
         label: "View trip →",
@@ -1275,6 +1343,11 @@ export function IndentDetailScreen({
                           : ""
                       }`}
                 </Text>
+                {indentHasAwardRevokedTag(indent.status, indent.award_revoked_at) ? (
+                  <View style={styles.awardRevokedTag} accessibilityLabel="Award revoked">
+                    <Text style={styles.awardRevokedTagText}>AWARD REVOKED</Text>
+                  </View>
+                ) : null}
               </View>
             </View>
             <TouchableOpacity
@@ -1603,7 +1676,31 @@ export function IndentDetailScreen({
                   color={canEditLoad ? Theme.textSecondary : Theme.textMuted}
                 />
               </TouchableOpacity>
-              {canAward &&
+              {statusLower === "awarded" ? (
+                <TouchableOpacity
+                  style={[
+                    styles.footerAwardBtn,
+                    stackedHub && styles.footerAwardBtnMobile,
+                    revokingAward && styles.footerAwardBtnDisabled,
+                  ]}
+                  onPress={() => {
+                    void handleRevokeAward();
+                  }}
+                  disabled={revokingAward}
+                  activeOpacity={0.9}
+                  accessibilityLabel="Revoke award"
+                  hitSlop={Layout.touchTargetHitSlop}
+                >
+                  <Text
+                    style={[
+                      styles.footerAwardBtnText,
+                      stackedHub && styles.footerAwardBtnTextMobile,
+                    ]}
+                  >
+                    {revokingAward ? "Revoking…" : "Revoke award"}
+                  </Text>
+                </TouchableOpacity>
+              ) : canAward &&
               quotes.some((q) => normalizeStatus(q.status) === "pending") ? (
                 <>
                   <View style={styles.footerSelectionMeta}>
@@ -2040,6 +2137,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
     gap: 6,
+    flexWrap: "wrap",
+  },
+  awardRevokedTag: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
+    backgroundColor: Theme.warningMuted,
+  },
+  awardRevokedTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    color: Theme.warning,
   },
   headerStatusDot: {
     width: 4,

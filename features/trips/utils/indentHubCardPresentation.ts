@@ -109,3 +109,12 @@ export function indentHubLoadSpecLine(load: {
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : null;
 }
+
+/** Visible after revoke while the indent is open again for bidding. */
+export function indentHasAwardRevokedTag(
+  indentStatus: string | null | undefined,
+  awardRevokedAt: string | null | undefined,
+): boolean {
+  if (!awardRevokedAt) return false;
+  return String(indentStatus ?? "").trim().toLowerCase() !== "awarded";
+}

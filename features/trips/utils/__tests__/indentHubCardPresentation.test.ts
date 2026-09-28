@@ -5,6 +5,7 @@ import {
   indentHubSourceTags,
   indentHubStatusTag,
   indentHubTargetRateInr,
+  indentHasAwardRevokedTag,
 } from "@/features/trips/utils/indentHubCardPresentation";
 
 describe("indentHubSourceTags", () => {
@@ -42,6 +43,14 @@ describe("indentHubLifecycleStatus", () => {
 
   it("maps awarded (even with bids) → AWARDED, not a trip stage", () => {
     expect(indentHubLifecycleStatus("awarded", 4)).toBe("AWARDED");
+  });
+});
+
+describe("indentHasAwardRevokedTag", () => {
+  it("shows the tag only after revoke while not awarded", () => {
+    expect(indentHasAwardRevokedTag("open", "2026-09-25T15:00:00Z")).toBe(true);
+    expect(indentHasAwardRevokedTag("awarded", "2026-09-25T15:00:00Z")).toBe(false);
+    expect(indentHasAwardRevokedTag("open", null)).toBe(false);
   });
 });
 
