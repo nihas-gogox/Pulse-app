@@ -4256,160 +4256,6 @@ export default function TripDetailScreen({
 
         {isDesktop ? (
           <View style={neoStyles.shell}>
-                {activeTab !== "trip" ? (
-                <View style={neoStyles.hero}>
-                  <View style={neoStyles.heroGlow} />
-                  <View style={neoStyles.heroBridge}>
-                    <View style={neoStyles.heroParty}>
-                      <PartyAvatar
-                        name={clientNameForParty}
-                        entityType="client"
-                        size={MANIFEST_HERO_AVATAR_DESKTOP}
-                        organizationImageUrl={
-                          detail.clientPartyAvatarFields
-                            ?.organizationImageUrl ?? undefined
-                        }
-                        organizationAvatarSeed={
-                          detail.clientPartyAvatarFields
-                            ?.organizationAvatarSeed ?? undefined
-                        }
-                        avatarUrl={
-                          detail.clientPartyAvatarFields?.avatarUrl ?? undefined
-                        }
-                        avatarSeed={
-                          detail.clientPartyAvatarFields?.avatarSeed ??
-                          undefined
-                        }
-                        isIntegrated={clientPartyIntegrated}
-                        showIntegrationBadge={false}
-                      />
-                      <View style={neoStyles.heroPartyText}>
-                        <Text style={neoStyles.heroKicker}>CLIENT</Text>
-                        <Text
-                          style={neoStyles.heroPartyName}
-                          numberOfLines={2}
-                          ellipsizeMode="tail"
-                        >
-                          {clientNameCard}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={neoStyles.swapIcon}>
-                      <FontAwesome name="exchange" size={11} color={Theme.textMuted} />
-                    </View>
-                    {showManifestHeroDriver ? (
-                      <NeoManifestHeroBridgePartyEnd
-                        roleLabel="DRIVER"
-                        partyName={allocatedDriverName}
-                        partyPhone={detail.driverPhone}
-                        entityType="driver"
-                        avatarSize={MANIFEST_HERO_AVATAR_DESKTOP}
-                        avatarUrl={detail.driverAvatarUri}
-                        avatarSeed={trip.driver_id}
-                        vehicleLabel={allocatedVehicleLabel}
-                        vehicleId={trip.vehicle_id}
-                        styles={neoStyles}
-                        partyStyles={manifestHeroBridgePartyStyles}
-                      />
-                    ) : (
-                      <NeoManifestHeroBridgePartyEnd
-                        roleLabel="SUPPLIER"
-                        partyName={supplierName}
-                        entityType="supplier"
-                        avatarSize={MANIFEST_HERO_AVATAR_DESKTOP}
-                        avatarUrl={detail.supplierPartyAvatarFields?.avatarUrl}
-                        avatarSeed={
-                          detail.supplierPartyAvatarFields?.avatarSeed
-                        }
-                        organizationImageUrl={
-                          detail.supplierPartyAvatarFields?.organizationImageUrl
-                        }
-                        organizationAvatarSeed={
-                          detail.supplierPartyAvatarFields
-                            ?.organizationAvatarSeed
-                        }
-                        isIntegrated={supplierPartyIntegrated}
-                        styles={neoStyles}
-                        partyStyles={manifestHeroBridgePartyStyles}
-                      />
-                    )}
-                  </View>
-
-                  <View style={neoStyles.routeHeroRow}>
-                    <View style={neoStyles.routeHeroSide}>
-                      <Text style={neoStyles.routeHeroCity} numberOfLines={2}>
-                        {originSplit.primary.toUpperCase()}
-                      </Text>
-                      <Text style={neoStyles.routeHeroSub}>
-                        {originStateLabel.toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={neoStyles.routeVector}>
-                      <View style={neoStyles.routeVectorLine} />
-                      <View style={neoStyles.routeVectorTruck}>
-                        <Feather name="truck" size={14} color={Theme.textMuted} />
-                      </View>
-                      <View style={neoStyles.routeVectorLine} />
-                    </View>
-                    <View
-                      style={[
-                        neoStyles.routeHeroSide,
-                        neoStyles.routeHeroSideRight,
-                      ]}
-                    >
-                      <Text
-                        style={[neoStyles.routeHeroCity, neoStyles.alignRight]}
-                        numberOfLines={2}
-                      >
-                        {destinationSplit.primary.toUpperCase()}
-                      </Text>
-                      <Text
-                        style={[neoStyles.routeHeroSub, neoStyles.alignRight]}
-                      >
-                        {destinationStateLabel.toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={neoStyles.heroMetrics}>
-                    <View style={neoStyles.heroMetric}>
-                      <Text style={neoStyles.heroMetricLabel}>
-                        Manifest Range
-                      </Text>
-                      <Text style={neoStyles.heroMetricValue}>
-                        {resolvedDistanceLabel
-                          ? resolvedDistanceLabel.replace(/\s*km$/i, " KM")
-                          : "—"}
-                      </Text>
-                    </View>
-                    <View style={neoStyles.heroMetricDivider} />
-                    <View style={neoStyles.heroMetric}>
-                      <Text style={neoStyles.heroMetricLabel}>
-                        ETA Manifest
-                      </Text>
-                      <Text style={neoStyles.heroMetricValue}>
-                        {liveTrackingPresentation?.eta.label ?? '—'}
-                      </Text>
-                    </View>
-                    <View style={neoStyles.heroMetricDivider} />
-                    <View style={neoStyles.heroMetric}>
-                      <Text style={neoStyles.heroMetricLabel}>Status</Text>
-                      <View
-                        style={[
-                          neoStyles.heroMetricStatusPill,
-                          { backgroundColor: statusColor },
-                        ]}
-                      >
-                        <Text style={neoStyles.heroMetricStatusPillText}>
-                          {statusLabel.toUpperCase()}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-
-                ) : null}
-
                 <View style={neoStyles.tabShell}>
                   {(
                     [
@@ -4475,6 +4321,161 @@ export default function TripDetailScreen({
                     );
                   })}
                 </View>
+                {activeTab !== "trip" ? (
+                <View style={[neoStyles.hero, neoStyles.heroFinance]}>
+                  <View style={neoStyles.heroGlow} />
+                  <View style={[neoStyles.heroBridge, neoStyles.heroBridgeFinance]}>
+                    <View style={neoStyles.heroParty}>
+                      <PartyAvatar
+                        name={clientNameForParty}
+                        entityType="client"
+                        size={MANIFEST_HERO_AVATAR_DESKTOP}
+                        organizationImageUrl={
+                          detail.clientPartyAvatarFields
+                            ?.organizationImageUrl ?? undefined
+                        }
+                        organizationAvatarSeed={
+                          detail.clientPartyAvatarFields
+                            ?.organizationAvatarSeed ?? undefined
+                        }
+                        avatarUrl={
+                          detail.clientPartyAvatarFields?.avatarUrl ?? undefined
+                        }
+                        avatarSeed={
+                          detail.clientPartyAvatarFields?.avatarSeed ??
+                          undefined
+                        }
+                        isIntegrated={clientPartyIntegrated}
+                        showIntegrationBadge={false}
+                      />
+                      <View style={neoStyles.heroPartyText}>
+                        <Text style={[neoStyles.heroKicker, neoStyles.heroKickerFinance]}>CLIENT</Text>
+                        <Text
+                          style={neoStyles.heroPartyName}
+                          numberOfLines={2}
+                          ellipsizeMode="tail"
+                        >
+                          {clientNameCard}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={neoStyles.swapIcon}>
+                      <FontAwesome name="exchange" size={11} color={Theme.textMuted} />
+                    </View>
+                    {showManifestHeroDriver ? (
+                      <NeoManifestHeroBridgePartyEnd
+                        roleLabel="DRIVER"
+                        partyName={allocatedDriverName}
+                        partyPhone={detail.driverPhone}
+                        entityType="driver"
+                        avatarSize={MANIFEST_HERO_AVATAR_DESKTOP}
+                        avatarUrl={detail.driverAvatarUri}
+                        avatarSeed={trip.driver_id}
+                        vehicleLabel={allocatedVehicleLabel}
+                        vehicleId={trip.vehicle_id}
+                        styles={neoStyles}
+                        partyStyles={manifestHeroBridgePartyStyles}
+                      />
+                    ) : (
+                      <NeoManifestHeroBridgePartyEnd
+                        roleLabel="SUPPLIER"
+                        partyName={supplierName}
+                        entityType="supplier"
+                        avatarSize={MANIFEST_HERO_AVATAR_DESKTOP}
+                        avatarUrl={detail.supplierPartyAvatarFields?.avatarUrl}
+                        avatarSeed={
+                          detail.supplierPartyAvatarFields?.avatarSeed
+                        }
+                        organizationImageUrl={
+                          detail.supplierPartyAvatarFields?.organizationImageUrl
+                        }
+                        organizationAvatarSeed={
+                          detail.supplierPartyAvatarFields
+                            ?.organizationAvatarSeed
+                        }
+                        isIntegrated={supplierPartyIntegrated}
+                        styles={neoStyles}
+                        partyStyles={manifestHeroBridgePartyStyles}
+                      />
+                    )}
+                  </View>
+
+                  <View style={[neoStyles.routeHeroRow, neoStyles.routeHeroRowFinance]}>
+                    <View style={neoStyles.routeHeroSide}>
+                      <Text style={[neoStyles.routeHeroCity, neoStyles.routeHeroCityFinance]} numberOfLines={1}>
+                        {originSplit.primary.toUpperCase()}
+                      </Text>
+                      <Text style={[neoStyles.routeHeroSub, neoStyles.routeHeroSubFinance]} numberOfLines={1}>
+                        {originStateLabel.toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={neoStyles.routeVector}>
+                      <View style={neoStyles.routeVectorLine} />
+                      <View style={[neoStyles.routeVectorTruck, neoStyles.routeVectorTruckFinance]}>
+                        <Feather name="truck" size={12} color={Theme.textMuted} />
+                      </View>
+                      <View style={neoStyles.routeVectorLine} />
+                    </View>
+                    <View
+                      style={[
+                        neoStyles.routeHeroSide,
+                        neoStyles.routeHeroSideRight,
+                      ]}
+                    >
+                      <Text
+                        style={[neoStyles.routeHeroCity, neoStyles.routeHeroCityFinance, neoStyles.alignRight]}
+                        numberOfLines={1}
+                      >
+                        {destinationSplit.primary.toUpperCase()}
+                      </Text>
+                      <Text
+                        style={[neoStyles.routeHeroSub, neoStyles.routeHeroSubFinance, neoStyles.alignRight]}
+                        numberOfLines={1}
+                      >
+                        {destinationStateLabel.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={[neoStyles.heroMetrics, neoStyles.heroMetricsFinance]}>
+                    <View style={[neoStyles.heroMetric, neoStyles.heroMetricFinance]}>
+                      <Text style={neoStyles.heroMetricLabel}>
+                        Manifest Range
+                      </Text>
+                      <Text style={neoStyles.heroMetricValue}>
+                        {resolvedDistanceLabel
+                          ? resolvedDistanceLabel.replace(/\s*km$/i, " KM")
+                          : "—"}
+                      </Text>
+                    </View>
+                    <View style={[neoStyles.heroMetricDivider, neoStyles.heroMetricDividerFinance]} />
+                    <View style={[neoStyles.heroMetric, neoStyles.heroMetricFinance]}>
+                      <Text style={neoStyles.heroMetricLabel}>
+                        ETA Manifest
+                      </Text>
+                      <Text style={neoStyles.heroMetricValue}>
+                        {liveTrackingPresentation?.eta.label ?? '—'}
+                      </Text>
+                    </View>
+                    <View style={[neoStyles.heroMetricDivider, neoStyles.heroMetricDividerFinance]} />
+                    <View style={[neoStyles.heroMetric, neoStyles.heroMetricFinance]}>
+                      <Text style={neoStyles.heroMetricLabel}>Status</Text>
+                      <View
+                        style={[
+                          neoStyles.heroMetricStatusPill,
+                          neoStyles.heroMetricStatusPillFinance,
+                          { backgroundColor: statusColor },
+                        ]}
+                      >
+                        <Text style={neoStyles.heroMetricStatusPillText}>
+                          {statusLabel.toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                ) : null}
 
             <View style={neoStyles.grid}>
               <View style={neoStyles.mainCol}>

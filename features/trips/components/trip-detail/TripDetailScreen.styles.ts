@@ -980,6 +980,49 @@ export const neoStyles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
+  heroFinance: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  heroBridgeFinance: {
+    paddingBottom: 2,
+    marginBottom: 2,
+    gap: 4,
+  },
+  heroKickerFinance: {
+    marginBottom: 0,
+  },
+  routeHeroRowFinance: {
+    gap: 6,
+  },
+  routeHeroCityFinance: {
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  routeHeroSubFinance: {
+    marginTop: 0,
+    lineHeight: 12,
+  },
+  routeVectorTruckFinance: {
+    width: 22,
+    height: 22,
+  },
+  heroMetricsFinance: {
+    marginTop: 4,
+    paddingVertical: 2,
+  },
+  heroMetricFinance: {
+    gap: 1,
+    paddingHorizontal: 4,
+  },
+  heroMetricDividerFinance: {
+    height: 18,
+  },
+  heroMetricStatusPillFinance: {
+    minHeight: 20,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+  },
   journeyGrid: {
     flexDirection: "row",
     flexWrap: "nowrap",
