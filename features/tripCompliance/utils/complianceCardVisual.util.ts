@@ -1,8 +1,8 @@
 import Theme from "@/constants/Theme";
 import type {
-  ComplianceChecklistTone,
-  ComplianceStage,
-  ComplianceTripSummary,
+    ComplianceChecklistTone,
+    ComplianceStage,
+    ComplianceTripSummary,
 } from "@/features/tripCompliance/tripCompliance.types";
 
 export type ComplianceTone = {
@@ -73,7 +73,7 @@ export function paymentStatusVisual(summary: ComplianceTripSummary): ComplianceP
     return { label: "Balance Pending", tone: COMPLIANCE_STAGE_TONE.balance_pending };
   }
   if (summary.stage === "hard_copy_pod_received") {
-    return { label: "POD Received", tone: COMPLIANCE_STAGE_TONE.hard_copy_pod_received };
+    return { label: "Awaiting POD", tone: COMPLIANCE_STAGE_TONE.hard_copy_pod_received };
   }
   if (summary.advance || summary.stage === "advance_payment_processed") {
     return { label: "Advance Processed", tone: COMPLIANCE_STAGE_TONE.advance_payment_processed };
@@ -85,9 +85,9 @@ export function paymentStatusVisual(summary: ComplianceTripSummary): ComplianceP
 }
 
 /**
- * Verification status independent of payment stage.
- * Advance can be posted before docs are verified — this pill still shows
- * Pending Docs / Compliance Pending / Verified / Exception.
+ * Header verification pill. Prefer derived compliance stage so payment-progress
+ * trips (advance / awaiting POD) are not mislabeled as Pending Docs just
+ * because LR/E-way/Invoice are still missing.
  */
 export type ComplianceVerificationStatusVisual = {
   label: string;
@@ -112,7 +112,35 @@ export function verificationStatusVisual(
       kind: "verified",
     };
   }
-  if (summary.documentCounts.total === 0) {
+  if (summary.stage === "hard_copy_pod_received") {
+    return {
+      label: "Awaiting POD",
+      tone: COMPLIANCE_STAGE_TONE.hard_copy_pod_received,
+      kind: "compliance_pending",
+    };
+  }
+  if (summary.stage === "advance_payment_processed") {
+    return {
+      label: "Advance Processed",
+      tone: COMPLIANCE_STAGE_TONE.advance_payment_processed,
+      kind: "compliance_pending",
+    };
+  }
+  if (summary.stage === "balance_pending") {
+    return {
+      label: "Balance Pending",
+      tone: COMPLIANCE_STAGE_TONE.balance_pending,
+      kind: "compliance_pending",
+    };
+  }
+  if (summary.stage === "payment_settled") {
+    return {
+      label: "Settled",
+      tone: COMPLIANCE_STAGE_TONE.payment_settled,
+      kind: "verified",
+    };
+  }
+  if (summary.stage === "pending_for_docs" || summary.documentCounts.total === 0) {
     return {
       label: "Pending Docs",
       tone: COMPLIANCE_STAGE_TONE.pending_for_docs,

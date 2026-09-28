@@ -43,7 +43,7 @@ describe("complianceCardVisual", () => {
     expect(paymentStatusVisual(summary({ stage: "balance_pending" })).label).toBe("Balance Pending");
   });
 
-  it("keeps verification status independent of advance payment", () => {
+  it("prefers derived stage over missing-docs for header pill (payment progress wins)", () => {
     expect(verificationStatusVisual(summary({ documentCounts: { total: 0, verified: 0, rejected: 0, pending: 0 } })).label).toBe(
       "Pending Docs",
     );
@@ -62,7 +62,15 @@ describe("complianceCardVisual", () => {
           documentCounts: { total: 2, verified: 0, rejected: 0, pending: 2 },
         }),
       ).label,
-    ).toBe("Compliance Pending");
+    ).toBe("Advance Processed");
+    expect(
+      verificationStatusVisual(
+        summary({
+          stage: "hard_copy_pod_received",
+          documentCounts: { total: 0, verified: 0, rejected: 0, pending: 0 },
+        }),
+      ).label,
+    ).toBe("Awaiting POD");
     expect(
       verificationStatusVisual(
         summary({

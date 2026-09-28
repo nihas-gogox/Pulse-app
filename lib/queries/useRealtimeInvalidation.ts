@@ -3,12 +3,13 @@
  * Granular invalidation: UPDATE → only the changed row's detail key.
  *                        INSERT/DELETE → the list key too.
  */
-import { useEffect } from 'react';
-import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { getTripLedgerEmbed, toLedgerRow, type LedgerRow } from '@/features/finance/services/finance.service';
 import { queryKeys } from '@/lib/queryKeys';
 import { subscribeSharedPostgresChanges } from '@/lib/realtimeRegistry';
-import { getTripLedgerEmbed, toLedgerRow, type LedgerRow } from '@/features/finance/services/finance.service';
+import { scheduleInvalidation } from '@/lib/platform/moderator';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 
 export function useRealtimeTripsInvalidation(organizationId: string | null) {
   const qc = useQueryClient();
@@ -42,10 +43,12 @@ export function useRealtimeTripsInvalidation(organizationId: string | null) {
 
         // Invalidate list only on INSERT or DELETE (UPDATE just changes the row in-place)
         if (payload.eventType !== 'UPDATE') {
-          qc.invalidateQueries({ queryKey: queryKeys.trips.all(organizationId) });
-          qc.invalidateQueries({ queryKey: queryKeys.trips.finite(organizationId) });
-          qc.invalidateQueries({ queryKey: queryKeys.trips.whereOrgIsClient(organizationId) });
-          qc.invalidateQueries({ queryKey: queryKeys.trips.whereOrgIsSupplier(organizationId) });
+          // Debounced: a convoy of inserts collapses these four keys into one
+          // flush per window instead of four invalidations per event.
+          scheduleInvalidation(qc, queryKeys.trips.all(organizationId));
+          scheduleInvalidation(qc, queryKeys.trips.finite(organizationId));
+          scheduleInvalidation(qc, queryKeys.trips.whereOrgIsClient(organizationId));
+          scheduleInvalidation(qc, queryKeys.trips.whereOrgIsSupplier(organizationId));
         } else {
           // UPDATE: update the list cache in-place to avoid a full refetch
           qc.setQueriesData(
@@ -193,8 +196,8 @@ export async function applyTransactionRealtimeEvent(
 
   // .finite is self-sufficient above; .infinite and .byContact are not surgically
   // patched, so preserve their existing invalidation behaviour, unchanged in scope.
-  qc.invalidateQueries({ queryKey: ['q', 'transactions', organizationId, 'infinite'] });
-  qc.invalidateQueries({ queryKey: ['q', 'transactions', organizationId, 'contact'] });
+  scheduleInvalidation(qc, ['q', 'transactions', organizationId, 'infinite']);
+  scheduleInvalidation(qc, ['q', 'transactions', organizationId, 'contact']);
 }
 
 /**

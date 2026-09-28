@@ -34,6 +34,9 @@ export type { EwayBillStripRow, EwayFieldValues };
 type Props = {
   rows: EwayBillStripRow[];
   onView: (rowId: string) => void;
+  /** Upload e-way bill PDF/image — shown immediately before the View (eye) icon. */
+  onUpload?: (rowId: string) => void;
+  canUpload?: boolean;
   canEdit?: boolean;
   onSave?: (values: EwayFieldValues[]) => Promise<boolean>;
 };
@@ -205,11 +208,19 @@ export function CompactValidTillCalendar({
   );
 }
 
-export function EwayBillLrStrip({ rows, onView, canEdit, onSave }: Props) {
+export function EwayBillLrStrip({
+  rows,
+  onView,
+  onUpload,
+  canUpload,
+  canEdit,
+  onSave,
+}: Props) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const displayRows = rows.length > 0 ? rows : [EMPTY_ROW];
   const showEdit = !!canEdit && !!onSave;
+  const showUpload = !!canUpload && !!onUpload;
   const [editing, setEditing] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | "new">(0);
   const [saving, setSaving] = useState(false);
@@ -283,6 +294,9 @@ export function EwayBillLrStrip({ rows, onView, canEdit, onSave }: Props) {
           <Text style={[styles.headCell, styles.colDate]}>Created date</Text>
           <Text style={[styles.headCell, styles.colDate]}>Valid till</Text>
           <Text style={[styles.headCell, styles.colDoc]}>Doc No</Text>
+          {showUpload ? (
+            <Text style={[styles.headCell, styles.colAction]}>Upload</Text>
+          ) : null}
           <Text style={[styles.headCell, styles.colAction]}>View</Text>
           {showEdit ? (
             <Text style={[styles.headCell, styles.colAction]}>Edit</Text>
@@ -302,6 +316,27 @@ export function EwayBillLrStrip({ rows, onView, canEdit, onSave }: Props) {
             <Text style={[styles.cell, styles.colDoc]} numberOfLines={1}>
               {row.docNo}
             </Text>
+            {showUpload ? (
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={() => onUpload?.(row.id)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  row.canView
+                    ? `Upload another e-way bill document${row.ewayNo !== "—" ? ` for ${row.ewayNo}` : ""}`
+                    : `Upload e-way bill document${row.ewayNo !== "—" ? ` for ${row.ewayNo}` : ""}`
+                }
+                hitSlop={{
+                  top: Layout.touchTargetHitSlop,
+                  bottom: Layout.touchTargetHitSlop,
+                  left: Layout.touchTargetHitSlop,
+                  right: Layout.touchTargetHitSlop,
+                }}
+              >
+                <Feather name="upload" size={16} color={Theme.primary} />
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
               style={styles.iconBtn}
               onPress={() => onView(row.id)}

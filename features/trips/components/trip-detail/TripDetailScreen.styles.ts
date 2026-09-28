@@ -3218,10 +3218,12 @@ export const neoStyles = StyleSheet.create({
     lineHeight: 16,
   },
   vaultCard: {
+    width: "31.5%",
+    maxWidth: "31.5%",
     flexGrow: 0,
-    flexShrink: 1,
-    flexBasis: "31.8%",
+    flexShrink: 0,
     minWidth: 0,
+    minHeight: 176,
     backgroundColor: "#fff",
     borderRadius: 14,
     padding: 12,
@@ -3233,6 +3235,18 @@ export const neoStyles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 8,
     position: "relative",
+  },
+  vaultCardHalf: {
+    width: "48%",
+    maxWidth: "48%",
+  },
+  vaultCardExpanded: {
+    flexBasis: "100%",
+    alignItems: "stretch",
+  },
+  vaultCardHeader: {
+    width: "100%",
+    alignItems: "center",
   },
   vaultThumb: {
     width: "100%",
@@ -3307,6 +3321,8 @@ export const neoStyles = StyleSheet.create({
   },
   vaultBtnFlex: {
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
     marginTop: 0,
     justifyContent: "center",
   },
@@ -3321,6 +3337,13 @@ export const neoStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Theme.borderLight,
     opacity: 0.55,
+  },
+  /** Preview present but no file yet — visible, not highlighted. */
+  vaultBtnPreviewIdle: {
+    backgroundColor: Theme.surface,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    opacity: 1,
   },
   vaultBtnText: {
     color: Theme.buttonDarkText,
@@ -7103,6 +7126,51 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
+  },
+  tripDetailsDialog: {
+    width: "100%",
+    maxWidth: 440,
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+  },
+  tripDetailsDialogBody: {
+    paddingHorizontal: 14,
+    paddingTop: 4,
+    paddingBottom: 14,
+  },
+  tripDetailsFields: {
+    width: "100%",
+    gap: 8,
+  },
+  tripDetailsCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  tripDetailsRow: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingLeft: 14,
+    paddingRight: 8,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    backgroundColor: Theme.surfaceGray,
+  },
+  tripDetailsIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Theme.cardWhite,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
   },
   vaultLimitsHint: {
     marginTop: 4,

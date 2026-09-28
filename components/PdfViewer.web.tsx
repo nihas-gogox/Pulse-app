@@ -12,18 +12,48 @@ import {
 interface PdfViewerProps {
   pdfUri: string | null;
   style?: StyleProp<ViewStyle>;
+  /** Browser PDF chrome. Off keeps the page itself in the frame. */
+  showToolbar?: boolean;
+  /** 1 = 100% of the file. The viewer does not fit-to-width on open. */
+  zoom?: number;
+  /**
+   * `original` opens the PDF at that zoom (100% of the page).
+   * `fit` scales the page to the frame, which is what the browser does by default.
+   */
+  sizing?: "original" | "fit";
+  /** 1-based page. Omitted leaves the viewer on its default first page. */
+  page?: number;
 }
 
 function isLocalPreviewUri(uri: string): boolean {
   return /^(blob:|data:|file:)/i.test(uri);
 }
 
-function withPdfViewerHash(uri: string): string {
-  if (uri.includes("#") || uri.startsWith("data:")) return uri;
-  return `${uri}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`;
+function withPdfViewerHash(
+  uri: string,
+  showToolbar: boolean,
+  zoom: number,
+  sizing: "original" | "fit",
+  page?: number,
+): string {
+  if (uri.startsWith("data:")) return uri;
+  const base = uri.split("#")[0];
+  const toolbar = showToolbar ? "1" : "0";
+  const percent = Math.max(10, Math.round(zoom * 100));
+  // Numeric zoom with a page origin. Fit-to-width is what was opening notes at ~119%.
+  const view = sizing === "original" ? `zoom=${percent},0,0` : "view=FitH";
+  const pagePart = page && page > 0 ? `&page=${Math.round(page)}` : "";
+  return `${base}#toolbar=${toolbar}&navpanes=0&scrollbar=1&${view}${pagePart}`;
 }
 
-export function PdfViewer({ pdfUri, style }: PdfViewerProps) {
+export function PdfViewer({
+  pdfUri,
+  style,
+  showToolbar = true,
+  zoom = 1,
+  sizing = "fit",
+  page,
+}: PdfViewerProps) {
   const [src, setSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -37,7 +67,8 @@ export function PdfViewer({ pdfUri, style }: PdfViewerProps) {
     let objectUrl: string | null = null;
     let cancelled = false;
 
-    if (isLocalPreviewUri(pdfUri)) {
+    if (isLocalPreviewUri(pdfUri) || sizing === "original" || page != null) {
+      // Keep the real https URL. Chrome drops #zoom and #page on blob: copies.
       setSrc(pdfUri);
       setLoading(false);
       return;
@@ -71,7 +102,7 @@ export function PdfViewer({ pdfUri, style }: PdfViewerProps) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [pdfUri]);
+  }, [pdfUri, sizing, page]);
 
   if (!pdfUri) {
     return (
@@ -93,7 +124,8 @@ export function PdfViewer({ pdfUri, style }: PdfViewerProps) {
   return (
     <View style={[styles.container, style]}>
       <iframe
-        src={withPdfViewerHash(src)}
+        src={withPdfViewerHash(src, showToolbar, zoom, sizing, page)}
+        key={`${page ?? 0}-${Math.round(zoom * 100)}`}
         style={{
           position: "absolute",
           top: 0,

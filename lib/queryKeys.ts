@@ -287,10 +287,15 @@ export const queryKeys = {
     draftClientsRoot: ["q", "invoicing", "draft-clients"] as const,
     /** Existing public.invoices rows for the Invoice product history surface. */
     issued: (orgId: string) => ["q", "invoicing", "issued", orgId] as const,
+    drafts: (orgId: string) => ["q", "invoicing", "drafts", orgId] as const,
     clientPodPolicies: (orgId: string, idsKey: string) =>
       ["q", "invoicing", "client-pod-policies", orgId, idsKey] as const,
     digitalPods: (orgId: string, idsKey: string) =>
       ["q", "invoicing", "digital-pods", orgId, idsKey] as const,
+    commerceOrder: (orgId: string, orderId: string) =>
+      ["q", "invoicing", "commerce-order", orgId, orderId] as const,
+    manualPlans: (orgId: string, clientId: string) =>
+      ["q", "invoicing", "manual-plans", orgId, clientId] as const,
   },
 
   posts: {
@@ -324,6 +329,8 @@ export const queryKeys = {
   /** A4 — Business Find Loads: open Marketplace/both discovery for an org. */
   findLoadsForOrg: {
     list: (orgId: string) => ["q", "find-loads", orgId] as const,
+    infinite: (orgId: string, pageSize: number) =>
+      ["q", "find-loads", orgId, "infinite", pageSize] as const,
     postIds: (orgId: string, indentIdsKey: string) =>
       ["q", "find-loads", orgId, "post-ids", indentIdsKey] as const,
     myBids: (orgId: string) => ["q", "find-loads", orgId, "my-bids"] as const,
@@ -602,9 +609,12 @@ export const queryKeys = {
   },
 
   tripCompliance: {
+    /** Full Loading→Completed summaries for an org (totals independent of UI page). */
+    pipeline: (orgId: string, tripsRevision: number | string) =>
+      ["q", "tripCompliance", "pipeline", "v1", orgId, tripsRevision] as const,
     list: (orgId: string, page: number) =>
       ["q", "tripCompliance", "list", "vault-v2", orgId, page] as const,
     detail: (orgId: string, tripId: string) =>
-      ["q", "tripCompliance", "detail", "vault-v2", orgId, tripId] as const,
+      ["q", "tripCompliance", "detail", "v1", orgId, tripId] as const,
   },
 } as const;

@@ -5,7 +5,28 @@
  */
 import { parseLrFieldValues } from "@/features/trips/services/lrDocumentOcr.util";
 
-export type DocCategory = "vehicle" | "trip" | "driver" | "lr" | "eway";
+export type DocCategory =
+  | "vehicle"
+  | "trip"
+  | "driver"
+  | "driver_identity"
+  | "lr"
+  | "eway"
+  | "invoice"
+  | "trip_details";
+
+export type TripDetailsSlot = "lr" | "invoice" | "memo";
+
+export const TRIP_DETAILS_SLOTS: readonly {
+  id: TripDetailsSlot;
+  label: string;
+}[] = [
+  { id: "lr", label: "LR Document" },
+  { id: "invoice", label: "Invoice" },
+  { id: "memo", label: "Memo" },
+];
+
+export const TRIP_DETAILS_TYPE_HINT = "LR · INVOICE · MEMO";
 
 export interface TripDocFile {
   id: string;
@@ -13,6 +34,8 @@ export interface TripDocFile {
   type: string;
   storagePath: string;
   documentId?: string;
+  /** Which Trip Details field this file belongs to. */
+  slotType?: TripDetailsSlot;
 }
 
 export interface TripDocItem {
@@ -25,7 +48,7 @@ export interface TripDocItem {
   /** Optional backend document id for future use (e.g. multiple PODs). */
   documentId?: string;
   /** Which storage bucket to resolve signed URLs from. Default: 'trip' (trip-documents bucket). */
-  docSource?: "trip" | "vehicle";
+  docSource?: "trip" | "vehicle" | "compliance";
   /** Optional grouping metadata for downstream preview behavior. */
   category?: DocCategory;
   /** Extra files nested in this slot (one card, many uploads). */
@@ -127,6 +150,12 @@ export function isLrVaultDoc(
   return doc?.id === "lr" || doc?.category === "lr";
 }
 
+export function isTripDetailsVaultDoc(
+  doc: Pick<TripDocItem, "category" | "id"> | null | undefined,
+): boolean {
+  return doc?.id === "trip-details" || doc?.category === "trip_details";
+}
+
 export function isDriverPodVaultDoc(
   doc: Pick<TripDocItem, "id" | "category"> | null | undefined,
 ): boolean {
@@ -160,11 +189,30 @@ export function canAddMoreTripDocs(
   ) {
     return true;
   }
+  if (
+    doc.category === "driver_identity" ||
+    doc.docSource === "compliance" ||
+    doc.id === "driver-documents"
+  ) {
+    return true;
+  }
+  if (doc.category === "trip_details" || doc.id === "trip-details") {
+    return true;
+  }
   return (
     doc.category === "lr" ||
     doc.category === "trip" ||
-    doc.category === "driver"
+    doc.category === "driver" ||
+    doc.category === "invoice" ||
+    doc.id === "invoice"
   );
+}
+
+export function isDriverIdentityVaultDoc(
+  doc: Pick<TripDocItem, "id" | "category"> | null | undefined,
+): boolean {
+  if (!doc) return false;
+  return doc.id === "driver-documents" || doc.category === "driver_identity";
 }
 
 /** True when Preview can open a file (storage path, file list, or uploaded status). */
@@ -256,7 +304,15 @@ export function formatLrVaultNumberLabel(number?: string | null): string | null 
   return /^lr\s*no\.?/i.test(trimmed) ? trimmed : `LR No. ${trimmed}`;
 }
 
-/** LR date shown on the vault card, e.g. `LR date 03-Sep-26`. */
+/** Invoice number shown on the Invoice bar, e.g. `Invoice No. 45821`. */
+export function formatInvoiceVaultNumberLabel(number?: string | null): string | null {
+  const trimmed = (number ?? "").trim();
+  if (!trimmed) return null;
+  const parsed = parseLrFieldValues(trimmed);
+  const value = parsed.invoice || parsed.lrNumber;
+  if (!value) return null;
+  return /^invoice\s*no\.?/i.test(value) ? value : `Invoice No. ${value}`;
+}
 export function formatLrVaultDateLabel(value?: string | null): string | null {
   const raw = (value ?? "").trim();
   if (!raw) return null;

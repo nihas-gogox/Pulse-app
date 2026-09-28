@@ -1233,6 +1233,8 @@ export async function markNetworkConversationRead(
 export async function getIntegratedPartners(
   orgId: string,
 ): Promise<NetworkPartner[]> {
+  const { isSupabaseCircuitOpen } = await import("@/lib/supabaseHttp.util");
+  if (isSupabaseCircuitOpen()) return [];
   const { data, error } = await supabase().rpc("get_integrated_partners", { p_org_id: orgId });
   if (error || data == null) return [];
 
