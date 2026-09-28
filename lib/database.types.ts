@@ -2133,6 +2133,8 @@ export type Database = {
           trade_name: string | null
           updated_at: string | null
           updated_by: string | null
+          valid_from: string | null
+          valid_to: string | null
           website: string | null
         }
         Insert: {
@@ -2189,6 +2191,8 @@ export type Database = {
           trade_name?: string | null
           updated_at?: string | null
           updated_by?: string | null
+          valid_from?: string | null
+          valid_to?: string | null
           website?: string | null
         }
         Update: {
@@ -2245,6 +2249,8 @@ export type Database = {
           trade_name?: string | null
           updated_at?: string | null
           updated_by?: string | null
+          valid_from?: string | null
+          valid_to?: string | null
           website?: string | null
         }
         Relationships: [

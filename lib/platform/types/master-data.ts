@@ -127,6 +127,8 @@ export type UpdatePlatformCustomerInput = {
   state?: string;
   contactPerson?: string;
   panNumber?: string;
+  validFrom?: string | null;
+  validTo?: string | null;
 };
 
 export type UpdatePlatformWarehouseInput = {

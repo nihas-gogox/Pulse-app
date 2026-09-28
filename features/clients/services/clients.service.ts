@@ -30,6 +30,8 @@ export interface ClientRow {
   address: string | null;
   gstin: string | null;
   pan_number: string | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -553,6 +555,8 @@ export interface UpdateClientData {
   address?: string;
   gstin?: string;
   pan_number?: string;
+  valid_from?: string | null;
+  valid_to?: string | null;
 }
 
 const CLIENT_IDENTITY_FIELDS = [
@@ -574,6 +578,8 @@ export async function updateClient(
     patch.address !== undefined ||
     patch.gstin !== undefined ||
     patch.pan_number !== undefined ||
+    patch.valid_from !== undefined ||
+    patch.valid_to !== undefined ||
     patch.organization_name !== undefined;
   if (!hasPatch) return { error: null, client: null };
 
@@ -618,6 +624,8 @@ export async function updateClient(
       gstin: patch.gstin !== undefined ? patch.gstin.trim() || undefined : undefined,
       contactPerson: patch.contact_person !== undefined ? patch.contact_person.trim() || undefined : undefined,
       panNumber: patch.pan_number !== undefined ? patch.pan_number.trim() || undefined : undefined,
+      validFrom: patch.valid_from,
+      validTo: patch.valid_to,
     }));
     return { error: null, client };
   } catch (e) {
