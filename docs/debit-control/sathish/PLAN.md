@@ -18,7 +18,43 @@ Branch: `debit-control-sathish` (baseline: V1 @ f6cb238a) · local only, not pus
 
 Legend: ⬜ Not started · 🟡 In progress / partial · ✅ Done · ⛔ Blocked
 
-**Implementation status: NOT READY.** Nothing in this branch changes code, schema or data. All DB facts below come from read-only `information_schema` / `pg_catalog` queries against linked preprod `xbisiveavvbifbzyfhgy`.
+**Implementation status: FROZEN — NOT READY.** Until Sathish answers D1 and D3–D10, there is no migration, RPC, schema change, feature code, status-transition code, finance integration, or test fixture that encodes an unresolved rule. Nothing in this branch changes code, schema or data. All DB facts below come from read-only `information_schema` / `pg_catalog` queries against linked preprod `xbisiveavvbifbzyfhgy`.
+
+Decision request to send: [SATHISH_DECISIONS.md](./SATHISH_DECISIONS.md) · V1 defects for other owners: [V1_FINDINGS.md](./V1_FINDINGS.md)
+
+## BLOCKERS / EXTERNAL OWNERS
+
+Kept separate from the feature checklist. None of these is fixed in this branch.
+
+### A. Sathish — business decisions (blocks implementation)
+
+| # | Decision | Status |
+|---|---|---|
+| D1 | Inward = Trip Ops hard-copy receipt? Docket = AWB? "In hand" allowed? | ⛔ Awaiting Sathish |
+| D2 | Multi-trip Validate | ✅ Safe default (one popup per trip) — Sathish may override |
+| D3 | Destination / status after Approve and Approve Invoice | ⛔ Awaiting Sathish |
+| D4 | What Balance Hold blocks, who releases it | ⛔ Awaiting Sathish |
+| D5 | Totals → billing / payout? Exceptions: deducted from whom, how | ⛔ Awaiting Sathish |
+| D6 | Source of Indent Type and Client Operations HUB | ⛔ Awaiting Sathish |
+| D7 | Which trips enter POD Pending; pre-go-live trips | ⛔ Awaiting Sathish |
+| D8 | Own-fleet (no vendor) trips | ⛔ Awaiting Sathish |
+| D9 | Who may Inward / Validate / Approve / Approve Invoice / Decline / release | ⛔ Awaiting Sathish |
+| D10 | Reopen / reverse an approval | ⛔ Awaiting Sathish |
+
+### B. V1 security finding — OWNER REQUIRED
+
+- **Finding A:** `public.get_trips_for_pod_org(uuid)` is SECURITY DEFINER, executable by `authenticated`, with no caller org-membership check (confirmed from its definition on preprod). It affects POD Reconciliation and Invoicing. Owner: DB/security (unassigned). Must be fixed before Debit Control reads through it. Details in [V1_FINDINGS.md](./V1_FINDINGS.md#finding-a--security-finding--owner-required).
+
+### C. V1 audit-integrity finding — OWNER REQUIRED
+
+- **Finding B:** `log_activity` (and `activity_logs`) is absent on preprod. V1 POD validation and POD-logged audit writes are not persisted. Owner: audit/platform (unassigned). Details in [V1_FINDINGS.md](./V1_FINDINGS.md#finding-b--audit-integrity-finding--owner-required).
+
+### D. Other items outside this branch
+
+- **V1-3:** `PodValidationView` overwrites `trips.client_price` from the client with no server check (changes AR/Revenue). Owner: finance (unassigned). Related to D5.
+- **V1-4:** The POD `approved` ("Ready") tab and `get_pod_reconciliation_summary` reference `invoice_status_1` / `pod_status` / `total_client_value`, which are absent on preprod `trips`. Owner: POD Reconciliation (unassigned).
+- **T3:** The UI gate `finance.pod_reconciliation` and the RPC surface `trip_compliance.pod.manage` disagree. Owner: RBAC (`docs/RBAC_OPERATING_MODEL.md`).
+- **Prod:** none of the above was checked on prod `nafxpivddesgsrthmosv`: unknown.
 
 ---
 
@@ -47,12 +83,9 @@ Legend: ⬜ Not started · 🟡 In progress / partial · ✅ Done · ⛔ Blocked
 | Finance-ledger | AR/Revenue derived from `trips.client_price`; AP from `trips.supplier_rate`. No DB trigger posts to the ledger | `features/finance/aggregation/*`, `accountingModel.ts` | D5 | `grep client_price features/finance`; `pg_trigger` on trips |
 | Permissions | UI gate `finance.pod_reconciliation`, but the inward RPC checks `trip_compliance.pod.manage`. No server function checks `finance.pod_reconciliation` | `has_member_surface` | Which capability owns Debit Control (D4/T3) | `app/pod-reconciliation/index.tsx:6`; `pg_proc` surface scan |
 
-### Pre-existing V1 defects found (report only — not fixed here)
+### Pre-existing V1 defects found
 
-- **V1-1 (security)** `get_trips_for_pod_org(p_org_id)` is SECURITY DEFINER with no `auth.uid()` or membership check. Any authenticated user can read another org's trips (`20260524120000_connection_reducing_rpcs_batch2.sql`).
-- **V1-2** `log_activity` is missing, so the POD audit calls in `PodValidationView` and `logPods.service` do nothing.
-- **V1-3** The Validate screen writes a new `client_price` from the client with no server check, which changes AR/Revenue.
-- **V1-4** The `approved` tab and `get_pod_reconciliation_summary` reference `invoice_status_1` / `pod_status` / `total_client_value`, which are absent on preprod `trips`.
+These are moved to **BLOCKERS / EXTERNAL OWNERS** above: V1-1 = Finding A, V1-2 = Finding B, then V1-3 and V1-4.
 
 ---
 
@@ -132,7 +165,7 @@ Legend: ⬜ Not started · 🟡 In progress / partial · ✅ Done · ⛔ Blocked
 - **T3** Capability: new server surface for Debit Control vs reuse `finance.pod_reconciliation`. Also resolve the mismatch with `trip_compliance.pod.manage`. Update `docs/RBAC_OPERATING_MODEL.md` + changelog.
 - **T4** Vehicle Type source when `vehicle_id` is null (market trips): `indents.vehicle_type`?
 - **T5** Client Invoice Number at validation time (C4): it usually does not exist yet. Show it when issued, or does Trips Ops need a new field?
-- **T6** V1-1 (`get_trips_for_pod_org` has no auth check) must be fixed before Debit Control ships on top of it. It needs its own owner and review, not this branch.
+- **T6** Finding A must be fixed by its owner before Debit Control reads through `get_trips_for_pod_org` (see BLOCKERS B).
 
 ---
 
@@ -141,4 +174,4 @@ Legend: ⬜ Not started · 🟡 In progress / partial · ✅ Done · ⛔ Blocked
 - **DB** (one migration via `supabase migration new`, after D1/D3/D4/D5): per-trip validation record (20 amounts, remarks, totals, status, actor, time, idempotency key). SECURITY DEFINER RPCs for Mark Inward and Validate-action, with state + permission + idempotency checks. Audit events. Membership-scoped read RPC.
 - **Code:** `features/debit-control/` (service, queries, POD Pending / POD Received tables, Inward modal, Validation modal). Totals in a pure `*.util.ts`. The route is gated by the new capability. The existing `pod-reconciliation` screen is untouched unless D3 says the tabs merge.
 - **Tests:** unit (totals exclude exceptions, blank vs 0, state machine), component (mandatory inward fields, popup Cancel writes nothing, double-submit), SQL rolled-back lifecycle (permission, idempotent retry, invalid transitions), Playwright happy path. Preprod runbook like `docs/compliance/dinesh/preprod/`.
-- **Out of scope for this branch:** V1-1..V1-4 fixes (report to owners).
+- **Out of scope for this branch:** Findings A/B, V1-3, V1-4 (external owners — see BLOCKERS / EXTERNAL OWNERS).
