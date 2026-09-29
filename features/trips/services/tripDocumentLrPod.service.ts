@@ -570,6 +570,37 @@ function isTripUuid(id: string): boolean {
  *  connections at once via `Promise.all`. */
 const CHUNK_CONCURRENCY = 3;
 
+/** null = unknown, true = RPC works, false = missing/denied (use REST). */
+let lrPodBatchRpcAvailable: boolean | null = null;
+
+function formatPostgrestError(e: unknown): string {
+  if (e instanceof Error && e.message) return e.message;
+  if (e && typeof e === "object") {
+    const row = e as { message?: unknown; code?: unknown; details?: unknown };
+    const parts = [row.message, row.code, row.details]
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter(Boolean);
+    if (parts.length > 0) return parts.join(" · ");
+  }
+  return String(e);
+}
+
+function isMissingRpcError(e: unknown, msg: string): boolean {
+  const code =
+    e && typeof e === "object" && "code" in e
+      ? String((e as { code?: unknown }).code ?? "")
+      : "";
+  const lower = msg.toLowerCase();
+  return (
+    code === "PGRST202" ||
+    code === "42883" ||
+    lower.includes("404") ||
+    lower.includes("could not find the function") ||
+    (lower.includes("function") && lower.includes("does not exist")) ||
+    lower.includes("schema cache")
+  );
+}
+
 /**
  * Runs `worker` over `items` with at most `limit` in flight at once. Every item is
  * processed and one result is returned per item, in input order — `worker` is expected
@@ -597,6 +628,10 @@ export async function runWithConcurrencyLimit<T, R>(
 async function fetchLrPodRowsViaRpc(
   tripIds: string[],
 ): Promise<TripDocumentLrPodRow[] | null> {
+  // Session probe: a 404/PGRST202 means the batch RPC is not deployed yet —
+  // skip further RPC attempts and use REST for the rest of the session.
+  if (lrPodBatchRpcAvailable === false) return null;
+
   const uuidIds = tripIds.filter(isTripUuid);
   // Non-UUID ids (tests / legacy) → REST path. Empty uuid set is not "RPC ok".
   if (uuidIds.length === 0) return null;
@@ -615,12 +650,21 @@ async function fetchLrPodRowsViaRpc(
     });
     const rows: TripDocumentLrPodRow[] = [];
     for (const part of parts) rows.push(...part);
+    lrPodBatchRpcAvailable = true;
     return rows;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = formatPostgrestError(e);
+    if (isMissingRpcError(e, msg)) {
+      lrPodBatchRpcAvailable = false;
+    }
     console.warn("[tripDocumentLrPod] lr/pod RPC batch unavailable:", msg);
     return null;
   }
+}
+
+/** @internal — Jest only. */
+export function __resetTripDocumentLrPodRpcProbeForTests(): void {
+  lrPodBatchRpcAvailable = null;
 }
 
 async function fetchLrPodRowsViaRest(

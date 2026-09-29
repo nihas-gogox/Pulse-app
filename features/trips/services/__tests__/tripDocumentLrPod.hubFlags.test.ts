@@ -1,5 +1,6 @@
 import { serializeEwayFieldEntries } from "../ewayBillFields.util";
 import {
+  __resetTripDocumentLrPodRpcProbeForTests,
   loadHubPodReceiptFlags,
   loadLrPodIndexByTripIds,
 } from "../tripDocumentLrPod.service";
@@ -29,6 +30,7 @@ function thenable(result: QueryResult) {
 describe("loadHubPodReceiptFlags", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    __resetTripDocumentLrPodRpcProbeForTests();
     mockRpc.mockResolvedValue({
       data: null,
       error: { message: "function missing" },
