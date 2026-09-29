@@ -108,7 +108,7 @@ function protectedTripIds(
   current: ComplianceTripInputs[] | undefined,
 ): Set<string> {
   const ids = tripsWrittenSince(log, startedAt);
-  if (ids || !snapshot || !current || snapshot === current) return ids;
+  if (!snapshot || !current || snapshot === current) return ids;
   const before = new Map(snapshot.map((row) => [row.trip.id, row]));
   for (const row of current) {
     const prev = before.get(row.trip.id);
