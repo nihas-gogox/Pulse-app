@@ -9,7 +9,7 @@ import {
 import { syncDomainRows } from "@/lib/cache/domainSync";
 import { mergeDeltaRows } from "@/lib/cache/mergeDelta";
 import type { DeltaResponse } from "@/lib/cache/deltaTypes";
-import { supabase } from "@/lib/supabase";
+import { getAccessToken, supabase } from "@/lib/supabase";
 import { TimeoutError, withTimeout } from "@/lib/authEngine";
 import { getPlatformEventBus } from "@/lib/platform/events/InProcessEventBus";
 import { uuidv7 } from "@/lib/uuidv7";
@@ -465,6 +465,9 @@ export async function getShipperDisplayNamesForSupplierTrips(
   error: Error | null;
   shipperNameByTripId: Record<string, string>;
 }> {
+  if (!(await getAccessToken())) {
+    return { error: null, shipperNameByTripId: {} };
+  }
   const { data, error } = await supabase().rpc(
     "get_shipper_display_names_for_supplier_trips",
     { p_org_id: orgId },

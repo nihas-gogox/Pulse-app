@@ -8,7 +8,7 @@
  * lifecycle presentation — see docs/MARKETPLACE_DOMAIN.md
  * "Distribution vs monetization".
  */
-import { supabase } from '@/lib/supabase';
+import { getAccessToken, supabase } from '@/lib/supabase';
 import {
   resolveCommercialOpportunity,
   type CommercialOpportunity,
@@ -304,6 +304,9 @@ export async function findPostIdsForIndents(
   indentIds: string[],
 ): Promise<{ error: Error | null; postIdByIndentId: Map<string, string> }> {
   if (indentIds.length === 0) return { error: null, postIdByIndentId: new Map() };
+  if (!(await getAccessToken())) {
+    return { error: null, postIdByIndentId: new Map() };
+  }
   const uniqueIds = [...new Set(indentIds.filter(Boolean))];
   const map = new Map<string, string>();
   for (let i = 0; i < uniqueIds.length; i += 40) {

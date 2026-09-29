@@ -316,6 +316,9 @@ export async function getDriversByOrganization(
 ): Promise<{ error: Error | null; drivers: DriverRow[]; hasMore?: boolean }> {
   // Try profile-joined RPC first (returns avatar_url + avatar_seed from profiles via user_id join).
   if (opts == null) {
+    if (!(await getAccessToken())) {
+      return { error: null, drivers: [] };
+    }
     try {
       const { data, error: rpcError } = await supabase().rpc(
         "get_drivers_with_profiles",

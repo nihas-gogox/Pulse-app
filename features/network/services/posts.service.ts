@@ -1,7 +1,7 @@
 /**
  * Posts service — business updates and load posts in the network feed.
  */
-import { supabase } from '@/lib/supabase';
+import { getAccessToken, supabase } from '@/lib/supabase';
 
 /** Pulse network: business-only. `UPDATE` is legacy (hidden in UI; migrate off DB when ready). */
 export type PostType = 'UPDATE' | 'LOAD' | 'VEHICLE_AVAILABILITY';
@@ -126,6 +126,9 @@ export async function getNetworkFeed(
   limit = 30,
   offset = 0,
 ): Promise<{ error: Error | null; posts: PostRow[] }> {
+  if (!(await getAccessToken())) {
+    return { error: null, posts: [] };
+  }
   const cappedLimit = Math.min(Math.max(limit, 1), 50);
   const { data, error } = await supabase().rpc('get_network_feed', {
     p_org_id: orgId,

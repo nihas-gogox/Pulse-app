@@ -9,11 +9,13 @@ import {
 import type { IndentStoryState } from '@/features/network/services/indentStoryPosts.service';
 import { queryKeys } from '@/lib/queryKeys';
 import { STALE } from '@/lib/queryClient';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function useNetworkFeedQuery(
   orgId: string | null,
   options?: { enabled?: boolean },
 ) {
+  const { status } = useAuth();
   return useQuery({
     queryKey: queryKeys.posts.feed(orgId ?? ''),
     queryFn: async () => {
@@ -21,7 +23,7 @@ export function useNetworkFeedQuery(
       if (res.error) throw res.error;
       return res.posts;
     },
-    enabled: !!orgId && options?.enabled !== false,
+    enabled: !!orgId && status === 'authenticated' && options?.enabled !== false,
     staleTime: STALE.moderate,
   });
 }
@@ -49,6 +51,7 @@ export function useIndentStoryStatesQuery(
   orgId: string | null,
   indentIds: string[],
 ) {
+  const { status } = useAuth();
   const stableKey = indentIds.length ? [...indentIds].sort().join(',') : '';
   return useQuery<Record<string, IndentStoryState>>({
     queryKey: queryKeys.posts.indentStories(orgId ?? '', stableKey),
@@ -60,13 +63,14 @@ export function useIndentStoryStatesQuery(
       if (res.error) throw res.error;
       return res.byIndentId;
     },
-    enabled: !!orgId && indentIds.length > 0,
+    enabled: !!orgId && status === 'authenticated' && indentIds.length > 0,
     staleTime: STALE.frequent,
   });
 }
 
 /** Live own LOAD stories (Load Center green Pulse) for Mine queue + story segments. */
 export function useLiveOwnLoadStoriesQuery(orgId: string | null) {
+  const { status } = useAuth();
   return useQuery({
     queryKey: queryKeys.posts.liveOwnLoadStories(orgId ?? ''),
     queryFn: async () => {
@@ -77,7 +81,7 @@ export function useLiveOwnLoadStoriesQuery(orgId: string | null) {
       if (res.error) throw res.error;
       return res.posts;
     },
-    enabled: !!orgId,
+    enabled: !!orgId && status === 'authenticated',
     staleTime: STALE.frequent,
   });
 }
