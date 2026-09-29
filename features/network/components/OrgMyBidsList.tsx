@@ -25,6 +25,8 @@ import { formatStoryDate } from "@/features/network/utils/storyDisplay";
 import {
   createMarketplaceFeeOrder,
   createTestMarketplaceFeeOrder,
+  marketplaceFeeGateSatisfied,
+  settleMarketplaceFeeAsCash,
   simulateTestMarketplaceFeePayment,
   type TestMarketplaceFeeProvider,
 } from "@/features/network/services/marketBids.service";
@@ -37,8 +39,10 @@ import {
   PilotTestCheckoutSheet,
 } from "@/features/marketplace/components/PilotPaymentMethodSheet";
 import { RazorpayTestPreviewSheet } from "@/features/driver/components/RazorpayTestPreviewSheet";
-import { getTripByIndentId } from "@/features/trips/services/trips.service";
+import type { IndentRow } from "@/features/indents/services/indents.service";
+import { setInitialIndentForDetail } from "@/features/indents/initialIndentForDetail";
 import { showAppAlert } from "@/lib/appAlert";
+import { confirmDialog } from "@/lib/confirmDialog";
 import { ROUTES } from "@/lib/routes";
 import { useRouter } from "expo-router";
 import { ChevronRight, Inbox } from "lucide-react-native";
@@ -96,16 +100,11 @@ function routeLabel(bid: MyOrgMarketBidRow): string {
   return `${from} → ${to}`;
 }
 
-/** A8.6.2 — the Marketplace fee gates trip creation now, not just award. */
-function feePaymentGateSatisfied(status: FeePaymentStatus): boolean {
-  return status === "paid" || status === "not_required";
-}
-
 function feePendingLabel(status: FeePaymentStatus, feeAmount: number | null): string {
   const feeLabel = feeAmount != null ? formatAmount(feeAmount) : "the Marketplace fee";
   switch (status) {
     case "pending":
-      return `Payment of ${feeLabel} is processing…`;
+      return `Payment of ${feeLabel} did not finish. Complete cash payment to unlock Assign.`;
     case "failed":
       return `Payment of ${feeLabel} failed — retry to unlock this load.`;
     case "required":
@@ -114,13 +113,42 @@ function feePendingLabel(status: FeePaymentStatus, feeAmount: number | null): st
   }
 }
 
+function indentRowFromOrgMarketBid(
+  bid: MyOrgMarketBidRow,
+  viewerOrgId: string,
+): IndentRow {
+  return {
+    id: bid.indent_id,
+    organization_id: bid.owner_organization_id ?? "",
+    indent_number:
+      (bid.indent_number ?? "").trim() ||
+      bid.indent_id.slice(0, 8).toUpperCase(),
+    pickup_area: bid.pickup_area ?? "",
+    drop_location: bid.drop_location ?? "",
+    client_name: "",
+    client_price: Number(bid.amount) || 0,
+    supplier_target: Number(bid.amount) || 0,
+    assigned_supplier_rate: Number(bid.amount) || 0,
+    status: "awarded",
+    vehicle_type: null,
+    load_type: bid.load_type,
+    pickup_date: bid.pickup_date,
+    circulation_target: "marketplace",
+    created_at: bid.created_at,
+    creator_organization_name: bid.owner_organization_name,
+    assigned_supplier_id: viewerOrgId,
+  };
+}
+
 export function OrgMyBidsList({
   bids,
   isLoading,
+  orgId,
   onPaymentUpdated,
 }: {
   bids: MyOrgMarketBidRow[];
   isLoading: boolean;
+  orgId?: string | null;
   /** A8.7: called after a checkout attempt closes, so the caller can refetch bids/loads. */
   onPaymentUpdated?: () => void;
 }) {
@@ -161,21 +189,36 @@ export function OrgMyBidsList({
       {groups.awarded.length > 0 ? (
         <Section title="Awarded" count={groups.awarded.length}>
           {groups.awarded.map((b) => (
-            <BidCard key={b.id} bid={b} onPaymentUpdated={onPaymentUpdated} />
+            <BidCard
+              key={b.id}
+              bid={b}
+              orgId={orgId}
+              onPaymentUpdated={onPaymentUpdated}
+            />
           ))}
         </Section>
       ) : null}
       {groups.pending.length > 0 ? (
         <Section title="Pending" count={groups.pending.length}>
           {groups.pending.map((b) => (
-            <BidCard key={b.id} bid={b} onPaymentUpdated={onPaymentUpdated} />
+            <BidCard
+              key={b.id}
+              bid={b}
+              orgId={orgId}
+              onPaymentUpdated={onPaymentUpdated}
+            />
           ))}
         </Section>
       ) : null}
       {groups.closed.length > 0 ? (
         <Section title="Not selected" count={groups.closed.length}>
           {groups.closed.map((b) => (
-            <BidCard key={b.id} bid={b} onPaymentUpdated={onPaymentUpdated} />
+            <BidCard
+              key={b.id}
+              bid={b}
+              orgId={orgId}
+              onPaymentUpdated={onPaymentUpdated}
+            />
           ))}
         </Section>
       ) : null}
@@ -209,9 +252,11 @@ function Section({
 
 function BidCard({
   bid,
+  orgId,
   onPaymentUpdated,
 }: {
   bid: MyOrgMarketBidRow;
+  orgId?: string | null;
   onPaymentUpdated?: () => void;
 }) {
   const router = useRouter();
@@ -220,8 +265,7 @@ function BidCard({
   const isAccepted = bid.status === "accepted";
   const isRejected = bid.status === "rejected";
   const phoneDisplay = bid.owner_phone ?? bid.owner_masked_phone;
-  const feeGateSatisfied = feePaymentGateSatisfied(bid.fee_payment_status);
-  const [isNavigating, setIsNavigating] = useState(false);
+  const feeGateSatisfied = marketplaceFeeGateSatisfied(bid.fee_payment_status);
   const [isStartingPayment, setIsStartingPayment] = useState(false);
   const [checkoutOrder, setCheckoutOrder] = useState<{
     orderId: string;
@@ -243,7 +287,11 @@ function BidCard({
   const [isStartingTestPayment, setIsStartingTestPayment] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
 
-  const canPay = isAccepted && (bid.fee_payment_status === "required" || bid.fee_payment_status === "failed");
+  const canPay =
+    isAccepted &&
+    (bid.fee_payment_status === "required" ||
+      bid.fee_payment_status === "failed" ||
+      bid.fee_payment_status === "pending");
   const shipper = titleCaseWord(
     (bid.owner_organization_name ?? "").trim() || "Unknown shipper",
   );
@@ -277,8 +325,43 @@ function BidCard({
     onPaymentUpdated?.();
   };
 
+  const handleCashSettle = async () => {
+    if (isSimulating) return;
+    setMethodSheetOpen(false);
+    const feeLabel = formatAmount(bid.platform_fee_amount);
+    const confirmed = await confirmDialog({
+      title: "Pay Marketplace fee with cash",
+      message: `Record ${feeLabel} as cash paid to Pulse? This unlocks Assign.`,
+      confirmLabel: "Confirm cash paid",
+    });
+    if (!confirmed) return;
+    setIsSimulating(true);
+    try {
+      const { error } = await settleMarketplaceFeeAsCash(bid.id);
+      if (error) {
+        showAppAlert("Could not record fee", error.message);
+        return;
+      }
+      onPaymentUpdated?.();
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
   const handleStartTestPayment = async (provider: TestMarketplaceFeeProvider) => {
+    if (provider === "cash") {
+      await handleCashSettle();
+      return;
+    }
     if (isStartingTestPayment) return;
+    if (bid.fee_payment_status === "pending") {
+      setMethodSheetOpen(false);
+      setTestOrder({
+        provider,
+        amount: Number(bid.platform_fee_amount) || 0,
+      });
+      return;
+    }
     setIsStartingTestPayment(true);
     try {
       const { error, order } = await createTestMarketplaceFeeOrder(bid.id, provider);
@@ -321,22 +404,18 @@ function BidCard({
     return { error };
   };
 
-  // Reuses the existing Indent allocation flow end to end (same as Load Center's
-  // "Get Load -> Allocate" CTA) -- mirrors IndentDetailScreen's handleSupplierAllocate:
-  // route to the trip if allocation already happened elsewhere, otherwise open Allocation.
-  const handleAssignVehicle = async () => {
-    if (isNavigating) return;
-    setIsNavigating(true);
-    try {
-      const res = await getTripByIndentId(bid.indent_id);
-      if (res.trip?.id) {
-        router.push(ROUTES.tripAssignment(res.trip.id, "vehicle") as never);
-      } else {
-        router.push(ROUTES.indentAllocation(bid.indent_id) as never);
-      }
-    } finally {
-      setIsNavigating(false);
+  // Open the fleet step directly. A trip lookup here competed with the
+  // driver and vehicle lists, then replaced this screen with a second load.
+  const handleAssignVehicle = () => {
+    if (!marketplaceFeeGateSatisfied(bid.fee_payment_status)) {
+      setMethodSheetOpen(true);
+      return;
     }
+    const viewerOrgId = (orgId ?? "").trim();
+    if (viewerOrgId) {
+      setInitialIndentForDetail(indentRowFromOrgMarketBid(bid, viewerOrgId));
+    }
+    router.push(ROUTES.indentAllocation(bid.indent_id, "vehicle") as never);
   };
 
   return (
@@ -398,7 +477,6 @@ function BidCard({
         {isAccepted && feeGateSatisfied ? (
           <Pressable
             onPress={handleAssignVehicle}
-            disabled={isNavigating}
             style={({ pressed }) => [
               styles.assignCta,
               pressed && styles.assignRowPressed,
@@ -407,7 +485,7 @@ function BidCard({
             accessibilityLabel="Assign vehicle"
           >
             <Text style={styles.assignCtaText} numberOfLines={1}>
-              {isNavigating ? "Opening…" : "Assign"}
+              Assign
             </Text>
             <ChevronRight size={13} color={Theme.positive} strokeWidth={2.4} />
           </Pressable>
@@ -415,11 +493,15 @@ function BidCard({
         {isAccepted && !feeGateSatisfied && canPay ? (
           <Pressable
             onPress={() => setMethodSheetOpen(true)}
-            disabled={isStartingPayment}
+            disabled={isStartingPayment || isSimulating}
             style={({ pressed }) => [styles.payButton, pressed && styles.assignRowPressed]}
           >
             <Text style={styles.payButtonText} numberOfLines={1}>
-              {isStartingPayment ? "Starting…" : "Pay fee"}
+              {isStartingPayment || isSimulating
+                ? "Working…"
+                : bid.fee_payment_status === "pending"
+                  ? "Complete payment"
+                  : "Pay fee"}
             </Text>
           </Pressable>
         ) : null}
@@ -456,7 +538,7 @@ function BidCard({
       ) : null}
       <PilotPaymentMethodSheet
         visible={methodSheetOpen}
-        busy={isStartingPayment || isStartingTestPayment}
+        busy={isStartingPayment || isStartingTestPayment || isSimulating}
         onClose={() => setMethodSheetOpen(false)}
         onRazorpay={() => {
           setMethodSheetOpen(false);

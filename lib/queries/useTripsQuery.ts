@@ -56,6 +56,7 @@ export function useTripPartyCountsQuery(orgId: string | null) {
 
 /** Map trip_id -> shipper display name for trips where current org is the supplier (Trips Control: show "Mukunt" not "Mukunt's client"). */
 export function useShipperDisplayNamesQuery(orgId: string | null) {
+  const { status } = useAuth();
   return useQuery({
     queryKey: queryKeys.trips.shipperNamesForSupplier(orgId ?? ''),
     queryFn: async () => {
@@ -63,7 +64,7 @@ export function useShipperDisplayNamesQuery(orgId: string | null) {
       if (res.error) throw res.error;
       return res.shipperNameByTripId;
     },
-    enabled: !!orgId,
+    enabled: !!orgId && status === 'authenticated',
     staleTime: STALE.moderate,
   });
 }

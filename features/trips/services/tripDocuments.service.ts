@@ -13,6 +13,12 @@ import { createStorageSignedUrlCache } from "@/lib/storageSignedUrlCache";
 import { listOcrJobsForTripDocuments } from "@/features/ocr/services/ocrJob.service";
 import { runWithConcurrencyLimit } from "@/features/trips/services/tripDocumentLrPod.service";
 import { parseLrFieldsFromOcrJob, parseLrFieldValues, preferredLrDocumentNumber, serializeLrFieldValues, LR_FIELDS_FILE_NAME, lrFieldsStoragePath, isLrFieldsMetaPath } from "@/features/trips/services/lrDocumentOcr.util";
+import { findOrgDuplicateLrNumberForTrip } from "@/features/trips/services/orgLrDuplicate.service";
+import {
+  lrNumberFromStoredDocumentNumber,
+  ORG_LR_DUPLICATE_MESSAGE,
+} from "@/features/trips/services/orgLrNumber.util";
+import { readStoredElrSnapshot } from "@/features/trips/services/elrSnapshot.util";
 import { expandLR } from "@/lib/utils/lr";
 import {
   EWAY_BILL_FIELDS_FILE_NAME,
@@ -170,6 +176,7 @@ async function attachLrOcrFields(rows: TripDocumentRow[]): Promise<TripDocumentR
     }
     return rows.map((row) => {
       if (row.document_type !== "lr") return row;
+      if (readStoredElrSnapshot(row.document_number)) return row;
       const fields = parseLrFieldsFromOcrJob(latestByDoc.get(row.id) ?? null);
       const stored = parseLrFieldValues(row.document_number);
       const lrNumber = preferredLrDocumentNumber(
@@ -562,6 +569,18 @@ export async function uploadTripDocument(
       ),
     };
   }
+  if (documentType === "lr") {
+    const lrNumber = lrNumberFromStoredDocumentNumber(documentNumber);
+    if (lrNumber) {
+      const duplicate = await findOrgDuplicateLrNumberForTrip({
+        tripId,
+        lrNumber,
+      });
+      if (duplicate) {
+        return { doc: null, error: new Error(ORG_LR_DUPLICATE_MESSAGE) };
+      }
+    }
+  }
   const ext = file.fileName.split(".").pop()?.toLowerCase() || "jpg";
   const path = `${tripId}/${documentType}/${randomUUID()}.${ext}`;
 
@@ -820,6 +839,23 @@ export async function updateTripDocumentNumber(
 ): Promise<Error | null> {
   const trimmed = documentNumber.trim();
   if (!trimmed || documentId.startsWith("storage-")) return null;
+  const lrNumber = lrNumberFromStoredDocumentNumber(trimmed);
+  if (lrNumber) {
+    const { data: row } = await supabase()
+      .from("trip_documents")
+      .select("trip_id, document_type")
+      .eq("id", documentId)
+      .maybeSingle();
+    const tripId = String((row as { trip_id?: string } | null)?.trip_id ?? "").trim();
+    const docType = String((row as { document_type?: string } | null)?.document_type ?? "");
+    if (tripId && docType === "lr") {
+      const duplicate = await findOrgDuplicateLrNumberForTrip({
+        tripId,
+        lrNumber,
+      });
+      if (duplicate) return new Error(ORG_LR_DUPLICATE_MESSAGE);
+    }
+  }
   const { error } = await supabase()
     .from("trip_documents")
     .update({ document_number: trimmed })
@@ -917,6 +953,15 @@ export async function upsertTripLrNumbers(input: {
   lrInput: string;
 }): Promise<{ error: Error | null; lrNumbers: string[] }> {
   const lrNumbers = uniqueExpandedLrNumbers(input.lrInput);
+  for (const lrNumber of lrNumbers) {
+    const duplicate = await findOrgDuplicateLrNumberForTrip({
+      tripId: input.tripId,
+      lrNumber,
+    });
+    if (duplicate) {
+      return { error: new Error(ORG_LR_DUPLICATE_MESSAGE), lrNumbers: [] };
+    }
+  }
   const { data, error: listError } = await supabase()
     .from("trip_documents")
     .select("id, storage_path, file_name, document_number")

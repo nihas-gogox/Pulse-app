@@ -2,7 +2,7 @@
  * Create Trip — step 1: billing client → optional contract lane gate → sale value.
  */
 import { Plus } from "lucide-react-native";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import Theme from "@/constants/Theme";
@@ -96,12 +96,13 @@ export const CreateTripDesktopClientStep = memo(
     const [adhocTrip, setAdhocTrip] = useState(false);
     /** Sticky: client has contracts (survives search filtering to zero rows). */
     const [clientHasContracts, setClientHasContracts] = useState(false);
+    const autoOpenedSaleKeyRef = useRef<string | null>(null);
 
     useEffect(() => {
       setAdhocTrip(false);
       setClientHasContracts(false);
-      setSaleModalOpen(false);
       setSaleDoneAttempted(false);
+      autoOpenedSaleKeyRef.current = null;
     }, [clientId]);
 
     useEffect(() => {
@@ -185,6 +186,22 @@ export const CreateTripDesktopClientStep = memo(
       onLaneGateActiveChange?.(showLaneGate);
       return () => onLaneGateActiveChange?.(false);
     }, [showLaneGate, onLaneGateActiveChange]);
+
+    useEffect(() => {
+      if (compact || !showPricing || saleLockedToLane || !clientId) return;
+      const key = `${clientId}:${selectedLaneId ?? ""}:${adhocTrip ? "adhoc" : ""}`;
+      if (autoOpenedSaleKeyRef.current === key) return;
+      autoOpenedSaleKeyRef.current = key;
+      setSaleDoneAttempted(false);
+      setSaleModalOpen(true);
+    }, [
+      adhocTrip,
+      clientId,
+      compact,
+      saleLockedToLane,
+      selectedLaneId,
+      showPricing,
+    ]);
 
     const handleSelectClient = useCallback(
       (client: ClientRow) => {

@@ -24,7 +24,7 @@ export function TripMap({
     typeof height === "number"
       ? height
       : fillParent
-        ? Math.max(320, Math.round(windowH * 0.52))
+        ? Math.max(320, windowH)
         : 320;
   const trail = (dbLocationTrail ?? []).map((p) => ({
     latitude: p.latitude,

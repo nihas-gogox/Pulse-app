@@ -6,7 +6,11 @@ import {
 } from "@/features/trips/components/trip-detail/tripDocTypes";
 import {
   buildEwayBillStripRows,
+  clampEwayBillNumber,
   EMPTY_EWAY_FIELD_VALUES,
+  EWAY_BILL_NUMBER_MAX_DIGITS,
+  ewayExpiryLabel,
+  ewayExpiryTone,
   type EwayBillStripRow,
   type EwayFieldValues,
 } from "@/features/trips/services/ewayBillFields.util";
@@ -57,7 +61,7 @@ function displayToDraft(value: string): string {
 
 function rowToDraft(row: EwayBillStripRow): EwayFieldValues {
   return {
-    ewayNo: displayToDraft(row.ewayNo),
+    ewayNo: clampEwayBillNumber(displayToDraft(row.ewayNo)),
     createdDate: displayToDraft(row.createdDate),
     validTill: displayToDraft(row.validTill),
     docNo: displayToDraft(row.docNo),
@@ -302,7 +306,10 @@ export function EwayBillLrStrip({
             <Text style={[styles.headCell, styles.colAction]}>Edit</Text>
           ) : null}
         </View>
-        {displayRows.map((row) => (
+        {displayRows.map((row) => {
+          const expiry = ewayExpiryLabel(row.validTill);
+          const expiryTone = ewayExpiryTone(expiry);
+          return (
           <View key={row.id} style={styles.dataRow}>
             <Text style={[styles.cell, styles.colEway]} numberOfLines={1}>
               {row.ewayNo}
@@ -310,9 +317,23 @@ export function EwayBillLrStrip({
             <Text style={[styles.cell, styles.colDate]} numberOfLines={1}>
               {row.createdDate}
             </Text>
-            <Text style={[styles.cell, styles.colDate]} numberOfLines={1}>
-              {row.validTill}
-            </Text>
+            <View style={styles.colDate}>
+              <Text style={styles.cell} numberOfLines={1}>
+                {row.validTill}
+              </Text>
+              {expiry ? (
+                <Text
+                  style={[
+                    styles.expiryText,
+                    expiryTone === "ok" && styles.expiryOk,
+                    expiryTone === "expired" && styles.expiryExpired,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {expiry}
+                </Text>
+              ) : null}
+            </View>
             <Text style={[styles.cell, styles.colDoc]} numberOfLines={1}>
               {row.docNo}
             </Text>
@@ -379,7 +400,8 @@ export function EwayBillLrStrip({
               </TouchableOpacity>
             ) : null}
           </View>
-        ))}
+          );
+        })}
       </View>
       {showEdit ? (
         <TouchableOpacity
@@ -436,10 +458,16 @@ export function EwayBillLrStrip({
               <TextInput
                 style={styles.fieldInput}
                 value={draft.ewayNo}
-                onChangeText={(ewayNo) => setDraft((prev) => ({ ...prev, ewayNo }))}
+                onChangeText={(ewayNo) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    ewayNo: clampEwayBillNumber(ewayNo),
+                  }))
+                }
                 placeholder="12-digit e-way number"
                 placeholderTextColor={Theme.textMuted}
-                autoCapitalize="characters"
+                keyboardType="number-pad"
+                maxLength={EWAY_BILL_NUMBER_MAX_DIGITS}
                 autoCorrect={false}
                 editable={!saving}
               />
@@ -630,6 +658,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     color: Theme.textPrimaryDark,
+  },
+  expiryText: {
+    marginTop: 2,
+    fontSize: 10,
+    fontWeight: "700",
+    color: Theme.warning,
+  },
+  expiryOk: {
+    color: Theme.positive,
+  },
+  expiryExpired: {
+    color: Theme.negative,
   },
   colEway: {
     flex: 1.1,

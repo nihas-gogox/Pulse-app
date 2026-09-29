@@ -48,7 +48,7 @@ export function useDriversQuery(
       // in `select` so both views share this cache.
       return rows;
     },
-    enabled: !!orgId && status !== 'restoring',
+    enabled: !!orgId && status === 'authenticated',
     // Near-static lookup data: invalidated by mutations and by realtime, so a
     // longer stale window costs no freshness and removes a background refetch
     // from every screen that renders alongside the hot list.

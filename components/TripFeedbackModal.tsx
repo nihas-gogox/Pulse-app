@@ -3,6 +3,7 @@ import {
   Animated,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   View,
   useWindowDimensions,
@@ -54,10 +55,24 @@ export function TripFeedbackModal({
           <Animated.View
             style={[styles.card, isDesktop && styles.cardDesktop, animatedCardStyle]}
           >
-            {children}
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.cardScroll}
+            >
+              {children}
+            </ScrollView>
           </Animated.View>
         ) : (
-          <View style={[styles.card, isDesktop && styles.cardDesktop]}>{children}</View>
+          <View style={[styles.card, isDesktop && styles.cardDesktop]}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.cardScroll}
+            >
+              {children}
+            </ScrollView>
+          </View>
         )}
       </View>
     </Modal>
@@ -81,6 +96,7 @@ const styles = StyleSheet.create({
     maxWidth: TRIP_FEEDBACK_MODAL_MAX_WIDTH,
     alignSelf: 'center',
     overflow: 'hidden',
+    maxHeight: '100%',
     ...Platform.select({
       ios: {
         shadowColor: Theme.shadow,
@@ -95,5 +111,8 @@ const styles = StyleSheet.create({
   cardDesktop: {
     maxWidth: TRIP_FEEDBACK_MODAL_MAX_WIDTH_DESKTOP,
     borderRadius: 24,
+  },
+  cardScroll: {
+    flexGrow: 1,
   },
 });

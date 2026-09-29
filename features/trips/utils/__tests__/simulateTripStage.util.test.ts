@@ -1,6 +1,12 @@
 import {
   appendBisimNote,
+  formatSimCompletionInput,
   lastBisimCoordinate,
+  parseSimCompletionInput,
+  hour12To24,
+  hour24To12,
+  parseSimCompletionPickerValue,
+  toSimCompletionPickerValue,
   resolveSimulateStageCoordinate,
   simulateStageStopTarget,
 } from "@/features/trips/utils/simulateTripStage.util";
@@ -56,5 +62,32 @@ describe("simulateTripStage", () => {
         { lat: 15.139, lng: 76.921 },
       ]),
     ).toEqual({ latitude: 15.139, longitude: 76.921 });
+  });
+
+  it("accepts a manual completion time and rejects a bad one", () => {
+    const parsed = parseSimCompletionInput("29/09/2026 17:30");
+    expect(parsed).toBe(new Date(2026, 8, 29, 17, 30, 0, 0).toISOString());
+    expect(parseSimCompletionInput("31/02/2026 10:00")).toBeNull();
+    expect(parseSimCompletionInput("now")).toBeNull();
+    expect(formatSimCompletionInput(new Date(2026, 8, 29, 9, 5))).toBe("29/09/2026 09:05");
+    expect(toSimCompletionPickerValue(new Date(2026, 8, 29, 17, 48))).toBe("2026-09-29T17:48");
+    expect(parseSimCompletionPickerValue("2026-09-29T17:48")).toBe(
+      new Date(2026, 8, 29, 17, 48, 0, 0).toISOString(),
+    );
+    expect(parseSimCompletionPickerValue("2026-02-31T10:00")).toBeNull();
+    expect(hour24To12(0)).toEqual({ hour: 12, period: "AM" });
+    expect(hour24To12(20)).toEqual({ hour: 8, period: "PM" });
+    expect(hour12To24(8, "PM")).toBe(20);
+    expect(hour12To24(12, "AM")).toBe(0);
+    const notes = appendBisimNote({
+      existingNotes: "",
+      targetStatus: "completed",
+      fromStatus: "at_drop",
+      userName: "Ops",
+      lat: null,
+      lng: null,
+      at: parsed!,
+    });
+    expect(notes).toContain(parsed);
   });
 });

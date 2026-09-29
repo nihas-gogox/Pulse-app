@@ -62,7 +62,7 @@ function feePendingLabel(status: FeePaymentStatus, feeAmount: number | null): st
   const feeLabel = feeAmount != null ? formatMarketBidAmount(feeAmount) : 'the Marketplace fee';
   switch (status) {
     case 'pending':
-      return `Payment of ${feeLabel} is processing…`;
+      return `Payment of ${feeLabel} did not finish. Open the job to complete payment.`;
     case 'failed':
       return `Payment of ${feeLabel} failed — retry to unlock this job.`;
     case 'required':

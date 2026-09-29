@@ -11,7 +11,7 @@ import { LoadCenterSidebarFindEmpty } from "@/features/network/components/LoadCe
 import Theme from "@/constants/Theme";
 import { useLinkedOrgDisplayMap } from "@/lib/queries/useLinkedOrgDisplayQuery";
 import type { LinkedOrgDisplay } from "@/lib/useLinkedOrgProfileMap";
-import type { DirectQuoteRow } from "@/features/indents";
+import type { DirectQuoteRow, IndentRow } from "@/features/indents";
 import type { PostRow } from "@/features/network/services/posts.service";
 import { getMyBidsForPostIds } from "@/features/network/services/bids.service";
 import {
@@ -24,6 +24,8 @@ import {
   formatStoryDate,
   isFleetOwnerCapacityPost,
 } from "@/features/network/utils/storyDisplay";
+import { useScrollPagedItems } from "@/features/network/hooks/useScrollPagedItems";
+import { MARKETPLACE_LOAD_PAGE_SIZE } from "@/features/network/utils/marketplaceLoadsPage.util";
 import { shouldHideLoadStoryFromAuthor } from "@/features/network/utils/storyLoadVisibility.util";
 import { isIndentStoryLive } from "@/features/network/utils/indentStoryWindow.util";
 import { formatINR } from "@/lib/format";
@@ -34,7 +36,7 @@ import { STALE } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { ArrowRight, Truck } from "lucide-react-native";
-import { memo, useMemo } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -77,7 +79,12 @@ type LoadCenterOpportunityExchangeProps = {
    */
   supplierOrgIds?: ReadonlySet<string>;
   /** Orgs in my clients book (linked). Overrides supplier hide when dual-role. */
-  clientOrgIds?: ReadonlySet<string>;
+  /**
+   * Get Load advertised rail: network indent cards (same catalog as Network
+   * Loads). Header metrics use this full list, not the painted page.
+   */
+  indentLoads?: IndentRow[];
+  renderIndentCard?: (load: IndentRow) => ReactNode;
 };
 
 const MAX_CARDS = 12;
@@ -608,6 +615,8 @@ export function LoadCenterOpportunityExchange({
   sidebarStack = false,
   supplierOrgIds,
   clientOrgIds,
+  indentLoads,
+  renderIndentCard,
 }: LoadCenterOpportunityExchangeProps) {
   const router = useRouter();
   const { posts, isLoading, viewerBidByPostId, orgProfileMap } =
@@ -631,13 +640,31 @@ export function LoadCenterOpportunityExchange({
   }, [columnStack, mode, posts, viewerBidByPostId]);
 
   const isGet = mode === "get";
+  const indentCatalog = indentLoads ?? [];
+  const useIndentCatalog = Boolean(
+    sidebarStack && isGet && renderIndentCard,
+  );
+  const {
+    visibleItems: visibleIndentLoads,
+    total: indentTotal,
+    hasMore: hasMoreIndents,
+    remaining: remainingIndents,
+    onScroll: onIndentScroll,
+  } = useScrollPagedItems(
+    indentCatalog,
+    MARKETPLACE_LOAD_PAGE_SIZE,
+    `advertised-indents:${orgId ?? ""}:${indentCatalog.length}`,
+  );
+
   const sponsoredCount = displayPosts.filter((p) => p.is_sponsored).length;
   const biddedCount = isGet
     ? displayPosts.filter((p) => !p.is_sponsored && viewerBidByPostId.has(p.id))
         .length
     : 0;
   const networkCount = displayPosts.length - sponsoredCount;
-  const liveOpenCount = Math.max(0, networkCount - biddedCount);
+  const liveOpenCount = useIndentCatalog
+    ? indentTotal
+    : Math.max(0, networkCount - biddedCount);
   const title = isGet
     ? sidebarStack
       ? "Advertised loads"
@@ -700,7 +727,9 @@ export function LoadCenterOpportunityExchange({
   );
 
   if (columnStack || sidebarStack) {
-    if (isLoading && posts.length === 0) {
+    const waitOnFeed =
+      !useIndentCatalog && isLoading && posts.length === 0;
+    if (waitOnFeed) {
       if (!sidebarStack) return null;
       return (
         <View
@@ -713,7 +742,10 @@ export function LoadCenterOpportunityExchange({
         </View>
       );
     }
-    if (displayPosts.length === 0) {
+    const catalogEmpty = useIndentCatalog
+      ? indentTotal === 0
+      : displayPosts.length === 0;
+    if (catalogEmpty) {
       if (!sidebarStack) return null;
       return (
         <View
@@ -725,17 +757,21 @@ export function LoadCenterOpportunityExchange({
       );
     }
 
-    const cards = displayPosts.map((post) => (
-      <OpportunityCard
-        key={post.id}
-        post={post}
-        mode={mode}
-        fillWidth
-        viewerBid={viewerBidByPostId.get(post.id) ?? null}
-        orgProfileMap={orgProfileMap}
-        onPress={() => openStory(post)}
-      />
-    ));
+    const cards = useIndentCatalog
+      ? visibleIndentLoads.map((load) => (
+          <View key={load.id}>{renderIndentCard!(load)}</View>
+        ))
+      : displayPosts.map((post) => (
+          <OpportunityCard
+            key={post.id}
+            post={post}
+            mode={mode}
+            fillWidth
+            viewerBid={viewerBidByPostId.get(post.id) ?? null}
+            orgProfileMap={orgProfileMap}
+            onPress={() => openStory(post)}
+          />
+        ));
 
     if (columnStack) {
       return <View style={styles.columnStack}>{cards}</View>;
@@ -746,7 +782,21 @@ export function LoadCenterOpportunityExchange({
         style={[styles.wrap, styles.wrapSidebar, embedded && styles.wrapEmbedded]}
       >
         {header}
-        <View style={styles.columnStack}>{cards}</View>
+        <ScrollView
+          style={styles.sidebarScroll}
+          contentContainerStyle={styles.columnStack}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
+          onScroll={useIndentCatalog ? onIndentScroll : undefined}
+          scrollEventThrottle={16}
+        >
+          {cards}
+          {useIndentCatalog && hasMoreIndents ? (
+            <Text style={styles.sidebarMoreHint}>
+              Scroll for more · {remainingIndents} of {indentTotal} remaining
+            </Text>
+          ) : null}
+        </ScrollView>
       </View>
     );
   }
@@ -846,6 +896,9 @@ const styles = StyleSheet.create({
   wrapSidebar: {
     width: "100%",
     flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
+    overflow: "hidden",
     marginBottom: 0,
     paddingTop: 12,
     paddingBottom: 12,
@@ -860,6 +913,7 @@ const styles = StyleSheet.create({
         display: "flex",
         flexDirection: "column",
         height: "100%",
+        minHeight: 0,
       } as object,
       default: {},
     }),
@@ -952,6 +1006,19 @@ const styles = StyleSheet.create({
     width: "100%",
     gap: 10,
     marginBottom: 2,
+    paddingBottom: 8,
+  },
+  sidebarScroll: {
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+  },
+  sidebarMoreHint: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Theme.textMuted,
+    textAlign: "center",
+    paddingVertical: 8,
   },
   card: {
     position: "relative",

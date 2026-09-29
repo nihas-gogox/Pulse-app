@@ -29,6 +29,8 @@ export interface TripMapProps {
   trackingEnabled?: boolean;
   /** Bottom inset when auto-fitting the full route in compact previews. */
   fitPaddingBottom?: number;
+  /** Right inset so a hanging side card does not cover the fitted route. */
+  fitPaddingRight?: number;
   /** Live pin: driver profile image (matches driver-app map avatar). */
   driverAvatarUri?: string | null;
   /** Seed for generated avatar when URI is missing (usually driver id). */

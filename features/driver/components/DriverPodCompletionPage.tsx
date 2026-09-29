@@ -14,6 +14,12 @@ import {
 } from '@/components/driver/DriverTripSheetLayout';
 import { DriverDocumentGalleryPreview } from '@/features/driver/components/DriverDocumentGalleryPreview';
 import type * as tripDocumentsService from '@/features/trips/services/tripDocuments.service';
+import { findOrgDuplicateLrNumberForTrip } from '@/features/trips/services/orgLrDuplicate.service';
+import {
+  normalizeOrgLrNumber,
+  ORG_LR_DUPLICATE_MESSAGE,
+} from '@/features/trips/services/orgLrNumber.util';
+import { ThemedAlertModal } from '@/components/ThemedAlertModal';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Check, ChevronLeft, Route } from 'lucide-react-native';
@@ -67,6 +73,7 @@ export type DriverPodCompletionPageProps = {
   /** LR number, entered before upload. Only rendered/used when variant='lr'. */
   lrNumber?: string;
   onChangeLrNumber?: (value: string) => void;
+  tripId?: string | null;
   /** Resolves a signed preview URL (and caches on parent). */
   onResolvePreview: (
     doc: tripDocumentsService.TripDocumentRow,
@@ -156,6 +163,7 @@ export function DriverPodCompletionPage({
   onSkip,
   lrNumber = '',
   onChangeLrNumber,
+  tripId,
   onResolvePreview,
   onDelete,
   onConfirmAction,
@@ -169,6 +177,8 @@ export function DriverPodCompletionPage({
 
   /** Index into `documents` while gallery is open; null = closed. */
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [lrIsDuplicate, setLrIsDuplicate] = useState(false);
+  const [lrDuplicateAlertVisible, setLrDuplicateAlertVisible] = useState(false);
 
   const closePreview = useCallback(() => {
     setPreviewIndex(null);
@@ -177,6 +187,39 @@ export function DriverPodCompletionPage({
   useEffect(() => {
     if (!visible) closePreview();
   }, [visible, closePreview]);
+
+  useEffect(() => {
+    if (variant !== 'lr' || !visible) {
+      setLrIsDuplicate(false);
+      return;
+    }
+    const id = (tripId ?? '').trim();
+    if (!id || !normalizeOrgLrNumber(lrNumber)) {
+      setLrIsDuplicate(false);
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      void findOrgDuplicateLrNumberForTrip({ tripId: id, lrNumber }).then((duplicate) => {
+        if (cancelled) return;
+        const isDuplicate = Boolean(duplicate);
+        setLrIsDuplicate(isDuplicate);
+        if (isDuplicate) setLrDuplicateAlertVisible(true);
+      });
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [variant, visible, tripId, lrNumber]);
+
+  const requestUpload = (source: 'camera' | 'library') => {
+    if (variant === 'lr' && lrIsDuplicate) {
+      setLrDuplicateAlertVisible(true);
+      return;
+    }
+    onUpload(source);
+  };
 
   useEffect(() => {
     if (!visible || canComplete) {
@@ -366,24 +409,40 @@ export function DriverPodCompletionPage({
 
           {variant === 'lr' ? (
             <View style={styles.lrNumberField}>
-              <Text style={styles.lrNumberLabel}>LR NUMBER</Text>
+              <Text
+                style={[
+                  styles.lrNumberLabel,
+                  lrIsDuplicate ? styles.lrNumberLabelError : null,
+                ]}
+              >
+                LR NUMBER
+              </Text>
               <TextInput
                 value={lrNumber ?? ''}
-                onChangeText={onChangeLrNumber ?? (() => {})}
+                onChangeText={(value) => {
+                  setLrIsDuplicate(false);
+                  onChangeLrNumber?.(value);
+                }}
                 placeholder="Enter LR number (optional)"
                 placeholderTextColor={Theme.textMuted}
-                style={styles.lrNumberInput}
+                style={[
+                  styles.lrNumberInput,
+                  lrIsDuplicate ? styles.lrNumberInputError : null,
+                ]}
                 autoCapitalize="characters"
                 editable={!uploading}
                 returnKeyType="done"
               />
+              {lrIsDuplicate ? (
+                <Text style={styles.lrNumberDuplicateHint}>{ORG_LR_DUPLICATE_MESSAGE}</Text>
+              ) : null}
             </View>
           ) : null}
 
           <Animated.View style={[styles.uploadTilesRow, uploadPulseStyle]}>
             <TouchableOpacity
               style={[styles.uploadTile, uploading && styles.uploadZoneBusy]}
-              onPress={() => onUpload('camera')}
+              onPress={() => requestUpload('camera')}
               disabled={uploading}
               activeOpacity={0.9}
               accessibilityRole="button"
@@ -404,7 +463,7 @@ export function DriverPodCompletionPage({
 
             <TouchableOpacity
               style={[styles.uploadTile, uploading && styles.uploadZoneBusy]}
-              onPress={() => onUpload('library')}
+              onPress={() => requestUpload('library')}
               disabled={uploading}
               activeOpacity={0.9}
               accessibilityRole="button"
@@ -575,6 +634,15 @@ export function DriverPodCompletionPage({
           fallbackLabel={variant === 'lr' ? 'Attachment' : 'POD'}
         />
       </View>
+      <ThemedAlertModal
+        visible={lrDuplicateAlertVisible}
+        title="LR already exists"
+        message={ORG_LR_DUPLICATE_MESSAGE}
+        okText="OK"
+        variant="warning"
+        onOk={() => setLrDuplicateAlertVisible(false)}
+        onRequestClose={() => setLrDuplicateAlertVisible(false)}
+      />
     </Modal>
   );
 }
@@ -788,6 +856,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
     color: Theme.textMuted,
   },
+  lrNumberLabelError: {
+    color: Theme.negative,
+  },
   lrNumberInput: {
     borderWidth: 1.5,
     borderColor: Theme.border,
@@ -798,6 +869,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Theme.textPrimaryDark,
     backgroundColor: Theme.surface,
+  },
+  lrNumberInputError: {
+    borderColor: Theme.negative,
+    backgroundColor: Theme.negativeMuted,
+    color: Theme.negative,
+  },
+  lrNumberDuplicateHint: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
+    color: Theme.negative,
   },
   uploadTilesRow: {
     flexDirection: 'row',

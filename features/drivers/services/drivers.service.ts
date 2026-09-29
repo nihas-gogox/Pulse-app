@@ -7,7 +7,7 @@ import { DEFAULT_PAGE_SIZE, type PageOpts } from "@/lib/pagination";
 import { syncDomainRows } from "@/lib/cache/domainSync";
 import { mergeDeltaRows } from "@/lib/cache/mergeDelta";
 import type { DeltaResponse } from "@/lib/cache/deltaTypes";
-import { supabase } from "@/lib/supabase";
+import { getAccessToken, supabase } from "@/lib/supabase";
 import { normalizeInfrastructureErrorMessage } from "@/lib/supabaseHttp.util";
 import type { RatingRow } from "@/features/ratings";
 import type { SalaryRequestRow } from "@/features/drivers/services/salaryRequests.service";
@@ -316,6 +316,9 @@ export async function getDriversByOrganization(
 ): Promise<{ error: Error | null; drivers: DriverRow[]; hasMore?: boolean }> {
   // Try profile-joined RPC first (returns avatar_url + avatar_seed from profiles via user_id join).
   if (opts == null) {
+    if (!(await getAccessToken())) {
+      return { error: null, drivers: [] };
+    }
     try {
       const { data, error: rpcError } = await supabase().rpc(
         "get_drivers_with_profiles",
@@ -1816,6 +1819,9 @@ export async function getDriverInvitesSent(orgId: string): Promise<{
   error: Error | null;
   invites: DriverInviteSentRow[];
 }> {
+  if (!(await getAccessToken())) {
+    return { error: null, invites: [] };
+  }
   // Prefer an RPC because client-side RLS typically blocks reading invitee details (auth.users/profiles).
   const { data, error } = await supabase().rpc("get_driver_invites_sent", { p_org_id: orgId });
   if (error) {

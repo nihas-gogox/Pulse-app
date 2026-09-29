@@ -1,7 +1,7 @@
 /**
  * Full-screen indent deploy — asset and aggregate allocation wizards.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, Switch, Text, useWindowDimensions, View } from "react-native";
 import { useRouter } from "expo-router";
 
@@ -19,7 +19,10 @@ import { IndentAllocationMarketplaceFeePanel } from "@/features/indents/componen
 import { IndentAllocationSourceStep } from "@/features/indents/components/IndentAllocationSourceStep";
 import { IndentAllocationTripDetailsStep } from "@/features/indents/components/IndentAllocationTripDetailsStep";
 import { IndentAssetAllocationStep } from "@/features/indents/components/IndentAssetAllocationStep";
-import { listMyOrgMarketBids } from "@/features/network/services/findLoadsForOrg.service";
+import {
+  listMyOrgMarketBids,
+  marketBidsFromQueryData,
+} from "@/features/network/services/findLoadsForOrg.service";
 import {
   marketplaceFeeGateSatisfied,
   settleMarketplaceFeeAsCash,
@@ -90,16 +93,16 @@ export function IndentAllocationFlowScreen({
   const marketFeeQ = useQuery({
     queryKey: queryKeys.findLoadsForOrg.myBids(orgId ?? ""),
     queryFn: async () => {
-      const { bids, error } = await listMyOrgMarketBids(orgId as string, 80);
-      if (error) throw error;
-      return bids;
+      const result = await listMyOrgMarketBids(orgId as string, 80);
+      if (result.error) throw result.error;
+      return result;
     },
     enabled: Boolean(orgId) && step === "commodity",
     staleTime: STALE.frequent,
   });
   const acceptedMarketBid = useMemo(
     () =>
-      (marketFeeQ.data ?? []).find(
+      marketBidsFromQueryData(marketFeeQ.data).find(
         (bid) => bid.indent_id === indentId && bid.status === "accepted",
       ) ?? null,
     [marketFeeQ.data, indentId],
@@ -115,11 +118,15 @@ export function IndentAllocationFlowScreen({
     isError: indentError,
   } = useVisibleIndentQuery(orgId, indentId);
 
-  const { data: myQuotes = [] } = useMyDirectQuotesQuery(orgId);
-  const { data: drivers = [] } = useDriversQuery(orgId);
-  const { data: vehicles = [] } = useVehiclesQuery(orgId);
-  const { data: suppliers = [] } = useSuppliersQuery(orgId);
-  const { data: myClients = [] } = useClientsQuery(orgId);
+  const onFleetStep = step === "fleet" || step === "source";
+  const { data: myQuotes = [] } = useMyDirectQuotesQuery(onFleetStep ? null : orgId);
+  const driversQ = useDriversQuery(orgId);
+  const vehiclesQ = useVehiclesQuery(orgId);
+  const drivers = driversQ.data ?? [];
+  const vehicles = vehiclesQ.data ?? [];
+  const rosterPending = driversQ.isPending || vehiclesQ.isPending;
+  const { data: suppliers = [] } = useSuppliersQuery(onFleetStep ? null : orgId);
+  const { data: myClients = [] } = useClientsQuery(onFleetStep ? null : orgId);
 
   const activeDrivers = useMemo(
     () => drivers.filter((d) => !d.left_at),
@@ -129,7 +136,9 @@ export function IndentAllocationFlowScreen({
   // Load-chain loop guard: a load must not be sub-contracted back to an org
   // already upstream in its chain (the cargo owner, or a broker that handled
   // it). Those partners stay visible but greyed, with the reason.
-  const { data: chainAncestors = [] } = useLoadChainAncestorsQuery(indentId);
+  const { data: chainAncestors = [] } = useLoadChainAncestorsQuery(
+    step === "partner" ? indentId : null,
+  );
   // This load's own shipper org, resolved without the ancestor RPC:
   // - Viewer is the awarded supplier (indent.organization_id is some other
   //   org): that other org IS the shipper directly.
@@ -227,7 +236,7 @@ export function IndentAllocationFlowScreen({
   const closeRef = useRef(close);
   closeRef.current = close;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!indent) return;
     const openKey = `${indent.id}:${initialFocus ?? ""}`;
     if (openedIndentKeyRef.current === openKey) return;
@@ -336,20 +345,6 @@ export function IndentAllocationFlowScreen({
       closeRef.current();
     };
   }, []);
-
-  useEffect(() => {
-    if (!orgId || !indentId || indentPending) return;
-    if (deploySucceeded) return;
-    if (!indent || indentError) onBack();
-  }, [
-    orgId,
-    indentId,
-    indent,
-    indentPending,
-    indentError,
-    onBack,
-    deploySucceeded,
-  ]);
 
   // Defensive: a blocked supplier (this load's own shipper) must never survive
   // as the deploy target — clears it even if it was selected before this
@@ -995,7 +990,34 @@ export function IndentAllocationFlowScreen({
     return null;
   }
 
+  if (state.closingToList) {
+    return null;
+  }
+
   if (!currentLoad) {
+    if (indentError && !indentPending) {
+      return (
+        <View style={[styles.flowStep, { padding: Layout.screenPaddingHorizontal, paddingTop: 24 }]}>
+          <Text
+            style={{
+              color: Theme.textPrimaryDark,
+              fontSize: 15,
+              fontWeight: "600",
+            }}
+          >
+            Could not open this award for assignment. Go back and try Assign
+            again.
+          </Text>
+          <Text
+            onPress={onBack}
+            style={{ color: Theme.primary, fontSize: 14, fontWeight: "700", marginTop: 12 }}
+            accessibilityRole="button"
+          >
+            Back
+          </Text>
+        </View>
+      );
+    }
     return <CenteredLoadingView message="Loading allocation…" />;
   }
 
@@ -1203,6 +1225,7 @@ export function IndentAllocationFlowScreen({
               <IndentAssetAllocationStep
                 compact={isCompactLayout}
                 orgId={orgId}
+                rosterPending={rosterPending}
                 drivers={activeDrivers}
                 vehicles={vehicles}
                 assignDriverId={assignDriverId}

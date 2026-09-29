@@ -93,6 +93,8 @@ export interface TripRatingsBlockProps {
   surface?: 'inline' | 'modalOnly';
   /** Skip driver/supplier/client-wide rating list fetches (completed trip open). */
   skipHistoricalPartyRatings?: boolean;
+  /** When false, do not auto-open the feedback modal (other copies on the page own that). */
+  enableAutoPrompt?: boolean;
 }
 
 type RateFlow = { type: 'client_supplier' } | { type: 'supplier_driver' } | null;
@@ -380,6 +382,7 @@ export function TripRatingsBlock({
   surface = 'inline',
   embeddedSidebar = false,
   skipHistoricalPartyRatings = false,
+  enableAutoPrompt = true,
 }: TripRatingsBlockProps) {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
@@ -403,6 +406,7 @@ export function TripRatingsBlock({
   const [comment, setComment] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [showCommentBox, setShowCommentBox] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [showClientFeedbackModal, setShowClientFeedbackModal] = useState(false);
@@ -834,7 +838,7 @@ export function TripRatingsBlock({
 
   // Auto-popup rating modal when trip is completed and a rating is missing (once per mount)
   useEffect(() => {
-    if (loading || !isCompleted || hasAutoOpenedRef.current) return;
+    if (!enableAutoPrompt || loading || !isCompleted || hasAutoOpenedRef.current) return;
     if (canRateSupplier && !hasRatedSupplier) {
       hasAutoOpenedRef.current = true;
       setFlow({ type: 'client_supplier' });
@@ -854,7 +858,7 @@ export function TripRatingsBlock({
       setShowCommentBox(false);
       setSubmitSuccess(false);
     }
-  }, [loading, isCompleted, canRateSupplier, canRateDriver, hasRatedSupplier, hasRatedDriver]);
+  }, [enableAutoPrompt, loading, isCompleted, canRateSupplier, canRateDriver, hasRatedSupplier, hasRatedDriver]);
 
   const supplierTripRating = ratings.find((r) => isSupplierRatingForTrip(r, trip));
   const driverTripRating = ratings.find(
@@ -872,6 +876,7 @@ export function TripRatingsBlock({
     setSelectedTags([]);
     setShowCommentBox(false);
     setSubmitSuccess(false);
+    setSubmitError(null);
     setIsEditMode(false);
     setEditReason('');
   };
@@ -968,55 +973,66 @@ export function TripRatingsBlock({
 
   const handleSubmit = () => {
     if (!flow) return;
+    void (async () => {
     if (!effectiveOrganizationId) {
-      Alert.alert('Rating failed', 'Organization context is missing. Please refresh and try again.');
+      setSubmitError('Organization context is missing. Please refresh and try again.');
       return;
     }
     if (score < 1 || score > 5) {
-      Alert.alert('Select rating', 'Choose a star rating before submitting.');
+      setSubmitError('Choose a star rating before submitting.');
       return;
     }
     const trimmedComment = comment.trim();
     if (trimmedComment.length > VALIDATION.NOTES_MAX_LENGTH) {
-      Alert.alert(
-        'Comment too long',
-        `Comment must be at most ${VALIDATION.NOTES_MAX_LENGTH} characters.`,
-      );
+      setSubmitError(`Comment must be at most ${VALIDATION.NOTES_MAX_LENGTH} characters.`);
       return;
     }
     const isClientSupplier = flow.type === 'client_supplier';
     const rated_type: RatedType = isClientSupplier ? 'supplier' : 'driver';
-    const rated_id = isClientSupplier ? trip.supplier_id! : trip.driver_id!;
+    const rated_id = (isClientSupplier ? trip.supplier_id : trip.driver_id)?.trim() ?? '';
+    if (!rated_id) {
+      setSubmitError(
+        isClientSupplier
+          ? 'This trip has no supplier to rate.'
+          : 'This trip has no driver to rate.',
+      );
+      return;
+    }
     let rater_type: RaterType;
     let rater_id: string;
     if (isClientSupplier) {
-      if (trip.client_id) {
+      if (trip.client_id?.trim()) {
       rater_type = 'client';
-        rater_id = trip.client_id;
+        rater_id = trip.client_id.trim();
       } else {
         rater_type = 'organization';
-        rater_id = trip.organization_id!;
+        rater_id = (trip.organization_id ?? effectiveOrganizationId).trim();
       }
     } else {
       if (canRateDriverAsClient) {
         rater_type = 'client';
-        rater_id = trip.client_id!;
+        rater_id = trip.client_id!.trim();
       } else if (canRateDriverAsSupplier) {
         rater_type = 'supplier';
-        rater_id = trip.supplier_id!;
+        rater_id = trip.supplier_id!.trim();
       } else {
         rater_type = 'organization';
         rater_id = effectiveOrganizationId;
       }
     }
+    if (!rater_id) {
+      setSubmitError('Could not determine who is submitting this rating.');
+      return;
+    }
 
     setSubmitting(true);
+    setSubmitError(null);
     const commentPayload = buildCommentPayload(
       selectedTags,
       trimmedComment.slice(0, VALIDATION.NOTES_MAX_LENGTH),
       isEditMode ? editReason : undefined,
     );
-    createRating(effectiveOrganizationId, {
+    const payload = {
       trip_id: trip.id,
       rater_type,
       rater_id,
@@ -1029,9 +1045,22 @@ export function TripRatingsBlock({
           ? supplierTripRating?.id
           : driverTripRating?.id
         : undefined,
-    }).then(({ error }) => {
-      setSubmitting(false);
-      if (!error) {
+    };
+    try {
+      let result = await createRating(effectiveOrganizationId, payload);
+      if (
+        result.error &&
+        isClientSupplier &&
+        rater_type === 'client' &&
+        !isEditMode
+      ) {
+        result = await createRating(effectiveOrganizationId, {
+          ...payload,
+          rater_type: 'organization',
+          rater_id: effectiveOrganizationId,
+        });
+      }
+      if (!result.error) {
         setSubmitSuccess(true);
         loadRatings();
         if (rated_type === 'supplier') {
@@ -1044,9 +1073,14 @@ export function TripRatingsBlock({
           });
         }
       } else {
-        Alert.alert('Rating failed', error.message);
+        setSubmitError(result.error.message);
       }
-    });
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Could not save this rating.');
+    } finally {
+      setSubmitting(false);
+    }
+    })();
   };
 
   const supplierTripAvg = supplierTripRating?.score ?? null;
@@ -2061,14 +2095,21 @@ export function TripRatingsBlock({
                     />
                   </View>
 
+                  {submitError ? (
+                    <Text style={styles.submitErrorText}>{submitError}</Text>
+                  ) : null}
+
                   <TouchableOpacity
                     style={[
                       styles.bizPrimaryBtn,
                       (score < 1 || submitting) && styles.bizPrimaryBtnDisabled,
+                      Platform.OS === "web" ? ({ cursor: "pointer" } as object) : null,
                     ]}
                     onPress={handleSubmit}
                     disabled={score < 1 || submitting}
                     activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={isEditMode ? "Update feedback" : "Submit feedback"}
                   >
                     {submitting ? (
                       <LoadingIndicator size="small" color={Theme.buttonDarkText} />
@@ -3511,6 +3552,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Theme.buttonDarkText,
     letterSpacing: 0.75,
+  },
+  submitErrorText: {
+    marginTop: 12,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '500',
+    color: Theme.negative,
   },
   regEditTap: {
     flexDirection: 'row',

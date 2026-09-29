@@ -15,7 +15,7 @@ import {
 import { fetchExecutionPlanRouteSummaries } from '@/features/network/services/fetchExecutionPlanRouteSummaries';
 import { indentDisplayOriginDest } from '@/features/network/utils/executionPlanRouteSummary';
 import { looksLikePlannerStopSummary } from '@/features/network/utils/storyDisplay';
-import { supabase } from '@/lib/supabase';
+import { getAccessToken, supabase } from '@/lib/supabase';
 import { isSupabaseCircuitOpen } from '@/lib/supabaseHttp.util';
 import { isCommerceDataQueryEnabled } from '@/lib/suite/productLock';
 
@@ -83,6 +83,9 @@ function storyWeightTonnes(indent: IndentStorySource): number | undefined {
 async function listLinkedLoadStories(
   indentId: string,
 ): Promise<{ error: Error | null; rows: LinkedStoryRow[] }> {
+  if (!(await getAccessToken())) {
+    return { error: null, rows: [] };
+  }
   const { data, error } = await supabase()
     .from('posts')
     .select('id, is_active, expires_at, created_at')
@@ -135,6 +138,9 @@ export async function getIndentStoryStates(
   if (!orgId || ids.length === 0) {
     return { error: null, byIndentId: {} };
   }
+  if (!(await getAccessToken())) {
+    return { error: null, byIndentId: {} };
+  }
 
   if (isSupabaseCircuitOpen()) {
     return { error: null, byIndentId: {} };
@@ -183,6 +189,7 @@ export async function listLiveOwnLoadStories(
   orgId: string,
 ): Promise<{ error: Error | null; posts: PostRow[] }> {
   if (!orgId) return { error: null, posts: [] };
+  if (!(await getAccessToken())) return { error: null, posts: [] };
 
   const nowIso = new Date().toISOString();
   // Bound the scan: active LOAD stories only, still within the reel window

@@ -1,7 +1,12 @@
 import {
   buildEwayBillStripRows,
+  clampEwayBillNumber,
   ewayBillFieldsStoragePath,
+  ewayExpiryLabel,
+  ewayExpiryTone,
+  ewayLabelMatchesHubFilter,
   isEwayBillMetaPath,
+  mostUrgentEwayExpiryLabel,
   parseEwayFieldValues,
   serializeEwayFieldEntries,
   serializeEwayFieldValues,
@@ -33,6 +38,64 @@ describe("parseEwayFieldValues", () => {
       validTill: "03-Sep-26",
       docNo: "262718182",
     });
+  });
+});
+
+describe("clampEwayBillNumber", () => {
+  it("keeps at most 12 digits", () => {
+    expect(clampEwayBillNumber("324325345342653463526534")).toBe("324325345342");
+    expect(clampEwayBillNumber("3243 2534 5342")).toBe("324325345342");
+  });
+});
+
+describe("ewayExpiryLabel", () => {
+  const now = new Date(2026, 8, 29, 2, 0, 0);
+
+  it("counts hours until the end of the valid-till day", () => {
+    expect(ewayExpiryLabel("29-Sep-26", now)).toBe("EW-Bill expiring in 22 hours");
+    expect(ewayExpiryLabel("29-Sep-26", new Date(2026, 8, 29, 14, 0, 0))).toBe(
+      "EW-Bill expiring in 10 hours",
+    );
+  });
+
+  it("is green when more than 24 hours remain", () => {
+    expect(ewayExpiryTone("EW-Bill expiring in 3 days")).toBe("ok");
+    expect(ewayExpiryTone("EW-Bill expiring in 25 hours")).toBe("ok");
+    expect(ewayExpiryTone("EW-Bill expiring in 10 hours")).toBe("soon");
+    expect(ewayExpiryTone("EW-Bill expired")).toBe("expired");
+  });
+
+  it("matches the hub e-way filters", () => {
+    expect(ewayLabelMatchesHubFilter("EW-Bill expired", "expired")).toBe(true);
+    expect(ewayLabelMatchesHubFilter("EW-Bill expiring in 10 hours", "soon")).toBe(
+      true,
+    );
+    expect(ewayLabelMatchesHubFilter("EW-Bill expiring in 3 days", "active")).toBe(
+      true,
+    );
+    expect(ewayLabelMatchesHubFilter("EW-Bill expiring in 10 hours", "active")).toBe(
+      false,
+    );
+    expect(ewayLabelMatchesHubFilter(null, "expired")).toBe(false);
+  });
+
+  it("is expired after that day", () => {
+    expect(ewayExpiryLabel("28-Sep-26", now)).toBe("EW-Bill expired");
+  });
+
+  it("uses the most critical bill, not the first in the list", () => {
+    expect(
+      mostUrgentEwayExpiryLabel(
+        ["01-Oct-26", "29-Sep-26", "28-Sep-26"],
+        new Date(2026, 8, 29, 14, 0, 0),
+      ),
+    ).toBe("EW-Bill expired");
+    expect(
+      mostUrgentEwayExpiryLabel(["01-Oct-26", "29-Sep-26"], now),
+    ).toBe("EW-Bill expiring in 22 hours");
+    expect(mostUrgentEwayExpiryLabel(["27-Sep-26", "28-Sep-26"], now)).toBe(
+      "EW-Bill expired",
+    );
   });
 });
 

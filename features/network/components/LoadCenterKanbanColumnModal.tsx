@@ -13,17 +13,14 @@ import type {
   LoadCenterKanbanColumn,
 } from "@/features/network/components/LoadCenterKanbanBoard";
 import { MarketplaceLaneFilters } from "@/features/network/components/MarketplaceLaneFilters";
+import { useScrollPagedItems } from "@/features/network/hooks/useScrollPagedItems";
 import {
   filterMarketplaceOptions,
   isMarketplaceSearchReady,
   lanesFromMarketplaceLoads,
   type MarketplaceLoadSearch,
 } from "@/features/network/utils/marketplaceSearch.util";
-import {
-  growVisibleLoadCount,
-  MARKETPLACE_LOAD_PAGE_SIZE,
-  takeVisibleLoadPage,
-} from "@/features/network/utils/marketplaceLoadsPage.util";
+import { MARKETPLACE_LOAD_PAGE_SIZE } from "@/features/network/utils/marketplaceLoadsPage.util";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import type { ReactNode } from "react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -253,7 +250,6 @@ export function LoadCenterKanbanColumnModal({
   const [appliedSearch, setAppliedSearch] = useState<MarketplaceLoadSearch | null>(
     null,
   );
-  const [visibleCount, setVisibleCount] = useState(MARKETPLACE_LOAD_PAGE_SIZE);
   const searchFirst = column?.id === "OPEN";
   const searchReady = isMarketplaceSearchReady(appliedSearch);
 
@@ -273,19 +269,7 @@ export function LoadCenterKanbanColumnModal({
     setOpenMenu(null);
     setMenuQuery("");
     setAppliedSearch(null);
-    setVisibleCount(MARKETPLACE_LOAD_PAGE_SIZE);
   }, [column]);
-
-  useEffect(() => {
-    setVisibleCount(MARKETPLACE_LOAD_PAGE_SIZE);
-  }, [
-    searchQuery,
-    pickupFilter,
-    dropFilter,
-    vehicleFilter,
-    appliedSearch,
-    activeTabId,
-  ]);
 
   const allColumnLoads = column?.loads ?? [];
 
@@ -339,9 +323,15 @@ export function LoadCenterKanbanColumnModal({
     vehicleFilter,
   ]);
 
-  const visibleLoads = useMemo(
-    () => takeVisibleLoadPage(filteredLoads, visibleCount),
-    [filteredLoads, visibleCount],
+  const {
+    visibleItems: visibleLoads,
+    hasMore: hasMoreVisibleLoads,
+    remaining: remainingVisibleLoads,
+    onScroll: onPagedScroll,
+  } = useScrollPagedItems(
+    filteredLoads,
+    MARKETPLACE_LOAD_PAGE_SIZE,
+    `${column?.id ?? ""}:${activeTabId}:${searchQuery}:${pickupFilter}:${dropFilter}:${vehicleFilter}:${appliedSearch ? "s" : ""}`,
   );
 
   const columns = columnsForGrid(width, visibleLoads.length);
@@ -396,7 +386,6 @@ export function LoadCenterKanbanColumnModal({
     setOpenMenu(null);
     setMenuQuery("");
     setAppliedSearch(null);
-    setVisibleCount(MARKETPLACE_LOAD_PAGE_SIZE);
   }, []);
 
   const badgeCount = allColumnLoads.length;
@@ -727,6 +716,8 @@ export function LoadCenterKanbanColumnModal({
           ]}
           showsVerticalScrollIndicator
           keyboardShouldPersistTaps="handled"
+          onScroll={onPagedScroll}
+          scrollEventThrottle={16}
         >
           {filteredLoads.length === 0 ? (
             <View style={styles.empty}>
@@ -787,24 +778,11 @@ export function LoadCenterKanbanColumnModal({
               ))}
             </View>
           )}
-          {filteredLoads.length > visibleLoads.length ? (
-            <Pressable
-              onPress={() =>
-                setVisibleCount((n) =>
-                  growVisibleLoadCount(n, filteredLoads.length),
-                )
-              }
-              style={({ pressed }) => [
-                styles.loadMoreBtn,
-                pressed && styles.loadMoreBtnPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Load more loads"
-            >
-              <Text style={styles.loadMoreBtnText}>
-                Load more ({filteredLoads.length - visibleLoads.length} more)
-              </Text>
-            </Pressable>
+          {hasMoreVisibleLoads ? (
+            <Text style={styles.loadMoreBtnText}>
+              Scroll for more · {remainingVisibleLoads} of {filteredLoads.length}{" "}
+              remaining
+            </Text>
           ) : null}
         </ScrollView>
 

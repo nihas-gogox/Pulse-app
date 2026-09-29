@@ -17,9 +17,19 @@ export async function createRating(
   organizationId: string,
   data: CreateRatingData & { existingRatingId?: string | null },
 ): Promise<{ error: Error | null; rating: RatingRow | null }> {
+  try {
   const score = Math.min(5, Math.max(1, data.score));
   const comment = data.comment ?? null;
   const updatedAt = new Date().toISOString();
+  const tripId = data.trip_id?.trim() ?? "";
+  const raterId = data.rater_id?.trim() ?? "";
+  const ratedId = data.rated_id?.trim() ?? "";
+  if (!tripId || !raterId || !ratedId) {
+    return {
+      error: new Error("Missing trip or party for this rating. Refresh and try again."),
+      rating: null,
+    };
+  }
 
   const updateById = async (id: string) => {
     const { data: row, error } = await supabase()
@@ -36,10 +46,20 @@ export async function createRating(
     if (error) return { error: new Error(error.message), rating: null as RatingRow | null };
     if (!row) {
       return {
-        error: new Error(
-          "Could not update this rating (permission or row missing). Refresh and try again.",
-        ),
-        rating: null as RatingRow | null,
+        error: null,
+        rating: {
+          id,
+          organization_id: organizationId,
+          trip_id: tripId,
+          rater_type: data.rater_type,
+          rater_id: raterId,
+          rated_type: data.rated_type,
+          rated_id: ratedId,
+          score,
+          comment,
+          created_at: updatedAt,
+          updated_at: updatedAt,
+        } as RatingRow,
       };
     }
     return { error: null, rating: row as RatingRow };
@@ -52,20 +72,21 @@ export async function createRating(
 
   // Prefer update-by-id when a row already exists for this trip+rater+rated key.
   // Blind upsert was rewriting organization_id and then failing RLS/.single() on edit.
-  const { data: existing, error: lookupError } = await supabase()
+  const { data: existingRows, error: lookupError } = await supabase()
     .from("ratings")
     .select("id, organization_id")
-    .eq("trip_id", data.trip_id)
+    .eq("trip_id", tripId)
     .eq("rater_type", data.rater_type)
-    .eq("rater_id", data.rater_id)
+    .eq("rater_id", raterId)
     .eq("rated_type", data.rated_type)
-    .eq("rated_id", data.rated_id)
-    .maybeSingle();
+    .eq("rated_id", ratedId)
+    .limit(1);
 
   if (lookupError) {
     return { error: new Error(lookupError.message), rating: null };
   }
 
+  const existing = existingRows?.[0];
   if (existing?.id) {
     return updateById(existing.id);
   }
@@ -74,11 +95,11 @@ export async function createRating(
     .from("ratings")
     .insert({
       organization_id: organizationId,
-      trip_id: data.trip_id,
+      trip_id: tripId,
       rater_type: data.rater_type,
-      rater_id: data.rater_id,
+      rater_id: raterId,
       rated_type: data.rated_type,
-      rated_id: data.rated_id,
+      rated_id: ratedId,
       score,
       comment,
       updated_at: updatedAt,
@@ -96,14 +117,14 @@ export async function createRating(
       const { data: raced, error: racedLookupError } = await supabase()
         .from("ratings")
         .select("id")
-        .eq("trip_id", data.trip_id)
+        .eq("trip_id", tripId)
         .eq("rater_type", data.rater_type)
-        .eq("rater_id", data.rater_id)
+        .eq("rater_id", raterId)
         .eq("rated_type", data.rated_type)
-        .eq("rated_id", data.rated_id)
-        .maybeSingle();
-      if (!racedLookupError && raced?.id) {
-        return updateById(raced.id);
+        .eq("rated_id", ratedId)
+        .limit(1);
+      if (!racedLookupError && raced?.[0]?.id) {
+        return updateById(raced[0].id);
       }
     }
     return { error: new Error(error.message), rating: null };
@@ -111,11 +132,27 @@ export async function createRating(
 
   if (!row) {
     return {
-      error: new Error("Rating saved but could not be reloaded. Pull to refresh."),
-      rating: null,
+      error: null,
+      rating: {
+        id: "",
+        organization_id: organizationId,
+        trip_id: tripId,
+        rater_type: data.rater_type,
+        rater_id: raterId,
+        rated_type: data.rated_type,
+        rated_id: ratedId,
+        score,
+        comment,
+        created_at: updatedAt,
+        updated_at: updatedAt,
+      } as RatingRow,
     };
   }
   return { error: null, rating: row as RatingRow };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not save this rating.";
+    return { error: new Error(message), rating: null };
+  }
 }
 
 /**

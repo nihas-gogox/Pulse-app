@@ -31,6 +31,7 @@ import {
   formatFindLoadsRateOffer,
   listMarketplaceSearchLanes,
   listMyOrgMarketBids,
+  marketBidsFromQueryData,
   listOpenMarketplaceLoadsPage,
   submitOrgMarketBid,
   type OrgOpenMarketplaceLoad,
@@ -161,7 +162,7 @@ export default function FindLoadsScreen() {
     enabled: !!orgId && segment === "discover",
     staleTime: STALE.moderate,
   });
-  const myBids = myBidsQ.data?.bids ?? [];
+  const myBids = marketBidsFromQueryData(myBidsQ.data);
   const awardedCount = useMemo(
     () => myBids.filter((b) => b.status === "accepted").length,
     [myBids],
@@ -524,6 +525,7 @@ export default function FindLoadsScreen() {
           <OrgMyBidsList
             bids={myBids}
             isLoading={myBidsQ.isLoading}
+            orgId={orgId}
             onPaymentUpdated={() => {
               if (orgId) {
                 queryClient.invalidateQueries({ queryKey: queryKeys.findLoadsForOrg.myBids(orgId) });

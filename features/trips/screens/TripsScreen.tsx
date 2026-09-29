@@ -110,6 +110,7 @@ import {
   compareTripsByScheduleAsc,
   compareTripsByScheduleDesc,
   tripDayMatchesHubDateFilter,
+  formatIsoDayRangeLabel,
   type TripHubDateFilter,
 } from "@/lib/dateRangePresets";
 import { shouldShowAggregateTripKindPill } from "@/features/drivers/utils/driverUtils.util";
@@ -308,6 +309,10 @@ export default function TripsScreen() {
   const [showSortModal, setShowSortModal] = useState(false);
   const toolbarDateRangeFilter: ToolbarDateFilter =
     dateRangeFilter === "tomorrow" ? "all" : dateRangeFilter;
+  const hubDateRangeLabel =
+    toolbarDateRangeFilter === "custom" && customDateFrom && customDateTo
+      ? formatIsoDayRangeLabel(customDateFrom, customDateTo)
+      : null;
   /** Default to cards for all users; table remains an explicit user toggle. */
   const [listLayout, setListLayout] = useState<TripsListLayout>("cards");
   useEffect(() => {
@@ -667,7 +672,7 @@ export default function TripsScreen() {
       "q",
       "trips",
       "doc-trip-ids",
-      "v5-pod-flags",
+      "v6-pod-eway",
       orgId ?? "",
       podDocumentTripIdsSorted,
     ],
@@ -683,6 +688,11 @@ export default function TripsScreen() {
       return loadHubPodReceiptFlags(ids);
     },
   });
+  const ewayExpiryByTripId = useMemo(() => {
+    const map = hubPodFlagsRaw?.ewayExpiryByTripId;
+    if (!map || typeof map !== "object") return {} as Record<string, string>;
+    return map;
+  }, [hubPodFlagsRaw]);
   const tripIdsWithDocuments = useMemo(() => {
     const soft = hubPodFlagsRaw?.softTripIds;
     if (Array.isArray(soft)) {
@@ -2506,6 +2516,7 @@ export default function TripsScreen() {
               onOpenTripDetails={handleOpenTripDetails}
               tr={tr}
               dateRangeFilter={toolbarDateRangeFilter}
+              dateRangeLabel={hubDateRangeLabel}
               onDateRangeFilterChange={(next: DateFilter) => {
                 setDateRangeFilter(next);
                 if (next !== "custom") {
@@ -2563,6 +2574,7 @@ export default function TripsScreen() {
                       : null
                   }
                   dateRangeFilter={toolbarDateRangeFilter}
+                  dateRangeLabel={hubDateRangeLabel}
                   onDateRangeFilterChange={(next: DateFilter) => {
                     setDateRangeFilter(next);
                     if (next !== "custom") {
@@ -2577,6 +2589,7 @@ export default function TripsScreen() {
                   partyMetaByTripId={tripHubPartyMetaByTripId}
                   softPodTripIds={tripIdsWithDocuments}
                   hardPodTripIds={hardPodTripIds}
+                  ewayExpiryByTripId={ewayExpiryByTripId}
                 />
                 {filtered.length === 0 &&
                 visibleUnallocatedIndents.length === 0 ? (
@@ -2624,6 +2637,7 @@ export default function TripsScreen() {
                     : null
                 }
                 dateRangeFilter={toolbarDateRangeFilter}
+                dateRangeLabel={hubDateRangeLabel}
                 onDateRangeFilterChange={(next: DateFilter) => {
                   setDateRangeFilter(next);
                   if (next !== "custom") {
@@ -2638,6 +2652,7 @@ export default function TripsScreen() {
                 partyMetaByTripId={tripHubPartyMetaByTripId}
                 softPodTripIds={tripIdsWithDocuments}
                 hardPodTripIds={hardPodTripIds}
+                ewayExpiryByTripId={ewayExpiryByTripId}
                 renderBody={(rows) =>
                   rows.length === 0 &&
                   filtered.length === 0 &&
@@ -2680,6 +2695,10 @@ export default function TripsScreen() {
                             hardPodReceived={
                               tripHasHubPodFlag(hardPodTripIds, t.id) ||
                               tripPodIsReceived(t)
+                            }
+                            ewayExpiryLabel={
+                              ewayExpiryByTripId[t.id.trim().toLowerCase()] ??
+                              null
                             }
                             currentOrganizationId={
                               currentOrganization?.id ?? null
@@ -2784,6 +2803,10 @@ export default function TripsScreen() {
                           hardPodReceived={
                             tripHasHubPodFlag(hardPodTripIds, t.id) ||
                             tripPodIsReceived(t)
+                          }
+                          ewayExpiryLabel={
+                            ewayExpiryByTripId[t.id.trim().toLowerCase()] ??
+                            null
                           }
                           currentOrganizationId={
                             currentOrganization?.id ?? null

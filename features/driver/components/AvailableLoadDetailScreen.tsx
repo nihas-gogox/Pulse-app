@@ -31,6 +31,7 @@ import {
   createMarketplaceFeeOrder,
   createMarketTripAfterFeePayment,
   createTestMarketplaceFeeOrder,
+  settleMarketplaceFeeAsCash,
   simulateTestMarketplaceFeePayment,
   type TestMarketplaceFeeProvider,
 } from '@/features/network/services/marketBids.service';
@@ -43,6 +44,7 @@ import {
   PilotTestCheckoutSheet,
 } from '@/features/marketplace/components/PilotPaymentMethodSheet';
 import { showAppAlert } from '@/lib/appAlert';
+import { confirmDialog } from '@/lib/confirmDialog';
 import { useFleetOwnerOpenLoadsQuery } from '@/lib/queries/useFleetOwnerOpenLoadsQuery';
 import { useMyMarketAwardsQuery } from '@/lib/queries/useMyMarketAwardsQuery';
 import { useMyMarketBidForIndentQuery } from '@/lib/queries/useMyMarketBidForIndentQuery';
@@ -165,8 +167,48 @@ export default function AvailableLoadDetailScreen() {
   const [isStartingTestPayment, setIsStartingTestPayment] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
 
+  const handleCashSettle = async () => {
+    if (!myBid || isSimulating) return;
+    setMethodSheetOpen(false);
+    const feeLabel =
+      myBid.platform_fee_amount != null
+        ? formatMarketBidAmount(myBid.platform_fee_amount)
+        : 'the Marketplace fee';
+    const confirmed = await confirmDialog({
+      title: 'Pay Marketplace fee with cash',
+      message: `Record ${feeLabel} as cash paid to Pulse? This unlocks the job.`,
+      confirmLabel: 'Confirm cash paid',
+    });
+    if (!confirmed) return;
+    setIsSimulating(true);
+    try {
+      const { error } = await settleMarketplaceFeeAsCash(myBid.id);
+      if (error) {
+        showAppAlert('Could not record fee', error.message);
+        return;
+      }
+      invalidateMyBid();
+      invalidateMyBids();
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
   const handleStartTestPayment = async (provider: TestMarketplaceFeeProvider) => {
-    if (!myBid || isStartingTestPayment) return;
+    if (!myBid) return;
+    if (provider === 'cash') {
+      await handleCashSettle();
+      return;
+    }
+    if (isStartingTestPayment) return;
+    if (myBid.fee_payment_status === 'pending') {
+      setMethodSheetOpen(false);
+      setTestOrder({
+        provider,
+        amount: Number(myBid.platform_fee_amount) || 0,
+      });
+      return;
+    }
     setIsStartingTestPayment(true);
     try {
       const { error, order } = await createTestMarketplaceFeeOrder(myBid.id, provider);
@@ -431,7 +473,7 @@ export default function AvailableLoadDetailScreen() {
           ) : null}
           <PilotPaymentMethodSheet
             visible={methodSheetOpen}
-            busy={isStartingPayment || isStartingTestPayment}
+            busy={isStartingPayment || isStartingTestPayment || isSimulating}
             onClose={() => setMethodSheetOpen(false)}
             onRazorpay={() => {
               setMethodSheetOpen(false);
@@ -620,7 +662,7 @@ function feePendingHint(status: FeePaymentStatus, feeAmount: number | null): str
   const feeLabel = feeAmount != null ? formatMarketBidAmount(feeAmount) : 'the Marketplace fee';
   switch (status) {
     case 'pending':
-      return `Payment of ${feeLabel} is processing…`;
+      return `Payment of ${feeLabel} did not finish. Complete cash payment to unlock this job.`;
     case 'failed':
       return `Payment of ${feeLabel} failed — retry to unlock this job.`;
     case 'required':
@@ -687,7 +729,12 @@ function AwardedMarketJobCard({
           : marketBidStatusLabel('accepted');
 
   const payReady =
-    !trip && feePending && (feePaymentStatus === 'required' || feePaymentStatus === 'failed') && onPay;
+    !trip &&
+    feePending &&
+    (feePaymentStatus === 'required' ||
+      feePaymentStatus === 'failed' ||
+      feePaymentStatus === 'pending') &&
+    onPay;
   const awaitingPayment = !trip && feePending && !payReady;
 
   return (
@@ -717,7 +764,9 @@ function AwardedMarketJobCard({
           ? {
               title: isStartingPayment
                 ? 'Starting…'
-                : `Pay ${formatMarketBidAmount(platformFeeAmount) || 'fee'}`,
+                : feePaymentStatus === 'pending'
+                  ? 'Complete payment'
+                  : `Pay ${formatMarketBidAmount(platformFeeAmount) || 'fee'}`,
               hint: feePendingHint(feePaymentStatus, platformFeeAmount),
               onPress: onPay!,
             }
