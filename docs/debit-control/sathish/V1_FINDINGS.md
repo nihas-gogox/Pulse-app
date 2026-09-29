@@ -25,11 +25,22 @@ They were observed on 2026-09-29. Evidence comes only from repo reads and **read
 
 **Missing authorization:** the function never checks that the caller is a member of `p_org_id`. Any authenticated user who knows or guesses an org UUID can get up to 5000 full `trips` rows (`tr.*`: prices, supplier rate, driver, locations, compliance fields) for that org and its linked trips.
 
-**Affected surface:**
-- POD Reconciliation (`features/pod-reconciliation/services/podReconciliationService.ts:98` via `mergeTripsForPodOrg`)
-- Invoicing (`features/invoicing/services/invoicing.service.ts:712`)
+**Affected surface (re-traced 2026-09-29):**
+- The POD Reconciliation screen (`app/pod-reconciliation`) calls the RPC through `mergeTripsForPodOrg` (`podReconciliationService.ts:98`) in two places:
+  - the list: `fetchReconciliationTrips` ← `usePodReconciliationTripsQuery`
+  - the summary: `fetchPodReconciliationSummary` (`invoicing.service.ts:712`) ← `usePodReconciliationSummaryQuery`
+- **Correction:** Invoicing screens do **not** consume it. `lib/queries/useInvoicingExecuteQueries.ts` has a summary hook that calls it, but no screen uses that hook. `financeReadPathLoad.util.ts` states the invoice read path is deliberately separate.
+- The in-app UI gate (`finance.pod_reconciliation`) does not protect the RPC. It is callable directly at `/rest/v1/rpc/get_trips_for_pod_org` with any authenticated JWT.
 
-**Status:** confirmed from the definition on preprod. Exploitation was not attempted.
+**Team-lead re-verification (read-only, 2026-09-29):**
+- Only one overload exists: `get_trips_for_pod_org(uuid)`, returning `json`, with `search_path=public`
+- Owner `postgres`, which has `rolbypassrls = true`. `trips` / `suppliers` / `clients` have RLS enabled but **not forced**, so RLS is bypassed inside the function
+- `has_function_privilege`: `authenticated` = true, `anon` = false
+- Caller identity checked: **no**. Org membership checked: **no**. Org selection: the caller-supplied `p_org_id` alone
+- Exposed data: every `trips` column (`tr.*`: `client_price`, `supplier_rate`, `margin`, `advance_paid`, driver/vehicle ids, pickup/drop coordinates, `notes`, compliance reasons…) for trips owned by `p_org_id` or linked to it as supplier/client. Max 5000 rows
+- Live body matches the repo migration text
+
+**Status: CONFIRMED (≥90%) on preprod** from definition + privileges + role attributes. Not attempted as an exploit. **Elsewhere: NEEDS VERIFICATION.** Prod was not queried, and the sibling repo `pulse-unified-base` is not on this machine, so a later redefinition there cannot be ruled out.
 
 **Recommended owner / action:** the DB/security owner for finance read paths (to be assigned). Add a caller-membership guard, e.g. raise unless `p_org_id` is in `my_organization_ids()`, matching the pattern used by other org RPCs. Ship it as its own migration with a rolled-back test proving a non-member gets an error and a member gets identical rows. Also check whether the other `SECURITY DEFINER` + `p_org_id` RPCs in the same migration have the same gap: unknown until checked. Debit Control must not ship on top of this RPC until it is fixed.
 
@@ -47,6 +58,21 @@ They were observed on 2026-09-29. Evidence comes only from repo reads and **read
   - `features/log-pods/services/logPods.service.ts:304`: `POD_LOGGED` (bulk hard-copy received). Errors are only `console.warn`.
   - `features/log-pods/services/logPods.service.ts:619`: `POD_LOGGED` (Log Incoming PODs). Errors are only `console.warn`.
 - `features/invoicing/services/invoicing.service.ts:291` already hides `log_activity` / `activity_logs` errors behind a generic message, so the gap was known in at least one path.
+
+**Team-lead re-verification (read-only, 2026-09-29):**
+- `pg_proc` search for `%log_activ%` / `%activity_log%` in **all schemas**: 0 rows
+- `information_schema.tables` search for `%activity%`: only `activity_stream` and `support_ticket_activity`. **No `activity_logs`** in any schema
+- Preprod migration history: 906 applied, latest `20270929203000`. None in `supabase/migrations/` defines it
+- Root cause (likely): the only definition is `docs/legacy-migrations/migrations/007_cashflow_pod_fields.sql`, a legacy file outside `supabase/migrations/`. The same file adds `trips.pod_status` / `invoice_status_1` / `invoice_no`, which are also absent on preprod (links to V1-4)
+- Error handling:
+  - `PodValidationView.tsx:276` does not read `{ error }` from the RPC. supabase-js returns errors rather than throwing, so the failure is **fully silent** and the user sees "POD validated successfully"
+  - Both `logPods.service.ts` calls only `console.warn` and still return success
+- Reachability:
+  - `POD_VALIDATED`: POD Reconciliation → Validate
+  - `POD_LOGGED` (bulk): `LogIncomingPodsModal` → `useMarkHardCopyPodsReceivedMutation`
+  - `POD_LOGGED` (LR/attachments): `LogIncomingPodsScreen` → `useLogIncomingPodsMutation`
+
+**Status: CONFIRMED (≥90%) on preprod. Elsewhere: NEEDS VERIFICATION** (prod not queried; the sibling repo is not available locally).
 
 **Impact:**
 - POD validation details (the deductions, remarks and the before/after `client_price`) are not persisted anywhere. Only the changed `client_price` remains.

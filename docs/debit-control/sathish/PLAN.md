@@ -22,6 +22,57 @@ Legend: ⬜ Not started · 🟡 In progress / partial · ✅ Done · ⛔ Blocked
 
 Decision request to send: [SATHISH_DECISIONS.md](./SATHISH_DECISIONS.md) · V1 defects for other owners: [V1_FINDINGS.md](./V1_FINDINGS.md)
 
+## OWNERSHIP
+
+No individual assignments are documented; these are roles or workstreams, not people.
+
+| Workstream | Owner | Status | Can start now? |
+|---|---|---|---|
+| Sathish business decisions (D1, D3–D10) | Sathish / feature owner | Waiting — request in [SATHISH_DECISIONS.md](./SATHISH_DECISIONS.md) | No implementation |
+| Debit Control implementation | Sathish feature branch (`debit-control-sathish`) | Blocked — documentation only | No |
+| POD RPC security finding (A) | DB/security owner | Confirmed by team-lead read-only re-check (2026-09-29). Needs owner's independent verification | Yes, investigation only |
+| Audit/logging finding (B) | Audit/platform owner | Confirmed by team-lead read-only re-check (2026-09-29). Needs owner's independent verification | Yes, investigation only |
+| Integration/review | Team lead | Waiting for contract | No |
+
+> **Dependency** — existing POD/audit infrastructure must satisfy the required authorization and audit guarantees before production release.
+
+Findings A and B are **not** Debit Control requirements. They are existing V1 defects with separate owners. Debit Control depends only on their outcome, per the Dependency above.
+
+## IMPLEMENTATION ENTRY GATE
+
+Debit Control implementation can begin only when **all** of these are true:
+
+- [ ] D1 answered
+- [ ] D3 answered
+- [ ] D4 answered
+- [ ] D5 answered
+- [ ] D6 answered
+- [ ] D7 answered
+- [ ] D8 answered
+- [ ] D9 answered
+- [ ] D10 answered
+- [ ] Resulting state machine reviewed
+- [ ] Amount / ledger semantics reviewed
+- [ ] Authorization model reviewed
+- [ ] Audit strategy reviewed
+
+(D2 stays on its safe default unless Sathish changes it.)
+
+## PRE-PROD RELEASE GATE
+
+Before deployment:
+
+- [ ] Migrations reviewed
+- [ ] RLS / authorization tests pass
+- [ ] Action idempotency tested
+- [ ] Audit events verified
+- [ ] Finance integration verified
+- [ ] Existing POD Reconciliation regression tests pass
+- [ ] Existing Invoicing regression tests pass
+- [ ] End-to-end Debit Control flow passes
+- [ ] No unresolved business decisions
+- [ ] Dependency above satisfied (Findings A / B resolved or explicitly accepted by their owners)
+
 ## BLOCKERS / EXTERNAL OWNERS
 
 Kept separate from the feature checklist. None of these is fixed in this branch.
@@ -43,7 +94,7 @@ Kept separate from the feature checklist. None of these is fixed in this branch.
 
 ### B. V1 security finding — OWNER REQUIRED
 
-- **Finding A:** `public.get_trips_for_pod_org(uuid)` is SECURITY DEFINER, executable by `authenticated`, with no caller org-membership check (confirmed from its definition on preprod). It affects POD Reconciliation and Invoicing. Owner: DB/security (unassigned). Must be fixed before Debit Control reads through it. Details in [V1_FINDINGS.md](./V1_FINDINGS.md#finding-a--security-finding--owner-required).
+- **Finding A:** `public.get_trips_for_pod_org(uuid)` is SECURITY DEFINER, executable by `authenticated`, with no caller org-membership check (confirmed from its definition on preprod). The in-app consumer is the POD Reconciliation screen (list and summary). Owner: DB/security (unassigned). Must be fixed before Debit Control reads through it. Details in [V1_FINDINGS.md](./V1_FINDINGS.md#finding-a--security-finding--owner-required).
 
 ### C. V1 audit-integrity finding — OWNER REQUIRED
 
