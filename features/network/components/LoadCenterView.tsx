@@ -243,10 +243,6 @@ export function LoadCenterView({
     useState<StatusFilterTab>("OPEN");
   const [doneSubTab, setDoneSubTab] = useState<DoneSubTab>("REJECTED");
   const [searchQuery, setSearchQuery] = useState("");
-  /** Measured left rail height — syncs desktop Kanban shell to the sidebar. */
-  const [partnerSidebarHeight, setPartnerSidebarHeight] = useState<number | null>(
-    null,
-  );
   const [findMarketplaceMode, setFindMarketplaceMode] = useState<
     "give" | "get" | null
   >(null);
@@ -401,20 +397,18 @@ export function LoadCenterView({
   const usePartnerSidebar =
     Boolean(orgId) && isGiveGetTab && !isMobileView && showLoadCenterChrome;
   /**
-   * Same board height for Give Load + Get Load: at least the measured left
-   * rail, floored by remaining viewport so neither tab looks short.
+   * Remaining viewport for the Give/Get desktop board. Do not grow with
+   * card count — advertised + kanban columns scroll inside this shell.
    */
   const desktopBoardHeight = useMemo(() => {
     if (!usePartnerSidebar) return null;
     const chrome =
       (layout.isDesktopWeb ? Layout.desktopTopNavOffset : insets.top + 56) +
       contentTopPadding +
-      132;
-    const viewportFloor = Math.max(600, Math.round(windowHeight - chrome));
-    return Math.max(partnerSidebarHeight ?? 0, viewportFloor);
+      128;
+    return Math.max(360, Math.round(windowHeight - chrome));
   }, [
     usePartnerSidebar,
-    partnerSidebarHeight,
     windowHeight,
     layout.isDesktopWeb,
     insets.top,
@@ -2064,9 +2058,11 @@ export function LoadCenterView({
             isClaimedTab && styles.scrollContentClaimed,
             isMobileView && styles.scrollContentMobileHub,
             integratedLoadsCanvas && styles.scrollContentIntegratedEmpty,
-            { paddingBottom },
+            usePartnerSidebar && styles.scrollContentDesktopBoard,
+            { paddingBottom: usePartnerSidebar ? 8 : paddingBottom },
           ]}
-          showsVerticalScrollIndicator={false}
+          scrollEnabled={!usePartnerSidebar}
+          showsVerticalScrollIndicator={!usePartnerSidebar}
           nestedScrollEnabled
           scrollEventThrottle={16}
           {...(isMobileView ? tabBarScrollProps : {})}
@@ -2193,26 +2189,18 @@ export function LoadCenterView({
             : null}
           {isGiveGetTab ? (
             <View
-              style={
-                usePartnerSidebar ? styles.loadDesktopSplit : undefined
-              }
+              style={[
+                usePartnerSidebar ? styles.loadDesktopSplit : undefined,
+                usePartnerSidebar && desktopBoardHeight != null
+                  ? {
+                      height: desktopBoardHeight,
+                      maxHeight: desktopBoardHeight,
+                    }
+                  : null,
+              ]}
             >
               {usePartnerSidebar && orgId ? (
-                <View
-                  style={[
-                    styles.loadDesktopSidebar,
-                    desktopBoardHeight != null
-                      ? { minHeight: desktopBoardHeight }
-                      : null,
-                  ]}
-                  onLayout={(e) => {
-                    const next = Math.round(e.nativeEvent.layout.height);
-                    if (next <= 0) return;
-                    setPartnerSidebarHeight((prev) =>
-                      prev === next ? prev : next,
-                    );
-                  }}
-                >
+                <View style={styles.loadDesktopSidebar}>
                   {loadSubTab === "GIVE_LOAD" ? (
                     <View style={styles.sidebarIdleCapacity}>
                       <LoadCenterOpportunityExchange
@@ -2276,12 +2264,14 @@ export function LoadCenterView({
                       </Pressable>
                     </View>
                   )}
-                  <LoadCenterPartnerRecommendations
-                    orgId={orgId}
-                    mode={loadSubTab === "GET_LOAD" ? "get" : "give"}
-                    onViewAll={openNetworkForParties}
-                    enabled={enrichmentOpen}
-                  />
+                  <View style={styles.loadDesktopRecs}>
+                    <LoadCenterPartnerRecommendations
+                      orgId={orgId}
+                      mode={loadSubTab === "GET_LOAD" ? "get" : "give"}
+                      onViewAll={openNetworkForParties}
+                      enabled={enrichmentOpen}
+                    />
+                  </View>
                 </View>
               ) : null}
               <View
@@ -2943,9 +2933,18 @@ const styles = StyleSheet.create({
   sidebarIdleCapacity: {
     width: "100%",
     minWidth: 0,
+    minHeight: 0,
     flexGrow: 1,
     flexShrink: 1,
     gap: 10,
+    overflow: "hidden",
+    ...Platform.select({
+      web: {
+        display: "flex" as const,
+        flexDirection: "column" as const,
+        height: "100%",
+      },
+    }),
   },
   findVehiclesBtn: {
     flexDirection: "row",
@@ -2955,6 +2954,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     backgroundColor: Theme.textPrimaryDark,
+    flexShrink: 0,
   },
   findVehiclesBtnPressed: {
     opacity: 0.9,
@@ -3088,8 +3088,11 @@ const styles = StyleSheet.create({
     flexWrap: "nowrap",
     gap: 12,
     width: "100%",
+    flex: 1,
+    minHeight: 0,
     marginTop: 8,
-    marginBottom: 4,
+    marginBottom: 0,
+    overflow: "hidden",
     ...Platform.select({
       web: { display: "flex" as const },
     }),
@@ -3098,23 +3101,50 @@ const styles = StyleSheet.create({
     width: 280,
     maxWidth: 300,
     flexShrink: 0,
+    flexGrow: 0,
     gap: 10,
-    alignSelf: "flex-start",
+    minHeight: 0,
+    height: "100%",
+    overflow: "hidden",
+    alignSelf: "stretch",
     ...Platform.select({
-      web: { position: "sticky" as const, top: 8 },
+      web: { display: "flex" as const, flexDirection: "column" as const },
     }),
   },
   loadDesktopMain: {
     flex: 1,
     minWidth: 0,
+    minHeight: 0,
+    height: "100%",
     gap: 0,
+    overflow: "hidden",
     alignSelf: "stretch",
+    ...Platform.select({
+      web: { display: "flex" as const, flexDirection: "column" as const },
+    }),
+  },
+  scrollContentDesktopBoard: {
+    flexGrow: 1,
+    flex: 1,
+    minHeight: 0,
+    ...Platform.select({
+      web: {
+        display: "flex" as const,
+        flexDirection: "column" as const,
+        height: "100%" as const,
+      },
+    }),
   },
   loadPartnerRecsMobile: {
     marginTop: 4,
     marginBottom: 12,
     width: "100%",
     alignSelf: "stretch",
+  },
+  loadDesktopRecs: {
+    flexShrink: 0,
+    maxHeight: 168,
+    overflow: "hidden",
   },
   loadContentWrapClaimed: {
     marginTop: 0,

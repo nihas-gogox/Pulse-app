@@ -896,6 +896,9 @@ const styles = StyleSheet.create({
   wrapSidebar: {
     width: "100%",
     flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
+    overflow: "hidden",
     marginBottom: 0,
     paddingTop: 12,
     paddingBottom: 12,
@@ -910,6 +913,7 @@ const styles = StyleSheet.create({
         display: "flex",
         flexDirection: "column",
         height: "100%",
+        minHeight: 0,
       } as object,
       default: {},
     }),

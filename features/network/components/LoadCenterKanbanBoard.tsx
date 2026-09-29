@@ -23,8 +23,6 @@ import {
 
 /** Floor so Get Load columns still fit; they flex to fill wider boards. */
 const MIN_COLUMN_WIDTH = 248;
-/** Used when the board is not stretched by a sibling sidebar. */
-const MIN_BOARD_BODY_HEIGHT = 580;
 
 export type LoadCenterKanbanColumnTab = {
   id: string;
@@ -265,7 +263,7 @@ export function LoadCenterKanbanBoard({
 const styles = StyleSheet.create({
   boardShell: {
     flex: 1,
-    minHeight: MIN_BOARD_BODY_HEIGHT + 48,
+    minHeight: 0,
     marginTop: 4,
     marginBottom: 0,
     borderRadius: 14,
@@ -278,6 +276,7 @@ const styles = StyleSheet.create({
         boxShadow: "0 2px 12px rgba(15,23,42,0.05)",
         display: "flex",
         flexDirection: "column",
+        height: "100%",
       } as object,
       default: {},
     }),
@@ -307,17 +306,28 @@ const styles = StyleSheet.create({
   },
   boardScroll: {
     flex: 1,
-    minHeight: MIN_BOARD_BODY_HEIGHT,
+    minHeight: 0,
     alignSelf: "stretch",
   },
   boardScrollContent: {
     flexGrow: 1,
+    flex: 1,
     minWidth: "100%" as unknown as number,
     minHeight: "100%" as unknown as number,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    gap: 12,
+    gap: 10,
     alignItems: "stretch",
+    ...Platform.select({
+      web: {
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "stretch",
+        boxSizing: "border-box",
+        height: "100%",
+      } as object,
+      default: {},
+    }),
   },
   column: {
     flex: 1,
