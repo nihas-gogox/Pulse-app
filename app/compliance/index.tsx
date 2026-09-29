@@ -21,7 +21,12 @@ import {
   useComplianceTripQuery,
   useComplianceChangeSync,
 } from "@/features/tripCompliance/hooks/useComplianceTripsQuery";
-import { postCompliancePayment, markTripComplianceVerified, type ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import {
+  declineTripCompliance,
+  postCompliancePayment,
+  markTripComplianceVerified,
+  type ComplianceLedgerCategory,
+} from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import { COMPLIANCE_STAGE_FILTER_LABEL, COMPLIANCE_STAGES, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import { COMPLIANCE_FILTER_COUNT_TONE, matchesComplianceTripSearch } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
@@ -33,7 +38,7 @@ import { ROUTES } from "@/lib/routes";
 import { useMemberAccess } from "@/lib/useMemberAccess";
 import { useRouter } from "expo-router";
 import { Download, LayoutGrid, Search, Table2, Wallet } from "lucide-react-native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View, type TextStyle } from "react-native";
 
 function StageChip({
@@ -88,6 +93,9 @@ function StageChip({
   );
 }
 
+/** Window in which a retried Decline submit reuses its idempotency key. */
+const DECLINE_KEY_REUSE_MS = 2 * 60 * 1000;
+
 export default function ComplianceScreen() {
   const layout = useLayoutInsets();
   const { width, height: windowHeight } = useWindowDimensions();
@@ -134,8 +142,47 @@ export default function ComplianceScreen() {
     },
     [canMarkVerified, syncChange, user?.uid],
   );
+  /**
+   * One idempotency key per (trip, reason) submit, kept until success so a quick
+   * retry after a network failure is deduped server-side. A different reason, or a
+   * retry after DECLINE_KEY_REUSE_MS, gets a new key (so a later re-decline with the
+   * same text is never silently skipped).
+   */
+  const declineKeysRef = useRef(new Map<string, { reason: string; key: string; at: number }>());
+  const declineTrip = useCallback(
+    async (tripId: string, reason: string) => {
+      if (!canMarkVerified) {
+        throw new Error("You don't have permission to decline compliance for this trip.");
+      }
+      if (!user?.uid) {
+        throw new Error("Sign in again, then try Decline.");
+      }
+      const trimmed = reason.trim();
+      const keys = declineKeysRef.current;
+      const now = Date.now();
+      let entry = keys.get(tripId);
+      if (!entry || entry.reason !== trimmed || now - entry.at > DECLINE_KEY_REUSE_MS) {
+        entry = { reason: trimmed, key: `${tripId}:${now}:${Math.random().toString(36).slice(2, 10)}`, at: now };
+        keys.set(tripId, entry);
+      }
+      try {
+        await declineTripCompliance({ tripId, reason: trimmed, idempotencyKey: entry.key });
+      } catch (error) {
+        // e.g. someone else verified it meanwhile — refresh this trip's flags so the
+        // row catches up, then let the modal show the (user-facing) error.
+        void syncChange({ type: "tripFlags", tripId }).catch(() => undefined);
+        throw error;
+      }
+      keys.delete(tripId);
+      await syncChange({ type: "complianceDeclined", tripId, actorId: user.uid, reason: trimmed });
+      // Defer so the modal can close first (web alert blocks).
+      setTimeout(() => alertMessage("Compliance declined", "The trip stays in Compliance Pending with your reason recorded."), 0);
+    },
+    [canMarkVerified, syncChange, user?.uid],
+  );
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
-  const [cardTripId, setCardTripId] = useState<string | null>(null);
+  // Table → Cards hand-off ("Verify Docs") was removed; Cards keeps its own selection.
+  const [cardTripId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [pay, setPay] = useState<{ summary: ComplianceTripSummary; category: ComplianceLedgerCategory } | null>(null);
   const [paying, setPaying] = useState(false);
@@ -333,10 +380,7 @@ export default function ComplianceScreen() {
             onOpenDetails={openDetails}
             onReview={(tripId, documentKey, scope = "trip") => setReview({ tripId, documentKey, scope })}
             onMarkComplianceVerified={canMarkVerified ? markTripVerified : undefined}
-            onVerifyDocs={(tripId) => {
-              setCardTripId(tripId);
-              setViewMode("card");
-            }}
+            onDeclineCompliance={canMarkVerified ? declineTrip : undefined}
             onPay={(tripId) => {
               const summary = visible.find((s) => s.trip.id === tripId) ?? summaries.find((s) => s.trip.id === tripId);
               if (summary) openPay(summary);

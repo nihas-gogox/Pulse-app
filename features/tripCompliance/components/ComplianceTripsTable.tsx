@@ -1,12 +1,19 @@
 /**
  * Table workbench for the Compliance workbench — trip is the primary row,
  * expandable to reveal its documents inline. Same already-fetched
- * `ComplianceTripSummary[]`, no extra query. Inline document actions open
- * the same ComplianceDocumentReviewSheet used by the card view's "Review
- * Documents" — no duplicate approve/reject wiring.
+ * `ComplianceTripSummary[]`, no extra query. Trip/Vehicle/Driver cells show a
+ * single Pending/Approved status that opens the same
+ * ComplianceDocumentReviewSheet used by the card view (no duplicate
+ * approve/reject wiring). E-way Bill column + Verify/Decline actions per
+ * docs/compliance/dinesh/CONTRACT.md.
  */
 import Theme from "@/constants/Theme";
+import { ComplianceDeclineModal } from "@/features/tripCompliance/components/ComplianceDeclineModal";
 import { COMPLIANCE_STATUS_META, ComplianceStatusChip } from "@/features/tripCompliance/components/ComplianceStatusIcon";
+import {
+  COMPLIANCE_DECLINE_ACTION_LABEL,
+  HIGHLIGHT_EXPIRED_EWAY_BILL,
+} from "@/features/tripCompliance/complianceDecisionConfig";
 import {
   REQUIRED_DRIVER_DOCUMENT_TYPES,
   REQUIRED_VEHICLE_DOCUMENT_TYPES,
@@ -27,9 +34,15 @@ import {
   type ComplianceDocRow,
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import { deriveComplianceQueueReadiness, paymentReadinessLabel } from "@/features/tripCompliance/utils/complianceReadiness.util";
+import {
+  canVerifyTrip,
+  deriveComplianceEwayBill,
+  deriveComplianceGroupStatus,
+  isComplianceDeclineActive,
+} from "@/features/tripCompliance/utils/complianceTableStatus.util";
 import { getTripDisplayNumber } from "@/features/trips/services/trips.service";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight } from "lucide-react-native";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export type ComplianceTripsTableProps = {
@@ -38,10 +51,10 @@ export type ComplianceTripsTableProps = {
   onOpenDetails?: (tripId: string) => void;
   /** Opens the review sheet; documentKey null opens straight to the document list. */
   onReview: (tripId: string, documentKey: string | null, scope?: "trip" | "vehicle" | "driver") => void;
-  /** When required trip documents are approved, Verify Docs marks the trip compliance verified. */
+  /** Verify action; runs once LR, E-way Bill and Invoice are approved, otherwise opens the trip documents. Resolves; the page shows errors. */
   onMarkComplianceVerified?: (tripId: string) => Promise<void>;
-  /** Opens this trip in the card workspace. */
-  onVerifyDocs?: (tripId: string) => void;
+  /** Decline action; rejects with an Error whose message is user-facing (shown in the modal). */
+  onDeclineCompliance?: (tripId: string, reason: string) => Promise<void>;
   onPay?: (tripId: string) => void;
   canManageFinance?: boolean;
 };
@@ -70,21 +83,80 @@ function requiredDateSortKey(summary: ComplianceTripSummary): number | null {
   return Number.isNaN(ms) ? null : ms;
 }
 
-function MandatoryDocChips({
+type DocScope = "trip" | "vehicle" | "driver";
+
+const SCOPE_LABEL: Record<DocScope, string> = {
+  trip: "Trip",
+  vehicle: "Vehicle",
+  driver: "Driver",
+};
+
+function GroupStatusPill({
+  tripId,
+  scope,
   rows,
-  onPressDoc,
+  onPress,
 }: {
+  tripId: string;
+  scope: DocScope;
   rows: ComplianceDocRow[];
-  onPressDoc: (documentKey: string) => void;
+  onPress: () => void;
 }) {
-  const mandatory = rows.filter((row) => row.required);
+  const group = deriveComplianceGroupStatus(rows);
+  const approved = group.status === "approved";
+  const label = approved ? "Approved" : "Pending";
   return (
-    <View style={styles.docChips}>
-      {mandatory.map((row) => (
-        <TouchableOpacity key={row.key} onPress={() => onPressDoc(row.key)} hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}>
-          <ComplianceStatusChip status={row.status} label={labelForDocType(row.type)} compact />
-        </TouchableOpacity>
-      ))}
+    <TouchableOpacity
+      testID={`compliance-status-${scope}-${tripId}`}
+      style={styles.statusTouch}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${SCOPE_LABEL[scope]} documents ${label}, ${group.approved} of ${group.total} approved. Open verification`}
+    >
+      <View style={[styles.statusPill, approved ? styles.statusPillApproved : styles.statusPillPending]}>
+        <Text style={[styles.statusPillText, approved ? styles.successText : styles.dangerText]} numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function EwayBillCell({ summary }: { summary: ComplianceTripSummary }) {
+  const eway = useMemo(() => deriveComplianceEwayBill(summary.documents), [summary.documents]);
+  const tripId = summary.trip.id;
+  if (!eway.number && !eway.validTillLabel) {
+    return (
+      <View style={styles.colEway} testID={`compliance-eway-${tripId}`}>
+        <Text style={styles.cell}>—</Text>
+      </View>
+    );
+  }
+  const showExpired = HIGHLIGHT_EXPIRED_EWAY_BILL && eway.expired;
+  return (
+    <View
+      style={styles.colEway}
+      testID={`compliance-eway-${tripId}`}
+      accessibilityLabel={`E-way Bill ${eway.number ?? "—"}, valid till ${eway.validTillLabel ?? "—"}${
+        showExpired ? ", expired" : ""
+      }${eway.extraCount > 0 ? `, ${eway.extraCount} more` : ""}`}
+    >
+      <View style={styles.ewayLine}>
+        <Text style={[styles.cell, styles.ewayNumber]} numberOfLines={1} selectable>
+          {eway.number ?? "—"}
+        </Text>
+        {eway.extraCount > 0 ? <Text style={styles.muted}>{`+${eway.extraCount}`}</Text> : null}
+      </View>
+      <View style={styles.ewayLine}>
+        <Text style={[styles.muted, styles.ewayDate, showExpired && styles.dangerText]} numberOfLines={1}>
+          {`Valid till ${eway.validTillLabel ?? "—"}`}
+        </Text>
+        {showExpired ? (
+          <View style={[styles.miniPill, styles.statusPillPending]}>
+            <Text style={[styles.miniPillText, styles.dangerText]}>Expired</Text>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -120,7 +192,7 @@ function TripRowContent({
   onOpenDetails,
   onReview,
   onMarkComplianceVerified,
-  onVerifyDocs,
+  onDeclineCompliance,
   onPay,
   canManageFinance = false,
 }: {
@@ -129,12 +201,14 @@ function TripRowContent({
   onOpenDetails?: (tripId: string) => void;
   onReview: (tripId: string, documentKey: string | null, scope?: "trip" | "vehicle" | "driver") => void;
   onMarkComplianceVerified?: (tripId: string) => Promise<void>;
-  onVerifyDocs?: (tripId: string) => void;
+  onDeclineCompliance?: (tripId: string, reason: string) => Promise<void>;
   onPay?: (tripId: string) => void;
   canManageFinance?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [markingTrip, setMarkingTrip] = useState(false);
+  const markingRef = useRef(false);
+  const [declineOpen, setDeclineOpen] = useState(false);
   const rows = useMemo(() => deriveComplianceDocumentRows(summary.documents), [summary.documents]);
   const vehicleRows = useMemo(
     () =>
@@ -153,6 +227,34 @@ function TripRowContent({
   const payment = paymentStatusVisual(summary);
   const showPaymentPill = shouldShowPaymentStatusPill(summary);
   const tripIdLabel = getTripDisplayNumber(summary.trip);
+  const tripId = summary.trip.id;
+  const isVerified = Boolean(summary.complianceVerifiedAt);
+  const verifyEligibility = useMemo(() => canVerifyTrip(summary), [summary]);
+  const declineActive = isComplianceDeclineActive(summary);
+  const declineReason = summary.complianceDeclineReason?.trim() || "";
+
+  const handleVerify = () => {
+    if (markingRef.current || !onMarkComplianceVerified) return;
+    if (!verifyEligibility.allowed) {
+      // Not ready: open the trip documents to approve (as V1's "Verify Docs" did).
+      onReview(tripId, null, "trip");
+      return;
+    }
+    markingRef.current = true;
+    setMarkingTrip(true);
+    void onMarkComplianceVerified(tripId).finally(() => {
+      markingRef.current = false;
+      setMarkingTrip(false);
+    });
+  };
+
+  const handleDeclineSubmit = async (reason: string) => {
+    if (!onDeclineCompliance) return;
+    await onDeclineCompliance(tripId, reason);
+    setDeclineOpen(false);
+  };
+
+  const verifyDisabled = markingTrip;
 
   return (
     <View>
@@ -184,22 +286,29 @@ function TripRowContent({
         <Text style={[styles.cell, styles.colLoc]} numberOfLines={1}>
           {tripToLocation(summary)}
         </Text>
+        <EwayBillCell summary={summary} />
         <View style={styles.colDocs}>
-          <MandatoryDocChips
+          <GroupStatusPill
+            tripId={tripId}
+            scope="trip"
             rows={tripMandatoryRows}
-            onPressDoc={(key) => onReview(summary.trip.id, key, "trip")}
+            onPress={() => onReview(tripId, null, "trip")}
           />
         </View>
         <View style={styles.colDocs}>
-          <MandatoryDocChips
+          <GroupStatusPill
+            tripId={tripId}
+            scope="vehicle"
             rows={vehicleRows}
-            onPressDoc={(key) => onReview(summary.trip.id, key, "vehicle")}
+            onPress={() => onReview(tripId, null, "vehicle")}
           />
         </View>
         <View style={styles.colDocs}>
-          <MandatoryDocChips
+          <GroupStatusPill
+            tripId={tripId}
+            scope="driver"
             rows={driverRows}
-            onPressDoc={(key) => onReview(summary.trip.id, key, "driver")}
+            onPress={() => onReview(tripId, null, "driver")}
           />
         </View>
         <View style={styles.colStage}>
@@ -208,6 +317,24 @@ function TripRowContent({
               {verification.label}
             </Text>
           </View>
+          {declineActive ? (
+            <View
+              testID={`compliance-declined-${tripId}`}
+              accessible
+              accessibilityLabel={`Declined${declineReason ? `: ${declineReason}` : ""}`}
+            >
+              <View style={[styles.stagePill, styles.statusPillPending]}>
+                <Text style={[styles.stagePillText, styles.dangerText]} numberOfLines={1}>
+                  Declined
+                </Text>
+              </View>
+              {declineReason ? (
+                <Text style={styles.muted} numberOfLines={1}>
+                  {declineReason}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
           {showPaymentPill ? (
             <View style={[styles.stagePill, styles.stagePillSpaced, { backgroundColor: payment.tone.bg }]}>
               <Text style={[styles.stagePillText, { color: payment.tone.fg }]} numberOfLines={1}>
@@ -231,31 +358,42 @@ function TripRowContent({
           {summary.balance ? `₹${summary.balance.amount.toLocaleString("en-IN")}` : "—"}
         </Text>
         <View style={styles.colAction}>
-          <TouchableOpacity
-            style={styles.actionItem}
-            disabled={markingTrip}
-            onPress={() => {
-              if (markingTrip) return;
-              const ready =
-                readiness.requiredDocs.markVerifiedReady &&
-                !summary.complianceVerifiedAt &&
-                Boolean(onMarkComplianceVerified);
-              if (!ready || !onMarkComplianceVerified) {
-                if (onVerifyDocs) onVerifyDocs(summary.trip.id);
-                else onReview(summary.trip.id, null);
-                return;
-              }
-              setMarkingTrip(true);
-              void onMarkComplianceVerified(summary.trip.id).finally(() => setMarkingTrip(false));
-            }}
-          >
-            <Text style={styles.actionLink}>{markingTrip ? "Verifying…" : "Verify Docs"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionItem} onPress={() => onOpenTrip(summary.trip.id)}>
-            <Text style={[styles.actionLink, styles.viewTripLink]} numberOfLines={1}>
-              View Trip
+          {isVerified ? (
+            <Text style={[styles.actionLink, styles.successText]} numberOfLines={1}>
+              Verified
             </Text>
-          </TouchableOpacity>
+          ) : null}
+          {!isVerified && onMarkComplianceVerified ? (
+            <TouchableOpacity
+              testID={`compliance-verify-${tripId}`}
+              style={[styles.actionButton, styles.actionItem]}
+              disabled={verifyDisabled}
+              onPress={handleVerify}
+              accessibilityRole="button"
+              accessibilityLabel="Verify trip compliance"
+              accessibilityHint={
+                verifyEligibility.reason ? `${verifyEligibility.reason}. Opens trip documents.` : undefined
+              }
+              accessibilityState={{ disabled: verifyDisabled, busy: markingTrip }}
+            >
+              <Text style={[styles.actionLink, !verifyEligibility.allowed && styles.disabledLink]} numberOfLines={1}>
+                {markingTrip ? "Verifying…" : "Verify"}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+          {!isVerified && onDeclineCompliance ? (
+            <TouchableOpacity
+              testID={`compliance-decline-${tripId}`}
+              style={[styles.actionButton, styles.actionItem]}
+              onPress={() => setDeclineOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`${COMPLIANCE_DECLINE_ACTION_LABEL} trip compliance`}
+            >
+              <Text style={[styles.actionLink, styles.dangerText]} numberOfLines={1}>
+                {COMPLIANCE_DECLINE_ACTION_LABEL}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
           {canManageFinance && readiness.paymentReady && onPay ? (
             <TouchableOpacity onPress={() => onPay(summary.trip.id)}>
               <Text style={styles.actionLink}>Pay</Text>
@@ -263,6 +401,15 @@ function TripRowContent({
           ) : null}
         </View>
       </View>
+
+      {onDeclineCompliance ? (
+        <ComplianceDeclineModal
+          visible={declineOpen}
+          tripLabel={`${tripIdLabel}${summary.trip.client_name ? ` · ${summary.trip.client_name}` : ""}`}
+          onCancel={() => setDeclineOpen(false)}
+          onSubmit={handleDeclineSubmit}
+        />
+      ) : null}
 
       {expanded ? (
         <View style={styles.expandedWrap}>
@@ -309,7 +456,7 @@ export function ComplianceTripsTable({
   onOpenDetails,
   onReview,
   onMarkComplianceVerified,
-  onVerifyDocs,
+  onDeclineCompliance,
   onPay,
   canManageFinance,
 }: ComplianceTripsTableProps) {
@@ -341,6 +488,7 @@ export function ComplianceTripsTable({
           />
           <Text style={[styles.cell, styles.colLoc, styles.headerText]}>From</Text>
           <Text style={[styles.cell, styles.colLoc, styles.headerText]}>To</Text>
+          <Text style={[styles.cell, styles.colEway, styles.headerText]}>E-way Bill</Text>
           <Text style={[styles.cell, styles.colDocs, styles.headerText]}>Trip</Text>
           <Text style={[styles.cell, styles.colDocs, styles.headerText]}>Vehicle</Text>
           <Text style={[styles.cell, styles.colDocs, styles.headerText]}>Driver</Text>
@@ -359,7 +507,7 @@ export function ComplianceTripsTable({
             onOpenDetails={onOpenDetails}
             onReview={onReview}
             onMarkComplianceVerified={onMarkComplianceVerified}
-            onVerifyDocs={onVerifyDocs}
+            onDeclineCompliance={onDeclineCompliance}
             onPay={onPay}
             canManageFinance={canManageFinance}
           />
@@ -408,9 +556,26 @@ const styles = StyleSheet.create({
   muted: { color: Theme.textMuted, fontSize: 10, lineHeight: 13 },
   colTripId: { width: 156, maxWidth: 156, flexGrow: 0, flexShrink: 1, minWidth: 0 },
   colDate: { flex: 0.8, minWidth: 0 },
-  colLoc: { flex: 1.1, minWidth: 0 },
-  colDocs: { flex: 0.9, minWidth: 0, justifyContent: "center" },
-  docChips: { flexDirection: "column", alignItems: "flex-start", gap: 1 },
+  colLoc: { flex: 1, minWidth: 0 },
+  colEway: { flex: 1.1, minWidth: 0, justifyContent: "center", gap: 1 },
+  ewayLine: { flexDirection: "row", alignItems: "center", gap: 4, minWidth: 0 },
+  ewayNumber: { flexShrink: 1 },
+  ewayDate: { flexShrink: 1 },
+  colDocs: { flex: 0.75, minWidth: 0, justifyContent: "center" },
+  statusTouch: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start" },
+  statusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    alignSelf: "flex-start",
+  },
+  statusPillPending: { backgroundColor: Theme.complianceStageDocsBg },
+  statusPillApproved: { backgroundColor: Theme.complianceStageSuccessBg },
+  statusPillText: { fontSize: 11, fontWeight: "700" },
+  successText: { color: Theme.complianceStageSuccessFg },
+  dangerText: { color: Theme.complianceStageDocsFg },
+  miniPill: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 999 },
+  miniPillText: { fontSize: 9, fontWeight: "700" },
   colRequiredDate: {
     flex: 0.8,
     minWidth: 0,
@@ -443,8 +608,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   actionItem: { flexGrow: 0, flexShrink: 0 },
+  actionButton: { minHeight: 44, minWidth: 44, justifyContent: "center" },
   actionLink: { fontSize: 12, fontWeight: "700", color: Theme.complianceBulk },
-  viewTripLink: { color: Theme.textMuted },
+  disabledLink: { color: Theme.textMuted },
   rejectLink: { color: Theme.teslaRed },
   expandedWrap: { backgroundColor: Theme.compliancePageBg, paddingLeft: 38, paddingRight: 10 },
   expandedRow: {

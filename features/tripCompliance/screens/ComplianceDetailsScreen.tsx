@@ -15,6 +15,7 @@ import {
 } from "@/features/tripCompliance/hooks/useComplianceTripsQuery";
 import { postCompliancePayment, markTripComplianceVerified, type ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import { COMPLIANCE_STAGE_LABEL, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
+import { formatComplianceTimestamp } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { formatMarkComplianceVerifiedError } from "@/features/tripCompliance/utils/complianceMarkVerifiedError.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
@@ -84,6 +85,9 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
   }
 
   const trip = summary.trip;
+  /** Decline is active only while the trip is not compliance verified. */
+  const declinedAt = !summary.complianceVerifiedAt ? summary.complianceDeclinedAt : null;
+  const declineReason = summary.complianceDeclineReason?.trim() || "No reason recorded";
 
   return (
     <ScrollView
@@ -117,7 +121,21 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
         }}
         onMarkComplianceVerified={markTripVerified}
         canManageFinance={canManageFinance}
+        hideDeclineNotice
       />
+
+      {declinedAt ? (
+        <View
+          testID="compliance-details-declined"
+          accessible
+          accessibilityLabel={`Compliance declined ${formatComplianceTimestamp(declinedAt)}. Reason: ${declineReason}`}
+        >
+          <DetailSection title="Compliance Declined">
+            <DetailRow label="Reason" value={declineReason} />
+            <DetailRow label="Declined at" value={formatComplianceTimestamp(declinedAt)} />
+          </DetailSection>
+        </View>
+      ) : null}
 
       <DetailSection title="Trip Information">
         <DetailRow label="Trip ID" value={trip.booking_ref ?? trip.display_trip_id ?? trip.id.slice(0, 8)} />

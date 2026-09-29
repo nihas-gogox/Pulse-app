@@ -142,6 +142,10 @@ export type ComplianceTripSummary = {
   complianceDecision: ComplianceDecision | null;
   complianceExceptionReason: string | null;
   complianceOutstandingSummary: ComplianceOutstandingSummary | null;
+  /** Latest decline (decline_trip_compliance). Active only while complianceVerifiedAt is null. */
+  complianceDeclinedAt: string | null;
+  complianceDeclinedBy: string | null;
+  complianceDeclineReason: string | null;
   advance: CompliancePaymentSummary | null;
   balance: CompliancePaymentSummary | null;
   hardCopyPod: {
@@ -160,6 +164,9 @@ export type ComplianceTripFlags = {
   compliance_decision: ComplianceDecision | null;
   compliance_exception_reason: string | null;
   compliance_outstanding_summary: ComplianceOutstandingSummary | null;
+  compliance_declined_at: string | null;
+  compliance_declined_by: string | null;
+  compliance_decline_reason: string | null;
   pod_hard_copy_courier: string | null;
   pod_hard_copy_awb_number: string | null;
   pod_hard_copy_received_by: string | null;
@@ -188,6 +195,15 @@ export type ComplianceTripInputs = {
   /** `vehicles.id` whose vault JSON fed `vehicleDocuments` (id, owner id, or number match). */
   vaultVehicleId: string | null;
 };
+
+/** Trimmed decline reason length bounds — mirror trips_compliance_decline_reason_length_check. */
+export const COMPLIANCE_DECLINE_REASON_MIN = 3;
+export const COMPLIANCE_DECLINE_REASON_MAX = 500;
+
+/** Length as Postgres `char_length` counts it (code points, not UTF-16 units). */
+export function complianceDeclineReasonLength(reason: string): number {
+  return Array.from(reason.trim()).length;
+}
 
 /** Trip docs required before a trip can be marked Compliance Verified. */
 export const REQUIRED_COMPLIANCE_DOCUMENT_TYPES: readonly string[] = [

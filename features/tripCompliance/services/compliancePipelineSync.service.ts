@@ -12,6 +12,7 @@
  *   tripDocuments        → 1 (trip_documents for one trip)
  *   tripFlags            → 1 (trips compliance/POD columns for one trip)
  *   complianceVerified   → 0 (patch mirrors mark_trip_compliance_verified)
+ *   complianceDeclined   → 0 (patch mirrors decline_trip_compliance)
  *   payment              → 2 (compliance transactions + trips.amount_paid for one trip)
  *   vehicleDocuments     → entity docs + vault for every trip on that vehicle
  *   driverDocuments      → entity docs + KYC for every trip with that driver
@@ -27,6 +28,7 @@ import {
 } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import type { ComplianceTripInputs } from "@/features/tripCompliance/tripCompliance.types";
 import {
+  applyComplianceDeclined,
   applyComplianceVerified,
   applyDriverDocuments,
   applyTripDocumentDecision,
@@ -55,6 +57,7 @@ export type ComplianceChange =
   | { type: "tripDocuments"; tripId: string }
   | { type: "tripFlags"; tripId: string }
   | { type: "complianceVerified"; tripId: string; actorId: string }
+  | { type: "complianceDeclined"; tripId: string; actorId: string; reason: string }
   | { type: "payment"; tripId: string }
   | { type: "vehicleDocuments"; vehicleId: string }
   | { type: "driverDocuments"; driverId: string };
@@ -92,6 +95,11 @@ export async function patchForComplianceChange(
     case "complianceVerified": {
       const at = now();
       return (cur) => applyComplianceVerified(cur, { tripId: change.tripId, actorId: change.actorId, at });
+    }
+    case "complianceDeclined": {
+      const at = now();
+      return (cur) =>
+        applyComplianceDeclined(cur, { tripId: change.tripId, actorId: change.actorId, at, reason: change.reason });
     }
     case "payment": {
       const payments = await fetchTripPaymentInputs([change.tripId]);

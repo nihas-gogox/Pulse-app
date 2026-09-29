@@ -143,25 +143,38 @@ export async function fetchComplianceTripFlags(
   const byTrip = new Map<string, ComplianceTripFlags>();
   if (tripIds.length === 0) return byTrip;
 
-  const { data, error } = await supabase()
+  const SELECT_BASE =
+    "id, compliance_verified_at, compliance_verified_by, compliance_decision, compliance_exception_reason, compliance_outstanding_summary, pod_hard_copy_courier, pod_hard_copy_awb_number, pod_hard_copy_received_by, pod_received_at";
+  // Decline columns come from 20270929162901_trip_compliance_decline.sql.
+  const SELECT_WITH_DECLINE = `${SELECT_BASE}, compliance_declined_at, compliance_declined_by, compliance_decline_reason`;
+
+  let result: { data: unknown[] | null; error: { code?: string; message: string } | null } = await supabase()
     .from("trips")
-    .select(
-      "id, compliance_verified_at, compliance_verified_by, compliance_decision, compliance_exception_reason, compliance_outstanding_summary, pod_hard_copy_courier, pod_hard_copy_awb_number, pod_hard_copy_received_by, pod_received_at",
-    )
+    .select(SELECT_WITH_DECLINE)
     .in("id", tripIds);
 
+  if (result.error && isMissingColumnOrRelation(result.error)) {
+    // Decline migration not applied yet: retry the original select so
+    // verified / exception / hard-copy flags are never lost.
+    result = await supabase().from("trips").select(SELECT_BASE).in("id", tripIds);
+  }
+
+  const { data, error } = result;
   if (error) {
     if (isMissingColumnOrRelation(error)) return byTrip; // pre-migration: all flags absent
     throw new Error(error.message);
   }
   for (const row of data ?? []) {
     const r = row as Record<string, unknown>;
-    byTrip.set(row.id as string, {
+    byTrip.set(r.id as string, {
       compliance_verified_at: r.compliance_verified_at as string | null,
       compliance_verified_by: r.compliance_verified_by as string | null,
       compliance_decision: (r.compliance_decision as ComplianceDecision | null) ?? null,
       compliance_exception_reason: (r.compliance_exception_reason as string | null) ?? null,
       compliance_outstanding_summary: (r.compliance_outstanding_summary as ComplianceOutstandingSummary | null) ?? null,
+      compliance_declined_at: (r.compliance_declined_at as string | null | undefined) ?? null,
+      compliance_declined_by: (r.compliance_declined_by as string | null | undefined) ?? null,
+      compliance_decline_reason: (r.compliance_decline_reason as string | null | undefined) ?? null,
       pod_hard_copy_courier: r.pod_hard_copy_courier as string | null,
       pod_hard_copy_awb_number: r.pod_hard_copy_awb_number as string | null,
       pod_hard_copy_received_by: r.pod_hard_copy_received_by as string | null,
@@ -668,6 +681,9 @@ export function summarizeComplianceTrip(inputs: ComplianceTripInputs): Complianc
     complianceDecision: flags?.compliance_decision ?? null,
     complianceExceptionReason: flags?.compliance_exception_reason ?? null,
     complianceOutstandingSummary: flags?.compliance_outstanding_summary ?? null,
+    complianceDeclinedAt: flags?.compliance_declined_at ?? null,
+    complianceDeclinedBy: flags?.compliance_declined_by ?? null,
+    complianceDeclineReason: flags?.compliance_decline_reason ?? null,
     advance,
     balance,
     hardCopyPod: {

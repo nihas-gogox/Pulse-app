@@ -105,12 +105,38 @@ export function applyComplianceVerified(
   );
 }
 
+/**
+ * Mirrors `decline_trip_compliance`'s update: declined_at/by + trimmed reason.
+ * Verified/decision columns untouched, so the trip stays in Compliance Pending.
+ */
+export function applyComplianceDeclined(
+  inputs: ComplianceTripInputs[],
+  change: { tripId: string; actorId: string; at: string; reason: string },
+): ComplianceTripInputs[] {
+  return mapWhere(
+    inputs,
+    (row) => row.trip.id === change.tripId,
+    (row) => ({
+      ...row,
+      flags: {
+        ...(row.flags ?? EMPTY_FLAGS),
+        compliance_declined_at: change.at,
+        compliance_declined_by: change.actorId,
+        compliance_decline_reason: change.reason.trim(),
+      },
+    }),
+  );
+}
+
 const EMPTY_FLAGS: ComplianceTripFlags = {
   compliance_verified_at: null,
   compliance_verified_by: null,
   compliance_decision: null,
   compliance_exception_reason: null,
   compliance_outstanding_summary: null,
+  compliance_declined_at: null,
+  compliance_declined_by: null,
+  compliance_decline_reason: null,
   pod_hard_copy_courier: null,
   pod_hard_copy_awb_number: null,
   pod_hard_copy_received_by: null,
