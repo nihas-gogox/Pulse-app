@@ -4,6 +4,7 @@ import type { ConnectionInviteeMatch } from "@/features/clients/components/AddCl
 import { PartyRegistrationPortal } from "@/features/finance/components/PartyRegistrationPortal";
 import { usePartyPortalRouteHandlers } from "@/features/finance/hooks/usePartyPortalRouteHandlers";
 import { ROUTES } from "@/lib/routes";
+import { performSafeBack } from "@/lib/useSafeBack";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   getConnectionInviteeByPhone,
@@ -14,15 +15,7 @@ function closeModal(
   router: ReturnType<typeof useRouter>,
   returnTo?: string,
 ) {
-  if (router.canGoBack()) {
-    router.back();
-    return;
-  }
-  if (returnTo) {
-    router.replace(returnTo as Parameters<typeof router.replace>[0]);
-    return;
-  }
-  router.replace(ROUTES.TABS.NETWORK as "/");
+  performSafeBack(router, returnTo ?? (ROUTES.TABS.NETWORK as "/"));
 }
 
 export default function AddClientScreen() {

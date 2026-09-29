@@ -63,6 +63,7 @@ export function CreateTripDesktopShell({
       : null;
   const isFinalStep = stepIndex != null && stepTotal != null && stepIndex >= stepTotal;
   const showHint = Boolean(hint && primaryDisabled && !primaryLoading);
+  const headerBack = Boolean(onBack);
 
   const stepChrome = (
     <View style={s.stepSurfaceHeader}>
@@ -122,13 +123,13 @@ export function CreateTripDesktopShell({
         <View style={[s.rail, s.headerInner]}>
           <View style={s.headerLeft}>
             <Pressable
-              onPress={onClose}
+              onPress={headerBack ? onBack : onClose}
               style={s.closeBtn}
               accessibilityRole="button"
-              accessibilityLabel="Close"
+              accessibilityLabel={headerBack ? "Back to previous step" : "Close"}
             >
               <ArrowLeft size={16} color={Theme.textRouteCard} strokeWidth={2.5} />
-              <Text style={s.closeBtnText}>Close</Text>
+              <Text style={s.closeBtnText}>{headerBack ? "Back" : "Close"}</Text>
             </Pressable>
           </View>
           <View style={s.headerCenter} pointerEvents="none">

@@ -1453,6 +1453,7 @@ export default function TripDetailScreen({
         })),
       ];
       let uploadedCount = 0;
+      const uploadedNames: string[] = [];
       let lrOcrTarget: {
         uri: string;
         tripDocumentId: string;
@@ -1526,6 +1527,7 @@ export default function TripDetailScreen({
             return;
           }
           uploadedCount = 1;
+          if (first.fileName.trim()) uploadedNames.push(first.fileName.trim());
           if (documents) detail.setVehicleDocs(documents);
         } else {
           const { documents, error } = await uploadAndSaveVehicleExtraDocuments(
@@ -1539,6 +1541,10 @@ export default function TripDetailScreen({
             return;
           }
           uploadedCount = buffers.length;
+          for (const buffer of buffers) {
+            const name = buffer.fileName.trim();
+            if (name) uploadedNames.push(name);
+          }
           if (documents) detail.setVehicleDocs(documents);
         }
       } else if (pending.docType === "driver_identity") {
@@ -1602,6 +1608,7 @@ export default function TripDetailScreen({
           return;
         }
         uploadedCount = 1;
+        if (first.fileName.trim()) uploadedNames.push(first.fileName.trim());
         detail.setDriverIdentityDocs({
           ...(detail.driverIdentityDocs ?? {}),
           [driverKind]: {
@@ -1673,6 +1680,7 @@ export default function TripDetailScreen({
             return;
           }
           uploadedCount += 1;
+          if (file.fileName.trim()) uploadedNames.push(file.fileName.trim());
           if (doc) {
             if (lrPayload && !doc.document_number?.trim()) {
               await tripDocumentsService.updateTripDocumentNumber(doc.id, lrPayload);
@@ -1710,6 +1718,11 @@ export default function TripDetailScreen({
         uploadedCount > 1
           ? `${uploadedCount} documents are saved in the vault.`
           : `${pending.label} is saved in the vault.`,
+        {
+          tone: "success",
+          actionLabel: "Done",
+          fileNames: uploadedNames,
+        },
       );
       const typedLr = pending.docType === "lr" ? pendingLrNumber.trim() : "";
       const typedLrFields =

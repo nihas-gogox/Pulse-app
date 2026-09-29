@@ -1,9 +1,10 @@
 import Theme from '@/constants/Theme';
 import { tGlobal } from '@/contexts/LanguageContext';
-import { registerAppAlertImplementation } from '@/lib/appAlert';
+import { registerAppAlertImplementation, type AppAlertOptions } from '@/lib/appAlert';
 import { platformShadow } from '@/lib/platformShadow';
 import { pe } from '@/lib/platformViewStyle.util';
 import { WebOverlayPortal, webFixedFill } from '@/lib/webOverlayPortal';
+import { Check } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Modal,
@@ -25,11 +26,21 @@ export function AppAlertHost() {
   const [visible, setVisible] = useState(false);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState<string | undefined>(undefined);
+  const [tone, setTone] = useState<NonNullable<AppAlertOptions['tone']>>('neutral');
+  const [showDismiss, setShowDismiss] = useState(true);
+  const [actionLabel, setActionLabel] = useState<string | undefined>(undefined);
+  const [fileNames, setFileNames] = useState<string[]>([]);
 
-  const show = useCallback((nextTitle: string, nextMessage?: string) => {
+  const show = useCallback((nextTitle: string, nextMessage?: string, options?: AppAlertOptions) => {
     setTitle(nextTitle);
     const trimmed = nextMessage?.trim();
     setMessage(trimmed && trimmed.length > 0 ? trimmed : undefined);
+    setTone(options?.tone === 'success' ? 'success' : 'neutral');
+    setShowDismiss(options?.showDismiss !== false);
+    setActionLabel(options?.actionLabel?.trim() || undefined);
+    setFileNames(
+      (options?.fileNames ?? []).map((name) => name.trim()).filter((name) => name.length > 0),
+    );
     setVisible(true);
   }, []);
 
@@ -40,7 +51,15 @@ export function AppAlertHost() {
     return () => registerAppAlertImplementation(null);
   }, [show]);
 
+  useEffect(() => {
+    if (!visible || showDismiss) return;
+    const timer = setTimeout(() => setVisible(false), 2800);
+    return () => clearTimeout(timer);
+  }, [visible, showDismiss, title, message, fileNames]);
+
   if (!visible) return null;
+
+  const isSuccess = tone === 'success';
 
   const overlay = (
     <View style={[styles.backdrop, webFixedFill, pe('box-none')]}>
@@ -50,20 +69,39 @@ export function AppAlertHost() {
         accessibilityRole="alert"
         accessibilityViewIsModal
       >
-        <View style={styles.iconWrap}>
-          <Text style={styles.iconChar}>!</Text>
+        <View style={[styles.iconWrap, isSuccess && styles.iconWrapSuccess]}>
+          {isSuccess ? (
+            <Check size={26} color={Theme.success} strokeWidth={2.75} />
+          ) : (
+            <Text style={styles.iconChar}>!</Text>
+          )}
         </View>
         <Text style={styles.title}>{title}</Text>
+        {fileNames.length > 0 ? (
+          <View style={styles.fileList}>
+            {fileNames.map((name, index) => (
+              <Text
+                key={`${name}-${index}`}
+                style={styles.fileName}
+                numberOfLines={2}
+              >
+                {name}
+              </Text>
+            ))}
+          </View>
+        ) : null}
         {message ? (
           <Text style={styles.body}>{message}</Text>
         ) : null}
-        <Pressable
-          onPress={hide}
-          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-          accessibilityRole="button"
-        >
-          <Text style={styles.buttonLabel}>{tGlobal('dismiss')}</Text>
-        </Pressable>
+        {showDismiss ? (
+          <Pressable
+            onPress={hide}
+            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+            accessibilityRole="button"
+          >
+            <Text style={styles.buttonLabel}>{actionLabel ?? tGlobal('dismiss')}</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -99,7 +137,7 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.networkPageBackground,
     paddingHorizontal: 22,
     paddingTop: 26,
-    paddingBottom: 20,
+    paddingBottom: 22,
     alignItems: 'stretch',
     ...platformShadow('0 16px 28px rgba(15, 23, 42, 0.18)', {
       color: Theme.shadow,
@@ -124,12 +162,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 16,
   },
+  iconWrapSuccess: {
+    backgroundColor: Theme.positiveMuted,
+  },
   title: {
     fontSize: 18,
     fontWeight: '700',
     color: Theme.textPrimaryDark,
     textAlign: 'center',
     letterSpacing: -0.2,
+  },
+  fileList: {
+    marginTop: 12,
+    gap: 4,
+    alignItems: 'center',
+  },
+  fileName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Theme.textPrimaryDark,
+    textAlign: 'center',
+    lineHeight: 21,
   },
   body: {
     marginTop: 10,

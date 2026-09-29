@@ -17,6 +17,7 @@ import { canAccessSuppliers } from "@/lib/capabilities";
 import { useCapabilities } from "@/lib/useCapabilities";
 import { useMemberAccess } from "@/lib/useMemberAccess";
 import { ROUTES } from "@/lib/routes";
+import { performSafeBack } from "@/lib/useSafeBack";
 
 export default function AddSupplierScreen() {
   const router = useRouter();
@@ -60,15 +61,7 @@ export default function AddSupplierScreen() {
   }
 
   const closeModal = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    if (returnTo) {
-      router.replace(returnTo as Parameters<typeof router.replace>[0]);
-      return;
-    }
-    router.replace(ROUTES.TABS.NETWORK as "/");
+    performSafeBack(router, returnTo ?? (ROUTES.TABS.NETWORK as "/"));
   };
 
   const searchInviteeByPhone = async (

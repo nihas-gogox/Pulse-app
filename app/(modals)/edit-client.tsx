@@ -11,17 +11,14 @@ import {
 } from "@/features/clients/services/clients.service";
 import { queryKeys } from "@/lib/queryKeys";
 import { ROUTES } from "@/lib/routes";
+import { performSafeBack } from "@/lib/useSafeBack";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 
 /** After save/cancel: return to opener (e.g. client detail); fallback if no stack history. */
 function closeModal(router: ReturnType<typeof useRouter>) {
-  if (router.canGoBack()) {
-    router.back();
-  } else {
-    router.replace(ROUTES.TABS.NETWORK as '/');
-  }
+  performSafeBack(router, ROUTES.TABS.NETWORK as "/");
 }
 
 export default function EditClientScreen() {

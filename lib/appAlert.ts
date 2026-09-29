@@ -1,6 +1,21 @@
 import { Alert, Platform } from 'react-native';
 
-export type AppAlertImplementation = (title: string, message?: string) => void;
+export type AppAlertOptions = {
+  /** Neutral keeps the warning mark. Success uses a green check. */
+  tone?: 'neutral' | 'success';
+  /** When false, the action button is omitted. Tapping outside still closes it. */
+  showDismiss?: boolean;
+  /** Action button label. Defaults to Dismiss. */
+  actionLabel?: string;
+  /** Uploaded file names shown on a success confirmation. */
+  fileNames?: string[];
+};
+
+export type AppAlertImplementation = (
+  title: string,
+  message?: string,
+  options?: AppAlertOptions,
+) => void;
 
 let registeredImplementation: AppAlertImplementation | null = null;
 
@@ -16,18 +31,31 @@ export function registerAppAlertImplementation(impl: AppAlertImplementation | nu
  * User-visible alert that works on native and web. When `AppAlertHost` is
  * mounted, uses the themed modal (replacing unstyled browser dialogs on web).
  */
-export function showAppAlert(title: string, message?: string): void {
+function alertBody(title: string, message?: string, options?: AppAlertOptions): string {
+  const names = (options?.fileNames ?? []).map((name) => name.trim()).filter(Boolean);
+  const parts = [title];
+  if (names.length > 0) parts.push(names.join('\n'));
+  if (message && message.trim().length > 0) parts.push(message.trim());
+  return parts.join('\n\n');
+}
+
+export function showAppAlert(
+  title: string,
+  message?: string,
+  options?: AppAlertOptions,
+): void {
   if (registeredImplementation) {
-    registeredImplementation(title, message);
+    registeredImplementation(title, message, options);
     return;
   }
+  const body = alertBody(title, message, options);
   if (Platform.OS === 'web') {
-    const body = message && message.trim().length > 0 ? `${title}\n\n${message}` : title;
     window.alert(body);
     return;
   }
-  if (message != null && message.trim().length > 0) {
-    Alert.alert(title, message);
+  const detail = body.startsWith(title) ? body.slice(title.length).replace(/^\n+/, '') : body;
+  if (detail) {
+    Alert.alert(title, detail);
   } else {
     Alert.alert(title);
   }
