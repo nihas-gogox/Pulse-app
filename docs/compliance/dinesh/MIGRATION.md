@@ -7,16 +7,24 @@ Status: **written, not applied** to any database.
 
 - `public.trips` — 3 nullable columns:
   - `compliance_declined_at timestamptz`
-  - `compliance_declined_by uuid references auth.users(id)`
+  - `compliance_declined_by uuid references auth.users(id) on delete set null` (deleting a user never blocks on a decline)
   - `compliance_decline_reason text`
 - Constraint `trips_compliance_decline_reason_length_check`: reason is null or 3–500 chars (dropped-if-exists then added, so re-runs are safe).
 - RPC `public.decline_trip_compliance(p_trip_id uuid, p_reason text, p_idempotency_key text default null) returns void`
   - SECURITY DEFINER, `search_path = public`, surface `trip_compliance.trip.mark_verified`.
-  - Locks the trip row; errors if `compliance_verified_at` is set; trims reason, requires 3–500 chars.
+  - Checks permission first (unlocked read), then locks the row and re-checks the org; errors if `compliance_verified_at` is set; strips all leading/trailing whitespace (not just spaces), requires 3–500 chars.
   - Writes a `trip_workflow_events` row `compliance.declined`, payload `{reason, previous_reason}`.
   - With an idempotency key the event (key `trip_id:compliance.declined:<key>`) is inserted first; a duplicate key returns without updating the trip.
   - `execute` granted to `authenticated`; revoked from `public` and `anon`.
+- Trigger `trg_guard_trip_compliance_decline_columns` (BEFORE UPDATE OF the 3 decline columns) → `guard_trip_compliance_decline_columns()`: raises `42501` when `current_user` is `authenticated`/`anon`, so the decline columns can only be written by the RPC (runs as its owner). FK `ON DELETE SET NULL` actions run as the table owner and pass.
+- `set local lock_timeout = '5s'` at the top so the push fails fast instead of queueing behind locks.
 - Not changed: `mark_trip_compliance_verified`, `approve_trip_compliance_with_exception`.
+
+## Pre-existing gaps (NOT introduced here, NOT fixed here — need a separate decision)
+
+- `trips` RLS (`Org members can manage trips`, supplier-org update, `drivers_update_own_trip_status`) + table-wide UPDATE grant let those users write `compliance_verified_*`, `compliance_decision`, etc. directly via PostgREST. Fixing it changes V1 behaviour for every compliance column; recommended as a follow-up guard trigger.
+- `trip_workflow_events` insert policy only checks org staff membership — members can insert forged events (including `compliance.declined`) for any trip id. No UPDATE/DELETE policy, so existing history cannot be edited or removed.
+- `approve_trip_compliance_with_exception` still has `anon` EXECUTE (harmless: `has_member_surface` is false without a user).
 
 ## Safety for existing rows
 
@@ -55,6 +63,14 @@ select grantee, privilege_type
   from information_schema.routine_privileges
  where routine_schema = 'public' and routine_name = 'decline_trip_compliance';
 
+-- guard trigger
+select tgname, pg_get_triggerdef(oid) from pg_trigger
+ where tgrelid = 'public.trips'::regclass and tgname = 'trg_guard_trip_compliance_decline_columns';
+
+-- FK action
+select conname, pg_get_constraintdef(oid) from pg_constraint
+ where conrelid = 'public.trips'::regclass and conname like '%compliance_declined_by%';
+
 -- migration recorded
 select version from supabase_migrations.schema_migrations where version = '20270929162901';
 
@@ -72,6 +88,8 @@ Run with `supabase db query "<SQL>" --linked -o table`.
 Create a new forward migration (never edit the applied one). **This permanently deletes the decline columns and their data** (current reason / who / when). `trip_workflow_events` rows with `event_type = 'compliance.declined'` stay as history.
 
 ```sql
+drop trigger if exists trg_guard_trip_compliance_decline_columns on public.trips;
+drop function if exists public.guard_trip_compliance_decline_columns();
 drop function if exists public.decline_trip_compliance(uuid, text, text);
 
 alter table public.trips
