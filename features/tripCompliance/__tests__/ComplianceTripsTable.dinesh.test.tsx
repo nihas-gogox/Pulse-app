@@ -172,15 +172,31 @@ describe("ComplianceTripsTable — actions (AC-16..AC-22)", () => {
     expect(screen.queryByTestId("compliance-decline-t1")).toBeNull();
   });
 
-  it("Verify disabled with a11y hint while trip docs are not verified; press does nothing", () => {
+  it("Verify not ready: enabled, hint names docs, press opens trip documents instead of verifying", () => {
     const onVerify = jest.fn().mockResolvedValue(undefined);
-    renderTable(makeSummary(), { onMarkComplianceVerified: onVerify });
+    const { onReview } = renderTable(makeSummary(), { onMarkComplianceVerified: onVerify });
     const btn = screen.getByTestId("compliance-verify-t1");
-    expect(btn.props.accessibilityState).toMatchObject({ disabled: true });
-    expect(btn.props.accessibilityHint).toBe("Approve LR, E-way Bill and Invoice first");
+    expect(btn.props.accessibilityState).toMatchObject({ disabled: false, busy: false });
     expect(btn.props.accessibilityLabel).toBe("Verify trip compliance");
+    expect(btn.props.accessibilityHint).toBe("Approve LR, E-way Bill and Invoice first. Opens trip documents.");
     fireEvent.press(btn);
     expect(onVerify).not.toHaveBeenCalled();
+    expect(onReview).toHaveBeenCalledWith("t1", null, "trip");
+  });
+
+  it("Verify ready: no hint, disabled only while marking", async () => {
+    let resolve!: () => void;
+    const onVerify = jest.fn(() => new Promise<void>((r) => (resolve = r)));
+    renderTable(makeSummary({ tripDocStatus: "verified" }), { onMarkComplianceVerified: onVerify });
+    const btn = screen.getByTestId("compliance-verify-t1");
+    expect(btn.props.accessibilityHint).toBeUndefined();
+    expect(btn.props.accessibilityState).toMatchObject({ disabled: false });
+    fireEvent.press(btn);
+    expect(screen.getByTestId("compliance-verify-t1").props.accessibilityState).toMatchObject({ disabled: true, busy: true });
+    await act(async () => resolve());
+    await waitFor(() =>
+      expect(screen.getByTestId("compliance-verify-t1").props.accessibilityState).toMatchObject({ disabled: false }),
+    );
   });
 
   it("Verify double-press calls the handler once and shows Verifying…", async () => {
@@ -251,6 +267,7 @@ describe("ComplianceDeclineModal (AC-23, AC-25, AC-29, AC-39)", () => {
     ["whitespace", "      "],
     ["2 chars", " ab "],
     ["501 chars", "z".repeat(501)],
+    ["2 emoji (4 UTF-16 units)", "👍👍"],
   ])("submit disabled for %s", (_label, text) => {
     const onSubmit = jest.fn().mockResolvedValue(undefined);
     renderModal(onSubmit);
@@ -343,5 +360,21 @@ describe("ComplianceTripCard — decline notice (Details shows it once)", () => 
     });
     render(<ComplianceTripCard summary={s} onReviewDocuments={jest.fn()} onViewTrip={jest.fn()} />);
     expect(screen.queryByTestId("compliance-card-declined-t1")).toBeNull();
+  });
+});
+
+describe("ComplianceDeclineModal — code-point counting", () => {
+  it("counter shows 2/500 for two emoji and submit stays disabled", () => {
+    render(<ComplianceDeclineModal visible tripLabel="x" onCancel={jest.fn()} onSubmit={jest.fn()} />);
+    fireEvent.changeText(screen.getByTestId("compliance-decline-reason-input"), " 👍👍 ");
+    expect(screen.getByText("2/500")).toBeTruthy();
+    expect(screen.getByTestId("compliance-decline-submit").props.accessibilityState).toMatchObject({ disabled: true });
+  });
+
+  it("three emoji are accepted (3 code points)", () => {
+    render(<ComplianceDeclineModal visible tripLabel="x" onCancel={jest.fn()} onSubmit={jest.fn()} />);
+    fireEvent.changeText(screen.getByTestId("compliance-decline-reason-input"), "👍👍👍");
+    expect(screen.getByText("3/500")).toBeTruthy();
+    expect(screen.getByTestId("compliance-decline-submit").props.accessibilityState).toMatchObject({ disabled: false });
   });
 });

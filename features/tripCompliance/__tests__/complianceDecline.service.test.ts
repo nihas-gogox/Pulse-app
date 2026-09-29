@@ -37,7 +37,11 @@ import {
   summarizeComplianceTrip,
 } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import { declineTripCompliance } from "@/features/tripCompliance/services/tripComplianceWrite.service";
-import type { ComplianceTripFlags, ComplianceTripInputs } from "@/features/tripCompliance/tripCompliance.types";
+import {
+  complianceDeclineReasonLength,
+  type ComplianceTripFlags,
+  type ComplianceTripInputs,
+} from "@/features/tripCompliance/tripCompliance.types";
 import { applyComplianceDeclined } from "@/features/tripCompliance/utils/compliancePipelinePatch.util";
 import type { TripRow } from "@/features/trips/services/trips.service";
 
@@ -54,6 +58,7 @@ describe("declineTripCompliance — client-side validation (AC-23)", () => {
     ["whitespace only", "     "],
     ["2 chars after trim", "  ab  "],
     ["501 chars", "x".repeat(501)],
+    ["2 emoji", "👍👍"],
   ])("rejects %s before calling the RPC", async (_label, reason) => {
     await expect(declineTripCompliance({ tripId: "t1", reason })).rejects.toThrow(
       "Please enter a reason between 3 and 500 characters.",
@@ -93,6 +98,10 @@ describe("declineTripCompliance — error mapping (AC-29)", () => {
     [{ message: "trip compliance already verified; cannot decline" }, "This trip is already verified and can't be declined."],
     [{ message: "a decline reason between 3 and 500 characters is required" }, "Please enter a reason between 3 and 500 characters."],
     [{ message: "some other server error" }, "some other server error"],
+    [
+      { code: "42501", message: "compliance decline fields can only be changed via decline_trip_compliance()" },
+      "compliance decline fields can only be changed via decline_trip_compliance()",
+    ],
     [{ message: "" }, "Couldn't decline compliance."],
   ])("maps %j", async (error, expected) => {
     mockRpc.mockResolvedValue({ data: null, error });
@@ -255,5 +264,24 @@ describe("patchForComplianceChange('complianceDeclined')", () => {
       compliance_decline_reason: "bad LR",
     });
     expect(summarizeComplianceTrip(next[0]).stage).toBe("compliance_pending");
+  });
+});
+
+describe("complianceDeclineReasonLength — code points, matching Postgres char_length", () => {
+  it.each([
+    ["👍👍", 2],
+    ["  👍👍  ", 2],
+    ["abc", 3],
+    ["", 0],
+    ["नमस्ते", Array.from("नमस्ते").length],
+  ])("%j → %i", (input, expected) => {
+    expect(complianceDeclineReasonLength(input)).toBe(expected);
+  });
+
+  it("501 emoji (1002 UTF-16 units) is 501, rejected; 500 emoji accepted", async () => {
+    expect(complianceDeclineReasonLength("👍".repeat(501))).toBe(501);
+    await expect(declineTripCompliance({ tripId: "t1", reason: "👍".repeat(501) })).rejects.toThrow();
+    await declineTripCompliance({ tripId: "t1", reason: "👍".repeat(500) });
+    expect(mockRpc).toHaveBeenCalledTimes(1);
   });
 });

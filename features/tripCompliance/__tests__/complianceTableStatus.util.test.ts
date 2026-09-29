@@ -67,6 +67,25 @@ describe("deriveComplianceEwayBill — pick (AC-2, AC-5)", () => {
     expect(deriveComplianceEwayBill([newer, older], NOW).number).toBe("NEW");
   });
 
+  it("sub-second precision: …05:30:00.5+00:00 beats …05:30:00+00:00", () => {
+    const whole = eway(JSON.stringify({ ewayNo: "WHOLE" }), { uploaded_at: "2026-09-01T05:30:00+00:00" });
+    const half = eway(JSON.stringify({ ewayNo: "HALF" }), { uploaded_at: "2026-09-01T05:30:00.5+00:00" });
+    expect(deriveComplianceEwayBill([whole, half], NOW).number).toBe("HALF");
+    expect(deriveComplianceEwayBill([half, whole], NOW).number).toBe("HALF");
+  });
+
+  it("null uploaded_at sorts first (Postgres desc = nulls first)", () => {
+    const dated = eway(JSON.stringify({ ewayNo: "DATED" }), { uploaded_at: "2027-01-01T00:00:00Z" });
+    const undated = eway(JSON.stringify({ ewayNo: "UNDATED" }), { uploaded_at: null as unknown as string });
+    expect(deriveComplianceEwayBill([dated, undated], NOW).number).toBe("UNDATED");
+  });
+
+  it("unparseable uploaded_at is treated like null (sorts first)", () => {
+    const dated = eway(JSON.stringify({ ewayNo: "DATED" }), { uploaded_at: "2027-01-01T00:00:00Z" });
+    const junk = eway(JSON.stringify({ ewayNo: "JUNK" }), { uploaded_at: "not-a-date" });
+    expect(deriveComplianceEwayBill([dated, junk], NOW).number).toBe("JUNK");
+  });
+
   it("falls back to an older parseable row when the newest doesn't parse", () => {
     const older = eway(JSON.stringify({ ewayNo: "OLD" }), { uploaded_at: "2026-01-01T00:00:00Z" });
     const newestEmpty = eway(JSON.stringify({ ewayNo: "", validTill: "" }), { uploaded_at: "2026-09-01T00:00:00Z" });
