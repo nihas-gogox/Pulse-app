@@ -35,6 +35,11 @@ import { canAccessPartyKind } from "@/lib/capabilities";
 import { useCapabilities } from "@/lib/useCapabilities";
 import type { MemberSurfaceId } from "@/lib/memberSurfaces";
 import { useMemberAccess } from "@/lib/useMemberAccess";
+import {
+  buildPulseCommerceUrl,
+  openSuiteProductApp,
+  openSuiteProductAppInNewTab,
+} from "@/lib/suite/suiteAuth";
 import { useActiveExpoProductShell } from "@/features/product-shell/PulseProductShell";
 import {
   useSetWorkspaceProductStatusMutation,
@@ -67,6 +72,7 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -166,6 +172,7 @@ export function WorkspaceHubMenu({
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [orgLogoUri, setOrgLogoUri] = useState<string | null>(null);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [showCommerceConfirm, setShowCommerceConfirm] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
   const displayName = (profile?.full_name ?? profile?.displayName ?? "User").trim();
@@ -226,10 +233,33 @@ export function WorkspaceHubMenu({
     onSelectPanel("profile");
   };
 
+  const commerceUrl = useMemo(() => buildPulseCommerceUrl(), []);
+
+  const openCommerce = useCallback(() => {
+    setShowCommerceConfirm(true);
+  }, []);
+
+  /** In-app stack push — do not use window.location / new-tab (remounts the data plane). */
+  const openFinancePro = useCallback(() => {
+    onExit?.();
+    router.push(ROUTES.FINANCE_PRO as Parameters<typeof router.push>[0]);
+  }, [onExit, router]);
+
   const openPulseCore = useCallback(() => {
     onExit?.();
     router.replace(DEFAULT_DISPATCHER_ROUTE as Parameters<typeof router.replace>[0]);
   }, [onExit, router]);
+
+  const confirmCommerceSwitch = useCallback(() => {
+    setShowCommerceConfirm(false);
+    onExit?.();
+    openSuiteProductApp(commerceUrl);
+  }, [commerceUrl, onExit]);
+
+  const confirmCommerceNewWindow = useCallback(() => {
+    setShowCommerceConfirm(false);
+    openSuiteProductAppInNewTab(commerceUrl);
+  }, [commerceUrl]);
 
   /**
    * This drawer renders above every MemberDomainGate, so each row
@@ -778,6 +808,49 @@ export function WorkspaceHubMenu({
           />
         ) : null}
       </View>
+
+      <Modal
+        visible={showCommerceConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCommerceConfirm(false)}
+      >
+        <View style={hubStyles.confirmBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowCommerceConfirm(false)}
+          />
+          <View style={hubStyles.confirmCard}>
+            <Text style={hubStyles.confirmTitle}>Switch to Pulse Commerce</Text>
+            <Text style={hubStyles.confirmBody}>
+              You will be redirected to the Pulse Commerce platform. Your workspace
+              session stays signed in.
+            </Text>
+            <View style={hubStyles.confirmActionsStack}>
+              <Pressable
+                onPress={confirmCommerceSwitch}
+                style={hubStyles.confirmCtaBtn}
+              >
+                <Text style={hubStyles.confirmCtaText}>Switch to Commerce</Text>
+              </Pressable>
+              {Platform.OS === "web" ? (
+                <Pressable
+                  onPress={confirmCommerceNewWindow}
+                  style={hubStyles.confirmSecondaryBtn}
+                >
+                  <Text style={hubStyles.confirmSecondaryText}>Open in new window</Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={() => setShowCommerceConfirm(false)}
+                style={hubStyles.confirmCancelBtn}
+              >
+                <Text style={hubStyles.confirmCancelText}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showSignOutConfirm}
