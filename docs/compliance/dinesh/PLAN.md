@@ -18,6 +18,19 @@ Legend: ⬜ Not started · 🟡 In progress / partial · ✅ Done · ⛔ Blocked
 
 ---
 
+## Release gate (2026-09-29) — status: BLOCKED
+
+| Gate | Result |
+|---|---|
+| Target proven | ✅ linked `xbisiveavvbifbzyfhgy` = "pre-prod" (`docs/GIT_WORKFLOW.md:24`); prod is `nafxpivddesgsrthmosv` (commented out in `.env`) |
+| `npm run db:preflight` | ✅ pass — 903 synced, 0 remote-only, 1 pending (`20270929162901`), dry-run pushes only that file |
+| Security review (DB) | ✅ safe to apply; new-issue fixes committed in `451b1c44` |
+| Apply to preprod | ⛔ NOT APPLIED — `supabase db push` was blocked by the session permission guard; needs the user |
+| Real-DB lifecycle test | ⛔ blocked on apply (script ready: rolled-back transaction, synthetic users) |
+| Playwright E2E | ⛔ blocked — no `e2e/.env.e2e` QA identity (7 tests listed, 0 run) |
+| Regression V1 vs branch | ✅ no introduced failures (see final report) |
+| Product decisions D1–D3 | ⛔ PRODUCT DECISION REQUIRED |
+
 ## 1. E-way Bill details column
 
 - [x] Source found: `trip_documents` (`document_type='eway_bill'`), JSON in `document_number` written by Trip Detail's E-way editor
@@ -54,7 +67,7 @@ Decline
 
 ## 4. QA + CI (commands run 2026-09-29, outputs in final report)
 
-- [x] `npx jest features/tripCompliance` → 33 suites / 381 tests pass (V1 baseline: 29 / 282)
+- [x] `npx jest features/tripCompliance` → 33 suites / 401 tests pass (V1 baseline: 29 / 282)
 - [x] ESLint on all changed files → 0 errors (1 existing warning in ComplianceSection.tsx)
 - [x] `tsc` → 37 errors, identical to V1 baseline; none in changed lines
 - [x] madge circular → 97 cycles on V1 and on this branch; none new, none in compliance files
