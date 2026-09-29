@@ -1,4 +1,8 @@
-import { loadHubPodReceiptFlags } from "../tripDocumentLrPod.service";
+import { serializeEwayFieldEntries } from "../ewayBillFields.util";
+import {
+  loadHubPodReceiptFlags,
+  loadLrPodIndexByTripIds,
+} from "../tripDocumentLrPod.service";
 
 const mockFrom = jest.fn();
 const mockRpc = jest.fn();
@@ -69,5 +73,48 @@ describe("loadHubPodReceiptFlags", () => {
     expect(mockFrom).not.toHaveBeenCalled();
     expect(flags.softTripIds).toEqual([tripA]);
     expect(flags.hardTripIds).toEqual([]);
+  });
+
+  it("reads e-way expiry from the batch RPC rows alongside soft POD", async () => {
+    const tripA = "11111111-1111-4111-8111-111111111111";
+    const tripB = "22222222-2222-4222-8222-222222222222";
+    const eway = serializeEwayFieldEntries([
+      { ewayNo: "EWB1", createdDate: "", validTill: "2020-01-01", docNo: "" },
+    ]);
+    mockRpc.mockResolvedValue({
+      data: [
+        { trip_id: tripA, document_type: "pod", document_number: null },
+        { trip_id: tripB, document_type: "eway_bill", document_number: eway },
+      ],
+      error: null,
+    });
+
+    const flags = await loadHubPodReceiptFlags([tripA, tripB]);
+
+    expect(mockFrom).not.toHaveBeenCalled();
+    expect(flags.softTripIds).toEqual([tripA]);
+    expect(flags.ewayExpiryByTripId[tripB]).toEqual(expect.any(String));
+    expect(flags.ewayExpiryByTripId[tripA]).toBeUndefined();
+  });
+});
+
+describe("loadLrPodIndexByTripIds", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("ignores eway_bill rows returned by the batch RPC", async () => {
+    const tripA = "11111111-1111-4111-8111-111111111111";
+    const tripC = "33333333-3333-4333-8333-333333333333";
+    mockRpc.mockResolvedValue({
+      data: [
+        { trip_id: tripA, document_type: "pod", document_number: null },
+        { trip_id: tripC, document_type: "eway_bill", document_number: "{}" },
+      ],
+      error: null,
+    });
+
+    const index = await loadLrPodIndexByTripIds([tripA, tripC]);
+
+    expect(index.get(tripA)).toEqual({ lrNumbers: [], hasPodDocument: true });
+    expect(index.has(tripC)).toBe(false);
   });
 });

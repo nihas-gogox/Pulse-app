@@ -660,8 +660,13 @@ export async function loadLrPodIndexByTripIds(
   if (unique.length === 0) return new Map();
 
   const viaRpc = await fetchLrPodRowsViaRpc(unique);
+  // The batch RPC also returns eway_bill rows (hub e-way tags); keep this index LR/POD-only.
   const rows =
-    viaRpc ??
+    viaRpc?.filter(
+      (row) =>
+        String(row.document_type ?? "").trim().toLowerCase() === "lr" ||
+        isSoftPodDocumentType(row.document_type),
+    ) ??
     (await fetchLrPodRowsViaRest(unique, ["lr", "pod", "soft_pod", "pod_soft"]));
   return indexLrPodDocuments(rows);
 }
