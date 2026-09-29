@@ -5,6 +5,10 @@
 import { supabase } from "@/lib/supabase";
 import { expandLR } from "@/lib/utils/lr";
 import { parseLrFieldValues } from "@/features/trips/services/lrDocumentOcr.util";
+import {
+  mostUrgentEwayExpiryLabel,
+  parseEwayFieldEntries,
+} from "@/features/trips/services/ewayBillFields.util";
 
 /** After trip_documents SELECT uses can_read_trip_document, larger IN-lists
  *  are cheap. Keep a cap so PostgREST URLs stay bounded. */
@@ -312,6 +316,8 @@ export async function loadLrPodIndexByTripIds(
 export type HubPodReceiptFlags = {
   softTripIds: string[];
   hardTripIds: string[];
+  /** Soonest e-way bill expiry label, keyed by lowercased trip id. */
+  ewayExpiryByTripId: Record<string, string>;
 };
 
 /**
@@ -325,17 +331,20 @@ export async function loadHubPodReceiptFlags(
   const wanted = Array.from(
     new Set(tripIds.map((id) => normalizeTripPodId(id)).filter(Boolean)),
   );
-  if (wanted.length === 0) return { softTripIds: [], hardTripIds: [] };
+  if (wanted.length === 0) {
+    return { softTripIds: [], hardTripIds: [], ewayExpiryByTripId: {} };
+  }
 
   const chunks = chunkIds(wanted);
   const soft = new Set<string>();
+  const ewayTillsByTrip = new Map<string, string[]>();
 
   const docParts = await runWithConcurrencyLimit(chunks, 1, async (chunk) => {
     const { data, error } = await supabase()
       .from("trip_documents")
-      .select("trip_id, document_type")
+      .select("trip_id, document_type, document_number")
       .in("trip_id", chunk)
-      .in("document_type", ["pod", "soft_pod", "pod_soft"]);
+      .in("document_type", ["pod", "soft_pod", "pod_soft", "eway_bill"]);
     if (error) {
       console.warn("[tripDocumentLrPod] hub soft POD fetch:", error.message);
       return [] as TripDocumentLrPodRow[];
@@ -344,11 +353,48 @@ export async function loadHubPodReceiptFlags(
   });
   for (const part of docParts) {
     for (const row of part) {
-      if (!isSoftPodDocumentType(row.document_type)) continue;
       const id = normalizeTripPodId(row.trip_id);
-      if (id) soft.add(id);
+      if (!id) continue;
+      if (isSoftPodDocumentType(row.document_type)) {
+        soft.add(id);
+        continue;
+      }
+      if (String(row.document_type ?? "").trim().toLowerCase() !== "eway_bill") {
+        continue;
+      }
+      const tills = parseEwayFieldEntries(row.document_number)
+        .map((entry) => entry.validTill)
+        .filter((value) => value.trim().length > 0);
+      if (tills.length === 0) continue;
+      const existing = ewayTillsByTrip.get(id) ?? [];
+      existing.push(...tills);
+      ewayTillsByTrip.set(id, existing);
     }
   }
 
-  return { softTripIds: [...soft], hardTripIds: [] };
+  const ewayExpiryByTripId: Record<string, string> = {};
+  for (const [id, tills] of ewayTillsByTrip) {
+    const label = mostUrgentEwayExpiryLabel(tills);
+    if (label) ewayExpiryByTripId[id] = label;
+  }
+
+  return { softTripIds: [...soft], hardTripIds: [], ewayExpiryByTripId };
+}
+
+/** Header tag for one trip. The detail bundle does not include document_number. */
+export async function loadTripEwayExpiryLabel(
+  tripId: string,
+): Promise<string | null> {
+  const id = tripId.trim();
+  if (!id) return null;
+  const { data, error } = await supabase()
+    .from("trip_documents")
+    .select("document_number")
+    .eq("trip_id", id)
+    .eq("document_type", "eway_bill");
+  if (error || !data?.length) return null;
+  const tills = data.flatMap((row) =>
+    parseEwayFieldEntries(row.document_number).map((entry) => entry.validTill),
+  );
+  return mostUrgentEwayExpiryLabel(tills);
 }

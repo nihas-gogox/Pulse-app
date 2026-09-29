@@ -121,12 +121,9 @@ export function LiveTrackingModal({
   presentation,
 }: LiveTrackingModalProps) {
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
-  // Map sits below an in-flow header (not under an absolute overlay), so keep
-  // the hero shorter than a full-bleed design and leave room for the sheet.
-  const mapHeroHeight = Math.round(
-    Math.min(Math.max(windowHeight * 0.36, 220), 360),
-  );
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const wideLayout = windowWidth >= Layout.webDesktopMinWidth;
+  const hangCardWidth = Math.min(420, Math.max(340, Math.round(windowWidth * 0.32)));
   const [activityOpen, setActivityOpen] = useState(true);
   const handleClose = useCallback(() => {
     onClose();
@@ -400,8 +397,54 @@ export function LiveTrackingModal({
       statusBarTranslucent
     >
       <View style={styles.root}>
-        {/* In-flow header — avoids absolute overlay colliding with map / sheet. */}
-        <View style={[styles.headerBar, { paddingTop: insets.top + 8 }]}>
+        <View style={styles.mapFill} pointerEvents="box-none">
+          <TripMap
+            source={(trip.pickup_area ?? "").trim() || undefined}
+            destination={(trip.drop_location ?? "").trim() || undefined}
+            sourceCoords={originCoordinate ?? undefined}
+            destCoords={destinationCoordinate ?? undefined}
+            truckLocation={mapTruckLocation ?? undefined}
+            dbLocationTrail={mapDbLocationTrail ?? []}
+            truckStatus={mapTruckStatus}
+            height="100%"
+            tripId={trip.id}
+            trackingEnabled={
+              trackingBroadcastActive || (mapDbLocationTrail?.length ?? 0) > 0
+            }
+            fitPaddingBottom={wideLayout ? 56 : Math.round(windowHeight * 0.42)}
+            fitPaddingRight={wideLayout ? hangCardWidth + 28 : 40}
+            driverAvatarUri={driverAvatarUri}
+            driverAvatarSeed={driverAvatarSeed ?? trip.driver_id}
+            driverOnline={trackingBroadcastActive}
+          />
+          {trackingState.broadcastActive ? (
+            <View
+              style={[styles.livePill, { top: insets.top + 62 }]}
+              pointerEvents="none"
+            >
+              <View style={styles.liveDot} />
+              <Text style={styles.livePillText}>LIVE</Text>
+            </View>
+          ) : (mapDbLocationTrail?.length ?? 0) > 0 ? (
+            <View
+              style={[styles.livePill, styles.historyPill, { top: insets.top + 62 }]}
+              pointerEvents="none"
+            >
+              <Text style={styles.livePillText}>PINGS</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View
+          style={[
+            styles.headerBar,
+            {
+              paddingTop: insets.top + 8,
+              paddingRight: wideLayout ? hangCardWidth + 28 : SCREEN_PAD,
+            },
+          ]}
+          pointerEvents="box-none"
+        >
           <Pressable
             onPress={handleClose}
             style={({ pressed }) => [
@@ -446,51 +489,38 @@ export function LiveTrackingModal({
           </Pressable>
         </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + 28 },
+        <View
+          style={[
+            styles.hangCard,
+            wideLayout
+              ? [
+                  styles.hangCardRight,
+                  {
+                    width: hangCardWidth,
+                    top: insets.top + 64,
+                    bottom: insets.bottom + 16,
+                    right: 16,
+                  },
+                ]
+              : [
+                  styles.hangCardBottom,
+                  {
+                    left: 12,
+                    right: 12,
+                    bottom: insets.bottom + 12,
+                    maxHeight: Math.round(windowHeight * 0.5),
+                  },
+                ],
           ]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
         >
-          <View style={[styles.mapHero, { height: mapHeroHeight }]}>
-            <TripMap
-              source={(trip.pickup_area ?? "").trim() || undefined}
-              destination={(trip.drop_location ?? "").trim() || undefined}
-              sourceCoords={originCoordinate ?? undefined}
-              destCoords={destinationCoordinate ?? undefined}
-              truckLocation={mapTruckLocation ?? undefined}
-              dbLocationTrail={mapDbLocationTrail ?? []}
-              truckStatus={mapTruckStatus}
-              height={mapHeroHeight}
-              tripId={trip.id}
-              trackingEnabled={
-                trackingBroadcastActive || (mapDbLocationTrail?.length ?? 0) > 0
-              }
-              fitPaddingBottom={96}
-              driverAvatarUri={driverAvatarUri}
-              driverAvatarSeed={driverAvatarSeed ?? trip.driver_id}
-              driverOnline={trackingBroadcastActive}
-            />
-            {trackingState.broadcastActive ? (
-              <View style={styles.livePill} pointerEvents="none">
-                <View style={styles.liveDot} />
-                <Text style={styles.livePillText}>LIVE</Text>
-              </View>
-            ) : (mapDbLocationTrail?.length ?? 0) > 0 ? (
-              <View style={[styles.livePill, styles.historyPill]} pointerEvents="none">
-                <Text style={styles.livePillText}>PINGS</Text>
-              </View>
-            ) : null}
-            <View style={styles.mapChip} pointerEvents="none">
-              <Text style={styles.mapChipText}>MAP</Text>
-            </View>
-          </View>
-
-          <View style={styles.sheetStack}>
+          <ScrollView
+            style={styles.hangCardScroll}
+            contentContainerStyle={styles.hangCardScrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+          >
+            <View style={styles.sheetStack}>
             <View style={styles.statusCard}>
               <View
                 style={[
@@ -805,7 +835,8 @@ export function LiveTrackingModal({
               {activityOpen ? timelineSection : null}
             </View>
           </View>
-        </ScrollView>
+          </ScrollView>
+        </View>
       </View>
     </Modal>
   );
@@ -1011,7 +1042,6 @@ function ExpandedContent({ lines }: { lines: [string, string][] }) {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const SHEET_OVERLAP = 20;
 const SCREEN_PAD = Layout.screenPaddingHorizontal;
 
 /** Activity rail geometry — dot centre must sit on the first text line and on the line. */
@@ -1068,21 +1098,42 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Theme.screenBackground,
   },
-  scroll: {
+  mapFill: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  hangCard: {
+    position: "absolute",
+    zIndex: 3,
+    backgroundColor: Theme.screenBackground,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0f172a",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.18,
+        shadowRadius: 28,
+      },
+      android: { elevation: 12 },
+      default: { boxShadow: "0 16px 40px rgba(15,23,42,0.16)" } as object,
+    }),
+  },
+  hangCardRight: {
+    borderRadius: 20,
+  },
+  hangCardBottom: {
+    borderRadius: 20,
+  },
+  hangCardScroll: {
     flex: 1,
   },
-  scrollContent: {
+  hangCardScrollContent: {
     flexGrow: 1,
-  },
-  mapHero: {
-    width: "100%",
-    backgroundColor: Theme.surface,
-    overflow: "hidden",
+    paddingBottom: 12,
   },
   mapChip: {
     position: "absolute",
-    right: SCREEN_PAD,
-    bottom: SHEET_OVERLAP + 12,
+    left: SCREEN_PAD,
+    bottom: 16,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
@@ -1134,23 +1185,22 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 23, 42, 0.78)",
   },
   sheetStack: {
-    marginTop: -SHEET_OVERLAP,
     paddingHorizontal: 0,
     gap: 8,
     width: "100%",
-    maxWidth: Layout.trackingSheetMaxWidth,
-    alignSelf: "center",
   },
   headerBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: SCREEN_PAD,
     paddingBottom: 10,
     gap: 8,
-    backgroundColor: Theme.screenBackground,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Theme.borderLight,
-    zIndex: 2,
+    backgroundColor: "transparent",
+    zIndex: 4,
   },
   headerCircleBtn: {
     width: 44,
@@ -1173,6 +1223,10 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: Theme.cardWhite,
   },
   headerTitle: {
     fontSize: 14,
@@ -1190,24 +1244,10 @@ const styles = StyleSheet.create({
   },
   statusCard: {
     backgroundColor: Theme.screenBackground,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
     paddingHorizontal: SCREEN_PAD,
     paddingTop: 16,
     paddingBottom: 8,
     marginHorizontal: 0,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#0f172a",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 16,
-      },
-      android: { elevation: 12 },
-      default: {
-        boxShadow: "0 -8px 28px rgba(15, 23, 42, 0.12)",
-      } as object,
-    }),
   },
   statusBanner: {
     borderRadius: 14,

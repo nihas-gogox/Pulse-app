@@ -447,6 +447,38 @@ export const neoStyles = StyleSheet.create({
     letterSpacing: 1.4,
     fontStyle: "italic",
   },
+  manifestEwayBadge: {
+    flexShrink: 0,
+    height: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    borderRadius: 999,
+    paddingHorizontal: 5,
+    backgroundColor: "transparent",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Theme.warning,
+    maxWidth: 280,
+  },
+  manifestEwayBadgeOk: {
+    borderColor: Theme.positive,
+  },
+  manifestEwayBadgeExpired: {
+    borderColor: Theme.negative,
+  },
+  manifestEwayBadgeText: {
+    color: Theme.warning,
+    fontSize: 8,
+    fontWeight: "500",
+    lineHeight: 10,
+    includeFontPadding: false,
+  },
+  manifestEwayBadgeTextOk: {
+    color: Theme.positive,
+  },
+  manifestEwayBadgeTextExpired: {
+    color: Theme.negative,
+  },
   manifestNavActions: {
     flexDirection: "row",
     alignItems: "center",
@@ -1079,10 +1111,10 @@ export const neoStyles = StyleSheet.create({
   },
   simModal: {
     width: "100%",
-    maxWidth: 400,
+    maxWidth: 440,
     backgroundColor: "#0f172a",
     borderRadius: 24,
-    padding: 28,
+    padding: 24,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
@@ -1146,8 +1178,17 @@ export const neoStyles = StyleSheet.create({
     fontSize: 12,
     color: "#64748b",
     fontStyle: "italic",
-    marginBottom: 20,
+    marginBottom: 12,
     textAlign: "center",
+  },
+  simModalTime: {
+    marginBottom: 16,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: "rgba(245,158,11,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.22)",
+    gap: 10,
   },
   simModalError: {
     fontSize: 12,
@@ -6659,6 +6700,9 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.7,
     color: Theme.textMuted,
   },
+  lrNumberFieldLabelError: {
+    color: Theme.negative,
+  },
   lrNumberFieldInput: {
     borderWidth: 1.5,
     borderColor: Theme.borderMedium,
@@ -6669,6 +6713,18 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
     color: Theme.textPrimaryDark,
     backgroundColor: Theme.cardWhite,
+  },
+  lrNumberFieldInputError: {
+    borderColor: Theme.negative,
+    backgroundColor: Theme.negativeMuted,
+    color: Theme.negative,
+  },
+  lrNumberDuplicateHint: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 16,
+    color: Theme.negative,
   },
   lrDateField: {
     flexDirection: "row",

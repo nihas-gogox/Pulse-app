@@ -12,6 +12,7 @@ import {
   type TripRow,
 } from "@/features/trips/services/trips.service";
 import { tripIsDeliveredStatus } from "@/features/trips/services/tripDocumentLrPod.service";
+import { isElrAfterLoadingStage } from "@/features/trips/services/elrSnapshot.util";
 import {
   HUB_GRID_CARD_MIN_HEIGHT,
   HUB_GRID_DIVIDER_MARGIN_BOTTOM,
@@ -444,6 +445,7 @@ export const TripsHubMobileTripCard = memo(function TripsHubMobileTripCard({
     displayDriverName,
     tr("unassigned"),
   );
+  const showElr = isElrAfterLoadingStage(trip.status);
   const clientFb =
     (clientAvatarFallbackSeed ?? "").trim() ||
     (trip.client_id
@@ -548,6 +550,13 @@ export const TripsHubMobileTripCard = memo(function TripsHubMobileTripCard({
               <Text style={styles.headMeta} numberOfLines={1}>
                 {stageUpper}
               </Text>
+              {showElr ? (
+                <View style={styles.elrTag} accessibilityLabel="E-LR">
+                  <Text style={styles.elrTagText} numberOfLines={1}>
+                    E-LR
+                  </Text>
+                </View>
+              ) : null}
               {originTagItems.length > 0 ? (
               <View style={styles.originTagsRow}>
                 {originTagItems.map((tag) => {
@@ -814,6 +823,7 @@ const styles = StyleSheet.create({
   },
   actionsSlotFooter: {
     flexShrink: 0,
+    alignSelf: "center",
     alignItems: "flex-end",
     justifyContent: "center",
   },
@@ -902,6 +912,21 @@ const styles = StyleSheet.create({
     textAlign: "right",
     textTransform: "uppercase",
     letterSpacing: 0.25,
+  },
+  elrTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Theme.primary,
+    alignSelf: "flex-end",
+  },
+  elrTagText: {
+    fontSize: 8,
+    lineHeight: 10,
+    fontWeight: "600",
+    color: Theme.primary,
+    letterSpacing: 0.3,
   },
   originTagsRow: {
     flexDirection: "row",

@@ -597,20 +597,27 @@ export function resolveDriverFacingTripLabel(row: TripRow): string {
 export async function getTripById(
   tripId: string,
 ): Promise<{ error: Error | null; trip: TripRow | null }> {
-  const { data, error } = await supabase()
-    .from("trips")
-    .select(TRIP_SELECT_LIGHT)
-    .eq("id", tripId)
-    .maybeSingle();
-  if (error) return { error: new Error(error.message), trip: null };
-  const raw = data as
-    | (TripRow & {
-        active_indent?: TripIndentJoin | null;
-        source_indent?: TripIndentJoin | null;
-      })
-    | null;
-  const trip: TripRow | null = raw ? normalizeTripRowWithIndent(raw) : null;
-  return { error: null, trip };
+  try {
+    const { data, error } = await supabase()
+      .from("trips")
+      .select(TRIP_SELECT_LIGHT)
+      .eq("id", tripId)
+      .maybeSingle();
+    if (error) return { error: new Error(error.message), trip: null };
+    const raw = data as
+      | (TripRow & {
+          active_indent?: TripIndentJoin | null;
+          source_indent?: TripIndentJoin | null;
+        })
+      | null;
+    const trip: TripRow | null = raw ? normalizeTripRowWithIndent(raw) : null;
+    return { error: null, trip };
+  } catch (caught) {
+    return {
+      error: caught instanceof Error ? caught : new Error(String(caught)),
+      trip: null,
+    };
+  }
 }
 
 /** Batched form of getTripById — one round trip for N trips instead of N. */
@@ -3259,7 +3266,7 @@ export async function forceSetTripStatusSimulated(
     .from("trips")
     .update(updates)
     .eq("id", tripId)
-    .select();
+    .select("id, status, notes, started_at, completed_at, updated_at, status_change_origin");
   if (signal) query = query.abortSignal(signal);
   const { data: row, error } = await query.maybeSingle();
   if (error) return { error: new Error(error.message), trip: null };

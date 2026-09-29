@@ -1,7 +1,15 @@
 import {
   formatVaultDocDate,
+  vaultDocDateToIso,
   type TripDocItem,
 } from "@/features/trips/components/trip-detail/tripDocTypes";
+
+/** Indian e-way bill numbers are 12 digits. */
+export const EWAY_BILL_NUMBER_MAX_DIGITS = 12;
+
+export function clampEwayBillNumber(raw: string): string {
+  return raw.replace(/\D/g, "").slice(0, EWAY_BILL_NUMBER_MAX_DIGITS);
+}
 
 export const EWAY_BILL_FIELDS_FILE_NAME = "eway-fields.json";
 
@@ -125,11 +133,83 @@ export function parseEwayFieldValues(raw?: string | null): EwayFieldValues {
 
 function serializeOne(values: EwayFieldValues): EwayFieldValues {
   return {
-    ewayNo: values.ewayNo.trim(),
+    ewayNo: clampEwayBillNumber(values.ewayNo),
     createdDate: values.createdDate.trim(),
     validTill: values.validTill.trim(),
     docNo: values.docNo.trim(),
   };
+}
+
+/** End of the valid-till calendar day. A date-only bill stays valid through that day. */
+export function ewayValidTillEnd(validTill?: string | null): Date | null {
+  const iso = vaultDocDateToIso(validTill);
+  if (!iso) return null;
+  const [year, month, day] = iso.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day, 23, 59, 59, 999);
+}
+
+/** "EW-Bill expiring in 22 hours" or "EW-Bill expired". Null when there is no valid-till date. */
+export function ewayExpiryLabel(
+  validTill?: string | null,
+  now: Date = new Date(),
+): string | null {
+  const end = ewayValidTillEnd(validTill);
+  if (!end) return null;
+  const ms = end.getTime() - now.getTime();
+  if (ms <= 0) return "EW-Bill expired";
+  const hours = Math.max(1, Math.round(ms / 3_600_000));
+  if (hours <= 48) {
+    return `EW-Bill expiring in ${hours} hour${hours === 1 ? "" : "s"}`;
+  }
+  const days = Math.ceil(hours / 24);
+  return `EW-Bill expiring in ${days} day${days === 1 ? "" : "s"}`;
+}
+
+export type EwayExpiryTone = "ok" | "soon" | "expired";
+
+/** Hub toolbar buckets. Active is still valid and more than 24 hours out. */
+export type EwayHubStatusFilter = "expired" | "active" | "soon";
+
+export function ewayLabelMatchesHubFilter(
+  label: string | null | undefined,
+  filter: EwayHubStatusFilter,
+): boolean {
+  const tone = ewayExpiryTone(label);
+  if (filter === "expired") return tone === "expired";
+  if (filter === "soon") return tone === "soon";
+  return tone === "ok";
+}
+
+/** More than 24 hours left is calm (green). Inside a day is soon. Past is expired. */
+export function ewayExpiryTone(
+  label: string | null | undefined,
+): EwayExpiryTone | null {
+  const text = (label ?? "").trim();
+  if (!text) return null;
+  if (text === "EW-Bill expired") return "expired";
+  const hours = text.match(/(\d+)\s+hours?/);
+  if (hours) return Number(hours[1]) > 24 ? "ok" : "soon";
+  return "ok";
+}
+
+/**
+ * Status for the trip tag when a trip has several bills.
+ * Expired beats a bill that is still valid. Otherwise the soonest remaining date wins.
+ */
+export function mostUrgentEwayExpiryLabel(
+  validTills: Array<string | null | undefined>,
+  now: Date = new Date(),
+): string | null {
+  const ends = validTills
+    .map((value) => ewayValidTillEnd(value))
+    .filter((end): end is Date => end != null);
+  if (ends.length === 0) return null;
+  ends.sort((a, b) => a.getTime() - b.getTime());
+  const expired = ends.find((end) => end.getTime() <= now.getTime());
+  const target = expired ?? ends[0];
+  const iso = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, "0")}-${String(target.getDate()).padStart(2, "0")}`;
+  return ewayExpiryLabel(iso, now);
 }
 
 export function serializeEwayFieldEntries(entries: EwayFieldValues[]): string {
@@ -189,7 +269,7 @@ export function buildEwayBillStripRows(params: {
   ): EwayBillStripRow => ({
     id,
     entryIndex: index,
-    ewayNo: dash(fields.ewayNo),
+    ewayNo: dash(clampEwayBillNumber(fields.ewayNo)),
     createdDate: displayDate(fields.createdDate),
     validTill: displayDate(fields.validTill),
     docNo: dash(fields.docNo),

@@ -18,8 +18,12 @@ import {
 } from "@/features/trips/components/trip-detail/completedTripInitialLoad.util";
 import { canAddMoreTripDocs, canMutateTripVaultDoc, formatLrVaultDateLabel, formatLrVaultNumberLabel, formatVaultDocDate, isEwayBillVaultDoc, isLrVaultDoc, isPdfTripDoc, type TripDocItem, VAULT_DOC_LIMIT_HINT, VAULT_DOC_MAX_BYTES, VAULT_DOC_MAX_MB, VAULT_DOC_PICKER_TYPES, vaultDocDateToIso, vaultDocHasPreviewableFile, vaultPickerRejectionMessage } from "@/features/trips/components/trip-detail/tripDocTypes";
 import { CompactValidTillCalendar, EwayBillLrStrip, buildEwayBillStripRows } from "@/features/trips/components/trip-detail/EwayBillVaultTab";
+import { ElrTripDetailAction } from "@/features/trips/components/trip-detail/ElrTripDetailAction";
+import { SimCompletionTimeField } from "@/features/trips/components/trip-detail/SimCompletionTimeField";
 import {
   ewayDocHasPreviewableFile,
+  ewayExpiryTone,
+  mostUrgentEwayExpiryLabel,
   type EwayFieldValues,
 } from "@/features/trips/services/ewayBillFields.util";
 import { TripVaultFilePreview } from "@/features/trips/components/trip-detail/TripVaultFilePreview";
@@ -52,6 +56,7 @@ import { useMemberAccess } from "@/lib/useMemberAccess";
 import { formatINR, formatIndianVehicleNumber } from "@/lib/format";
 import { formatPhoneForDisplay } from "@/lib/phoneLookup";
 import { supabase } from "@/lib/supabase";
+import { resetSupabaseCircuit } from "@/lib/supabaseHttp.util";
 import { throwIfCancelled } from "@/lib/supabaseAbort.util";
 import { notifyTripChatMessagesChanged } from "@/lib/tripChatInvalidate";
 import { getOptimalRoute } from "@/lib/routingService";
@@ -61,6 +66,11 @@ import {
   parseLrFieldValues,
   serializeLrFieldValues,
 } from "@/features/trips/services/lrDocumentOcr.util";
+import { findOrgDuplicateLrNumberForTrip } from "@/features/trips/services/orgLrDuplicate.service";
+import {
+  normalizeOrgLrNumber,
+  ORG_LR_DUPLICATE_MESSAGE,
+} from "@/features/trips/services/orgLrNumber.util";
 import {
   deleteVehicleDocument,
   deleteVehicleExtraDocument,
@@ -81,7 +91,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import { Activity, MessageSquare, Zap } from "lucide-react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import LottieView from "lottie-react-native";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import {
@@ -124,7 +134,9 @@ import {
 import {
     appendBisimNote,
     lastBisimCoordinate,
+    parseSimCompletionPickerValue,
     resolveSimulateStageCoordinate,
+    toSimCompletionPickerValue,
 } from "../../utils/simulateTripStage.util";
 import { AggregateTripOtpPanel } from "../AggregateTripOtpPanel";
 import { TripAssignmentBlock } from "../TripAssignmentBlock";
@@ -226,6 +238,7 @@ import {
   buildManifestJourneyLogs,
   getManifestCurrentStepIndex,
   getVisibleManifestJourneyLogs,
+  MANIFEST_PULSE_LAST_INDEX,
   manifestSimLogsForStepIndex,
   manifestStepIndexForLog,
   type ManifestJourneyLogEntry,
@@ -242,7 +255,7 @@ const TripExpensesScreen = lazy(() =>
 import { isAssetExecutionTrip, shouldShowTripExpenseHub } from "@/features/trips/domain/tripExecutionModel";
 import { isDcoOperatingTrip } from "@/features/trips/domain/tripDcoOperating";
 import { getMoverAssetTripIdForIndent } from "@/features/trips/services/trips.service";
-import { tripIsDeliveredStatus, tripPodIsReceived } from "@/features/trips/services/tripDocumentLrPod.service";
+import { loadTripEwayExpiryLabel, tripIsDeliveredStatus, tripPodIsReceived } from "@/features/trips/services/tripDocumentLrPod.service";
 import { FeedbackPlaceholder } from "./parts/FeedbackPlaceholder";
 import { ManifestPulseStepIcon } from "./parts/ManifestPulseStepIcon";
 import { ExpenseListCard } from "./parts/ExpenseListCard";
@@ -973,6 +986,7 @@ export default function TripDetailScreen({
   const [simulating, setSimulating] = useState(false);
   const [revokingSimulation, setRevokingSimulation] = useState(false);
   const [simError, setSimError] = useState<string | null>(null);
+  const simCompletionRef = useRef("");
   const simulateAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -1061,7 +1075,7 @@ export default function TripDetailScreen({
       .filter((line) => line.startsWith("[BISIM|"))
       .map((line) => {
         const inner = line.slice(7, -1);
-        const [status, timestamp, lat, lng, userName, fromStatus] =
+        const [status, timestamp, lat, lng, userName, fromStatus, locationLabel] =
           inner.split("|");
         return {
           status,
@@ -1070,6 +1084,7 @@ export default function TripDetailScreen({
           lng: parseFloat(lng) || null,
           userName: userName || "Business",
           fromStatus: fromStatus || null,
+          locationLabel: locationLabel?.trim() || null,
         };
       });
   }, [detail.trip?.notes]);
@@ -1242,11 +1257,15 @@ export default function TripDetailScreen({
   const [pendingLrDate, setPendingLrDate] = useState("");
   const [pendingLrInvoice, setPendingLrInvoice] = useState("");
   const [showPendingLrCalendar, setShowPendingLrCalendar] = useState(false);
+  const [pendingLrIsDuplicate, setPendingLrIsDuplicate] = useState(false);
+  const [lrDuplicateAlertVisible, setLrDuplicateAlertVisible] = useState(false);
   const resetPendingLrFields = useCallback(() => {
     setPendingLrNumber("");
     setPendingLrDate("");
     setPendingLrInvoice("");
     setShowPendingLrCalendar(false);
+    setPendingLrIsDuplicate(false);
+    setLrDuplicateAlertVisible(false);
   }, []);
   const fillPendingLrFields = useCallback(
     (
@@ -1259,9 +1278,37 @@ export default function TripDetailScreen({
       setPendingLrDate(fields.date || dateFallback?.trim() || "");
       setPendingLrInvoice(fields.invoice || invoiceFallback?.trim() || "");
       setShowPendingLrCalendar(false);
+      setPendingLrIsDuplicate(false);
     },
     [],
   );
+
+  useEffect(() => {
+    if (pendingVaultUpload?.docType !== "lr") {
+      setPendingLrIsDuplicate(false);
+      return;
+    }
+    const tripId = detail.trip?.id?.trim() ?? "";
+    const lrNumber = pendingLrNumber;
+    if (!tripId || !normalizeOrgLrNumber(lrNumber)) {
+      setPendingLrIsDuplicate(false);
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      void findOrgDuplicateLrNumberForTrip({ tripId, lrNumber }).then((duplicate) => {
+        if (cancelled) return;
+        const isDuplicate = Boolean(duplicate);
+        setPendingLrIsDuplicate(isDuplicate);
+        if (isDuplicate) setLrDuplicateAlertVisible(true);
+      });
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [pendingVaultUpload?.docType, pendingLrNumber, detail.trip?.id]);
+
   const [lrOcrReading, setLrOcrReading] = useState(false);
   const lrOcrAttemptedRef = useRef<string | null>(null);
   const [addDocChooserVisible, setAddDocChooserVisible] = useState(false);
@@ -1364,6 +1411,18 @@ export default function TripDetailScreen({
     const tripIdForUpload = detail.trip?.id;
     const uploaderId = detail.currentUserId;
     if (!pending || !tripIdForUpload || !uploaderId || uploadingDocId) return;
+
+    if (pending.docType === "lr" && normalizeOrgLrNumber(pendingLrNumber)) {
+      const duplicate = await findOrgDuplicateLrNumberForTrip({
+        tripId: tripIdForUpload,
+        lrNumber: pendingLrNumber,
+      });
+      if (duplicate) {
+        setPendingLrIsDuplicate(true);
+        setLrDuplicateAlertVisible(true);
+        return;
+      }
+    }
 
     setUploadingDocId(pending.slotId);
     try {
@@ -2072,7 +2131,7 @@ export default function TripDetailScreen({
       }));
   }, [detail.locationTrailWithNames, detail.tripLocationPoints]);
 
-  const manifestPulseLastIndex = 4;
+  const manifestPulseLastIndex = MANIFEST_PULSE_LAST_INDEX;
   const currentStepIndex = detail.trip
     ? getManifestCurrentStepIndex(detail.trip, {
         assignmentAuditRows: detail.assignmentAuditRows,
@@ -2099,6 +2158,14 @@ export default function TripDetailScreen({
     [tripForAssignmentFlow?.id, canChangeManifestAssetsForNav, router],
   );
 
+  const queryClient = useQueryClient();
+  const ewayExpiryQuery = useQuery({
+    queryKey: ["q", "trips", "eway-expiry", detail.trip?.id ?? ""],
+    queryFn: () => loadTripEwayExpiryLabel(detail.trip!.id),
+    enabled: !!detail.trip?.id,
+    staleTime: 30_000,
+  });
+
   const saveEwayBillFields = useCallback(
     async (values: EwayFieldValues[]) => {
       const tripIdForSave = detail.trip?.id;
@@ -2118,9 +2185,12 @@ export default function TripDetailScreen({
         return false;
       }
       await detail.loadTripDocuments();
+      await queryClient.invalidateQueries({
+        queryKey: ["q", "trips", "eway-expiry", tripIdForSave],
+      });
       return true;
     },
-    [detail.trip?.id, detail.currentUserId, detail.loadTripDocuments],
+    [detail.trip?.id, detail.currentUserId, detail.loadTripDocuments, queryClient],
   );
 
   const manifestHeroPartyContext = useMemo<AggregateTripKindPillContext>(
@@ -2183,13 +2253,16 @@ export default function TripDetailScreen({
     );
   }
 
-  if (detail.error || !detail.trip) {
+  if (!detail.trip) {
     return (
       <View style={styles.errorWrap}>
         <Text style={styles.errorText}>{detail.error ?? "Trip not found"}</Text>
         <TouchableOpacity
           style={styles.retryBtn}
-          onPress={detail.load}
+          onPress={() => {
+            resetSupabaseCircuit();
+            detail.load();
+          }}
           activeOpacity={0.8}
         >
           <FontAwesome
@@ -2714,6 +2787,12 @@ export default function TripDetailScreen({
     setSimulating(true);
     setSimError(null);
     try {
+      const completedAt = parseSimCompletionPickerValue(simCompletionRef.current);
+      if (!completedAt) {
+        setSimError("Pick a completion date and time.");
+        setSimulating(false);
+        return;
+      }
       const pin = resolveSimulateStageCoordinate(trip, simConfirmStep.targetStatus, {
         lat: simConfirmStep.driverLat,
         lng: simConfirmStep.driverLng,
@@ -2726,14 +2805,16 @@ export default function TripDetailScreen({
         userName,
         lat: pin.lat,
         lng: pin.lng,
+        at: completedAt,
+        locationLabel: simConfirmStep.driverLocLabel,
       });
-      const { error, cancelled } = await simulateBusinessTripStage({
+      const { error, cancelled, trip: updatedTrip } = await simulateBusinessTripStage({
         tripId: trip.id,
         targetStatus: simConfirmStep.targetStatus,
         fromStatus: String(trip.status ?? "").trim().toLowerCase(),
         notes,
-        startedAt: simConfirmStep.started_at,
-        completedAt: simConfirmStep.completed_at,
+        startedAt: simConfirmStep.started_at ? completedAt : undefined,
+        completedAt: simConfirmStep.completed_at ? completedAt : undefined,
         signal: abort.signal,
       });
       if (cancelled || abort.signal.aborted) return;
@@ -2742,10 +2823,9 @@ export default function TripDetailScreen({
         return;
       }
 
-      notifyTripChatMessagesChanged();
+      if (updatedTrip?.id) detail.mergeTripRow(updatedTrip);
       detail.clearWaitingForNewDriverLocation();
       setSimConfirmStep(null);
-      detail.handleRefresh();
     } catch (e: unknown) {
       if (abort.signal.aborted) return;
       setSimError(e instanceof Error ? e.message : "Simulation failed");
@@ -3274,6 +3354,10 @@ export default function TripDetailScreen({
   const ewayStripRows = buildEwayBillStripRows({
     ewayDoc: ewayBillDoc,
   });
+  const ewayExpiryStatus =
+    ewayExpiryQuery.data ??
+    mostUrgentEwayExpiryLabel(ewayStripRows.map((row) => row.validTill));
+  const ewayExpiryStatusTone = ewayExpiryTone(ewayExpiryStatus);
   const openEwayBillPreview = (rowId: string) => {
     if (!ewayBillDoc || !ewayDocHasPreviewableFile(ewayBillDoc)) return;
     const files = ewayBillDoc.files ?? [];
@@ -3553,6 +3637,30 @@ export default function TripDetailScreen({
                         : statusLabel.toUpperCase()}
                     </Text>
                   </View>
+                  {ewayExpiryStatus ? (
+                    <View
+                      style={[
+                        neoStyles.manifestEwayBadge,
+                        ewayExpiryStatusTone === "ok" &&
+                          neoStyles.manifestEwayBadgeOk,
+                        ewayExpiryStatusTone === "expired" &&
+                          neoStyles.manifestEwayBadgeExpired,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          neoStyles.manifestEwayBadgeText,
+                          ewayExpiryStatusTone === "ok" &&
+                            neoStyles.manifestEwayBadgeTextOk,
+                          ewayExpiryStatusTone === "expired" &&
+                            neoStyles.manifestEwayBadgeTextExpired,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {ewayExpiryStatus}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             </View>
@@ -3574,6 +3682,34 @@ export default function TripDetailScreen({
                   </Text>
                 </TouchableOpacity>
               ) : null}
+              <ElrTripDetailAction
+                uploadedBy={detail.currentUserId}
+                onSaved={() => void detail.loadTripDocuments()}
+                source={{
+                  tripId: trip.id,
+                  tripNumber: trip.trip_number,
+                  organizationId: trip.organization_id,
+                  viewerOrganizationId: currentOrganization?.id ?? null,
+                  transporterName: currentOrganization?.name ?? null,
+                  clientName: trip.client_name,
+                  clientId: trip.client_id,
+                  vehicleId: trip.vehicle_id ?? trip.owner_vehicle_id,
+                  vehicleRegistration: trip.vehicle_display_number,
+                  driverId: trip.driver_id,
+                  driverName: trip.driver_display_name,
+                  driverPhone: detail.driverPhone,
+                  origin: trip.pickup_area,
+                  destination: trip.drop_location,
+                  pickupDate: trip.pickup_date,
+                  loadType: trip.load_type,
+                  loadTons: trip.load_tons,
+                  freight: trip.client_price,
+                  freightBasis: trip.sale_rate_basis,
+                  indentId: trip.indent_reference_code ?? trip.indent_id,
+                  indentRecordId: trip.indent_id,
+                  tripStatus: trip.status,
+                }}
+              />
               <TouchableOpacity
                 style={neoStyles.auditBtn}
                 activeOpacity={0.85}
@@ -3617,6 +3753,34 @@ export default function TripDetailScreen({
             </TouchableOpacity>
             <Text style={styles.navMobileTitle}>Trips</Text>
             <View style={styles.navMobileRightActions}>
+              <ElrTripDetailAction
+                uploadedBy={detail.currentUserId}
+                onSaved={() => void detail.loadTripDocuments()}
+                source={{
+                  tripId: trip.id,
+                  tripNumber: trip.trip_number,
+                  organizationId: trip.organization_id,
+                  viewerOrganizationId: currentOrganization?.id ?? null,
+                  transporterName: currentOrganization?.name ?? null,
+                  clientName: trip.client_name,
+                  clientId: trip.client_id,
+                  vehicleId: trip.vehicle_id ?? trip.owner_vehicle_id,
+                  vehicleRegistration: trip.vehicle_display_number,
+                  driverId: trip.driver_id,
+                  driverName: trip.driver_display_name,
+                  driverPhone: detail.driverPhone,
+                  origin: trip.pickup_area,
+                  destination: trip.drop_location,
+                  pickupDate: trip.pickup_date,
+                  loadType: trip.load_type,
+                  loadTons: trip.load_tons,
+                  freight: trip.client_price,
+                  freightBasis: trip.sale_rate_basis,
+                  indentId: trip.indent_reference_code ?? trip.indent_id,
+                  indentRecordId: trip.indent_id,
+                  tripStatus: trip.status,
+                }}
+              />
               <TouchableOpacity
                 style={styles.navHelpBtn}
                 activeOpacity={0.85}
@@ -4404,7 +4568,11 @@ export default function TripDetailScreen({
                             {nextSimulateStep && !tripCompleted ? (
                               <TouchableOpacity
                                 style={[neoStyles.simBtn, isMobile && neoStyles.simBtnMobile]}
-                                onPress={() => setSimConfirmStep(nextSimulateStep)}
+                                onPress={() => {
+                                  simCompletionRef.current = toSimCompletionPickerValue();
+                                  setSimError(null);
+                                  setSimConfirmStep(nextSimulateStep);
+                                }}
                                 activeOpacity={0.85}
                                 disabled={revokingSimulation}
                               >
@@ -4514,7 +4682,7 @@ export default function TripDetailScreen({
                                       {log.details}
                                     </Text>
                                   ) : null}
-                                  {expanded && stepIndex === 3 ? (
+                                  {expanded && log.stepKey === "in_transit" ? (
                                     <ManifestDriverPingList pings={manifestDriverPings} />
                                   ) : null}
                                   {/* Business simulation log badges */}
@@ -4614,6 +4782,16 @@ export default function TripDetailScreen({
                                 No driver GPS data available
                               </Text>
                             )}
+                            <View style={neoStyles.simModalTime}>
+                              <Text style={neoStyles.simModalLocLabel}>Completion time</Text>
+                              <SimCompletionTimeField
+                                key={`${simConfirmStep.targetStatus}-${simConfirmStep.label}`}
+                                initialValue={simCompletionRef.current}
+                                onChange={(value) => {
+                                  simCompletionRef.current = value;
+                                }}
+                              />
+                            </View>
                             {simError ? (
                               <Text style={neoStyles.simModalError}>
                                 {simError}
@@ -6319,6 +6497,7 @@ export default function TripDetailScreen({
                     )}
                     layoutVariant="registry"
                     skipHistoricalPartyRatings
+                    enableAutoPrompt={false}
                   />
                 ) : (
                   <FeedbackPlaceholder />
@@ -7050,13 +7229,26 @@ export default function TripDetailScreen({
                 <View>
                   <View style={styles.lrFieldsRow}>
                     <View style={styles.lrFieldCol}>
-                      <Text style={styles.lrNumberFieldLabel}>LR NUMBER</Text>
+                      <Text
+                        style={[
+                          styles.lrNumberFieldLabel,
+                          pendingLrIsDuplicate ? styles.lrNumberFieldLabelError : null,
+                        ]}
+                      >
+                        LR NUMBER
+                      </Text>
                       <TextInput
                         value={pendingLrNumber}
-                        onChangeText={setPendingLrNumber}
+                        onChangeText={(value) => {
+                          setPendingLrNumber(value);
+                          setPendingLrIsDuplicate(false);
+                        }}
                         placeholder="LR No."
                         placeholderTextColor={Theme.textMuted}
-                        style={styles.lrNumberFieldInput}
+                        style={[
+                          styles.lrNumberFieldInput,
+                          pendingLrIsDuplicate ? styles.lrNumberFieldInputError : null,
+                        ]}
                         autoCapitalize="characters"
                         editable={!uploadingDocId}
                         returnKeyType="next"
@@ -7105,6 +7297,11 @@ export default function TripDetailScreen({
                       />
                     </View>
                   </View>
+                  {pendingLrIsDuplicate ? (
+                    <Text style={styles.lrNumberDuplicateHint}>
+                      {ORG_LR_DUPLICATE_MESSAGE}
+                    </Text>
+                  ) : null}
                   {showPendingLrCalendar ? (
                     <View style={styles.lrCalendarWrap}>
                       <CompactValidTillCalendar
@@ -7134,7 +7331,13 @@ export default function TripDetailScreen({
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.docModalFooterBtn}
-                onPress={() => void confirmPendingVaultUpload()}
+                onPress={() => {
+                  if (pendingVaultUpload?.docType === "lr" && pendingLrIsDuplicate) {
+                    setLrDuplicateAlertVisible(true);
+                    return;
+                  }
+                  void confirmPendingVaultUpload();
+                }}
                 activeOpacity={0.85}
                 disabled={!!uploadingDocId}
               >
@@ -7302,6 +7505,16 @@ export default function TripDetailScreen({
           </View>
         </View>
       </Modal>
+
+      <ThemedAlertModal
+        visible={lrDuplicateAlertVisible}
+        title="LR already exists"
+        message={ORG_LR_DUPLICATE_MESSAGE}
+        okText="OK"
+        variant="warning"
+        onOk={() => setLrDuplicateAlertVisible(false)}
+        onRequestClose={() => setLrDuplicateAlertVisible(false)}
+      />
 
       <ThemedAlertModal
         visible={vaultDeleteTarget != null}

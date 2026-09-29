@@ -167,6 +167,8 @@ export interface TripMapProps {
   trackingEnabled?: boolean;
   /** Bottom inset when auto-fitting the full route in compact previews. */
   fitPaddingBottom?: number;
+  /** Right inset so a hanging side card does not cover the fitted route. */
+  fitPaddingRight?: number;
   /** Live pin: driver profile image (matches driver-app map avatar). */
   driverAvatarUri?: string | null;
   /** Seed for generated avatar when URI is missing (usually driver id). */
@@ -186,6 +188,7 @@ export function TripMap({
   tripId,
   trackingEnabled,
   fitPaddingBottom = 48,
+  fitPaddingRight = 40,
   driverAvatarUri,
   driverAvatarSeed,
   driverOnline,
@@ -542,14 +545,15 @@ export function TripMap({
           if (compactMapPreview) {
             map.fitBounds(coords as LatLngTuple[], {
               paddingTopLeft: [40, 40],
-              paddingBottomRight: [fitPaddingBottom, 40],
+              paddingBottomRight: [fitPaddingRight, fitPaddingBottom],
               maxZoom: 13,
               animate: false,
             });
             return;
           }
           map.fitBounds(coords as LatLngTuple[], {
-            padding: [fitPaddingBottom, fitPaddingBottom],
+            paddingTopLeft: [48, 72],
+            paddingBottomRight: [fitPaddingRight, fitPaddingBottom],
             maxZoom: 14,
             animate: false,
           });
@@ -762,9 +766,9 @@ export function TripMap({
       style={{
         position: 'relative',
         width: '100%',
-        borderRadius: 12,
+        borderRadius: resolvedHeight === '100%' ? 0 : 12,
         overflow: 'hidden',
-        border: '1px solid #e2e8f0',
+        border: resolvedHeight === '100%' ? 'none' : '1px solid #e2e8f0',
         ...containerHeightStyle,
       }}
     >

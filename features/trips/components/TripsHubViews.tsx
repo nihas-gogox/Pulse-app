@@ -21,6 +21,11 @@ import {
   tripHubRevenue,
   type TripHubCostOptions,
 } from "@/features/finance/utils/tripSettlement.util";
+import {
+  ewayLabelMatchesHubFilter,
+  type EwayHubStatusFilter,
+} from "@/features/trips/services/ewayBillFields.util";
+import { isElrAfterLoadingStage } from "@/features/trips/services/elrSnapshot.util";
 import { type TripAdjustment } from "@/features/trips/services/tripAdjustments";
 import { tripNonSupplierOutflowTotal } from "@/features/trips/utils/tripManifestFreightCost";
 import { isLoadBasedTrip } from "@/features/trips/visibility/tripVisibility";
@@ -45,7 +50,7 @@ import {
 import { TripsHubTripCardToolbar } from "./TripsHubTripCardToolbar";
 
 export { MOBILE_TRIP_CANVAS_BG, TripsHubMobileTripListCanvas };
-import { Plus, Search, X } from "lucide-react-native";
+import { ChevronDown, Plus, Search, X } from "lucide-react-native";
 import { useCallback, useEffect, useLayoutEffect, useMemo, memo, useState, type ReactNode } from "react";
 import {
     LayoutAnimation,
@@ -422,6 +427,8 @@ export type TripsHubTripCardProps = {
   softPodReceived?: boolean;
   /** Physical POD (trips.pod_received_at / Pulse POD received). */
   hardPodReceived?: boolean;
+  /** EW-Bill expiring / expired label for this trip. */
+  ewayExpiryLabel?: string | null;
 };
 
 function tripsHubTripCardAreEqual(
@@ -438,6 +445,7 @@ function tripsHubTripCardAreEqual(
   if (prev.inTransitPing !== next.inTransitPing) return false;
   if (prev.softPodReceived !== next.softPodReceived) return false;
   if (prev.hardPodReceived !== next.hardPodReceived) return false;
+  if (prev.ewayExpiryLabel !== next.ewayExpiryLabel) return false;
   if (prev.trip.pod_received_at !== next.trip.pod_received_at) return false;
   if (prev.financeAdjustments !== next.financeAdjustments) return false;
   if (prev.ledgerReceivedTotal !== next.ledgerReceivedTotal) return false;
@@ -488,7 +496,6 @@ function TripsHubTripCardInner({
   tr,
   rowWebStyle,
   ledgerReceivedTotal,
-  ledgerPaidTotal,
   ledgerTxnCount,
   lastLedgerDateLabel,
   financeAdjustments,
@@ -499,6 +506,7 @@ function TripsHubTripCardInner({
   inTransitPing = null,
   softPodReceived = false,
   hardPodReceived,
+  ewayExpiryLabel = null,
 }: TripsHubTripCardProps) {
   const handlePress = useCallback(() => {
     if (onPress) onPress();
@@ -626,13 +634,7 @@ function TripsHubTripCardInner({
     hardPodReceived: hardPodReceived ?? tripPodIsReceived(trip),
   };
 
-  const receivedForReceivable =
-    ledgerReceivedTotal != null
-      ? ledgerReceivedTotal
-      : Number(trip.amount_paid ?? 0);
-  const paidForPayable = ledgerPaidTotal ?? 0;
-  const receivableDue = Math.max(0, revenue - receivedForReceivable);
-  const payableDue = Math.max(0, cost - paidForPayable);
+  const showElr = isElrAfterLoadingStage(trip.status);
 
   if (hubGrid) {
     return (
@@ -642,13 +644,8 @@ function TripsHubTripCardInner({
         fillGrid
         actions={
           <TripsHubTripCardToolbar
-            revenue={revenue}
-            receivableDue={receivableDue}
-            payableDue={payableDue}
-            salesLabel={tr("tripsHubColSales")}
-            receivableLabel={tr("tripsHubColDue")}
-            payableLabel={tr("tripsHubMetricGroupPayable")}
-            clearedLabel={tr("tripsHubSettlementCleared")}
+            ewayExpiryLabel={ewayExpiryLabel}
+            showElr={showElr}
             dense
           />
         }
@@ -663,13 +660,8 @@ function TripsHubTripCardInner({
         actions={
           stackedCardShowsToolbar(viewportWidth) ? (
             <TripsHubTripCardToolbar
-              revenue={revenue}
-              receivableDue={receivableDue}
-              payableDue={payableDue}
-              salesLabel={tr("tripsHubColSales")}
-              receivableLabel={tr("tripsHubColDue")}
-              payableLabel={tr("tripsHubMetricGroupPayable")}
-              clearedLabel={tr("tripsHubSettlementCleared")}
+              ewayExpiryLabel={ewayExpiryLabel}
+              showElr={showElr}
             />
           ) : undefined
         }
@@ -1061,6 +1053,8 @@ export type TripsHubTableViewProps = {
       | "custom",
   ) => void;
   onOpenDateRangePicker?: () => void;
+  /** Shown on the collapsed date tag when the filter is a custom range. */
+  dateRangeLabel?: string | null;
   /** When set, renders an inline "Add Trip" button on the desktop toolbar row, anchored to the right after the search input. Hidden on mobile (the trips screen still owns mobile FAB placement). */
   onAddTrip?: () => void;
   /** Label for the inline Add Trip button (e.g. translated "Add trip"). Defaults to "Add Trip". */
@@ -1079,6 +1073,8 @@ export type TripsHubTableViewProps = {
   softPodTripIds?: Set<string>;
   /** Trip ids with Pulse POD hard-copy received (trips.pod_received_at). */
   hardPodTripIds?: Set<string>;
+  /** Most critical e-way label per trip id. Omit on lists that are not trips. */
+  ewayExpiryByTripId?: Record<string, string>;
 };
 
 function txnAmount(row: LedgerRow): number {
@@ -1190,12 +1186,14 @@ export function TripsHubTableView({
   dateRangeFilter = "all",
   onDateRangeFilterChange,
   onOpenDateRangePicker,
+  dateRangeLabel = null,
   onAddTrip,
   addTripLabel,
   pagination,
   onDisplayedTripsLengthChange,
   softPodTripIds,
   hardPodTripIds,
+  ewayExpiryByTripId,
 }: TripsHubTableViewProps) {
   const insets = useSafeAreaInsets();
   const { width: layoutWidth } = useWindowDimensions();
@@ -1215,6 +1213,10 @@ export function TripsHubTableView({
   const [sortKey, setSortKey] = useState<"recent" | "due_desc" | "sales_desc">(
     "recent",
   );
+  const [ewayMenuOpen, setEwayMenuOpen] = useState(false);
+  const [dateMenuOpen, setDateMenuOpen] = useState(false);
+  const [ewayStatusFilter, setEwayStatusFilter] =
+    useState<EwayHubStatusFilter | null>(null);
   const [receiptTx, setReceiptTx] = useState<{
     trip: TripRow;
     row: LedgerRow | null;
@@ -1267,6 +1269,14 @@ export function TripsHubTableView({
         );
       });
     }
+    if (ewayStatusFilter && ewayExpiryByTripId) {
+      rows = rows.filter((t) =>
+        ewayLabelMatchesHubFilter(
+          ewayExpiryByTripId[t.id.trim().toLowerCase()],
+          ewayStatusFilter,
+        ),
+      );
+    }
     const sorted = [...rows];
     sorted.sort((a, b) => {
       const adjA = tripFinanceAdjForHubLookup(financeAdjustmentsByTripId, a.id);
@@ -1294,6 +1304,8 @@ export function TripsHubTableView({
     clientNameByTripId,
     currentOrganizationId,
     financeAdjustmentsByTripId,
+    ewayExpiryByTripId,
+    ewayStatusFilter,
   ]);
 
   const rowsForTableBody = useMemo(() => {
@@ -1398,7 +1410,7 @@ export function TripsHubTableView({
       </View>
     ) : null;
 
-  const desktopDatePresets = (
+  const datePresetOptions = (
     [
       { id: "all" as const, label: "ALL" },
       { id: "today" as const, label: "TODAY" },
@@ -1406,29 +1418,203 @@ export function TripsHubTableView({
       { id: "this_week" as const, label: "THIS WEEK" },
       { id: "this_month" as const, label: "THIS MONTH" },
     ] as const
-  ).map(({ id, label }) => (
-    <TouchableOpacity
-      key={id}
-      style={[
-        styles.auditDateChip,
-        dateRangeFilter === id && styles.auditDateChipActive,
-      ]}
-      onPress={() => onDateRangeFilterChange?.(id)}
-      activeOpacity={0.85}
-      accessibilityRole="button"
-      accessibilityState={{ selected: dateRangeFilter === id }}
-    >
-      <Text
+  );
+
+  const dateFilterTagLabel = (() => {
+    if (dateRangeFilter === "custom") {
+      const custom = (dateRangeLabel ?? "").trim();
+      return custom ? `DATE · ${custom}` : "DATE";
+    }
+    if (dateRangeFilter === "all") return "DATE";
+    const preset =
+      datePresetOptions.find((opt) => opt.id === dateRangeFilter)?.label;
+    return preset ? `DATE · ${preset}` : "DATE";
+  })();
+
+  const dateFilterActive = dateRangeFilter !== "all";
+
+  const dateFilterChips = onDateRangeFilterChange ? (
+    <>
+      <TouchableOpacity
         style={[
-          styles.auditDateChipText,
-          dateRangeFilter === id && styles.auditDateChipTextActive,
+          styles.auditDateChip,
+          (dateMenuOpen || dateFilterActive) && styles.auditDateChipActive,
         ]}
-        numberOfLines={1}
+        onPress={() => {
+          setDateMenuOpen((open) => !open);
+          setEwayMenuOpen(false);
+        }}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: dateMenuOpen, selected: dateFilterActive }}
+        accessibilityLabel={`Date filter ${dateFilterTagLabel}`}
       >
-        {label}
-      </Text>
-    </TouchableOpacity>
-  ));
+        <Text
+          style={[
+            styles.auditDateChipText,
+            (dateMenuOpen || dateFilterActive) && styles.auditDateChipTextActive,
+          ]}
+          numberOfLines={1}
+        >
+          {dateFilterTagLabel}
+        </Text>
+        <ChevronDown
+          size={11}
+          color={
+            dateMenuOpen || dateFilterActive
+              ? Theme.primary
+              : Theme.textRouteCard
+          }
+          strokeWidth={2.4}
+          style={{
+            marginLeft: 3,
+            transform: [{ rotate: dateMenuOpen ? "180deg" : "0deg" }],
+          }}
+        />
+      </TouchableOpacity>
+      {dateMenuOpen
+        ? datePresetOptions.map(({ id, label }) => (
+            <TouchableOpacity
+              key={id}
+              style={[
+                styles.auditDateChip,
+                dateRangeFilter === id && styles.auditDateChipActive,
+              ]}
+              onPress={() => {
+                onDateRangeFilterChange(id);
+                setDateMenuOpen(false);
+              }}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityState={{ selected: dateRangeFilter === id }}
+            >
+              <Text
+                style={[
+                  styles.auditDateChipText,
+                  dateRangeFilter === id && styles.auditDateChipTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                {label}
+              </Text>
+            </TouchableOpacity>
+          ))
+        : null}
+      {dateMenuOpen && onOpenDateRangePicker ? (
+        <TouchableOpacity
+          style={[
+            styles.auditDateIconBtn,
+            dateRangeFilter === "custom" && styles.auditDateChipActive,
+          ]}
+          onPress={onOpenDateRangePicker}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Open custom date range"
+        >
+          <FontAwesome
+            name="calendar"
+            size={12}
+            color={
+              dateRangeFilter === "custom" ? Theme.primary : Theme.textRouteCard
+            }
+          />
+        </TouchableOpacity>
+      ) : null}
+    </>
+  ) : null;
+
+  const ewayStatusOptions = [
+    { id: "expired" as const, label: "Expired" },
+    { id: "active" as const, label: "Active" },
+    { id: "soon" as const, label: "<24 hours" },
+  ];
+  const ewayTagLabel = ewayStatusFilter
+    ? `E-WAY · ${
+        ewayStatusOptions.find((opt) => opt.id === ewayStatusFilter)?.label ??
+        "E-WAY"
+      }`
+    : "E-WAY";
+
+  const ewayFilterChips =
+    ewayExpiryByTripId == null ? null : (
+      <>
+        <TouchableOpacity
+          style={[
+            styles.auditDateChip,
+            (ewayMenuOpen || ewayStatusFilter != null) &&
+              styles.auditDateChipActive,
+          ]}
+          onPress={() => {
+            setEwayMenuOpen((open) => !open);
+            setDateMenuOpen(false);
+          }}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityState={{
+            expanded: ewayMenuOpen,
+            selected: ewayStatusFilter != null,
+          }}
+          accessibilityLabel="E-way bill filters"
+        >
+          <Text
+            style={[
+              styles.auditDateChipText,
+              (ewayMenuOpen || ewayStatusFilter != null) &&
+                styles.auditDateChipTextActive,
+            ]}
+            numberOfLines={1}
+          >
+            {ewayTagLabel}
+          </Text>
+          <ChevronDown
+            size={11}
+            color={
+              ewayMenuOpen || ewayStatusFilter != null
+                ? Theme.primary
+                : Theme.textRouteCard
+            }
+            strokeWidth={2.4}
+            style={{
+              marginLeft: 3,
+              transform: [{ rotate: ewayMenuOpen ? "180deg" : "0deg" }],
+            }}
+          />
+        </TouchableOpacity>
+        {ewayMenuOpen
+          ? ewayStatusOptions.map(({ id, label }) => {
+              const selected = ewayStatusFilter === id;
+              return (
+                <TouchableOpacity
+                  key={id}
+                  style={[
+                    styles.auditDateChip,
+                    selected && styles.auditDateChipActive,
+                  ]}
+                  onPress={() =>
+                    setEwayStatusFilter((current) =>
+                      current === id ? null : id,
+                    )
+                  }
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`E-way ${label}`}
+                >
+                  <Text
+                    style={[
+                      styles.auditDateChipText,
+                      selected && styles.auditDateChipTextActive,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })
+          : null}
+      </>
+    );
 
   const sortToolbarBtn = (
     <TouchableOpacity
@@ -1538,30 +1724,8 @@ export function TripsHubTableView({
                 ]}
               >
                 <View style={styles.auditDatePresetRowInner}>
-                  {desktopDatePresets}
-                  {onOpenDateRangePicker ? (
-                    <TouchableOpacity
-                      style={[
-                        styles.auditDateIconBtn,
-                        dateRangeFilter === "custom" &&
-                          styles.auditDateChipActive,
-                      ]}
-                      onPress={onOpenDateRangePicker}
-                      activeOpacity={0.8}
-                      accessibilityRole="button"
-                      accessibilityLabel="Open custom date range"
-                    >
-                      <FontAwesome
-                        name="calendar"
-                        size={12}
-                        color={
-                          dateRangeFilter === "custom"
-                            ? Theme.primary
-                            : "#64748b"
-                        }
-                      />
-                    </TouchableOpacity>
-                  ) : null}
+                  {dateFilterChips}
+                  {ewayFilterChips}
                 </View>
               </View>
             ) : null}
@@ -1599,61 +1763,8 @@ export function TripsHubTableView({
                 ]}
               >
                 {toolbarStatusTags}
-                {(
-                  [
-                    { id: "all" as const, label: "All" },
-                    { id: "today" as const, label: "Today" },
-                    { id: "yesterday" as const, label: "Yesterday" },
-                    { id: "this_week" as const, label: "Week" },
-                    { id: "this_month" as const, label: "Month" },
-                  ] as const
-                ).map(({ id, label }) => (
-                  <TouchableOpacity
-                    key={id}
-                    style={[
-                      styles.auditDateChip,
-                      dateRangeFilter === id && styles.auditDateChipActive,
-                    ]}
-                    onPress={() => onDateRangeFilterChange(id)}
-                    activeOpacity={0.85}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: dateRangeFilter === id }}
-                  >
-                    <Text
-                      style={[
-                        styles.auditDateChipText,
-                        dateRangeFilter === id &&
-                          styles.auditDateChipTextActive,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-                {onOpenDateRangePicker ? (
-                  <TouchableOpacity
-                    style={[
-                      styles.auditDateIconBtn,
-                      dateRangeFilter === "custom" &&
-                        styles.auditDateChipActive,
-                    ]}
-                    onPress={onOpenDateRangePicker}
-                    activeOpacity={0.8}
-                    accessibilityRole="button"
-                    accessibilityLabel="Open custom date range"
-                  >
-                    <FontAwesome
-                      name="calendar"
-                      size={12}
-                      color={
-                        dateRangeFilter === "custom"
-                          ? "#ffffff"
-                          : "#64748b"
-                      }
-                    />
-                  </TouchableOpacity>
-                ) : null}
+                {dateFilterChips}
+                {ewayFilterChips}
                 <TouchableOpacity
                   style={styles.auditToolbarBtn}
                   onPress={cycleSortKey}
@@ -1670,61 +1781,8 @@ export function TripsHubTableView({
               <View style={styles.auditDatePresetTray}>
                 <View style={styles.auditDatePresetRowInner}>
                   {toolbarStatusTags}
-                  {(
-                    [
-                      { id: "all" as const, label: "ALL" },
-                      { id: "today" as const, label: "TODAY" },
-                      { id: "yesterday" as const, label: "YESTERDAY" },
-                      { id: "this_week" as const, label: "THIS WEEK" },
-                      { id: "this_month" as const, label: "THIS MONTH" },
-                    ] as const
-                  ).map(({ id, label }) => (
-                    <TouchableOpacity
-                      key={id}
-                      style={[
-                        styles.auditDateChip,
-                        dateRangeFilter === id && styles.auditDateChipActive,
-                      ]}
-                      onPress={() => onDateRangeFilterChange(id)}
-                      activeOpacity={0.85}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: dateRangeFilter === id }}
-                    >
-                      <Text
-                        style={[
-                          styles.auditDateChipText,
-                          dateRangeFilter === id &&
-                            styles.auditDateChipTextActive,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                  {onOpenDateRangePicker ? (
-                    <TouchableOpacity
-                      style={[
-                        styles.auditDateIconBtn,
-                        dateRangeFilter === "custom" &&
-                          styles.auditDateChipActive,
-                      ]}
-                      onPress={onOpenDateRangePicker}
-                      activeOpacity={0.8}
-                      accessibilityRole="button"
-                      accessibilityLabel="Open custom date range"
-                    >
-                      <FontAwesome
-                        name="calendar"
-                        size={12}
-                        color={
-                          dateRangeFilter === "custom"
-                            ? Theme.primary
-                            : "#64748b"
-                        }
-                      />
-                    </TouchableOpacity>
-                  ) : null}
+                  {dateFilterChips}
+                  {ewayFilterChips}
                 </View>
               </View>
             )
@@ -3643,6 +3701,7 @@ const styles = StyleSheet.create({
     width: "100%",
     minWidth: 0,
     flexWrap: "nowrap",
+    justifyContent: "flex-start",
   },
   auditToolbarMobileCards: {
     flexDirection: "column",
@@ -3716,11 +3775,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   auditSearchWrapDesktopInline: {
-    flex: 1,
-    flexGrow: 1,
-    flexShrink: 1,
-    minWidth: 120,
-    maxWidth: "100%" as const,
+    flexGrow: 0,
+    flexShrink: 0,
+    width: 384,
+    maxWidth: 384,
+    minWidth: 220,
+    marginLeft: "auto",
   },
   auditSearchWrap: {
     flexGrow: 1,
@@ -3859,7 +3919,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    flexWrap: "nowrap",
+    flexWrap: "wrap",
     flexShrink: 1,
     minWidth: 0,
   },

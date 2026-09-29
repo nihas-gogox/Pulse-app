@@ -1,101 +1,107 @@
 /**
- * Desktop grid footer — sales, receivable due, payable due (status in card header).
+ * Desktop grid footer — e-way bill expiry in place of the sales / due chips.
  */
-import {
-  HubGridCardFooter,
-  HubGridMetricsRow,
-  HubGridStatusChip,
-} from "@/components/hub/HubGridCardToolbar";
 import Theme from "@/constants/Theme";
-import { formatINRChip } from "@/lib/format";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { ewayExpiryTone } from "@/features/trips/services/ewayBillFields.util";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
 export type TripsHubTripCardToolbarProps = {
-  revenue: number;
-  receivableDue: number;
-  payableDue: number;
-  salesLabel: string;
-  receivableLabel: string;
-  payableLabel: string;
-  clearedLabel: string;
+  ewayExpiryLabel?: string | null;
+  /** Post-loading trips keep E-LR on the card through later stages. */
+  showElr?: boolean;
   dense?: boolean;
 };
 
-function DueChip({
-  amount,
-  pending,
-  pendingLabel,
-  clearedLabel,
-  iconName,
-}: {
-  amount: number;
-  pending: boolean;
-  pendingLabel: string;
-  clearedLabel: string;
-  iconName: React.ComponentProps<typeof FontAwesome>["name"];
-}) {
-  const tone = pending ? Theme.teslaRed : Theme.positive;
-  return (
-    <HubGridStatusChip
-      fill
-      compact
-      amountLine
-      accessibilityLabel={
-        pending ? `${pendingLabel} ${formatINRChip(amount)}` : clearedLabel
-      }
-      icon={
-        <FontAwesome
-          name={pending ? iconName : "check"}
-          size={9}
-          color={tone}
-        />
-      }
-      line1={formatINRChip(amount)}
-    />
-  );
-}
-
 export function TripsHubTripCardToolbar({
-  revenue,
-  receivableDue,
-  payableDue,
-  salesLabel,
-  receivableLabel,
-  payableLabel,
-  clearedLabel,
-  dense,
+  ewayExpiryLabel,
+  showElr = false,
 }: TripsHubTripCardToolbarProps) {
-  const recvPending = receivableDue > 0;
-  const payPending = payableDue > 0;
+  const label = (ewayExpiryLabel ?? "").trim();
+  if (!label && !showElr) return null;
+  const tone = label ? ewayExpiryTone(label) : "ok";
 
   return (
-    <HubGridCardFooter dense={dense}>
-      <HubGridMetricsRow>
-        <HubGridStatusChip
-          fill
-          compact
-          amountLine
-          accessibilityLabel={`${salesLabel} ${formatINRChip(revenue)}`}
-          icon={
-            <FontAwesome name="rupee" size={9} color={Theme.textSecondary} />
-          }
-          line1={formatINRChip(revenue)}
-        />
-        <DueChip
-          amount={receivableDue}
-          pending={recvPending}
-          pendingLabel={receivableLabel}
-          clearedLabel={clearedLabel}
-          iconName="arrow-down"
-        />
-        <DueChip
-          amount={payableDue}
-          pending={payPending}
-          pendingLabel={payableLabel}
-          clearedLabel={clearedLabel}
-          iconName="arrow-up"
-        />
-      </HubGridMetricsRow>
-    </HubGridCardFooter>
+    <View style={styles.wrap} accessibilityLabel={showElr ? "E-LR" : label}>
+      {showElr ? (
+        <View style={[styles.tag, styles.tagElr]}>
+          <Text style={[styles.tagText, styles.tagTextElr]} numberOfLines={1}>
+            E-LR
+          </Text>
+        </View>
+      ) : null}
+      {label ? (
+        <View
+          style={[
+            styles.tag,
+            tone === "ok" && styles.tagOk,
+            tone === "expired" && styles.tagExpired,
+          ]}
+        >
+          <Text
+            style={[
+              styles.tagText,
+              tone === "ok" && styles.tagTextOk,
+              tone === "expired" && styles.tagTextExpired,
+            ]}
+            numberOfLines={1}
+          >
+            {label}
+          </Text>
+        </View>
+      ) : null}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    alignSelf: "center",
+    gap: 4,
+    backgroundColor: "transparent",
+    maxWidth: "100%",
+    marginTop: -2,
+  },
+  tag: {
+    height: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    paddingHorizontal: 5,
+    backgroundColor: "transparent",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Theme.warning,
+    maxWidth: "100%",
+  },
+  tagOk: {
+    borderColor: Theme.positive,
+  },
+  tagExpired: {
+    borderColor: Theme.negative,
+  },
+  tagElr: {
+    borderColor: Theme.primary,
+  },
+  tagText: {
+    color: Theme.warning,
+    fontSize: 8,
+    fontWeight: "500",
+    lineHeight: 10,
+    includeFontPadding: false,
+    ...Platform.select({
+      android: { textAlignVertical: "center" as const },
+      default: {},
+    }),
+  },
+  tagTextOk: {
+    color: Theme.positive,
+  },
+  tagTextExpired: {
+    color: Theme.negative,
+  },
+  tagTextElr: {
+    color: Theme.primary,
+  },
+});

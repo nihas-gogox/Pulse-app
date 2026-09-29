@@ -1,6 +1,10 @@
 import { ContentErrorState } from '@/components/ContentErrorState';
 import { logger } from '@/lib/logger';
 import {
+  isServiceUnavailableError,
+  resetSupabaseCircuit,
+} from '@/lib/supabaseHttp.util';
+import {
   isStaleWebChunkError,
   recoverStaleWebDeploy,
 } from '@/lib/webDeployRecovery';
@@ -83,6 +87,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   private handleRetry = () => {
+    resetSupabaseCircuit();
     const { errorMessage, errorName } = this.state;
     if (
       (errorMessage || errorName) &&
@@ -111,6 +116,11 @@ export class AppErrorBoundary extends Component<Props, State> {
         isStaleWebChunkError(
           toError(this.state.errorName, this.state.errorMessage ?? ''),
         );
+      const unavailable =
+        (this.state.errorMessage != null || this.state.errorName != null) &&
+        isServiceUnavailableError(
+          toError(this.state.errorName, this.state.errorMessage ?? ''),
+        );
       const technicalDetails = [this.state.errorMessage, this.state.componentStack]
         .filter(Boolean)
         .join('\n\n');
@@ -118,9 +128,10 @@ export class AppErrorBoundary extends Component<Props, State> {
       return (
         <View style={{ flex: 1 }}>
           <ContentErrorState
-            variant={staleDeploy ? 'update' : 'generic'}
+            variant={staleDeploy ? 'update' : unavailable ? 'connection' : 'generic'}
             technicalDetails={technicalDetails || null}
             onRetry={this.handleRetry}
+            retryLabel="Try Again"
           />
         </View>
       );

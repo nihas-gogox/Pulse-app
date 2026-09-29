@@ -60,6 +60,7 @@ import {
     type BundleTransaction,
 } from "@/lib/queries/useTripDetailBundleQuery";
 import { queryKeys } from "@/lib/queryKeys";
+import { isServiceUnavailableError } from "@/lib/supabaseHttp.util";
 import * as driverLocationService from "@/features/driver/services/driverLocation.service";
 import { getMoverAssetClientPaid } from "@/features/trips/services/moverAssetPayment.service";
 import * as tripDocumentsService from "@/features/trips/services/tripDocuments.service";
@@ -550,6 +551,17 @@ export function useTripDetail({
   const lastBroadcastTimestampRef = useRef<string | null>(null);
   // Phase 3b: true after bundle data has been seeded into state on initial mount.
   const bundleSeededRef = useRef(false);
+  const bundleSeedSlicesRef = useRef<{
+    documents: unknown;
+    assignment_audit: unknown;
+    adjustments: unknown;
+    driver: unknown;
+    vehicle: unknown;
+    otp: unknown;
+    client_detail: unknown;
+    supplier_detail: unknown;
+    latest_driver_location: unknown;
+  } | null>(null);
   /** Documents/POD viewer opened — allows OCR + Storage fallback. */
   const documentsViewerActiveRef = useRef(false);
   /**
@@ -1273,8 +1285,15 @@ export function useTripDetail({
     getTripById(tripId)
       .then((res) => {
         if (res.error) {
-          setError(res.error.message);
-          setTrip(null);
+          const unavailable = isServiceUnavailableError(res.error);
+          setError(
+            unavailable
+              ? "Couldn't reach the server. Try again in a moment."
+              : res.error.message,
+          );
+          if (!unavailable || !tripRef.current) {
+            setTrip(null);
+          }
         } else if (res.trip) {
           setTrip(res.trip);
         } else {
@@ -1285,6 +1304,7 @@ export function useTripDetail({
       })
       .then(async (res) => {
         if (res.trip) return;
+        if (res.error && isServiceUnavailableError(res.error)) return;
         const orgId = currentOrganization?.id;
         if (!orgId) return;
         const now = Date.now();
@@ -1306,6 +1326,19 @@ export function useTripDetail({
             setTrip(mapped);
             setError(null);
           }
+        }
+      })
+      .catch((caught) => {
+        const unavailable = isServiceUnavailableError(caught);
+        setError(
+          unavailable
+            ? "Couldn't reach the server. Try again in a moment."
+            : caught instanceof Error
+              ? caught.message
+              : "Trip not found",
+        );
+        if (!unavailable || !tripRef.current) {
+          setTrip(null);
         }
       })
       .finally(() => {
@@ -2292,7 +2325,41 @@ export function useTripDetail({
   // fire their own DB calls when the bundle path is active.
   useEffect(() => {
     if (!bundle) return;
+
+    const tripOnlyPatch =
+      bundleSeededRef.current &&
+      bundleSeedSlicesRef.current != null &&
+      bundleSeedSlicesRef.current.documents === bundle.documents &&
+      bundleSeedSlicesRef.current.assignment_audit === bundle.assignment_audit &&
+      bundleSeedSlicesRef.current.adjustments === bundle.adjustments &&
+      bundleSeedSlicesRef.current.driver === bundle.driver &&
+      bundleSeedSlicesRef.current.vehicle === bundle.vehicle &&
+      bundleSeedSlicesRef.current.otp === bundle.otp &&
+      bundleSeedSlicesRef.current.client_detail === bundle.client_detail &&
+      bundleSeedSlicesRef.current.supplier_detail === bundle.supplier_detail &&
+      bundleSeedSlicesRef.current.latest_driver_location === bundle.latest_driver_location;
+
+    if (tripOnlyPatch) {
+      const tripRow = bundle.trip as unknown as TripRow;
+      setTrip((prev) => {
+        if (!prev || prev.id !== tripRow.id) return tripRow;
+        return { ...prev, ...tripRow };
+      });
+      return;
+    }
+
     bundleSeededRef.current = true;
+    bundleSeedSlicesRef.current = {
+      documents: bundle.documents,
+      assignment_audit: bundle.assignment_audit,
+      adjustments: bundle.adjustments,
+      driver: bundle.driver,
+      vehicle: bundle.vehicle,
+      otp: bundle.otp,
+      client_detail: bundle.client_detail,
+      supplier_detail: bundle.supplier_detail,
+      latest_driver_location: bundle.latest_driver_location,
+    };
 
     setTrip(bundle.trip as unknown as TripRow);
     setLoading(false);
@@ -2707,9 +2774,10 @@ export function useTripDetail({
         return;
       }
     }
+    if (trip.status_change_origin === "business_simulated") return;
     void driverLocationService.getLatestDriverLocationForTripOrDriver(trip.id, effectiveDriverIdForLocation)
       .then(res => { if (!res.error && res.location) setDriverLocation(res.location); });
-  }, [trip?.updated_at, trip?.status, effectiveDriverIdForLocation, trip?.id, bundleActive]);
+  }, [trip?.updated_at, trip?.status, trip?.status_change_origin, effectiveDriverIdForLocation, trip?.id, bundleActive]);
 
   useTrackingTripBroadcast({
     tripId: trip?.id ?? null,
@@ -2953,6 +3021,21 @@ export function useTripDetail({
     ],
   );
 
+  const mergeTripRow = useCallback(
+    (row: Partial<TripRow> & { id: string }) => {
+      setTrip((prev) => {
+        if (!prev || prev.id !== row.id) return prev;
+        return { ...prev, ...row };
+      });
+      if (!tripId) return;
+      patchTripDetailBundleCache(queryClient, tripId, (old) => {
+        if (!old || old.trip.id !== row.id) return old;
+        return { ...old, trip: { ...old.trip, ...row } };
+      });
+    },
+    [tripId, queryClient],
+  );
+
   return {
     // Data
     trip,
@@ -3083,6 +3166,7 @@ export function useTripDetail({
     // Actions
     load,
     handleRefresh,
+    mergeTripRow,
     handleAssignmentUpdated,
     handleReassignCompleted,
     openAddEntry,

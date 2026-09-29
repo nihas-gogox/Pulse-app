@@ -7,6 +7,7 @@ export type ManifestJourneyStepKey =
   | "driver_accepted"
   | "pickup"
   | "in_transit"
+  | "drop_off"
   | "delivered";
 
 export type ManifestJourneyLogEntry = {
@@ -26,6 +27,8 @@ export type ManifestSimLogEntry = {
   lat: number | null;
   lng: number | null;
   userName: string;
+  /** Place name shown in the simulate dialog. */
+  locationLabel?: string | null;
 };
 
 export type ManifestLocationPing = {
@@ -35,7 +38,9 @@ export type ManifestLocationPing = {
   locationName?: string | null;
 };
 
-const MANIFEST_LAST_INDEX = 4;
+const MANIFEST_LAST_INDEX = 5;
+
+export const MANIFEST_PULSE_LAST_INDEX = MANIFEST_LAST_INDEX;
 
 function formatCoordinateLabel(lat: number, lng: number): string {
   const latHem = lat >= 0 ? "N" : "S";
@@ -207,6 +212,22 @@ function formatDriverAcceptanceLocation(input: {
   };
 }
 
+function simShownPlace(
+  sim: ManifestSimLogEntry | null,
+  tripPlace: string | null | undefined,
+): string | null {
+  const stored = sim?.locationLabel?.trim();
+  if (stored) return stored;
+  const place = tripPlace?.trim();
+  if (sim && place) return place;
+  return null;
+}
+
+function simCoords(sim: ManifestSimLogEntry | null): string | null {
+  if (!sim || sim.lat == null || sim.lng == null) return null;
+  return formatCoordinateLabel(sim.lat, sim.lng);
+}
+
 function resolveStepLocation(
   candidates: Array<string | null | undefined>,
   fallback: string,
@@ -292,11 +313,12 @@ export function getManifestCurrentStepIndex(
 ): number {
   const s = String(trip.status ?? "").toLowerCase();
   if (
-    ["completed", "delivered", "done", "at_drop"].includes(s) ||
+    ["completed", "delivered", "done"].includes(s) ||
     !!trip.completed_at
   ) {
     return MANIFEST_LAST_INDEX;
   }
+  if (s === "at_drop") return 4;
   if (s === "in_transit") return 3;
   if (["in_progress", "picked_up", "pickup"].includes(s)) return 2;
   if (s === "assigned") {
@@ -324,7 +346,12 @@ export function getVisibleManifestJourneyLogs(
     Math.max(0, currentStepIndex) + 1,
     logs.length,
   );
-  return logs.slice(0, end);
+  const sliced = logs.slice(0, end);
+  return sliced.filter((log, index) => {
+    if (log.stepKey !== "drop_off") return true;
+    if (log.atIso) return true;
+    return index === sliced.length - 1;
+  });
 }
 
 export function buildManifestJourneyLogs(input: {
@@ -406,12 +433,10 @@ export function buildManifestJourneyLogs(input: {
   const assignedSim = pickLatestSim(simLogs, ["pending_acceptance", "assigned"]);
   const pickupSim = pickLatestSim(simLogs, ["in_progress", "picked_up", "pickup"]);
   const transitSim = pickLatestSim(simLogs, ["in_transit"]);
-  const deliveredSim = pickLatestSim(simLogs, [
-    "at_drop",
-    "completed",
-    "delivered",
-    "done",
-  ]);
+  const dropSim = pickLatestSim(simLogs, ["at_drop"]);
+  const deliveredSim = pickLatestSim(simLogs, ["completed", "delivered", "done"]);
+  const pickupPlace = (tr.pickup_area ?? "").trim() || null;
+  const dropPlace = (tr.drop_location ?? tr.drop_area ?? "").trim() || null;
 
   const steps: ManifestJourneyLogEntry[] = [
     {
@@ -455,32 +480,41 @@ export function buildManifestJourneyLogs(input: {
       return {
         stepKey: "driver_accepted" as const,
         status: pending ? "Awaiting Driver Acceptance" : "Driver Accepted",
-        atIso: driverAcceptedAtIso,
-        time: driverAcceptedAtIso ? formatTrackingDateTime(driverAcceptedAtIso) : "—",
-        location: acceptLoc.location,
-        locationCoords: acceptLoc.locationCoords,
+        atIso: assignedSim?.timestamp ?? driverAcceptedAtIso,
+        time:
+          assignedSim?.timestamp ?? driverAcceptedAtIso
+            ? formatTrackingDateTime(
+                assignedSim?.timestamp ?? driverAcceptedAtIso!,
+              )
+            : "—",
+        location:
+          simShownPlace(assignedSim, pickupPlace) ?? acceptLoc.location,
+        locationCoords: simCoords(assignedSim) ?? acceptLoc.locationCoords,
         details: acceptLoc.details,
       };
     })(),
     {
       stepKey: "pickup",
       status: "Pickup",
-      atIso: tr.started_at ?? pickupSim?.timestamp ?? null,
-      time: tr.started_at
-        ? formatTrackingDateTime(tr.started_at)
-        : pickupSim?.timestamp
-          ? formatTrackingDateTime(pickupSim.timestamp)
+      atIso: pickupSim?.timestamp ?? tr.started_at ?? null,
+      time:
+        pickupSim?.timestamp ?? tr.started_at
+          ? formatTrackingDateTime(pickupSim?.timestamp ?? tr.started_at!)
           : "—",
       location: resolveStepLocation(
         [
-          locationFromSim(pickupSim, simLocationByKey),
-          locationFromPing(pings, tr.started_at ?? pickupSim?.timestamp ?? null),
-          latestDriverLabel,
+          simShownPlace(pickupSim, pickupPlace),
+          pickupSim ? null : locationFromSim(pickupSim, simLocationByKey),
+          pickupSim
+            ? null
+            : locationFromPing(pings, tr.started_at ?? null),
+          pickupSim ? null : latestDriverLabel,
           tr.pickup_area,
         ],
         "Pickup point",
       ),
-      details: "Pickup verification completed and movement initiated.",
+      locationCoords: simCoords(pickupSim),
+      details: "Driver arrived at pickup.",
     },
     {
       stepKey: "in_transit",
@@ -500,47 +534,63 @@ export function buildManifestJourneyLogs(input: {
       })(),
       location: resolveStepLocation(
         [
-          locationFromSim(transitSim, simLocationByKey),
-          locationFromPing(
-            pings,
-            transitSim?.timestamp ??
-              input.driverLocation?.recorded_at ??
-              tr.started_at ??
-              null,
-          ),
-          latestDriverLabel,
-          input.driverLocation && !input.driverLocationAddress?.trim()
-            ? loadingLabel
-            : null,
+          simShownPlace(transitSim, pickupPlace),
+          transitSim ? null : locationFromSim(transitSim, simLocationByKey),
+          transitSim
+            ? null
+            : locationFromPing(pings, input.driverLocation?.recorded_at ?? tr.started_at ?? null),
+          transitSim ? null : latestDriverLabel,
+          transitSim
+            ? null
+            : input.driverLocation && !input.driverLocationAddress?.trim()
+              ? loadingLabel
+              : null,
+          pickupPlace,
         ],
         "Route in progress",
       ),
-      details: latestDriverLabel
-        ? `Last known position: ${latestDriverLabel}.`
-        : pings.length > 0
-          ? `${pings.length} GPS ping${pings.length === 1 ? "" : "s"} on this trip.`
-          : "Vehicle moving towards destination.",
+      locationCoords: simCoords(transitSim),
+      details: transitSim
+        ? "Package collected and the trip is in transit."
+        : latestDriverLabel
+          ? `Last known position: ${latestDriverLabel}.`
+          : pings.length > 0
+            ? `${pings.length} GPS ping${pings.length === 1 ? "" : "s"} on this trip.`
+            : "Vehicle moving towards destination.",
+    },
+    {
+      stepKey: "drop_off",
+      status: "Arrived at drop-off",
+      atIso: dropSim?.timestamp ?? (statusLc === "at_drop" ? tr.updated_at ?? null : null),
+      time: (() => {
+        const iso =
+          dropSim?.timestamp ?? (statusLc === "at_drop" ? tr.updated_at ?? null : null);
+        return iso ? formatTrackingDateTime(iso) : "—";
+      })(),
+      location: resolveStepLocation(
+        [simShownPlace(dropSim, dropPlace), dropPlace],
+        "Drop-off",
+      ),
+      locationCoords: simCoords(dropSim),
+      details: "Driver arrived at the drop-off.",
     },
     {
       stepKey: "delivered",
       status: "Delivered",
-      atIso: tr.completed_at ?? deliveredSim?.timestamp ?? null,
-      time: tr.completed_at
-        ? formatTrackingDateTime(tr.completed_at)
-        : deliveredSim?.timestamp
-          ? formatTrackingDateTime(deliveredSim.timestamp)
+      atIso: deliveredSim?.timestamp ?? tr.completed_at ?? null,
+      time:
+        deliveredSim?.timestamp ?? tr.completed_at
+          ? formatTrackingDateTime(deliveredSim?.timestamp ?? tr.completed_at!)
           : "—",
       location: resolveStepLocation(
         [
-          locationFromSim(deliveredSim, simLocationByKey),
-          locationFromPing(
-            pings,
-            tr.completed_at ?? deliveredSim?.timestamp ?? null,
-          ),
+          simShownPlace(deliveredSim, dropPlace),
+          deliveredSim ? null : locationFromPing(pings, tr.completed_at ?? null),
           tr.drop_location,
         ],
         "Destination",
       ),
+      locationCoords: simCoords(deliveredSim),
       details: "Delivery completed and settlement flow closed.",
     },
   ];
@@ -556,7 +606,8 @@ export function manifestStepIndexForLog(
     driver_accepted: 1,
     pickup: 2,
     in_transit: 3,
-    delivered: 4,
+    drop_off: 4,
+    delivered: 5,
   };
   return map[stepKey];
 }
@@ -570,7 +621,8 @@ export function manifestSimLogsForStepIndex(
     1: ["assigned"],
     2: ["in_progress", "picked_up", "pickup"],
     3: ["in_transit"],
-    4: ["at_drop", "completed", "delivered", "done"],
+    4: ["at_drop"],
+    5: ["completed", "delivered", "done"],
   };
   const statuses = stepStatusMap[stepIndex] ?? [];
   return simLogs.filter((e) => statuses.includes(e.status));

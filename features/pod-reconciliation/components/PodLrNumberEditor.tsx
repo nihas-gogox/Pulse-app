@@ -1,5 +1,7 @@
 import Theme from "@/constants/Theme";
 import { METRONIC } from "@/features/network/components/desktop/networkDesktopHub.styles";
+import { findOrgDuplicateLrNumberForTrip } from "@/features/trips/services/orgLrDuplicate.service";
+import { ORG_LR_DUPLICATE_MESSAGE } from "@/features/trips/services/orgLrNumber.util";
 import * as tripDocumentsService from "@/features/trips/services/tripDocuments.service";
 import { queryKeys } from "@/lib/queryKeys";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
@@ -85,25 +87,70 @@ export function PodLrNumberEditorModal({
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDuplicate, setIsDuplicate] = useState(false);
 
   useEffect(() => {
     if (!trip) {
       setDraft("");
       setError(null);
+      setIsDuplicate(false);
       setSaving(false);
       return;
     }
     setDraft(lrEditorDraft(trip.lr_numbers));
     setError(null);
+    setIsDuplicate(false);
     setSaving(false);
   }, [trip]);
 
   const visible = trip != null;
 
+  useEffect(() => {
+    if (!trip) {
+      setIsDuplicate(false);
+      return;
+    }
+    const numbers = draft
+      .split(/[,;]/)
+      .map((value) => value.trim())
+      .filter(
+        (value) =>
+          value.length > 0 && !/^[A-Za-z]*\d+[–-][A-Za-z]*\d+$/.test(value),
+      );
+    if (numbers.length === 0) {
+      setIsDuplicate(false);
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      void Promise.all(
+        numbers.map((lrNumber) =>
+          findOrgDuplicateLrNumberForTrip({
+            tripId: trip.internal_id,
+            lrNumber,
+          }),
+        ),
+      ).then((results) => {
+        if (cancelled) return;
+        const found = results.some(Boolean);
+        setIsDuplicate(found);
+        if (found) setError(ORG_LR_DUPLICATE_MESSAGE);
+      });
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [trip, draft]);
+
   const save = async () => {
     if (!trip) return;
     if (!uploadedBy) {
       setError("Sign in to save an LR number.");
+      return;
+    }
+    if (isDuplicate) {
+      setError(ORG_LR_DUPLICATE_MESSAGE);
       return;
     }
     setSaving(true);
@@ -116,6 +163,7 @@ export function PodLrNumberEditorModal({
     setSaving(false);
     if (saveError) {
       setError(saveError.message);
+      setIsDuplicate(saveError.message === ORG_LR_DUPLICATE_MESSAGE);
       return;
     }
     if (orgId) {
@@ -157,16 +205,21 @@ export function PodLrNumberEditorModal({
           <TextInput
             autoFocus
             value={draft}
-            onChangeText={setDraft}
+            onChangeText={(value) => {
+              setDraft(value);
+              setIsDuplicate(false);
+              setError(null);
+            }}
             placeholder="e.g. AI3583 or AI101–AI104"
             placeholderTextColor={METRONIC.muted}
             autoCapitalize="characters"
             autoCorrect={false}
             returnKeyType="done"
             onSubmitEditing={() => {
+              if (isDuplicate) return;
               void save();
             }}
-            style={styles.input}
+            style={[styles.input, isDuplicate ? styles.inputError : null]}
           />
           <Text style={styles.hint}>
             One or more numbers. Separate with commas, or use a range such as
@@ -189,6 +242,7 @@ export function PodLrNumberEditorModal({
             <Pressable
               accessibilityRole="button"
               onPress={() => {
+                if (isDuplicate) return;
                 void save();
               }}
               disabled={saving}
@@ -309,6 +363,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: Theme.textPrimaryDark,
+  },
+  inputError: {
+    borderColor: Theme.negative,
+    backgroundColor: Theme.negativeMuted,
+    color: Theme.negative,
   },
   hint: {
     marginTop: 8,

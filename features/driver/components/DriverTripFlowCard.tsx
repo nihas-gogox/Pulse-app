@@ -60,6 +60,8 @@ import {
 import { formatINR } from '@/lib/format';
 import { formatEstimatedDuration } from '@/lib/formatEstimatedDuration';
 import * as tripDocumentsService from '@/features/trips/services/tripDocuments.service';
+import { findOrgDuplicateLrNumberForTrip } from '@/features/trips/services/orgLrDuplicate.service';
+import { ORG_LR_DUPLICATE_MESSAGE } from '@/features/trips/services/orgLrNumber.util';
 import * as tripsService from '@/features/trips/services/trips.service';
 import { useDriverFleetOwnerQuery } from '@/lib/queries/useDriverFleetOwnerQuery';
 import { useOwnerVehiclesQuery } from '@/lib/queries/useOwnerVehiclesQuery';
@@ -1269,6 +1271,18 @@ export function DriverTripFlowCard({
         return;
       }
 
+      const typedLr = lrNumber.trim();
+      if (typedLr) {
+        const duplicate = await findOrgDuplicateLrNumberForTrip({
+          tripId: id,
+          lrNumber: typedLr,
+        });
+        if (duplicate) {
+          setStepError(ORG_LR_DUPLICATE_MESSAGE);
+          return;
+        }
+      }
+
       const { doc, error } = await tripDocumentsService.uploadTripDocument(id, profile.uid, {
         arrayBuffer,
         fileName,
@@ -1455,6 +1469,7 @@ export function DriverTripFlowCard({
             onSkip={() => setLrSkipped(true)}
             lrNumber={lrNumber}
             onChangeLrNumber={setLrNumber}
+            tripId={localTrip?.id}
             onResolvePreview={resolveLrPreviewUrl}
             onDelete={confirmDeleteLr}
             onConfirmAction={() => { void engageTransit(); }}
@@ -1871,6 +1886,7 @@ export function DriverTripFlowCard({
         onSkip={() => setLrSkipped(true)}
         lrNumber={lrNumber}
         onChangeLrNumber={setLrNumber}
+        tripId={localTrip?.id}
         onResolvePreview={resolveLrPreviewUrl}
         onDelete={confirmDeleteLr}
         onConfirmAction={() => { void engageTransit(); }}
