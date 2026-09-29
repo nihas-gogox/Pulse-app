@@ -1,7 +1,9 @@
 import {
+  applyOptimisticDecision,
   canModerateComplianceRow,
   complianceGroupDecisionActions,
   complianceReviewDecisionActions,
+  recordOptimisticDecision,
 } from "@/features/tripCompliance/utils/complianceReviewActions.util";
 import type { ComplianceDocRow } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import type { ComplianceDocumentRow } from "@/features/tripCompliance/tripCompliance.types";
@@ -151,5 +153,39 @@ describe("complianceReviewDecisionActions vault", () => {
         }),
       ),
     ).toEqual({ canApprove: true, canDecline: false });
+  });
+});
+
+describe("optimistic decisions", () => {
+  const pending = row({ status: "pending" });
+
+  it("overlays the local decision on the same file while the server still shows the old status", () => {
+    const local = recordOptimisticDecision(pending, "verified");
+    expect(applyOptimisticDecision(pending, local).status).toBe("verified");
+  });
+
+  it("lets the server row win once a refetch reflects the decision", () => {
+    const local = recordOptimisticDecision(pending, "rejected");
+    const refetched = row({ status: "rejected" });
+    expect(applyOptimisticDecision(refetched, local)).toBe(refetched);
+  });
+
+  it("drops the override after a re-upload of the same doc type", () => {
+    const local = recordOptimisticDecision(pending, "rejected");
+    const reuploaded: typeof pending = {
+      ...pending,
+      doc: { ...pending.doc!, id: "doc-2", storage_path: "path-2", uploaded_at: "2026-09-02" },
+    };
+    expect(applyOptimisticDecision(reuploaded, local).status).toBe("pending");
+  });
+
+  it("lets a server-side status change by someone else win", () => {
+    const local = recordOptimisticDecision(pending, "verified");
+    const expired = { ...pending, status: "expired" as const };
+    expect(applyOptimisticDecision(expired, local).status).toBe("expired");
+  });
+
+  it("is a no-op without a local decision", () => {
+    expect(applyOptimisticDecision(pending, undefined)).toBe(pending);
   });
 });

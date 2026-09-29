@@ -161,19 +161,44 @@ function patchComplianceNode(
     trip && typeof trip === "object"
       ? String((trip as { id?: unknown }).id ?? "")
       : "";
+  const podSource: HardCopyPodColumnSource = {
+    status: summary.received ? "RECEIVED" : summary.courier || summary.awbNumber ? "IN_TRANSIT" : "PENDING",
+    receivedAt: summary.receivedAt,
+    courier: summary.courier,
+    awbNumber: summary.awbNumber,
+    receivedBy: summary.receivedBy,
+  };
   if (rec.hardCopyPod && tripIdOnRow === tripId) {
-    const nextTrip = applyHardCopyPodColumnsToTrip(trip as Record<string, unknown>, {
-      status: summary.received ? "RECEIVED" : summary.courier || summary.awbNumber ? "IN_TRANSIT" : "PENDING",
-      receivedAt: summary.receivedAt,
-      courier: summary.courier,
-      awbNumber: summary.awbNumber,
-      receivedBy: summary.receivedBy,
-    });
+    const nextTrip = applyHardCopyPodColumnsToTrip(trip as Record<string, unknown>, podSource);
     return {
       ...rec,
       trip: nextTrip,
       hardCopyPod: { ...summary },
     };
+  }
+  // Compliance pipeline input row (`{ trip, flags, … }`): POD "received" and the
+  // stage derive from `flags.pod_received_at`, so patch flags alongside the trip.
+  // Recognised by shape only — `lib` must not import feature types.
+  if (tripIdOnRow === tripId && !("hardCopyPod" in rec) && "flags" in rec) {
+    const flags = rec.flags;
+    if (flags !== null && typeof flags !== "object") return data;
+    const nextTrip = applyHardCopyPodColumnsToTrip(trip as Record<string, unknown>, podSource);
+    const current = (flags ?? {}) as Record<string, unknown>;
+    const nextFlags = {
+      ...current,
+      pod_received_at: (nextTrip.pod_received_at as string | null | undefined) ?? null,
+      pod_hard_copy_courier: summary.courier,
+      pod_hard_copy_awb_number: summary.awbNumber,
+      pod_hard_copy_received_by: summary.receivedBy,
+    };
+    const flagsUnchanged =
+      flags !== null &&
+      current.pod_received_at === nextFlags.pod_received_at &&
+      current.pod_hard_copy_courier === nextFlags.pod_hard_copy_courier &&
+      current.pod_hard_copy_awb_number === nextFlags.pod_hard_copy_awb_number &&
+      current.pod_hard_copy_received_by === nextFlags.pod_hard_copy_received_by;
+    if (flagsUnchanged && nextTrip === trip) return data;
+    return { ...rec, trip: nextTrip, flags: flagsUnchanged ? flags : nextFlags };
   }
   let changed = false;
   const next: Record<string, unknown> = { ...rec };

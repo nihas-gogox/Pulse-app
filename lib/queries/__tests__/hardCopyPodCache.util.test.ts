@@ -92,3 +92,68 @@ describe("patchCachedTripPod", () => {
     expect(patchCachedTripPod(list, "trip-a", patch)).toBe(list);
   });
 });
+
+describe("patchCachedCompliancePod — Compliance pipeline input rows ({ trip, flags })", () => {
+  const received = {
+    received: true,
+    receivedAt: "2026-09-29T10:00:00.000Z",
+    courier: "BlueDart",
+    awbNumber: "AWB1",
+    receivedBy: "Ravi",
+  };
+  const flags = {
+    compliance_verified_at: "2026-09-20",
+    pod_received_at: null,
+    pod_hard_copy_courier: null,
+    pod_hard_copy_awb_number: null,
+    pod_hard_copy_received_by: null,
+  };
+  const row = (id: string) => ({
+    trip: { id, trip_number: id, pod_received_at: null },
+    documents: [],
+    flags: { ...flags },
+    taggedAdvance: null,
+  });
+
+  it("patches flags AND trip POD columns for that trip only", () => {
+    const inputs = [row("trip-a"), row("trip-b")];
+    const next = patchCachedCompliancePod(inputs, "trip-a", received) as typeof inputs;
+    expect(next).not.toBe(inputs);
+    expect(next[0].flags).toEqual({
+      ...flags,
+      pod_received_at: "2026-09-29T10:00:00.000Z",
+      pod_hard_copy_courier: "BlueDart",
+      pod_hard_copy_awb_number: "AWB1",
+      pod_hard_copy_received_by: "Ravi",
+    });
+    expect(next[0].trip).toMatchObject({ pod_received_at: "2026-09-29T10:00:00.000Z", pod_hard_copy_courier: "BlueDart" });
+    expect(next[0].documents).toBe(inputs[0].documents);
+    expect(next[1]).toBe(inputs[1]);
+    expect("hardCopyPod" in next[0]).toBe(false);
+  });
+
+  it("clears pod_received_at when the record is back to pending", () => {
+    const inputs = [{ ...row("trip-a"), flags: { ...flags, pod_received_at: "2026-09-01" } }];
+    const next = patchCachedCompliancePod(inputs, "trip-a", {
+      received: false,
+      receivedAt: null,
+      courier: null,
+      awbNumber: null,
+      receivedBy: null,
+    }) as typeof inputs;
+    expect(next[0].flags.pod_received_at).toBeNull();
+  });
+
+  it("returns the same reference when the trip is absent or nothing changes", () => {
+    const inputs = [row("trip-b")];
+    expect(patchCachedCompliancePod(inputs, "trip-a", received)).toBe(inputs);
+    const once = patchCachedCompliancePod([row("trip-a")], "trip-a", received);
+    expect(patchCachedCompliancePod(once, "trip-a", received)).toBe(once);
+  });
+
+  it("handles a pre-migration row with flags: null", () => {
+    const inputs = [{ ...row("trip-a"), flags: null }];
+    const next = patchCachedCompliancePod(inputs, "trip-a", received) as Array<{ flags: Record<string, unknown> }>;
+    expect(next[0].flags).toMatchObject({ pod_received_at: "2026-09-29T10:00:00.000Z", pod_hard_copy_received_by: "Ravi" });
+  });
+});

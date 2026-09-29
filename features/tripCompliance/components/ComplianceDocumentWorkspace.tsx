@@ -1,7 +1,7 @@
 import { PartyAvatar } from "@/components/PartyAvatar";
 import { TripVaultFilePreview } from "@/features/trips/components/trip-detail/TripVaultFilePreview";
 import Theme from "@/constants/Theme";
-import { rejectDocument, verifyDocument } from "@/features/compliance/services/documents.service";
+import { rejectDocument, updateEntityDocumentExpiry, verifyDocument } from "@/features/compliance/services/documents.service";
 import {
   guessCompliancePreviewMime,
   signCompliancePreviewUrl,
@@ -12,6 +12,7 @@ import { setTripDocumentVerification } from "@/features/tripCompliance/services/
 import {
   COMPLIANCE_DRIVER_DOCUMENT_TYPES,
   COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
+  documentRequiresExpiry,
   type ComplianceTripSummary,
 } from "@/features/tripCompliance/tripCompliance.types";
 import {
@@ -26,20 +27,28 @@ import {
   labelForDocType,
   type ComplianceDocRow,
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
-import { complianceReviewDecisionActions } from "@/features/tripCompliance/utils/complianceReviewActions.util";
+import {
+  applyOptimisticDecision,
+  canModerateComplianceRow,
+  complianceReviewDecisionActions,
+  recordOptimisticDecision,
+  type OptimisticComplianceDecision,
+} from "@/features/tripCompliance/utils/complianceReviewActions.util";
+import type { ComplianceChange } from "@/features/tripCompliance/services/compliancePipelineSync.service";
+import { classifyTripDocument, readTypedDetails } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { markTripHardCopyPodReceived } from "@/features/trips/services/tripDocumentLrPod.service";
-
-const HARD_COPY_POD_FIELDS: ComplianceInputField[] = [
-  { key: "courier", label: "Courier", placeholder: "e.g. BlueDart", required: true },
-  { key: "awb", label: "AWB / tracking number", required: true },
-  { key: "receivedBy", label: "Received by", required: true },
-];
 import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
 import { getTripExecutionModel } from "@/features/trips/domain/tripExecutionModel";
-import { markVehicleDocumentVerified } from "@/features/vehicles/services/vehicleDocuments.service";
+import {
+  markVehicleDocumentVerified,
+  resolveVehicleDocumentsWriteTarget,
+  updateVehicleDocumentExpiry,
+} from "@/features/vehicles/services/vehicleDocuments.service";
+import type { VehicleComplianceDocType } from "@/features/vehicles/utils/vehicleDocuments.util";
 import { formatIndianVehicleNumber } from "@/lib/format";
+import { SIGNED_URL_CACHE_TTL_MS, SIGNED_URL_EXPIRY_SEC } from "@/lib/storageSignedUrlCache";
 import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -51,13 +60,50 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const HARD_COPY_POD_FIELDS: ComplianceInputField[] = [
+  { key: "courier", label: "Courier", placeholder: "e.g. BlueDart", required: true },
+  { key: "awb", label: "AWB / tracking number", required: true },
+  { key: "receivedBy", label: "Received by", required: true },
+];
+
+const DECLINE_FIELDS: ComplianceInputField[] = [
+  {
+    key: "reason",
+    label: "Note — why is this document being declined?",
+    placeholder: "Enter reason",
+    required: true,
+  },
+];
+
+/**
+ * Local preview-URL reuse window. Service-level signers already cache URLs until
+ * ~2 min before expiry, so a URL we receive may have only that margin left —
+ * stay inside it so a cached entry can never outlive its signature.
+ */
+const PREVIEW_CACHE_TTL_MS = SIGNED_URL_EXPIRY_SEC * 1000 - SIGNED_URL_CACHE_TTL_MS - 30_000;
+
+type PreviewCacheEntry = { url: string; mime: string | null; expiresAtMs: number };
+
+function readPreviewCache(cache: Map<string, PreviewCacheEntry>, path: string): PreviewCacheEntry | null {
+  const entry = cache.get(path);
+  if (!entry) return null;
+  if (entry.expiresAtMs <= Date.now()) {
+    cache.delete(path);
+    return null;
+  }
+  return entry;
+}
+
+function writePreviewCache(cache: Map<string, PreviewCacheEntry>, path: string, url: string, mime: string | null) {
+  cache.set(path, { url, mime, expiresAtMs: Date.now() + PREVIEW_CACHE_TTL_MS });
+}
 
 type DocTab = "trip" | "vehicle" | "driver";
 
@@ -73,8 +119,24 @@ function rowsForTab(summary: ComplianceTripSummary, tab: DocTab): ComplianceDocR
   return deriveComplianceDocumentRows(summary.documents);
 }
 
+/** Entity doc approve/decline changes that vehicle's or driver's docs — shared by every trip using it. */
+function entityDocumentChange(doc: { entity_type: "vehicle" | "driver"; entity_id: string }): ComplianceChange {
+  return doc.entity_type === "driver"
+    ? { type: "driverDocuments", driverId: doc.entity_id }
+    : { type: "vehicleDocuments", vehicleId: doc.entity_id };
+}
+
+/** Row has reviewable content: a present trip doc (per classifier) or an entity file. */
 function hasFile(row: ComplianceDocRow): boolean {
-  return Boolean(row.doc?.storage_path || row.entityDoc?.storage_path);
+  if (row.doc) return classifyTripDocument(row.doc).present;
+  return Boolean(row.entityDoc?.storage_path);
+}
+
+/** Typed-details lines for a details-only trip doc; null when there is a binary to preview instead. */
+function typedDetailsLines(row: ComplianceDocRow | null): { label: string; value: string }[] | null {
+  const doc = row?.doc;
+  if (!doc || classifyTripDocument(doc).kind !== "details") return null;
+  return readTypedDetails(doc.document_number);
 }
 
 function originalDocumentSize(
@@ -587,7 +649,8 @@ export function ComplianceDocumentWorkspace({
   actorId: string | null;
   canVerify: boolean;
   canViewDocuments: boolean;
-  onChanged: (tripId: string) => void;
+  /** Exactly what changed, so the pipeline patches only the affected inputs. */
+  onChanged: (change: ComplianceChange) => void;
   stacked?: boolean;
   style?: StyleProp<ViewStyle>;
   canManageFinance?: boolean;
@@ -612,12 +675,31 @@ export function ComplianceDocumentWorkspace({
   const [busy, setBusy] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
   const [podOpen, setPodOpen] = useState(false);
-  const [declineReason, setDeclineReason] = useState("");
+  const [expiryPrompt, setExpiryPrompt] = useState<{
+    docType: string;
+    resolve: (value: string | null) => void;
+  } | null>(null);
+  /** Optimistic decisions so Approve/Decline feel instant before pipeline refetch. */
+  const [localDecisionByKey, setLocalDecisionByKey] = useState<
+    Record<string, OptimisticComplianceDecision>
+  >({});
+  const previewCacheRef = useRef<Map<string, PreviewCacheEntry>>(new Map());
 
   const summary = summaries.find((item) => item.trip.id === selectedId) ?? summaries[0] ?? null;
   const rows = useMemo(() => (summary ? rowsForTab(summary, tab) : []), [summary, tab]);
   const previewable = useMemo(() => rows.filter(hasFile), [rows]);
   const activeRow = previewable[docIndex] ?? rows[docIndex] ?? null;
+  const effectiveActiveRow = useMemo(() => {
+    if (!activeRow) return null;
+    return applyOptimisticDecision(activeRow, localDecisionByKey[activeRow.key]);
+  }, [activeRow, localDecisionByKey]);
+  const decisions = useMemo(() => {
+    if (!effectiveActiveRow || !canModerateComplianceRow(effectiveActiveRow, tab)) {
+      return { canApprove: false, canDecline: false };
+    }
+    return complianceReviewDecisionActions(effectiveActiveRow);
+  }, [effectiveActiveRow, tab]);
+  const canAct = Boolean(canVerify && actorId && !busy);
 
   useEffect(() => {
     if (selectedTripId && summaries.some((item) => item.trip.id === selectedTripId)) {
@@ -633,38 +715,110 @@ export function ComplianceDocumentWorkspace({
     setDocIndex(0);
     setZoom(1);
     setDeclineOpen(false);
-    setDeclineReason("");
+    setLocalDecisionByKey({});
+    setExpiryPrompt((prev) => {
+      prev?.resolve(null);
+      return null;
+    });
   }, [summary?.trip.id, tab]);
 
+  const activePreviewPath =
+    activeRow?.doc?.storage_path ?? activeRow?.entityDoc?.storage_path ?? null;
+  const activePreviewSource = tab === "trip" ? "trip" : activeRow?.entityDoc?.source;
+  const activePreviewEntityId =
+    activeRow?.entityDoc?.entity_id ??
+    (tab === "vehicle" ? summary?.trip.vehicle_id : summary?.trip.driver_id) ??
+    summary?.trip.id ??
+    null;
+  const activePreviewDocType = activeRow?.type ?? null;
+  const activePreviewSourceEntityId = activeRow?.doc?.source_entity_document_id ?? null;
+  const activePreviewMimeHint = activeRow?.doc?.mime_type ?? null;
+  // Details-only trip docs have no binary to sign — they render via typedDetailsLines.
+  const activePreviewHasBinary = !activeRow?.doc || classifyTripDocument(activeRow.doc).hasBinary;
+
   useEffect(() => {
-    const row = previewable[docIndex] ?? null;
-    const path = row?.doc?.storage_path ?? row?.entityDoc?.storage_path ?? null;
-    if (!row || !path || !canViewDocuments || !organizationId) {
+    if (!activePreviewPath || !activePreviewHasBinary || !canViewDocuments || !organizationId) {
       setPreviewUrl(null);
       setPreviewMime(null);
       setLoadingPreview(false);
       return;
     }
+    const cached = readPreviewCache(previewCacheRef.current, activePreviewPath);
+    if (cached) {
+      setPreviewUrl(cached.url);
+      setPreviewMime(cached.mime);
+      setLoadingPreview(false);
+      return;
+    }
     let cancelled = false;
     setLoadingPreview(true);
-    setPreviewUrl(null);
     void signCompliancePreviewUrl({
-      storagePath: path,
-      source: tab === "trip" ? "trip" : row.entityDoc?.source,
-      sourceEntityDocumentId: row.doc?.source_entity_document_id,
+      storagePath: activePreviewPath,
+      source: activePreviewSource,
+      sourceEntityDocumentId: activePreviewSourceEntityId,
       organizationId,
-      entityId: row.entityDoc?.entity_id ?? (tab === "vehicle" ? summary?.trip.vehicle_id : summary?.trip.driver_id) ?? summary?.trip.id,
-      docType: row.type,
+      entityId: activePreviewEntityId,
+      docType: activePreviewDocType,
     }).then((url) => {
       if (cancelled) return;
+      const mime = guessCompliancePreviewMime(activePreviewPath, activePreviewMimeHint);
+      if (url) {
+        writePreviewCache(previewCacheRef.current, activePreviewPath, url, mime);
+      }
       setPreviewUrl(url);
-      setPreviewMime(guessCompliancePreviewMime(path, row.doc?.mime_type));
+      setPreviewMime(mime);
       setLoadingPreview(false);
     });
     return () => {
       cancelled = true;
     };
-  }, [previewable, docIndex, tab, canViewDocuments, organizationId, summary?.trip.id, summary?.trip.vehicle_id, summary?.trip.driver_id]);
+  }, [
+    activePreviewPath,
+    activePreviewHasBinary,
+    activePreviewSource,
+    activePreviewSourceEntityId,
+    activePreviewEntityId,
+    activePreviewDocType,
+    activePreviewMimeHint,
+    canViewDocuments,
+    organizationId,
+  ]);
+
+  // Prefetch the next file so Approve → Next feels instant.
+  useEffect(() => {
+    if (!canViewDocuments || !organizationId || previewable.length < 2) return;
+    const nextRow = previewable[(docIndex + 1) % previewable.length];
+    if (nextRow?.doc && !classifyTripDocument(nextRow.doc).hasBinary) return;
+    const path = nextRow?.doc?.storage_path ?? nextRow?.entityDoc?.storage_path ?? null;
+    if (!path || readPreviewCache(previewCacheRef.current, path)) return;
+    let cancelled = false;
+    void signCompliancePreviewUrl({
+      storagePath: path,
+      source: tab === "trip" ? "trip" : nextRow.entityDoc?.source,
+      sourceEntityDocumentId: nextRow.doc?.source_entity_document_id,
+      organizationId,
+      entityId:
+        nextRow.entityDoc?.entity_id ??
+        (tab === "vehicle" ? summary?.trip.vehicle_id : summary?.trip.driver_id) ??
+        summary?.trip.id,
+      docType: nextRow.type,
+    }).then((url) => {
+      if (cancelled || !url) return;
+      writePreviewCache(previewCacheRef.current, path, url, guessCompliancePreviewMime(path, nextRow.doc?.mime_type));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    canViewDocuments,
+    organizationId,
+    previewable,
+    docIndex,
+    tab,
+    summary?.trip.id,
+    summary?.trip.vehicle_id,
+    summary?.trip.driver_id,
+  ]);
 
   const goNext = () => {
     if (previewable.length === 0) return;
@@ -677,15 +831,68 @@ export function ComplianceDocumentWorkspace({
     setZoom(1);
   };
 
+  /** Local UI follow-up only — each approve/decline branch sends its own typed ComplianceChange. */
+  const finishDecision = useCallback(
+    (row: ComplianceDocRow, decision: OptimisticComplianceDecision["decision"]) => {
+      setLocalDecisionByKey((prev) => ({ ...prev, [row.key]: recordOptimisticDecision(row, decision) }));
+      setDeclineOpen(false);
+      setBusy(false);
+      if (previewable.length > 1) {
+        setDocIndex((index) => (index + 1) % previewable.length);
+        setZoom(1);
+      }
+    },
+    [previewable.length],
+  );
+
+  const promptExpiryDate = useCallback((docType: string) => {
+    return new Promise<string | null>((resolve) => {
+      setExpiryPrompt({ docType, resolve });
+    });
+  }, []);
+
   const approve = async () => {
-    if (!summary || !activeRow || !actorId || !canVerify || busy) return;
-    if (!complianceReviewDecisionActions(activeRow).canApprove) return;
+    if (!summary || !activeRow || busy) return;
+    if (!canVerify) {
+      alertMessage("Can't approve", "You don't have permission to verify compliance documents.");
+      return;
+    }
+    if (!actorId) {
+      alertMessage("Can't approve", "Sign in again, then try Approve.");
+      return;
+    }
+    if (!decisions.canApprove || !canModerateComplianceRow(activeRow, tab)) {
+      alertMessage("Can't approve", "This document isn't ready to approve yet.");
+      return;
+    }
+
+    const tripId = summary.trip.id;
+    const row = activeRow;
+    const existingExpiry = row.entityDoc?.expiry_date?.trim() ?? "";
+    let expiryDate = existingExpiry;
+    let enteredNewExpiry = false;
+
+    if (tab !== "trip" && documentRequiresExpiry(row.type) && !expiryDate) {
+      const entered = await promptExpiryDate(row.type);
+      if (!entered) return;
+      const trimmed = entered.trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        alertMessage("Invalid expiry date", "Use YYYY-MM-DD (for example 2027-03-15).");
+        return;
+      }
+      expiryDate = trimmed;
+      enteredNewExpiry = true;
+    }
+
     setBusy(true);
     try {
       if (tab === "trip") {
-        if (!activeRow.doc) return;
+        if (!row.doc) {
+          alertMessage("Couldn't approve document", "This trip document has no uploaded file.");
+          return;
+        }
         const { error } = await setTripDocumentVerification({
-          document: activeRow.doc,
+          document: row.doc,
           organizationId,
           actorId,
           status: "verified",
@@ -694,78 +901,149 @@ export function ComplianceDocumentWorkspace({
           alertMessage("Couldn't approve document", error.message);
           return;
         }
-      } else if (activeRow.entityDoc?.source === "vehicle-vault" && summary.trip.vehicle_id) {
-        const marked = await markVehicleDocumentVerified(organizationId, summary.trip.vehicle_id, activeRow.type);
+        onChanged({ type: "tripDocumentDecision", tripId, documentId: row.doc.id, status: "verified", actorId });
+      } else if (row.entityDoc?.source === "vehicle-vault" && summary.trip.vehicle_id) {
+        const vehicleId = summary.trip.vehicle_id;
+        if (enteredNewExpiry) {
+          const { error } = await updateVehicleDocumentExpiry(
+            organizationId,
+            vehicleId,
+            row.type as VehicleComplianceDocType,
+            expiryDate,
+            null,
+          );
+          if (error) {
+            // Cross-org vault write may fail — retry against the vehicle's owning org.
+            const resolved = await resolveVehicleDocumentsWriteTarget(vehicleId, [organizationId]);
+            if (!resolved) {
+              alertMessage(
+                "Couldn't approve document",
+                error.message ||
+                  "Could not save the expiry date on this vehicle. Re-upload with an expiry date, then Approve.",
+              );
+              return;
+            }
+            const retry = await updateVehicleDocumentExpiry(
+              resolved.orgId,
+              vehicleId,
+              row.type as VehicleComplianceDocType,
+              expiryDate,
+              resolved.documents,
+            );
+            if (retry.error) {
+              alertMessage("Couldn't approve document", retry.error.message);
+              return;
+            }
+          }
+        }
+        const marked = await markVehicleDocumentVerified(organizationId, vehicleId, row.type);
         if (marked.error) {
           alertMessage("Couldn't approve document", marked.error.message);
           return;
         }
-      } else if (activeRow.entityDoc?.id && activeRow.entityDoc.source !== "driver-kyc") {
-        const { error } = await verifyDocument(activeRow.entityDoc.id, actorId);
+        onChanged({ type: "vehicleDocuments", vehicleId });
+      } else if (row.entityDoc?.id && row.entityDoc.source !== "driver-kyc") {
+        if (enteredNewExpiry) {
+          const { error: expiryError } = await updateEntityDocumentExpiry(row.entityDoc.id, expiryDate);
+          if (expiryError) {
+            alertMessage("Couldn't approve document", expiryError.message);
+            return;
+          }
+        }
+        const { error } = await verifyDocument(row.entityDoc.id, actorId);
         if (error) {
           alertMessage("Couldn't approve document", error.message);
           return;
         }
+        onChanged(entityDocumentChange(row.entityDoc));
       } else {
         alertMessage("Couldn't approve document", "This document can't be approved from this preview.");
         return;
       }
-      onChanged(summary.trip.id);
-      goNext();
+      finishDecision(row, "verified");
     } finally {
       setBusy(false);
     }
   };
 
-  const decline = async () => {
-    if (!summary || !activeRow || !actorId || !canVerify || busy) return;
-    if (!complianceReviewDecisionActions(activeRow).canDecline) return;
-    const reason = declineReason.trim();
-    if (!reason) {
-      setDeclineOpen(true);
+  const declineWithReason = async (reason: string) => {
+    if (!summary || !activeRow || busy) return;
+    if (!canVerify) {
+      alertMessage("Can't decline", "You don't have permission to verify compliance documents.");
       return;
     }
+    if (!actorId) {
+      alertMessage("Can't decline", "Sign in again, then try Decline.");
+      return;
+    }
+    if (!decisions.canDecline || !canModerateComplianceRow(activeRow, tab)) {
+      alertMessage("Can't decline", "This document isn't ready to decline yet.");
+      return;
+    }
+    const note = reason.trim();
+    if (!note) {
+      alertMessage("Can't decline", "A rejection reason is required.");
+      return;
+    }
+
+    const tripId = summary.trip.id;
+    const row = activeRow;
+
+    setDeclineOpen(false);
     setBusy(true);
     try {
       if (tab === "trip") {
-        if (!activeRow.doc) return;
+        if (!row.doc) {
+          alertMessage("Couldn't decline document", "This trip document has no uploaded file.");
+          return;
+        }
         const { error } = await setTripDocumentVerification({
-          document: activeRow.doc,
+          document: row.doc,
           organizationId,
           actorId,
           status: "rejected",
-          rejectionReason: reason,
+          rejectionReason: note,
         });
         if (error) {
           alertMessage("Couldn't decline document", error.message);
+          setDeclineOpen(true);
           return;
         }
-      } else if (activeRow.entityDoc?.source === "vehicle-vault") {
-        alertMessage("Couldn't decline document", "Replace this file from the vehicle vault, or upload a new copy.");
+        onChanged({
+          type: "tripDocumentDecision",
+          tripId,
+          documentId: row.doc.id,
+          status: "rejected",
+          actorId,
+          rejectionReason: note,
+        });
+      } else if (row.entityDoc?.source === "vehicle-vault") {
+        alertMessage(
+          "Couldn't decline document",
+          "Replace this file from the vehicle vault, or upload a new copy.",
+        );
         return;
-      } else if (activeRow.entityDoc?.id && activeRow.entityDoc.source !== "driver-kyc") {
-        const { error } = await rejectDocument(activeRow.entityDoc.id, reason);
+      } else if (row.entityDoc?.id && row.entityDoc.source !== "driver-kyc") {
+        const { error } = await rejectDocument(row.entityDoc.id, note);
         if (error) {
           alertMessage("Couldn't decline document", error.message);
+          setDeclineOpen(true);
           return;
         }
+        onChanged(entityDocumentChange(row.entityDoc));
       } else {
         alertMessage("Couldn't decline document", "This document can't be declined from this preview.");
         return;
       }
-      setDeclineOpen(false);
-      setDeclineReason("");
-      onChanged(summary.trip.id);
-      goNext();
+      finishDecision(row, "rejected");
     } finally {
       setBusy(false);
     }
   };
-
-  const decisions = activeRow ? complianceReviewDecisionActions(activeRow) : { canApprove: false, canDecline: false };
   const docTitle = activeRow ? labelForDocType(activeRow.type) : "No document";
   const isPdf = (previewMime ?? "").includes("pdf");
   const readiness = summary ? deriveComplianceQueueReadiness(summary) : null;
+  const typedLines = typedDetailsLines(activeRow);
   const showPay = Boolean(canManageFinance && readiness?.paymentReady && onPay && summary);
   const showMarkVerified = Boolean(
     onMarkComplianceVerified && summary && !summary.complianceVerifiedAt && readiness?.requiredDocs.markVerifiedReady,
@@ -879,6 +1157,18 @@ export function ComplianceDocumentWorkspace({
             <View style={styles.stageBody}>
               <ActivityIndicator color={Theme.textPrimaryDark} />
             </View>
+          ) : typedLines && canViewDocuments ? (
+            <View style={styles.emptyStage}>
+              <View style={styles.typedCard}>
+                <Text style={styles.typedTitle}>{docTitle} · entered details (no file)</Text>
+                {typedLines.map((line, index) => (
+                  <View key={`${line.label}-${index}`} style={styles.typedRow}>
+                    <Text style={styles.typedLabel}>{line.label}</Text>
+                    <Text style={styles.typedValue}>{line.value}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
           ) : previewUrl ? (
             <>
               <OriginalDocumentPreview uri={previewUrl} isPdf={isPdf} zoom={zoom} label={docTitle} />
@@ -900,29 +1190,37 @@ export function ComplianceDocumentWorkspace({
           )}
         </View>
 
-        {declineOpen ? (
-          <TextInput
-            style={styles.reasonInput}
-            value={declineReason}
-            onChangeText={setDeclineReason}
-            placeholder="Reason for declining"
-            placeholderTextColor={Theme.textMuted}
-          />
-        ) : null}
-
         <View style={styles.decisionRow}>
           <Pressable
-            style={[styles.declineBtn, (!decisions.canDecline || !canVerify || busy) && styles.btnDisabled]}
-            disabled={!decisions.canDecline || !canVerify || busy}
-            onPress={() => void decline()}
+            style={[styles.declineBtn, (!decisions.canDecline || !canAct) && styles.btnDisabled]}
+            // Keep pressable when gated — `disabled` swallows onPress so permission
+            // / readiness alerts never fire and the buttons look "broken".
+            disabled={busy}
+            hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+            onPress={() => {
+              if (!canVerify) {
+                alertMessage("Can't decline", "You don't have permission to verify compliance documents.");
+                return;
+              }
+              if (!actorId) {
+                alertMessage("Can't decline", "Sign in again, then try Decline.");
+                return;
+              }
+              if (!decisions.canDecline || !activeRow || !canModerateComplianceRow(activeRow, tab)) {
+                alertMessage("Can't decline", "This document isn't ready to decline yet.");
+                return;
+              }
+              setDeclineOpen(true);
+            }}
             accessibilityRole="button"
             accessibilityLabel="Decline document"
           >
-            <Text style={styles.declineText}>{declineOpen ? "Confirm decline" : "Decline"}</Text>
+            <Text style={styles.declineText}>Decline</Text>
           </Pressable>
           <Pressable
-            style={[styles.approveBtn, (!decisions.canApprove || !canVerify || busy) && styles.btnDisabled]}
-            disabled={!decisions.canApprove || !canVerify || busy}
+            style={[styles.approveBtn, (!decisions.canApprove || !canAct) && styles.btnDisabled]}
+            disabled={busy}
+            hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
             onPress={() => void approve()}
             accessibilityRole="button"
             accessibilityLabel="Approve document"
@@ -987,6 +1285,37 @@ export function ComplianceDocumentWorkspace({
         />
       ) : null}
       <ComplianceInputModal
+        visible={declineOpen}
+        title="Decline document"
+        fields={DECLINE_FIELDS}
+        confirmLabel="Decline with note"
+        onCancel={() => setDeclineOpen(false)}
+        onSubmit={(values) => {
+          void declineWithReason(values.reason ?? "");
+        }}
+      />
+      <ComplianceInputModal
+        visible={expiryPrompt != null}
+        title={`Expiry date — ${expiryPrompt ? labelForDocType(expiryPrompt.docType) : "Document"}`}
+        fields={[
+          {
+            key: "expiry",
+            label: "Expiry date (YYYY-MM-DD)",
+            placeholder: "2027-03-15",
+            required: true,
+          },
+        ]}
+        confirmLabel="Continue"
+        onCancel={() => {
+          expiryPrompt?.resolve(null);
+          setExpiryPrompt(null);
+        }}
+        onSubmit={(values) => {
+          expiryPrompt?.resolve(values.expiry ?? null);
+          setExpiryPrompt(null);
+        }}
+      />
+      <ComplianceInputModal
         visible={podOpen}
         title="Log hardcopy POD"
         fields={HARD_COPY_POD_FIELDS}
@@ -1009,7 +1338,7 @@ export function ComplianceDocumentWorkspace({
               alertMessage("Hardcopy POD", "This trip already has a hardcopy POD logged.");
               return;
             }
-            onChanged(summary.trip.id);
+            onChanged({ type: "tripFlags", tripId: summary.trip.id });
           })();
         }}
       />
@@ -1316,6 +1645,21 @@ const styles = StyleSheet.create({
   stageFill: { width: "100%", height: "100%" },
   stageScrollCenter: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   stageScrollStart: { flexGrow: 1, alignItems: "flex-start", justifyContent: "flex-start" },
+  typedCard: {
+    minWidth: 280,
+    maxWidth: 420,
+    width: "100%",
+    padding: 16,
+    gap: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    backgroundColor: Theme.cardWhite,
+  },
+  typedTitle: { fontSize: 13, fontWeight: "700", color: Theme.textPrimaryDark, marginBottom: 4 },
+  typedRow: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
+  typedLabel: { fontSize: 12, color: Theme.textMuted },
+  typedValue: { fontSize: 12, fontWeight: "600", color: Theme.textPrimaryDark },
   emptyStage: {
     flex: 1,
     minHeight: 0,
@@ -1343,22 +1687,19 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   navLabel: { fontSize: 11, fontWeight: "500", lineHeight: 14, color: Theme.textPrimaryDark, maxWidth: 88 },
-  reasonInput: {
-    minHeight: 44,
-    borderWidth: 1,
-    borderColor: Theme.complianceCardBorder,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    color: Theme.textPrimaryDark,
+  decisionRow: {
+    flexShrink: 0,
+    minHeight: 32,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    zIndex: 2,
   },
-  decisionRow: { flexShrink: 0, height: 22, flexDirection: "row", alignItems: "center", gap: 6 },
   declineBtn: {
-    height: 22,
-    minHeight: 22,
-    maxHeight: 22,
+    height: 32,
+    minHeight: 32,
     paddingVertical: 0,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: Theme.negative,
@@ -1367,25 +1708,23 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: Theme.cardWhite,
   },
-  declineText: { fontSize: 11, fontWeight: "600", lineHeight: 14, color: Theme.negative },
+  declineText: { fontSize: 12, fontWeight: "600", lineHeight: 16, color: Theme.negative },
   approveBtn: {
-    height: 22,
-    minHeight: 22,
-    maxHeight: 22,
+    height: 32,
+    minHeight: 32,
     paddingVertical: 0,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     borderRadius: 6,
     backgroundColor: Theme.positive,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
-  approveText: { fontSize: 11, fontWeight: "600", lineHeight: 14, color: Theme.cardWhite },
+  approveText: { fontSize: 12, fontWeight: "600", lineHeight: 16, color: Theme.cardWhite },
   actionEnd: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 6 },
   payBtn: {
-    height: 22,
-    minHeight: 22,
-    maxHeight: 22,
+    height: 32,
+    minHeight: 32,
     paddingVertical: 0,
     paddingHorizontal: 10,
     borderRadius: 6,

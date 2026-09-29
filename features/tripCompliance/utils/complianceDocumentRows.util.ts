@@ -14,10 +14,8 @@ import {
   type ComplianceDocumentStatus,
   type ComplianceEntityDocument,
 } from "@/features/tripCompliance/tripCompliance.types";
-import {
-  isEntityDocumentExpired,
-} from "@/features/tripCompliance/utils/complianceChecklist.util";
-import { isEwayBillMetaPath } from "@/features/trips/services/ewayBillFields.util";
+import { isEntityDocumentExpired } from "@/features/tripCompliance/utils/complianceChecklist.util";
+import { classifyTripDocument } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
 
 export const DOC_TYPE_LABEL: Record<string, string> = {
   lr: "LR",
@@ -52,16 +50,20 @@ export type ComplianceDocRow = {
   entityDoc: ComplianceEntityDocument | null;
 };
 
-function isMetaOnlyTripDoc(doc: ComplianceDocumentRow): boolean {
-  return isEwayBillMetaPath(doc.storage_path, doc.file_name);
-}
-
+/**
+ * Latest present doc per type (per `classifyTripDocument`). Anything openable
+ * (file / url / reference) wins over a details-only row; `empty` rows never
+ * stand in for a document.
+ */
 function latestDocByType(documents: ComplianceDocumentRow[]): Map<string | null, ComplianceDocumentRow> {
   const byType = new Map<string | null, ComplianceDocumentRow>();
   for (const doc of documents) {
-    if (isMetaOnlyTripDoc(doc)) continue;
+    const kind = classifyTripDocument(doc);
+    if (!kind.present) continue;
     const current = byType.get(doc.document_type);
-    if (!current || (doc.uploaded_at ?? "") > (current.uploaded_at ?? "")) {
+    const currentBinary = current ? classifyTripDocument(current).hasBinary : false;
+    const newer = !current || (doc.uploaded_at ?? "") > (current.uploaded_at ?? "");
+    if (!current || (!currentBinary && kind.hasBinary) || (currentBinary === kind.hasBinary && newer)) {
       byType.set(doc.document_type, doc);
     }
   }

@@ -5,7 +5,7 @@
 import Theme from "@/constants/Theme";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Calendar } from "lucide-react-native";
-import { createElement, useState } from "react";
+import { createElement, useId, useState } from "react";
 import {
   Modal,
   Platform,
@@ -52,44 +52,54 @@ export function HardCopyPodDateField({
   error?: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const fieldId = useId();
   const isoValue = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+  const hasError = Boolean(error?.trim());
 
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>
+      <Text style={styles.label} nativeID={`${fieldId}-label`}>
         {label}
         {required ? <Text style={styles.req}> *</Text> : null}
       </Text>
       {Platform.OS === "web" ? (
-        <View style={[styles.shell, error ? styles.shellError : null]}>
+        <View
+          style={[
+            styles.shell,
+            hasError ? styles.shellError : null,
+            isoValue ? styles.shellFilled : null,
+          ]}
+        >
           {createElement("input", {
+            id: fieldId,
             type: "date",
             value: isoValue,
+            required: Boolean(required),
             "aria-label": label,
+            "aria-required": required ? true : undefined,
+            "aria-invalid": hasError ? true : undefined,
+            "aria-describedby": hasError ? `${fieldId}-error` : undefined,
             onChange: (e: { target?: { value?: string } }) => {
               onChange(String(e?.target?.value ?? ""));
             },
             style: {
-              flex: "1 1 0",
-              minWidth: 0,
               width: "100%",
               boxSizing: "border-box",
               border: "none",
               outline: "none",
               background: "transparent",
               fontSize: 14,
-              fontWeight: "500",
+              fontWeight: 600,
+              lineHeight: "20px",
               color: Theme.textPrimaryDark,
-              fontFamily: "inherit",
+              fontFamily:
+                'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
               padding: 0,
               margin: 0,
               minHeight: 22,
               cursor: "pointer",
             },
           })}
-          <View pointerEvents="none">
-            <Calendar size={15} color={Theme.textMuted} strokeWidth={2.2} />
-          </View>
         </View>
       ) : (
         <>
@@ -97,16 +107,18 @@ export function HardCopyPodDateField({
             onPress={() => setOpen(true)}
             style={({ pressed }) => [
               styles.shell,
-              error ? styles.shellError : null,
+              hasError ? styles.shellError : null,
+              isoValue ? styles.shellFilled : null,
               pressed && { opacity: 0.9 },
             ]}
             accessibilityRole="button"
             accessibilityLabel={label}
+            accessibilityHint={required ? "Required" : undefined}
           >
             <Text style={[styles.valueText, !isoValue && styles.placeholder]}>
-              {isoValue ? formatDisplay(isoValue) : "DD/MM/YYYY"}
+              {isoValue ? formatDisplay(isoValue) : "dd/mm/yyyy"}
             </Text>
-            <Calendar size={15} color={Theme.textMuted} strokeWidth={2.2} />
+            <Calendar size={16} color={Theme.textMuted} strokeWidth={2} />
           </Pressable>
           {open && Platform.OS === "android" ? (
             <DateTimePicker
@@ -150,24 +162,28 @@ export function HardCopyPodDateField({
           ) : null}
         </>
       )}
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {hasError ? (
+        <Text style={styles.errorText} nativeID={`${fieldId}-error`}>
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  field: { gap: 6, width: "100%" },
+  field: { gap: 6, width: "100%", alignSelf: "stretch" },
   label: {
     fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
     textTransform: "uppercase",
     color: Theme.textMuted,
   },
-  req: { color: Theme.warning },
+  req: { color: Theme.destructive, fontWeight: "800" },
   shell: {
     minHeight: 44,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Theme.borderMedium,
     backgroundColor: Theme.cardWhite,
@@ -176,21 +192,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  shellFilled: {
+    borderColor: Theme.borderInput,
+  },
   shellError: {
-    borderColor: Theme.warning,
+    borderColor: Theme.destructive,
+    backgroundColor: "rgba(232, 33, 39, 0.04)",
   },
   valueText: {
     flex: 1,
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
     color: Theme.textPrimaryDark,
   },
   placeholder: {
     color: Theme.textMuted,
+    fontWeight: "500",
   },
   errorText: {
     fontSize: 11,
-    color: Theme.warning,
+    color: Theme.destructive,
     fontWeight: "600",
   },
   backdrop: {

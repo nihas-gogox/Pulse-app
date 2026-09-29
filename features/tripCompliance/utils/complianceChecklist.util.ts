@@ -11,7 +11,7 @@ import {
   type ComplianceChecklistTone,
   type ComplianceDocumentRow,
 } from "@/features/tripCompliance/tripCompliance.types";
-import { isEwayBillMetaPath } from "@/features/trips/services/ewayBillFields.util";
+import { classifyTripDocument } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
 
 export function checklistTone(verified: number, total: number): ComplianceChecklistTone {
   if (total > 0 && verified >= total) return "success";
@@ -114,10 +114,14 @@ export function isEntityDocumentSlotVerified(
   return doc.status === "verified" || doc.status === "active";
 }
 
+/**
+ * Checklist presence for a trip document: the classifier says the row holds
+ * something (file, typed details, vault reference, or URL) and it is not
+ * rejected. Status is judged here; content is judged only by the classifier.
+ */
 export function isTripVaultDocumentOnFile(doc: ComplianceDocumentRow): boolean {
   if (!doc.document_type || doc.status === "rejected") return false;
-  if (isEwayBillMetaPath(doc.storage_path, doc.file_name)) return false;
-  return Boolean(doc.storage_path) || doc.status === "verified";
+  return classifyTripDocument(doc).present;
 }
 
 function buildGroup(

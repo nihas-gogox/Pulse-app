@@ -19,7 +19,7 @@ import {
   useComplianceStageFilter,
   useComplianceTripsQuery,
   useComplianceTripQuery,
-  useInvalidateComplianceTrips,
+  useComplianceChangeSync,
 } from "@/features/tripCompliance/hooks/useComplianceTripsQuery";
 import { postCompliancePayment, markTripComplianceVerified, type ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import { COMPLIANCE_STAGE_FILTER_LABEL, COMPLIANCE_STAGES, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
@@ -114,7 +114,7 @@ export default function ComplianceScreen() {
     refetch,
   } = useComplianceTripsQuery();
   const { stage, setStage, filtered, counts, podReceivedCount } = useComplianceStageFilter(summaries);
-  const invalidate = useInvalidateComplianceTrips();
+  const syncChange = useComplianceChangeSync();
   const markTripVerified = useCallback(
     async (tripId: string) => {
       if (!canMarkVerified) {
@@ -130,9 +130,9 @@ export default function ComplianceScreen() {
         alertMessage("Couldn't verify compliance", formatMarkComplianceVerifiedError(error.message));
         return;
       }
-      invalidate(tripId);
+      await syncChange({ type: "complianceVerified", tripId, actorId: user.uid });
     },
-    [canMarkVerified, invalidate, user?.uid],
+    [canMarkVerified, syncChange, user?.uid],
   );
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const [cardTripId, setCardTripId] = useState<string | null>(null);
@@ -358,7 +358,7 @@ export default function ComplianceScreen() {
           canManagePod={canManagePod}
           selectedTripId={cardTripId}
           stacked={isNarrow}
-          onChanged={(tripId) => invalidate(tripId)}
+          onChanged={(change) => void syncChange(change)}
         />
       )}
 
@@ -488,7 +488,15 @@ export default function ComplianceScreen() {
           canManageFinance={canManageFinance}
           summary={reviewingSummary}
           initialSelectedKey={review?.documentKey ?? null}
-          onChanged={() => invalidate(reviewingSummary.trip.id)}
+          onChanged={(changed) => {
+            const trip = reviewingSummary.trip;
+            const scope = review?.scope ?? "trip";
+            const vehicleId = trip.vehicle_id ?? trip.owner_vehicle_id;
+            if (changed === "flags") void syncChange({ type: "tripFlags", tripId: trip.id });
+            else if (scope === "vehicle" && vehicleId) void syncChange({ type: "vehicleDocuments", vehicleId });
+            else if (scope === "driver" && trip.driver_id) void syncChange({ type: "driverDocuments", driverId: trip.driver_id });
+            else void syncChange({ type: "tripDocuments", tripId: trip.id });
+          }}
           onPay={() => openPay(reviewingSummary)}
           scope={review?.scope ?? "trip"}
           vehicleId={reviewingSummary.trip.vehicle_id}
@@ -527,7 +535,7 @@ export default function ComplianceScreen() {
             return;
           }
           setPay(null);
-          invalidate(pay.summary.trip.id);
+          void syncChange({ type: "payment", tripId: pay.summary.trip.id });
         }}
       />
     </View>

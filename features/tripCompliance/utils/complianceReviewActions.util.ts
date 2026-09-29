@@ -50,3 +50,40 @@ export function complianceGroupDecisionActions(
     actionable,
   };
 }
+
+/** Optimistic Approve/Decline recorded against the exact row version it was made on. */
+export type OptimisticComplianceDecision = {
+  decision: "verified" | "rejected";
+  /** `complianceRowVersion` at decision time — a re-upload changes it. */
+  version: string;
+  /** Server status at decision time — any server-side move away from it wins. */
+  fromStatus: ComplianceDocRow["status"];
+};
+
+/** Identity of the file behind a row: `key` is only the doc type, so it survives re-uploads. */
+export function complianceRowVersion(row: ComplianceDocRow): string {
+  if (row.doc) return `trip:${row.doc.id}:${row.doc.storage_path}:${row.doc.uploaded_at}`;
+  if (row.entityDoc) return `entity:${row.entityDoc.id}:${row.entityDoc.storage_path ?? ""}:${row.entityDoc.created_at}`;
+  return "none";
+}
+
+export function recordOptimisticDecision(
+  row: ComplianceDocRow,
+  decision: OptimisticComplianceDecision["decision"],
+): OptimisticComplianceDecision {
+  return { decision, version: complianceRowVersion(row), fromStatus: row.status };
+}
+
+/**
+ * Overlay a local decision only while the server still shows the same file in the
+ * same status it had when the decision was made. Once a refetch reflects the
+ * decision, a re-upload lands, or someone else changes the status, the server row wins.
+ */
+export function applyOptimisticDecision(
+  row: ComplianceDocRow,
+  local: OptimisticComplianceDecision | undefined,
+): ComplianceDocRow {
+  if (!local) return row;
+  if (local.version !== complianceRowVersion(row) || local.fromStatus !== row.status) return row;
+  return { ...row, status: local.decision };
+}

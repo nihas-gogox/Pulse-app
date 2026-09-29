@@ -614,9 +614,11 @@ export const queryKeys = {
   },
 
   tripCompliance: {
-    /** Full Loading→Completed summaries for an org (totals independent of UI page). */
-    pipeline: (orgId: string, tripsRevision: number | string) =>
-      ["q", "tripCompliance", "pipeline", "v1", orgId, tripsRevision] as const,
+    /**
+     * Loading→Completed pipeline INPUTS for an org (summaries derive via select).
+     * Stable per org: trips-catalog updates reconcile into it, they never re-key it.
+     */
+    pipeline: (orgId: string) => ["q", "tripCompliance", "pipeline", "v2", orgId] as const,
     list: (orgId: string, page: number) =>
       ["q", "tripCompliance", "list", "vault-v2", orgId, page] as const,
     detail: (orgId: string, tripId: string) =>

@@ -43,6 +43,8 @@ type Props = {
   onChange?: () => void;
   style?: StyleProp<ViewStyle>;
   desktop?: boolean;
+  /** Stretch to fill a flex parent (Journey Log equal-height slots). */
+  fill?: boolean;
 };
 
 function formatDriverDisplayName(value: string): string {
@@ -235,6 +237,7 @@ export function ManifestRefAssetCard({
   onChange,
   style,
   desktop = false,
+  fill = false,
 }: Props) {
   const displayPrimary =
     variant === "driver"
@@ -268,7 +271,14 @@ export function ManifestRefAssetCard({
   const copyLabel = isDriver ? "driver mobile number" : "vehicle number";
 
   return (
-    <View style={[styles.card, desktop && styles.cardDesktop, style]}>
+    <View
+      style={[
+        styles.card,
+        desktop && styles.cardDesktop,
+        fill && styles.cardFill,
+        style,
+      ]}
+    >
       <View style={[styles.cardBody, desktop && styles.cardBodyDesktop]}>
       <View style={styles.headerRow}>
         <Text
@@ -387,8 +397,12 @@ export function ManifestRefAssetCard({
 const styles = StyleSheet.create({
   card: {
     position: "relative",
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "auto",
     minWidth: 0,
+    width: "100%",
+    alignSelf: "stretch",
     borderRadius: 14,
     backgroundColor: Theme.cardWhite,
     borderWidth: StyleSheet.hairlineWidth,
@@ -407,13 +421,15 @@ const styles = StyleSheet.create({
     }),
   },
   cardDesktop: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "auto",
     width: "100%",
+    alignSelf: "stretch",
     borderRadius: 8,
     backgroundColor: Theme.surfaceGray,
     borderWidth: 1,
     borderColor: Theme.borderLight,
-    justifyContent: "center",
     ...Platform.select({
       web: {
         boxShadow: "none",
@@ -435,19 +451,26 @@ const styles = StyleSheet.create({
   },
   cardBodyDesktop: {
     paddingHorizontal: 8,
-    paddingTop: 6,
-    paddingBottom: 6,
-    gap: 4,
+    paddingTop: 8,
+    paddingBottom: 8,
+    gap: 6,
+  },
+  cardFill: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minHeight: 0,
+    justifyContent: "center",
   },
   copyCorner: {
     position: "absolute",
     right: 10,
-    bottom: 8,
+    bottom: 10,
     zIndex: 1,
   },
   copyCornerDesktop: {
     right: 8,
-    bottom: 6,
+    bottom: 8,
   },
   copySlot: {
     width: 16,

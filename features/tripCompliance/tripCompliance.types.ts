@@ -153,6 +153,42 @@ export type ComplianceTripSummary = {
   };
 };
 
+/** `trips` compliance / hard-copy POD columns read by the Compliance pipeline. */
+export type ComplianceTripFlags = {
+  compliance_verified_at: string | null;
+  compliance_verified_by: string | null;
+  compliance_decision: ComplianceDecision | null;
+  compliance_exception_reason: string | null;
+  compliance_outstanding_summary: ComplianceOutstandingSummary | null;
+  pod_hard_copy_courier: string | null;
+  pod_hard_copy_awb_number: string | null;
+  pod_hard_copy_received_by: string | null;
+  /** The hard-copy-POD-received gate (courier/AWB/received-by are display metadata). */
+  pod_received_at: string | null;
+};
+
+/**
+ * Raw per-trip inputs a `ComplianceTripSummary` is derived from. The pipeline
+ * cache stores these; summaries are a pure function of them, so a write only
+ * has to replace the input it actually changed.
+ *
+ * Trip-specific: `documents`, `flags`, `taggedAdvance`, `balance` (and `trip`).
+ * Shared: `vehicleDocuments` (every trip on the same vehicle) and
+ * `driverDocuments` (every trip with the same driver).
+ */
+export type ComplianceTripInputs = {
+  trip: TripRow;
+  documents: ComplianceDocumentRow[];
+  flags: ComplianceTripFlags | null;
+  /** Latest `compliance_advance` transaction; `trips.amount_paid` is the fallback at derive time. */
+  taggedAdvance: CompliancePaymentSummary | null;
+  balance: CompliancePaymentSummary | null;
+  vehicleDocuments: ComplianceEntityDocument[];
+  driverDocuments: ComplianceEntityDocument[];
+  /** `vehicles.id` whose vault JSON fed `vehicleDocuments` (id, owner id, or number match). */
+  vaultVehicleId: string | null;
+};
+
 /** Trip docs required before a trip can be marked Compliance Verified. */
 export const REQUIRED_COMPLIANCE_DOCUMENT_TYPES: readonly string[] = [
   "lr",
