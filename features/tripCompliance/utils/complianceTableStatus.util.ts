@@ -53,7 +53,7 @@ function localDateFromIso(iso: string): Date | null {
 }
 
 /**
- * Same row Trip Detail shows (`useTripDetail`): first `eway_bill` row whose
+ * Same row Trip Detail shows (`useTripDetail`): newest `eway_bill` row whose
  * `document_number` parses to ≥1 entry. Values are shown as stored; an
  * unparseable validTill is shown raw and never treated as expired.
  */
@@ -70,8 +70,11 @@ export function deriveComplianceEwayBill(
     extraCount: 0,
   };
   let entries: ReturnType<typeof parseEwayFieldEntries> = [];
-  for (const doc of documents) {
-    if (doc.document_type !== "eway_bill") continue;
+  // Trip Detail loads trip_documents newest-first; the compliance fetch is unordered.
+  const ewayDocs = documents
+    .filter((doc) => doc.document_type === "eway_bill")
+    .sort((a, b) => (b.uploaded_at ?? "").localeCompare(a.uploaded_at ?? ""));
+  for (const doc of ewayDocs) {
     const parsed = parseEwayFieldEntries(doc.document_number);
     if (parsed.length > 0) {
       entries = parsed;

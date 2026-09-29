@@ -365,9 +365,7 @@ function TripRowContent({
               disabled={verifyDisabled}
               onPress={handleVerify}
               accessibilityRole="button"
-              accessibilityLabel={
-                verifyEligibility.reason ? `Verify. ${verifyEligibility.reason}` : "Verify trip compliance"
-              }
+              accessibilityLabel="Verify trip compliance"
               accessibilityHint={verifyEligibility.reason ?? undefined}
               accessibilityState={{ disabled: verifyDisabled, busy: markingTrip }}
             >
@@ -593,8 +591,8 @@ const styles = StyleSheet.create({
   blockedText: { color: Theme.complianceStageDocsFg, fontWeight: "700" },
   colMoney: { flex: 0.6, minWidth: 0 },
   colAction: {
-    width: 150,
-    minWidth: 150,
+    width: 176,
+    minWidth: 176,
     flexGrow: 0,
     flexShrink: 0,
     flexDirection: "row",

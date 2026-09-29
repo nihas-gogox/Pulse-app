@@ -121,6 +121,7 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
         }}
         onMarkComplianceVerified={markTripVerified}
         canManageFinance={canManageFinance}
+        hideDeclineNotice
       />
 
       {declinedAt ? (

@@ -55,6 +55,8 @@ export type ComplianceTripCardProps = {
   /** When every required trip document is approved, Verify Docs marks the trip compliance verified. */
   onMarkComplianceVerified?: () => Promise<void>;
   canManageFinance?: boolean;
+  /** Details screen renders its own full decline section. */
+  hideDeclineNotice?: boolean;
 };
 
 function asLabel(value: unknown): string {
@@ -204,6 +206,7 @@ export function ComplianceTripCard({
   onPay,
   onMarkComplianceVerified,
   canManageFinance = false,
+  hideDeclineNotice = false,
 }: ComplianceTripCardProps) {
   const trip = summary.trip;
   const checklist = ensureComplianceChecklist(summary);
@@ -226,7 +229,7 @@ export function ComplianceTripCard({
   const when = formatComplianceTimestamp(complianceEventAt(trip));
   const payLabel = paymentReadinessLabel(readiness);
   /** Decline is active only while the trip is not compliance verified. */
-  const declinedAt = !fullyVerified ? summary.complianceDeclinedAt : null;
+  const declinedAt = !fullyVerified && !hideDeclineNotice ? summary.complianceDeclinedAt : null;
   const declineReason = summary.complianceDeclineReason?.trim() || "No reason recorded";
 
   const clientName = asLabel(trip.client_name);

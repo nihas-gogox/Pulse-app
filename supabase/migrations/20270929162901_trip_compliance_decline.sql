@@ -88,19 +88,20 @@ declare
   v_key             text := nullif(trim(p_idempotency_key), '');
   v_payload         jsonb;
 begin
-  select organization_id, compliance_verified_at, compliance_decline_reason
-    into v_org_id, v_verified_at, v_previous_reason
+  -- Authorize before locking: callers without the grant can neither lock the
+  -- row nor distinguish "missing" from "not yours".
+  select organization_id into v_org_id from public.trips where id = p_trip_id;
+
+  if v_org_id is null
+     or not public.has_member_surface(v_org_id, 'trip_compliance.trip.mark_verified') then
+    raise exception 'not authorized to decline compliance for this trip';
+  end if;
+
+  select compliance_verified_at, compliance_decline_reason
+    into v_verified_at, v_previous_reason
     from public.trips
    where id = p_trip_id
      for update;
-
-  if v_org_id is null then
-    raise exception 'trip not found';
-  end if;
-
-  if not public.has_member_surface(v_org_id, 'trip_compliance.trip.mark_verified') then
-    raise exception 'not authorized to decline compliance for this organization';
-  end if;
 
   if v_verified_at is not null then
     raise exception 'trip compliance already verified; cannot decline';
