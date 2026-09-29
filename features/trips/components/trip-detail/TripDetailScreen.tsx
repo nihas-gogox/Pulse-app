@@ -2512,7 +2512,6 @@ export default function TripDetailScreen({
     [tripForAssignmentFlow?.id, canChangeManifestAssetsForNav, router],
   );
 
-  const queryClient = useQueryClient();
   const ewayExpiryQuery = useQuery({
     queryKey: ["q", "trips", "eway-expiry", detail.trip?.id ?? ""],
     queryFn: () => loadTripEwayExpiryLabel(detail.trip!.id),
