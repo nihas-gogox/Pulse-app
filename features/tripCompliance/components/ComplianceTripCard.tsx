@@ -225,6 +225,9 @@ export function ComplianceTripCard({
   const tripId = complianceTripDisplayId(trip);
   const when = formatComplianceTimestamp(complianceEventAt(trip));
   const payLabel = paymentReadinessLabel(readiness);
+  /** Decline is active only while the trip is not compliance verified. */
+  const declinedAt = !fullyVerified ? summary.complianceDeclinedAt : null;
+  const declineReason = summary.complianceDeclineReason?.trim() || "No reason recorded";
 
   const clientName = asLabel(trip.client_name);
   const clientFb = trip.client_id
@@ -383,6 +386,22 @@ export function ComplianceTripCard({
               );
             })}
           </View>
+
+          {declinedAt ? (
+            <View
+              style={styles.expiryAlertBox}
+              testID={`compliance-card-declined-${trip.id}`}
+              accessible
+              accessibilityLabel={`Compliance declined ${formatComplianceTimestamp(declinedAt)}. Reason: ${declineReason}`}
+            >
+              <Text style={styles.expiryAlertTitle} numberOfLines={1}>
+                Declined · {formatComplianceTimestamp(declinedAt)}
+              </Text>
+              <Text style={styles.expiryAlertBody} numberOfLines={2}>
+                {declineReason}
+              </Text>
+            </View>
+          ) : null}
 
           {readiness.expiredVehicleDocs.length > 0 ? (
             <View

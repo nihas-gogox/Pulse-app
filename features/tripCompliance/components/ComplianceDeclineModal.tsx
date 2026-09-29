@@ -1,0 +1,227 @@
+/**
+ * Decline-reason modal for the Compliance table (web + native). Validates
+ * the trimmed reason against COMPLIANCE_DECLINE_REASON_MIN/MAX, blocks double
+ * submit, and shows the rejected promise's message inline. The parent closes
+ * it when `onSubmit` resolves.
+ */
+import Theme from "@/constants/Theme";
+import { COMPLIANCE_DECLINE_ACTION_LABEL } from "@/features/tripCompliance/complianceDecisionConfig";
+import {
+  COMPLIANCE_DECLINE_REASON_MAX,
+  COMPLIANCE_DECLINE_REASON_MIN,
+} from "@/features/tripCompliance/tripCompliance.types";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+export type ComplianceDeclineModalProps = {
+  visible: boolean;
+  tripLabel: string;
+  onCancel: () => void;
+  onSubmit: (reason: string) => Promise<void>;
+};
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  if (typeof err === "string" && err.trim()) return err;
+  return "Could not decline. Please try again.";
+}
+
+export function ComplianceDeclineModal({ visible, tripLabel, onCancel, onSubmit }: ComplianceDeclineModalProps) {
+  const insets = useSafeAreaInsets();
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+
+  useEffect(() => {
+    if (visible) {
+      setReason("");
+      setError(null);
+      setSubmitting(false);
+      submittingRef.current = false;
+    }
+  }, [visible]);
+
+  const trimmedLength = reason.trim().length;
+  const tooShort = trimmedLength < COMPLIANCE_DECLINE_REASON_MIN;
+  const tooLong = trimmedLength > COMPLIANCE_DECLINE_REASON_MAX;
+  const invalid = tooShort || tooLong;
+  const submitDisabled = invalid || submitting;
+
+  const hint = tooLong
+    ? `Keep it under ${COMPLIANCE_DECLINE_REASON_MAX} characters`
+    : tooShort
+      ? `At least ${COMPLIANCE_DECLINE_REASON_MIN} characters`
+      : null;
+
+  const handleCancel = () => {
+    if (submittingRef.current) return;
+    onCancel();
+  };
+
+  const handleSubmit = async () => {
+    if (submittingRef.current || invalid) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit(reason.trim());
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleCancel}>
+      <KeyboardAvoidingView
+        style={[
+          styles.overlay,
+          {
+            paddingTop: insets.top + 16,
+            paddingBottom: insets.bottom + 16,
+            paddingLeft: insets.left + 16,
+            paddingRight: insets.right + 16,
+          },
+        ]}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={handleCancel}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        />
+        <View style={styles.sheet} testID="compliance-decline-modal" accessibilityViewIsModal>
+          <Text style={styles.title} accessibilityRole="header">
+            {`${COMPLIANCE_DECLINE_ACTION_LABEL} trip compliance`}
+          </Text>
+          <Text style={styles.tripLabel} numberOfLines={1}>
+            {tripLabel}
+          </Text>
+          <Text style={styles.label}>Reason</Text>
+          <TextInput
+            testID="compliance-decline-reason-input"
+            accessibilityLabel="Decline reason"
+            style={styles.input}
+            value={reason}
+            onChangeText={(text) => {
+              setReason(text);
+              if (error) setError(null);
+            }}
+            placeholder="Why is this trip being declined?"
+            placeholderTextColor={Theme.textMuted}
+            multiline
+            autoFocus
+            editable={!submitting}
+            textAlignVertical="top"
+          />
+          <View style={styles.metaRow}>
+            <Text style={[styles.hint, tooLong && styles.hintError]} numberOfLines={1}>
+              {hint ?? " "}
+            </Text>
+            <Text style={[styles.counter, tooLong && styles.hintError]}>
+              {`${trimmedLength}/${COMPLIANCE_DECLINE_REASON_MAX}`}
+            </Text>
+          </View>
+          {error ? (
+            <Text style={styles.error} accessibilityRole="alert" testID="compliance-decline-error">
+              {error}
+            </Text>
+          ) : null}
+          <View style={styles.actions}>
+            <Pressable
+              testID="compliance-decline-cancel"
+              style={[styles.button, styles.cancelButton, submitting && styles.buttonDisabled]}
+              onPress={handleCancel}
+              disabled={submitting}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+              accessibilityState={{ disabled: submitting }}
+            >
+              <Text style={styles.cancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              testID="compliance-decline-submit"
+              style={[styles.button, styles.submitButton, submitDisabled && styles.submitDisabled]}
+              onPress={() => void handleSubmit()}
+              disabled={submitDisabled}
+              accessibilityRole="button"
+              accessibilityLabel={submitting ? "Submitting" : COMPLIANCE_DECLINE_ACTION_LABEL}
+              accessibilityState={{ disabled: submitDisabled, busy: submitting }}
+            >
+              <Text style={[styles.submitText, submitDisabled && styles.submitTextDisabled]}>
+                {submitting ? "Submitting…" : COMPLIANCE_DECLINE_ACTION_LABEL}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: Theme.overlayBackdrop,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sheet: {
+    width: "100%",
+    maxWidth: 440,
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 14,
+    padding: 18,
+    gap: 6,
+  },
+  title: { fontSize: 16, fontWeight: "700", color: Theme.textPrimary },
+  tripLabel: { fontSize: 13, color: Theme.textMuted, marginBottom: 6 },
+  label: { fontSize: 12, fontWeight: "600", color: Theme.textPrimary },
+  input: {
+    minHeight: 96,
+    maxHeight: 200,
+    borderWidth: 1,
+    borderColor: Theme.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: Theme.textPrimary,
+    backgroundColor: Theme.cardWhite,
+  },
+  metaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  hint: { flex: 1, fontSize: 11, color: Theme.textMuted },
+  hintError: { color: Theme.complianceStageDocsFg },
+  counter: { fontSize: 11, color: Theme.textMuted },
+  error: { fontSize: 12, fontWeight: "600", color: Theme.complianceStageDocsFg },
+  actions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 10 },
+  button: {
+    minHeight: 44,
+    minWidth: 96,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buttonDisabled: { opacity: 0.5 },
+  cancelButton: { borderWidth: 1, borderColor: Theme.border, backgroundColor: Theme.cardWhite },
+  cancelText: { fontSize: 14, fontWeight: "600", color: Theme.textPrimary },
+  submitButton: { backgroundColor: Theme.complianceStageDocsFg },
+  submitDisabled: { backgroundColor: Theme.complianceStageDocsBg },
+  submitText: { fontSize: 14, fontWeight: "700", color: Theme.textOnPrimary },
+  submitTextDisabled: { color: Theme.complianceStageDocsFg },
+});
