@@ -98,6 +98,7 @@ export default function ComplianceScreen() {
   const canViewDocuments = canSurface("trip_compliance.documents.view");
   const canVerifyDocuments = canSurface("trip_compliance.documents.verify");
   const canMarkVerified = canSurface("trip_compliance.trip.mark_verified");
+  const canManagePod = canSurface("trip_compliance.pod.manage");
   const canManageFinance = canSurface("trip_compliance.finance.manage");
   const canViewFinance = canSurface("trip_compliance.finance.view");
   const { user } = useAuth();
@@ -331,7 +332,7 @@ export default function ComplianceScreen() {
             onOpenTrip={openTrip}
             onOpenDetails={openDetails}
             onReview={(tripId, documentKey, scope = "trip") => setReview({ tripId, documentKey, scope })}
-            onMarkComplianceVerified={markTripVerified}
+            onMarkComplianceVerified={canMarkVerified ? markTripVerified : undefined}
             onVerifyDocs={(tripId) => {
               setCardTripId(tripId);
               setViewMode("card");
@@ -353,6 +354,8 @@ export default function ComplianceScreen() {
           canViewDocuments={canViewDocuments}
           canManageFinance={canManageFinance}
           onPay={openPay}
+          onMarkComplianceVerified={canMarkVerified ? markTripVerified : undefined}
+          canManagePod={canManagePod}
           selectedTripId={cardTripId}
           stacked={isNarrow}
           onChanged={(tripId) => invalidate(tripId)}

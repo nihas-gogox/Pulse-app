@@ -811,7 +811,10 @@ export const MEMBER_SURFACE_CATALOG: readonly MemberSurfaceDef[] = [
     label: "View compliance documents",
     hint: "Preview trip documents (LR, invoice, e-way bill, insurance, RC)",
     domain: "trip_compliance",
+    // Read-only preview — same reasoning as trip_compliance.tab: must not hand
+    // finance members `dispatch`.
     anyOfCaps: DISP,
+    grantsCaps: [],
     requires: "trip_compliance.tab",
   },
   {
@@ -820,6 +823,7 @@ export const MEMBER_SURFACE_CATALOG: readonly MemberSurfaceDef[] = [
     hint: "Mark a trip document Verified or Rejected with a reason",
     domain: "trip_compliance",
     anyOfCaps: DISP,
+    grantsCaps: [],
     requires: "trip_compliance.documents.view",
   },
   {
@@ -828,6 +832,7 @@ export const MEMBER_SURFACE_CATALOG: readonly MemberSurfaceDef[] = [
     hint: "Mark a trip's compliance fully verified once required documents pass",
     domain: "trip_compliance",
     anyOfCaps: DISP,
+    grantsCaps: [],
     requires: "trip_compliance.documents.verify",
   },
   {
@@ -855,6 +860,7 @@ export const MEMBER_SURFACE_CATALOG: readonly MemberSurfaceDef[] = [
     hint: "Mark hard-copy POD received with courier / AWB details",
     domain: "trip_compliance",
     anyOfCaps: DISP,
+    grantsCaps: [],
     requires: "trip_compliance.tab",
   },
 
@@ -1298,6 +1304,8 @@ const FINANCE_CROSS_DOMAIN_SURFACES: readonly MemberSurfaceId[] = [
   // payments from the Compliance page, but must not gain document
   // verify/reject or "mark verified" authority — those stay Compliance-only.
   "trip_compliance.tab",
+  // Finance must see the LR / invoice before paying — preview only.
+  "trip_compliance.documents.view",
   "trip_compliance.finance.view",
   "trip_compliance.finance.manage",
 ];
@@ -1395,6 +1403,22 @@ export function defaultSurfacesForRole(
         // awarded indent cannot open it.
         "tripops.indents.view",
         "tripops.indents.allocate",
+      ]);
+    case "compliance":
+      // Trip Compliance desk: verify docs, mark verified, and the only preset
+      // that logs hard-copy POD. Sees settlement state but never pays
+      // (no trip_compliance.finance.manage). Trip access is read-only.
+      return allOn([
+        "tripops.tab",
+        "tripops.trips.view",
+        "tripops.trips.detail",
+        "tripops.trips.docs",
+        "trip_compliance.tab",
+        "trip_compliance.documents.view",
+        "trip_compliance.documents.verify",
+        "trip_compliance.trip.mark_verified",
+        "trip_compliance.pod.manage",
+        "trip_compliance.finance.view",
       ]);
     case "ground_ops":
       return allOn([

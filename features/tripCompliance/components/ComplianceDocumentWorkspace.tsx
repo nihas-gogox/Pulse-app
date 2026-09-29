@@ -577,7 +577,9 @@ export function ComplianceDocumentWorkspace({
   stacked = false,
   style,
   canManageFinance = false,
+  canManagePod = false,
   onPay,
+  onMarkComplianceVerified,
   selectedTripId = null,
 }: {
   summaries: ComplianceTripSummary[];
@@ -589,7 +591,11 @@ export function ComplianceDocumentWorkspace({
   stacked?: boolean;
   style?: StyleProp<ViewStyle>;
   canManageFinance?: boolean;
+  /** Log hard-copy POD — Compliance role (and owner/admin) only. */
+  canManagePod?: boolean;
   onPay?: (summary: ComplianceTripSummary) => void;
+  /** Marks the trip Compliance Verified once all required docs are approved. */
+  onMarkComplianceVerified?: (tripId: string) => Promise<void>;
   /** Trip to show when opening the card view from the table. */
   selectedTripId?: string | null;
 }) {
@@ -761,6 +767,10 @@ export function ComplianceDocumentWorkspace({
   const isPdf = (previewMime ?? "").includes("pdf");
   const readiness = summary ? deriveComplianceQueueReadiness(summary) : null;
   const showPay = Boolean(canManageFinance && readiness?.paymentReady && onPay && summary);
+  const showMarkVerified = Boolean(
+    onMarkComplianceVerified && summary && !summary.complianceVerifiedAt && readiness?.requiredDocs.markVerifiedReady,
+  );
+  const [markingVerified, setMarkingVerified] = useState(false);
 
   return (
     <View style={[styles.workspace, stacked && styles.workspaceStacked, style]}>
@@ -826,17 +836,19 @@ export function ComplianceDocumentWorkspace({
             })}
           </View>
           <View style={styles.previewTools}>
-            <Pressable
-              style={[styles.podBtn, !summary && styles.btnDisabled]}
-              disabled={!summary}
-              onPress={() => setPodOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Log hardcopy POD"
-            >
-              <Text style={styles.podBtnText} numberOfLines={1}>
-                Log hardcopy POD
-              </Text>
-            </Pressable>
+            {canManagePod ? (
+              <Pressable
+                style={[styles.podBtn, !summary && styles.btnDisabled]}
+                disabled={!summary}
+                onPress={() => setPodOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Log hardcopy POD"
+              >
+                <Text style={styles.podBtnText} numberOfLines={1}>
+                  Log hardcopy POD
+                </Text>
+              </Pressable>
+            ) : null}
             <View style={styles.navPill}>
               <Pressable onPress={goPrev} hitSlop={8} accessibilityLabel="Previous document" disabled={previewable.length < 2}>
                 <ChevronLeft size={12} color={Theme.textPrimaryDark} />
@@ -918,6 +930,20 @@ export function ComplianceDocumentWorkspace({
             <Text style={styles.approveText}>Approve</Text>
           </Pressable>
           <View style={styles.actionEnd}>
+            {showMarkVerified && summary ? (
+              <Pressable
+                style={[styles.payBtn, markingVerified && styles.btnDisabled]}
+                disabled={markingVerified}
+                onPress={() => {
+                  setMarkingVerified(true);
+                  void onMarkComplianceVerified?.(summary.trip.id).finally(() => setMarkingVerified(false));
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Mark compliance verified"
+              >
+                <Text style={styles.payText}>{markingVerified ? "Verifying…" : "Mark verified"}</Text>
+              </Pressable>
+            ) : null}
             {showPay && summary ? (
               <Pressable
                 style={styles.payBtn}

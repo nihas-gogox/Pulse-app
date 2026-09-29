@@ -236,16 +236,13 @@ function TripRowContent({
             disabled={markingTrip}
             onPress={() => {
               if (markingTrip) return;
-              if (onVerifyDocs) {
-                onVerifyDocs(summary.trip.id);
-                return;
-              }
               const ready =
                 readiness.requiredDocs.markVerifiedReady &&
                 !summary.complianceVerifiedAt &&
                 Boolean(onMarkComplianceVerified);
               if (!ready || !onMarkComplianceVerified) {
-                onReview(summary.trip.id, null);
+                if (onVerifyDocs) onVerifyDocs(summary.trip.id);
+                else onReview(summary.trip.id, null);
                 return;
               }
               setMarkingTrip(true);

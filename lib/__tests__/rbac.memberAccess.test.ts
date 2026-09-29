@@ -447,6 +447,50 @@ describe("Ground Ops — hydration does not auto-add sibling surfaces", () => {
 // ══════════════════════════════════════════════════════════════════════════
 // Catalog integrity — cheap smoke checks that catch authoring mistakes
 // ══════════════════════════════════════════════════════════════════════════
+describe("Compliance vs Finance — split of the Compliance page", () => {
+  const has = (role: "compliance" | "finance", id: MemberSurfaceId) =>
+    memberHasSurface(HYBRID, defaultSurfacesForRole(role, HYBRID), id);
+
+  it("compliance verifies, marks verified and logs POD, but never pays", () => {
+    expect(has("compliance", "trip_compliance.tab")).toBe(true);
+    expect(has("compliance", "trip_compliance.documents.view")).toBe(true);
+    expect(has("compliance", "trip_compliance.documents.verify")).toBe(true);
+    expect(has("compliance", "trip_compliance.trip.mark_verified")).toBe(true);
+    expect(has("compliance", "trip_compliance.pod.manage")).toBe(true);
+    expect(has("compliance", "trip_compliance.finance.view")).toBe(true);
+    expect(has("compliance", "trip_compliance.finance.manage")).toBe(false);
+  });
+
+  it("finance views docs and pays, but cannot verify, mark verified or log POD", () => {
+    expect(has("finance", "trip_compliance.tab")).toBe(true);
+    expect(has("finance", "trip_compliance.documents.view")).toBe(true);
+    expect(has("finance", "trip_compliance.finance.manage")).toBe(true);
+    expect(has("finance", "trip_compliance.documents.verify")).toBe(false);
+    expect(has("finance", "trip_compliance.trip.mark_verified")).toBe(false);
+    expect(has("finance", "trip_compliance.pod.manage")).toBe(false);
+  });
+
+  it("compliance preset confers no dispatch, fleet or finance_manage capability", () => {
+    const caps = capabilitiesFromMemberSurfaces(
+      HYBRID,
+      defaultSurfacesForRole("compliance", HYBRID),
+    );
+    expect(caps).not.toContain("dispatch");
+    expect(caps).not.toContain("dispatch_for_own_fleet");
+    expect(caps).not.toContain("fleet_management");
+    expect(caps).not.toContain("finance_manage");
+  });
+
+  it("only compliance (of the functional presets) logs hard-copy POD", () => {
+    const presets = ["finance", "sales", "tripops", "planner", "operator", "ground_ops", "restricted"] as const;
+    for (const role of presets) {
+      expect(
+        memberHasSurface(HYBRID, defaultSurfacesForRole(role, HYBRID), "trip_compliance.pod.manage"),
+      ).toBe(false);
+    }
+  });
+});
+
 describe("catalog integrity (smoke)", () => {
   it("surface ids are unique", () => {
     const ids = MEMBER_SURFACE_CATALOG.map((d) => d.id);
