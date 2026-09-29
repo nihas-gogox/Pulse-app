@@ -150,7 +150,8 @@ export type ComplianceDocumentReviewSheetProps = {
   canManageFinance?: boolean;
   summary?: ComplianceTripSummary | null;
   initialSelectedKey?: string | null;
-  onChanged: () => void;
+  /** `"flags"` when the trip's compliance decision changed (exception approve); otherwise the sheet's scope changed. */
+  onChanged: (changed?: "flags") => void;
   onPay?: () => void;
   scope?: ComplianceReviewScope;
   vehicleId?: string | null;
@@ -608,7 +609,7 @@ export function ComplianceDocumentReviewSheet({
     }
     setExceptionPanelOpen(false);
     setExceptionComment("");
-    onChanged();
+    onChanged("flags");
   }, [exceptionComment, tripId, onChanged]);
 
   const resolveExpiryForUpload = useCallback(

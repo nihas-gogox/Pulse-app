@@ -9,6 +9,8 @@ import {
     type ComplianceOutstandingSummary,
     type CompliancePaymentSummary,
     type ComplianceStage,
+    type ComplianceTripFlags,
+    type ComplianceTripInputs,
     type ComplianceTripSummary,
 } from "@/features/tripCompliance/tripCompliance.types";
 import { buildComplianceChecklist, listExpiredRequiredVehicleDocTypes } from "@/features/tripCompliance/utils/complianceChecklist.util";
@@ -61,7 +63,7 @@ type RawTripDocRow = {
   source_entity_document_id?: string | null;
 };
 
-async function fetchTripDocumentsForTrips(
+export async function fetchTripDocumentsForTrips(
   tripIds: string[],
 ): Promise<Map<string, ComplianceDocumentRow[]>> {
   const byTrip = new Map<string, ComplianceDocumentRow[]>();
@@ -135,26 +137,7 @@ async function fetchTripDocumentsForTrips(
   return byTrip;
 }
 
-type ComplianceTripFlags = {
-  compliance_verified_at: string | null;
-  compliance_verified_by: string | null;
-  compliance_decision: ComplianceDecision | null;
-  compliance_exception_reason: string | null;
-  compliance_outstanding_summary: ComplianceOutstandingSummary | null;
-  pod_hard_copy_courier: string | null;
-  pod_hard_copy_awb_number: string | null;
-  pod_hard_copy_received_by: string | null;
-  /**
-   * Phase 4: the actual hard-copy-POD-received signal. `pod_received_at` is
-   * the pre-existing, pervasively-used field (POD reconciliation, Invoicing's
-   * POD-required gate, Log Incoming PODs' own pending-trips filter) — the
-   * courier/AWB/received-by columns above are supplementary metadata only,
-   * not the gate. See tripDocumentLrPod.service.ts's markTripHardCopyPodReceived().
-   */
-  pod_received_at: string | null;
-};
-
-async function fetchComplianceTripFlags(
+export async function fetchComplianceTripFlags(
   tripIds: string[],
 ): Promise<Map<string, ComplianceTripFlags>> {
   const byTrip = new Map<string, ComplianceTripFlags>();
@@ -221,6 +204,23 @@ export async function fetchComplianceTransactions(
     if (row.ledger_category === "compliance_advance") bucket.advance.push(row);
     else if (row.ledger_category === "compliance_balance") bucket.balance.push(row);
     byTrip.set(row.trip_id, bucket);
+  }
+  return byTrip;
+}
+
+/** `trips` columns the payment state depends on (`amount_paid` fallback advance). */
+export async function fetchTripPaymentFields(
+  tripIds: string[],
+): Promise<Map<string, Pick<TripRow, "amount_paid" | "updated_at">>> {
+  const byTrip = new Map<string, Pick<TripRow, "amount_paid" | "updated_at">>();
+  if (tripIds.length === 0) return byTrip;
+  const { data, error } = await supabase().from("trips").select("id, amount_paid, updated_at").in("id", tripIds);
+  if (error) throw new Error(error.message);
+  for (const row of data ?? []) {
+    byTrip.set(row.id as string, {
+      amount_paid: (row as { amount_paid: TripRow["amount_paid"] }).amount_paid,
+      updated_at: (row as { updated_at: TripRow["updated_at"] }).updated_at,
+    });
   }
   return byTrip;
 }
@@ -347,19 +347,16 @@ export function tripNeedsPendingDocs(summary: {
   return REQUIRED_COMPLIANCE_DOCUMENT_TYPES.some((type) => !present.has(type));
 }
 
-async function fetchEntityDocumentsForTrips(
-  trips: TripRow[],
+async function fetchEntityDocumentsByIds(
+  orgId: string | null | undefined,
+  entityIds: string[],
+  entityTypes: Array<"vehicle" | "driver">,
 ): Promise<Map<string, DocumentRow[]>> {
   const byEntity = new Map<string, DocumentRow[]>();
-  const orgId = trips.find((trip) => trip.organization_id)?.organization_id;
-  const entityIds = Array.from(
-    new Set(
-      trips.flatMap((trip) => [trip.vehicle_id, trip.driver_id].filter((id): id is string => Boolean(id))),
-    ),
-  );
-  if (!orgId || entityIds.length === 0) return byEntity;
+  const ids = Array.from(new Set(entityIds.filter(Boolean)));
+  if (!orgId || ids.length === 0) return byEntity;
 
-  const { error, documents } = await getDocumentsForEntities(orgId, entityIds, ["vehicle", "driver"]);
+  const { error, documents } = await getDocumentsForEntities(orgId, ids, entityTypes);
   if (error) {
     if (isMissingColumnOrRelation(error)) return byEntity;
     throw error;
@@ -372,14 +369,16 @@ async function fetchEntityDocumentsForTrips(
   return byEntity;
 }
 
+type VaultEntry = { vehicleId: string; docs: ComplianceEntityDocument[] };
+
 function indexVehicleVaultDocs(
-  byKey: Map<string, ComplianceEntityDocument[]>,
-  docs: ComplianceEntityDocument[],
+  byKey: Map<string, VaultEntry>,
+  entry: VaultEntry,
   ...keys: Array<string | null | undefined>
 ) {
-  if (docs.length === 0) return;
+  if (entry.docs.length === 0) return;
   for (const key of keys) {
-    if (key) byKey.set(key, docs);
+    if (key) byKey.set(key, entry);
   }
 }
 
@@ -407,8 +406,8 @@ export function uniqueTripsNeedingVehicleViewer(
 
 async function fetchVehicleVaultDocumentsForTrips(
   trips: TripRow[],
-): Promise<Map<string, ComplianceEntityDocument[]>> {
-  const byKey = new Map<string, ComplianceEntityDocument[]>();
+): Promise<Map<string, VaultEntry>> {
+  const byKey = new Map<string, VaultEntry>();
   const orgId = trips.find((trip) => trip.organization_id)?.organization_id ?? null;
   const vehicleIds = Array.from(
     new Set(
@@ -421,7 +420,7 @@ async function fetchVehicleVaultDocumentsForTrips(
     if (error && !isMissingColumnOrRelation(error)) throw new Error(error.message);
     for (const row of data ?? []) {
       const docs = vehicleVaultDocumentsToEntityDocs(row.id, (row.documents ?? null) as VehicleDocuments | null);
-      indexVehicleVaultDocs(byKey, docs, row.id, normalizeVaultVehicleNumber(row.vehicle_number));
+      indexVehicleVaultDocs(byKey, { vehicleId: row.id, docs }, row.id, normalizeVaultVehicleNumber(row.vehicle_number));
     }
   }
 
@@ -439,7 +438,7 @@ async function fetchVehicleVaultDocumentsForTrips(
       const docs = vehicleVaultDocumentsToEntityDocs(vehicleId, (vehicle.documents ?? null) as VehicleDocuments | null);
       indexVehicleVaultDocs(
         byKey,
-        docs,
+        { vehicleId, docs },
         vehicleId,
         trip.vehicle_id,
         trip.owner_vehicle_id,
@@ -470,7 +469,7 @@ async function fetchVehicleVaultDocumentsForTrips(
       const match = number ? byNumber.get(number) : undefined;
       if (!match) continue;
       const docs = vehicleVaultDocumentsToEntityDocs(match.id, match.documents);
-      indexVehicleVaultDocs(byKey, docs, match.id, trip.vehicle_id, trip.owner_vehicle_id, number);
+      indexVehicleVaultDocs(byKey, { vehicleId: match.id, docs }, match.id, trip.vehicle_id, trip.owner_vehicle_id, number);
     }
   }
 
@@ -542,111 +541,230 @@ async function fetchDriverKycDocumentsForTrips(
   return byDriver;
 }
 
+function assembleVehicleDocuments(
+  trip: TripRow,
+  entityDocsById: Map<string, DocumentRow[]>,
+  vault: Map<string, VaultEntry>,
+): { vehicleDocuments: ComplianceEntityDocument[]; vaultVehicleId: string | null } {
+  const entityVehicleDocs = trip.vehicle_id
+    ? (entityDocsById.get(trip.vehicle_id) ?? []).filter((d) => d.entity_type === "vehicle").map(toEntityDocument)
+    : [];
+  const vaultEntry =
+    (trip.vehicle_id ? vault.get(trip.vehicle_id) : undefined) ??
+    (trip.owner_vehicle_id ? vault.get(trip.owner_vehicle_id) : undefined) ??
+    vault.get(normalizeVaultVehicleNumber(trip.vehicle_display_number));
+  return {
+    vehicleDocuments: mergeComplianceEntityDocs(entityVehicleDocs, vaultEntry?.docs ?? []),
+    vaultVehicleId: vaultEntry?.vehicleId ?? null,
+  };
+}
+
+function assembleDriverDocuments(
+  trip: TripRow,
+  entityDocsById: Map<string, DocumentRow[]>,
+  kyc: Map<string, ComplianceEntityDocument[]>,
+): ComplianceEntityDocument[] {
+  const entityDriverDocs = trip.driver_id
+    ? (entityDocsById.get(trip.driver_id) ?? []).filter((d) => d.entity_type === "driver").map(toEntityDocument)
+    : [];
+  const kycDriver = trip.driver_id ? (kyc.get(trip.driver_id) ?? []) : [];
+  return mergeComplianceEntityDocs(kycDriver, entityDriverDocs);
+}
+
+function paymentInputs(txns: { advance: RawTxnRow[]; balance: RawTxnRow[] } | undefined) {
+  return {
+    taggedAdvance: toPaymentSummary(txns?.advance ?? []),
+    balance: toPaymentSummary(txns?.balance ?? []),
+  };
+}
+
+function orgIdOf(trips: TripRow[]): string | null {
+  return trips.find((trip) => trip.organization_id)?.organization_id ?? null;
+}
+
 /**
- * Batched compliance read for a page of trips — trips + trip_documents +
- * flags + transactions + Asset Vault vehicle JSON + driver KYC. No per-card RPC.
- * Reuses `getTripsByOrganization`'s existing paginated trips read rather than
- * adding a second trips query pattern.
+ * Batched read of every input for a set of trips — trip_documents + flags +
+ * transactions + entity documents + Asset Vault vehicle JSON + driver KYC.
+ * Used for first load and for trips that newly enter the pipeline; targeted
+ * writes use the per-input fetchers below instead.
  */
-export async function buildComplianceTripSummaries(
-  trips: TripRow[],
-): Promise<ComplianceTripSummary[]> {
+export async function fetchComplianceTripInputs(trips: TripRow[]): Promise<ComplianceTripInputs[]> {
+  if (trips.length === 0) return [];
   const tripIds = trips.map((t) => t.id);
-  const [docsByTrip, flagsByTrip, txnsByTrip, entityDocsById, vaultVehicleDocs, driverKycDocs] = await Promise.all([
+  const entityIds = trips.flatMap((trip) => [trip.vehicle_id, trip.driver_id].filter((id): id is string => Boolean(id)));
+  const [docsByTrip, flagsByTrip, txnsByTrip, entityDocsById, vault, driverKycDocs] = await Promise.all([
     fetchTripDocumentsForTrips(tripIds),
     fetchComplianceTripFlags(tripIds),
     fetchComplianceTransactions(tripIds),
-    fetchEntityDocumentsForTrips(trips),
+    fetchEntityDocumentsByIds(orgIdOf(trips), entityIds, ["vehicle", "driver"]),
     fetchVehicleVaultDocumentsForTrips(trips),
     fetchDriverKycDocumentsForTrips(trips),
   ]);
+  return trips.map((trip) => ({
+    trip,
+    documents: docsByTrip.get(trip.id) ?? [],
+    flags: flagsByTrip.get(trip.id) ?? null,
+    ...paymentInputs(txnsByTrip.get(trip.id)),
+    ...assembleVehicleDocuments(trip, entityDocsById, vault),
+    driverDocuments: assembleDriverDocuments(trip, entityDocsById, driverKycDocs),
+  }));
+}
 
-  return trips.map((trip) => {
-    const documents = docsByTrip.get(trip.id) ?? [];
-    const flags = flagsByTrip.get(trip.id);
-    const txns = txnsByTrip.get(trip.id) ?? { advance: [], balance: [] };
-    const taggedAdvance = toPaymentSummary(txns.advance);
-    const advance = taggedAdvance ?? advanceFromTripReceipts(trip);
-    const balance = toPaymentSummary(txns.balance);
-    // Phase 4: the gate is pod_received_at (the pre-existing, pervasively-used
-    // signal), not the courier/AWB/received-by columns — those are display
-    // metadata only. See ComplianceTripFlags.pod_received_at above.
-    const hardCopyReceived = tripPodIsReceived({ pod_received_at: flags?.pod_received_at ?? null });
-    const entityVehicleDocs = trip.vehicle_id
-      ? (entityDocsById.get(trip.vehicle_id) ?? []).filter((d) => d.entity_type === "vehicle").map(toEntityDocument)
-      : [];
-    const vaultVehicle =
-      (trip.vehicle_id ? vaultVehicleDocs.get(trip.vehicle_id) : undefined) ??
-      (trip.owner_vehicle_id ? vaultVehicleDocs.get(trip.owner_vehicle_id) : undefined) ??
-      vaultVehicleDocs.get(normalizeVaultVehicleNumber(trip.vehicle_display_number)) ??
-      [];
-    const vehicleDocuments = mergeComplianceEntityDocs(entityVehicleDocs, vaultVehicle);
-    const entityDriverDocs = trip.driver_id
-      ? (entityDocsById.get(trip.driver_id) ?? []).filter((d) => d.entity_type === "driver").map(toEntityDocument)
-      : [];
-    const kycDriver = trip.driver_id ? (driverKycDocs.get(trip.driver_id) ?? []) : [];
-    const driverDocuments = mergeComplianceEntityDocs(kycDriver, entityDriverDocs);
-    const checklist = buildComplianceChecklist({
-      tripDocuments: documents,
-      vehicleDocuments,
-      driverDocuments,
-    });
-
-    // Presence and counts come from the classifier: an `empty` row (no file,
-    // no typed values, no reference) is not a document.
-    const presentDocuments = documents.filter((d) => classifyTripDocument(d).present);
-    const documentCounts = {
-      total: presentDocuments.length,
-      verified: presentDocuments.filter((d) => d.status === "verified").length,
-      rejected: presentDocuments.filter((d) => d.status === "rejected").length,
-      pending: presentDocuments.filter((d) => d.status === "pending").length,
-    };
-    const presentRequired = new Set(
-      presentDocuments
-        .map((d) => d.document_type)
-        .filter((type) => REQUIRED_COMPLIANCE_DOCUMENT_TYPES.includes(type)),
-    );
-    const missingRequiredCount = REQUIRED_COMPLIANCE_DOCUMENT_TYPES.filter(
-      (type) => !presentRequired.has(type),
-    ).length;
-    const hasExpiredRequiredVehicleDocs =
-      listExpiredRequiredVehicleDocTypes(vehicleDocuments).length > 0;
-
-    const stage = deriveComplianceStage({
-      documentCount: documentCounts.total,
-      missingRequiredCount,
-      hasExpiredRequiredVehicleDocs,
-      complianceVerifiedAt: flags?.compliance_verified_at ?? null,
-      advance,
-      tripStatus: trip.status,
-      hardCopyReceived,
-      balance,
-    });
-
-    return {
-      trip,
-      stage,
-      documents,
-      vehicleDocuments,
-      driverDocuments,
-      documentCounts,
-      checklist,
-      complianceVerifiedAt: flags?.compliance_verified_at ?? null,
-      complianceVerifiedBy: flags?.compliance_verified_by ?? null,
-      complianceDecision: flags?.compliance_decision ?? null,
-      complianceExceptionReason: flags?.compliance_exception_reason ?? null,
-      complianceOutstandingSummary: flags?.compliance_outstanding_summary ?? null,
-      advance,
-      balance,
-      hardCopyPod: {
-        received: hardCopyReceived,
-        receivedAt: trip.pod_received_at ?? null,
-        courier: flags?.pod_hard_copy_courier ?? null,
-        awbNumber: flags?.pod_hard_copy_awb_number ?? null,
-        receivedBy: flags?.pod_hard_copy_received_by ?? null,
-      },
-    };
+/** Pure: one trip's summary from its inputs. No I/O. */
+export function summarizeComplianceTrip(inputs: ComplianceTripInputs): ComplianceTripSummary {
+  const { trip, documents, flags, taggedAdvance, balance, vehicleDocuments, driverDocuments } = inputs;
+  const advance = taggedAdvance ?? advanceFromTripReceipts(trip);
+  // Phase 4: the gate is pod_received_at (the pre-existing, pervasively-used
+  // signal), not the courier/AWB/received-by columns — those are display
+  // metadata only. See ComplianceTripFlags.pod_received_at.
+  const hardCopyReceived = tripPodIsReceived({ pod_received_at: flags?.pod_received_at ?? null });
+  const checklist = buildComplianceChecklist({
+    tripDocuments: documents,
+    vehicleDocuments,
+    driverDocuments,
   });
+
+  // Presence and counts come from the classifier: an `empty` row (no file,
+  // no typed values, no reference) is not a document.
+  const presentDocuments = documents.filter((d) => classifyTripDocument(d).present);
+  const documentCounts = {
+    total: presentDocuments.length,
+    verified: presentDocuments.filter((d) => d.status === "verified").length,
+    rejected: presentDocuments.filter((d) => d.status === "rejected").length,
+    pending: presentDocuments.filter((d) => d.status === "pending").length,
+  };
+  const presentRequired = new Set(
+    presentDocuments
+      .map((d) => d.document_type)
+      .filter((type) => REQUIRED_COMPLIANCE_DOCUMENT_TYPES.includes(type)),
+  );
+  const missingRequiredCount = REQUIRED_COMPLIANCE_DOCUMENT_TYPES.filter(
+    (type) => !presentRequired.has(type),
+  ).length;
+  const hasExpiredRequiredVehicleDocs =
+    listExpiredRequiredVehicleDocTypes(vehicleDocuments).length > 0;
+
+  const stage = deriveComplianceStage({
+    documentCount: documentCounts.total,
+    missingRequiredCount,
+    hasExpiredRequiredVehicleDocs,
+    complianceVerifiedAt: flags?.compliance_verified_at ?? null,
+    advance,
+    tripStatus: trip.status,
+    hardCopyReceived,
+    balance,
+  });
+
+  return {
+    trip,
+    stage,
+    documents,
+    vehicleDocuments,
+    driverDocuments,
+    documentCounts,
+    checklist,
+    complianceVerifiedAt: flags?.compliance_verified_at ?? null,
+    complianceVerifiedBy: flags?.compliance_verified_by ?? null,
+    complianceDecision: flags?.compliance_decision ?? null,
+    complianceExceptionReason: flags?.compliance_exception_reason ?? null,
+    complianceOutstandingSummary: flags?.compliance_outstanding_summary ?? null,
+    advance,
+    balance,
+    hardCopyPod: {
+      received: hardCopyReceived,
+      receivedAt: trip.pod_received_at ?? null,
+      courier: flags?.pod_hard_copy_courier ?? null,
+      awbNumber: flags?.pod_hard_copy_awb_number ?? null,
+      receivedBy: flags?.pod_hard_copy_received_by ?? null,
+    },
+  };
+}
+
+/** Batched inputs → summaries (detail screen, report, tests). */
+export async function buildComplianceTripSummaries(
+  trips: TripRow[],
+): Promise<ComplianceTripSummary[]> {
+  return (await fetchComplianceTripInputs(trips)).map(summarizeComplianceTrip);
+}
+
+/**
+ * Vehicle-document inputs for the given trips (entity vehicle docs + vault).
+ * Callers pass every trip sharing the changed vehicle so all of them update.
+ */
+export async function fetchVehicleDocumentsForTrips(
+  trips: TripRow[],
+): Promise<Map<string, { vehicleDocuments: ComplianceEntityDocument[]; vaultVehicleId: string | null }>> {
+  const byTrip = new Map<string, { vehicleDocuments: ComplianceEntityDocument[]; vaultVehicleId: string | null }>();
+  if (trips.length === 0) return byTrip;
+  const vehicleIds = trips.map((trip) => trip.vehicle_id).filter((id): id is string => Boolean(id));
+  const [entityDocsById, vault] = await Promise.all([
+    fetchEntityDocumentsByIds(orgIdOf(trips), vehicleIds, ["vehicle"]),
+    fetchVehicleVaultDocumentsForTrips(trips),
+  ]);
+  for (const trip of trips) byTrip.set(trip.id, assembleVehicleDocuments(trip, entityDocsById, vault));
+  return byTrip;
+}
+
+/** Driver-document inputs (KYC + entity driver docs) for every trip passed. */
+export async function fetchDriverDocumentsForTrips(
+  trips: TripRow[],
+): Promise<Map<string, ComplianceEntityDocument[]>> {
+  const byTrip = new Map<string, ComplianceEntityDocument[]>();
+  if (trips.length === 0) return byTrip;
+  const driverIds = trips.map((trip) => trip.driver_id).filter((id): id is string => Boolean(id));
+  const [entityDocsById, kyc] = await Promise.all([
+    fetchEntityDocumentsByIds(orgIdOf(trips), driverIds, ["driver"]),
+    fetchDriverKycDocumentsForTrips(trips),
+  ]);
+  for (const trip of trips) byTrip.set(trip.id, assembleDriverDocuments(trip, entityDocsById, kyc));
+  return byTrip;
+}
+
+/**
+ * Trip-specific inputs only (documents, flags, compliance transactions) for
+ * many trips in 3 batched reads. Vehicle / driver documents are NOT re-read —
+ * they are shared inputs refreshed only when a vehicle/driver write happens
+ * or a trip's vehicle/driver identity changes.
+ */
+export async function fetchTripScopedInputs(
+  tripIds: string[],
+): Promise<Map<string, Pick<ComplianceTripInputs, "documents" | "flags" | "taggedAdvance" | "balance">>> {
+  const byTrip = new Map<string, Pick<ComplianceTripInputs, "documents" | "flags" | "taggedAdvance" | "balance">>();
+  if (tripIds.length === 0) return byTrip;
+  const [docsByTrip, flagsByTrip, txnsByTrip] = await Promise.all([
+    fetchTripDocumentsForTrips(tripIds),
+    fetchComplianceTripFlags(tripIds),
+    fetchComplianceTransactions(tripIds),
+  ]);
+  for (const id of tripIds) {
+    byTrip.set(id, {
+      documents: docsByTrip.get(id) ?? [],
+      flags: flagsByTrip.get(id) ?? null,
+      ...paymentInputs(txnsByTrip.get(id)),
+    });
+  }
+  return byTrip;
+}
+
+/** Payment inputs (compliance transactions + `trips.amount_paid`) for one or more trips. */
+export async function fetchTripPaymentInputs(
+  tripIds: string[],
+): Promise<
+  Map<string, { taggedAdvance: CompliancePaymentSummary | null; balance: CompliancePaymentSummary | null; tripFields: Pick<TripRow, "amount_paid" | "updated_at"> | null }>
+> {
+  const byTrip = new Map<
+    string,
+    { taggedAdvance: CompliancePaymentSummary | null; balance: CompliancePaymentSummary | null; tripFields: Pick<TripRow, "amount_paid" | "updated_at"> | null }
+  >();
+  if (tripIds.length === 0) return byTrip;
+  const [txnsByTrip, fieldsByTrip] = await Promise.all([
+    fetchComplianceTransactions(tripIds),
+    fetchTripPaymentFields(tripIds),
+  ]);
+  for (const id of tripIds) {
+    byTrip.set(id, { ...paymentInputs(txnsByTrip.get(id)), tripFields: fieldsByTrip.get(id) ?? null });
+  }
+  return byTrip;
 }
 
 /** Whether every Compliance-required document type on a trip is verified. */

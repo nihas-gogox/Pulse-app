@@ -27,6 +27,7 @@ import {
   type ComplianceDocRow,
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import { complianceReviewDecisionActions } from "@/features/tripCompliance/utils/complianceReviewActions.util";
+import type { ComplianceChange } from "@/features/tripCompliance/services/compliancePipelineSync.service";
 import { classifyTripDocument, readTypedDetails } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
@@ -72,6 +73,13 @@ function rowsForTab(summary: ComplianceTripSummary, tab: DocTab): ComplianceDocR
   if (tab === "vehicle") return deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, summary.vehicleDocuments);
   if (tab === "driver") return deriveEntityComplianceRows(COMPLIANCE_DRIVER_DOCUMENT_TYPES, summary.driverDocuments);
   return deriveComplianceDocumentRows(summary.documents);
+}
+
+/** Entity doc approve/decline changes that vehicle's or driver's docs — shared by every trip using it. */
+function entityDocumentChange(doc: { entity_type: "vehicle" | "driver"; entity_id: string }): ComplianceChange {
+  return doc.entity_type === "driver"
+    ? { type: "driverDocuments", driverId: doc.entity_id }
+    : { type: "vehicleDocuments", vehicleId: doc.entity_id };
 }
 
 /** Row has reviewable content: a present trip doc (per classifier) or an entity file. */
@@ -597,7 +605,8 @@ export function ComplianceDocumentWorkspace({
   actorId: string | null;
   canVerify: boolean;
   canViewDocuments: boolean;
-  onChanged: (tripId: string) => void;
+  /** Exactly what changed, so the pipeline patches only the affected inputs. */
+  onChanged: (change: ComplianceChange) => void;
   stacked?: boolean;
   style?: StyleProp<ViewStyle>;
   canManageFinance?: boolean;
@@ -704,23 +713,25 @@ export function ComplianceDocumentWorkspace({
           alertMessage("Couldn't approve document", error.message);
           return;
         }
+        onChanged({ type: "tripDocumentDecision", tripId: summary.trip.id, documentId: activeRow.doc.id, status: "verified", actorId });
       } else if (activeRow.entityDoc?.source === "vehicle-vault" && summary.trip.vehicle_id) {
         const marked = await markVehicleDocumentVerified(organizationId, summary.trip.vehicle_id, activeRow.type);
         if (marked.error) {
           alertMessage("Couldn't approve document", marked.error.message);
           return;
         }
+        onChanged({ type: "vehicleDocuments", vehicleId: summary.trip.vehicle_id });
       } else if (activeRow.entityDoc?.id && activeRow.entityDoc.source !== "driver-kyc") {
         const { error } = await verifyDocument(activeRow.entityDoc.id, actorId);
         if (error) {
           alertMessage("Couldn't approve document", error.message);
           return;
         }
+        onChanged(entityDocumentChange(activeRow.entityDoc));
       } else {
         alertMessage("Couldn't approve document", "This document can't be approved from this preview.");
         return;
       }
-      onChanged(summary.trip.id);
       goNext();
     } finally {
       setBusy(false);
@@ -750,6 +761,14 @@ export function ComplianceDocumentWorkspace({
           alertMessage("Couldn't decline document", error.message);
           return;
         }
+        onChanged({
+          type: "tripDocumentDecision",
+          tripId: summary.trip.id,
+          documentId: activeRow.doc.id,
+          status: "rejected",
+          actorId,
+          rejectionReason: reason,
+        });
       } else if (activeRow.entityDoc?.source === "vehicle-vault") {
         alertMessage("Couldn't decline document", "Replace this file from the vehicle vault, or upload a new copy.");
         return;
@@ -759,13 +778,13 @@ export function ComplianceDocumentWorkspace({
           alertMessage("Couldn't decline document", error.message);
           return;
         }
+        onChanged(entityDocumentChange(activeRow.entityDoc));
       } else {
         alertMessage("Couldn't decline document", "This document can't be declined from this preview.");
         return;
       }
       setDeclineOpen(false);
       setDeclineReason("");
-      onChanged(summary.trip.id);
       goNext();
     } finally {
       setBusy(false);
@@ -1032,7 +1051,7 @@ export function ComplianceDocumentWorkspace({
               alertMessage("Hardcopy POD", "This trip already has a hardcopy POD logged.");
               return;
             }
-            onChanged(summary.trip.id);
+            onChanged({ type: "tripFlags", tripId: summary.trip.id });
           })();
         }}
       />

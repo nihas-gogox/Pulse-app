@@ -41,6 +41,7 @@ import { LogHardCopyPodModal } from "@/features/trips/components/trip-detail/Log
 import { HardCopyPodStatusCard } from "@/features/trips/components/trip-detail/HardCopyPodStatusCard";
 import { ComplianceSection } from "@/features/tripCompliance/components/ComplianceSection";
 import { useWorkspaceProductsQuery } from "@/lib/queries/useWorkspaceProductsQuery";
+import { queryKeys } from "@/lib/queryKeys";
 import type { LedgerRow } from "@/features/finance/services/finance.service";
 import type { LedgerEntryReceiptPartyAvatar } from "@/components/ledger/LedgerEntryReceiptCard";
 import { latestTripSettlementLedgerEntry } from "@/features/trips/utils/tripSettlementLedgerEntries.util";
@@ -626,7 +627,7 @@ export default function TripDetailScreen({
     const orgId = currentOrganization?.id ?? detail.trip?.organization_id ?? null;
     if (!orgId) return;
     void queryClient.invalidateQueries({
-      queryKey: ["q", "tripCompliance", "pipeline", "v1", orgId],
+      queryKey: queryKeys.tripCompliance.pipeline(orgId),
     });
     void queryClient.invalidateQueries({
       queryKey: ["q", "tripCompliance", "detail", "v1", orgId],
