@@ -252,7 +252,6 @@ export function useComplianceTripQuery(tripId: string | undefined) {
     staleTime: 0,
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
-    refetchOnWindowFocus: true,
     select: (summary) => (summary ? withChecklist(summary) : null),
   });
 }
