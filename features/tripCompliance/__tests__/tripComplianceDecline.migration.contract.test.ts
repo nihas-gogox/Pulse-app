@@ -25,11 +25,17 @@ describe("decline migration — filename / ordering", () => {
     expect(FILE.slice(8, 14)).not.toBe("000000");
   });
 
-  it("sorts after every other migration file (no --include-all needed)", () => {
+  it("sorts directly after the release remote head (no --include-all needed)", () => {
+    // CONTRACT.md D4 / MIGRATION.md: remote head at release was 20270928114500.
+    // Later migrations may follow decline; none may be inserted between the
+    // release head and decline (that file would sort before an applied migration).
+    const RELEASE_REMOTE_HEAD = "20270928114500_client_contract_validity.sql";
     const versions = readdirSync(DIR)
       .filter((f) => f.endsWith(".sql"))
       .sort();
-    expect(versions[versions.length - 1]).toBe(FILE);
+    const i = versions.indexOf(FILE);
+    expect(i).toBeGreaterThan(0);
+    expect(versions[i - 1]).toBe(RELEASE_REMOTE_HEAD);
   });
 
   it("sets a local lock_timeout before any DDL", () => {
