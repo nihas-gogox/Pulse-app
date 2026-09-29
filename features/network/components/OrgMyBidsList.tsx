@@ -39,7 +39,6 @@ import {
   PilotTestCheckoutSheet,
 } from "@/features/marketplace/components/PilotPaymentMethodSheet";
 import { RazorpayTestPreviewSheet } from "@/features/driver/components/RazorpayTestPreviewSheet";
-import { getTripByIndentId } from "@/features/trips/services/trips.service";
 import type { IndentRow } from "@/features/indents/services/indents.service";
 import { setInitialIndentForDetail } from "@/features/indents/initialIndentForDetail";
 import { showAppAlert } from "@/lib/appAlert";
@@ -267,7 +266,6 @@ function BidCard({
   const isRejected = bid.status === "rejected";
   const phoneDisplay = bid.owner_phone ?? bid.owner_masked_phone;
   const feeGateSatisfied = marketplaceFeeGateSatisfied(bid.fee_payment_status);
-  const [isNavigating, setIsNavigating] = useState(false);
   const [isStartingPayment, setIsStartingPayment] = useState(false);
   const [checkoutOrder, setCheckoutOrder] = useState<{
     orderId: string;
@@ -406,35 +404,18 @@ function BidCard({
     return { error };
   };
 
-  // Reuses the existing Indent allocation flow end to end (same as Load Center's
-  // "Get Load -> Allocate" CTA) -- mirrors IndentDetailScreen's handleSupplierAllocate:
-  // route to the trip if allocation already happened elsewhere, otherwise open Allocation.
-  const handleAssignVehicle = async () => {
+  // Open the fleet step directly. A trip lookup here competed with the
+  // driver and vehicle lists, then replaced this screen with a second load.
+  const handleAssignVehicle = () => {
     if (!marketplaceFeeGateSatisfied(bid.fee_payment_status)) {
       setMethodSheetOpen(true);
       return;
     }
-    if (isNavigating) return;
-    setIsNavigating(true);
-    try {
-      const viewerOrgId = (orgId ?? "").trim();
-      if (viewerOrgId) {
-        setInitialIndentForDetail(indentRowFromOrgMarketBid(bid, viewerOrgId));
-      }
-      const res = await getTripByIndentId(bid.indent_id);
-      if (res.trip?.id) {
-        router.push(ROUTES.tripAssignment(res.trip.id, "vehicle") as never);
-        return;
-      }
-      router.push(ROUTES.indentAllocation(bid.indent_id) as never);
-    } catch (e) {
-      showAppAlert(
-        "Could not open assignment",
-        e instanceof Error ? e.message : "Please try again.",
-      );
-    } finally {
-      setIsNavigating(false);
+    const viewerOrgId = (orgId ?? "").trim();
+    if (viewerOrgId) {
+      setInitialIndentForDetail(indentRowFromOrgMarketBid(bid, viewerOrgId));
     }
+    router.push(ROUTES.indentAllocation(bid.indent_id, "vehicle") as never);
   };
 
   return (
@@ -496,7 +477,6 @@ function BidCard({
         {isAccepted && feeGateSatisfied ? (
           <Pressable
             onPress={handleAssignVehicle}
-            disabled={isNavigating}
             style={({ pressed }) => [
               styles.assignCta,
               pressed && styles.assignRowPressed,
@@ -505,7 +485,7 @@ function BidCard({
             accessibilityLabel="Assign vehicle"
           >
             <Text style={styles.assignCtaText} numberOfLines={1}>
-              {isNavigating ? "Opening…" : "Assign"}
+              Assign
             </Text>
             <ChevronRight size={13} color={Theme.positive} strokeWidth={2.4} />
           </Pressable>

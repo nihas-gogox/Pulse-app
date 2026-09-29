@@ -8,7 +8,7 @@ import { LoadCenterView } from "@/features/network/components/LoadCenterView";
 import { LOADS_HUB_PAGE_BG } from "@/features/network/components/LoadCenterHubMobileShell";
 import { setInitialIndentForDetail } from "@/features/indents/initialIndentForDetail";
 import { ROUTES } from "@/lib/routes";
-import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOptionalOrganization } from "@/contexts/OrganizationContext";
 import { useLayoutInsets } from "@/lib/layoutInsets";
 import { useMemberAccess } from "@/lib/useMemberAccess";
 import Theme from "@/constants/Theme";
@@ -19,7 +19,10 @@ import { StyleSheet, Text, View } from "react-native";
 export default function PulseLoadsScreen() {
   const layout = useLayoutInsets();
   const router = useRouter();
-  const { currentOrganization: organization, isLoading: orgLoading } = useOrganization();
+  // PublicAuthTree can paint this route for one frame with no org provider.
+  const orgCtx = useOptionalOrganization();
+  const organization = orgCtx?.currentOrganization ?? null;
+  const orgLoading = orgCtx?.isLoading ?? orgCtx == null;
   const { can: canSurface, isLoading: accessLoading } = useMemberAccess();
   const canViewLoadsHub = canSurface("tripops.pulse_loads");
   // Gate the org id too: no orgId means LoadCenterView fetches nothing.

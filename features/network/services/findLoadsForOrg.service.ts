@@ -197,6 +197,18 @@ export type MyOrgMarketBidRow = {
 };
 
 /**
+ * Find Loads stores `{ bids }` on `findLoadsForOrg.myBids`. The allocation
+ * wizard used to store the bare array on that same key. Either value can be
+ * in cache; callers must not assume one shape.
+ */
+export function marketBidsFromQueryData(data: unknown): MyOrgMarketBidRow[] {
+  if (Array.isArray(data)) return data as MyOrgMarketBidRow[];
+  const bids = (data as { bids?: unknown } | null)?.bids;
+  if (Array.isArray(bids)) return bids as MyOrgMarketBidRow[];
+  return [];
+}
+
+/**
  * A4.4 Phase 4 — this organization's own Marketplace bids, across every
  * member (not just whoever personally submitted a given bid) — backs the
  * "My Bids" segment in Find Loads. See list_my_org_market_bids.sql for why
@@ -211,7 +223,7 @@ export async function listMyOrgMarketBids(
     p_limit: limit,
   });
   if (error) return { error: new Error(error.message), bids: [] };
-  return { error: null, bids: (data ?? []) as MyOrgMarketBidRow[] };
+  return { error: null, bids: marketBidsFromQueryData(data) };
 }
 
 export async function submitOrgMarketBid(

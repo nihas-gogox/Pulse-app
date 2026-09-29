@@ -27,6 +27,8 @@ export type IndentAssetAllocationStepProps = {
   onAddDriver?: () => void;
   onAddVehicle?: () => void;
   compact?: boolean;
+  /** Drivers/vehicles are still loading. Do not wait on the trips list. */
+  rosterPending?: boolean;
 };
 
 export const IndentAssetAllocationStep = memo(function IndentAssetAllocationStep({
@@ -42,13 +44,14 @@ export const IndentAssetAllocationStep = memo(function IndentAssetAllocationStep
   onAddDriver,
   onAddVehicle,
   compact = false,
+  rosterPending = false,
 }: IndentAssetAllocationStepProps) {
   const [driverListExpanded, setDriverListExpanded] = useState(!assignDriverId);
   const [vehicleListExpanded, setVehicleListExpanded] = useState(
     typeof assignVehicleId !== "string",
   );
 
-  const fleet = useFleetAssignmentAvailability(orgId, {
+  const fleet = useFleetAssignmentAvailability(rosterPending ? null : orgId, {
     selectedDriverId: assignDriverId,
     selectedVehicleId: assignVehicleId,
   });
@@ -190,7 +193,7 @@ export const IndentAssetAllocationStep = memo(function IndentAssetAllocationStep
             </View>
           ) : null}
 
-          {isLoading ? (
+          {rosterPending && drivers.length === 0 && vehicles.length === 0 ? (
             <ActivityIndicator color={Theme.iconPrimary} style={{ marginVertical: 24 }} />
           ) : (
             <View style={compact ? s.compactStack : s.allocationColumns}>
