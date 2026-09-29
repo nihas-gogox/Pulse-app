@@ -45,6 +45,7 @@ import {
 } from "@/features/vehicles/services/vehicleDocuments.service";
 import type { VehicleComplianceDocType } from "@/features/vehicles/utils/vehicleDocuments.util";
 import { formatIndianVehicleNumber } from "@/lib/format";
+import { SIGNED_URL_CACHE_TTL_MS, SIGNED_URL_EXPIRY_SEC } from "@/lib/storageSignedUrlCache";
 import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -77,6 +78,29 @@ const DECLINE_FIELDS: ComplianceInputField[] = [
     required: true,
   },
 ];
+
+/**
+ * Local preview-URL reuse window. Service-level signers already cache URLs until
+ * ~2 min before expiry, so a URL we receive may have only that margin left —
+ * stay inside it so a cached entry can never outlive its signature.
+ */
+const PREVIEW_CACHE_TTL_MS = SIGNED_URL_EXPIRY_SEC * 1000 - SIGNED_URL_CACHE_TTL_MS - 30_000;
+
+type PreviewCacheEntry = { url: string; mime: string | null; expiresAtMs: number };
+
+function readPreviewCache(cache: Map<string, PreviewCacheEntry>, path: string): PreviewCacheEntry | null {
+  const entry = cache.get(path);
+  if (!entry) return null;
+  if (entry.expiresAtMs <= Date.now()) {
+    cache.delete(path);
+    return null;
+  }
+  return entry;
+}
+
+function writePreviewCache(cache: Map<string, PreviewCacheEntry>, path: string, url: string, mime: string | null) {
+  cache.set(path, { url, mime, expiresAtMs: Date.now() + PREVIEW_CACHE_TTL_MS });
+}
 
 type DocTab = "trip" | "vehicle" | "driver";
 
@@ -656,7 +680,7 @@ export function ComplianceDocumentWorkspace({
   const [localDecisionByKey, setLocalDecisionByKey] = useState<
     Record<string, "verified" | "rejected">
   >({});
-  const previewCacheRef = useRef<Map<string, { url: string; mime: string | null }>>(new Map());
+  const previewCacheRef = useRef<Map<string, PreviewCacheEntry>>(new Map());
 
   const summary = summaries.find((item) => item.trip.id === selectedId) ?? summaries[0] ?? null;
   const rows = useMemo(() => (summary ? rowsForTab(summary, tab) : []), [summary, tab]);
@@ -718,7 +742,7 @@ export function ComplianceDocumentWorkspace({
       setLoadingPreview(false);
       return;
     }
-    const cached = previewCacheRef.current.get(activePreviewPath);
+    const cached = readPreviewCache(previewCacheRef.current, activePreviewPath);
     if (cached) {
       setPreviewUrl(cached.url);
       setPreviewMime(cached.mime);
@@ -738,7 +762,7 @@ export function ComplianceDocumentWorkspace({
       if (cancelled) return;
       const mime = guessCompliancePreviewMime(activePreviewPath, activePreviewMimeHint);
       if (url) {
-        previewCacheRef.current.set(activePreviewPath, { url, mime });
+        writePreviewCache(previewCacheRef.current, activePreviewPath, url, mime);
       }
       setPreviewUrl(url);
       setPreviewMime(mime);
@@ -765,7 +789,7 @@ export function ComplianceDocumentWorkspace({
     const nextRow = previewable[(docIndex + 1) % previewable.length];
     if (nextRow?.doc && !classifyTripDocument(nextRow.doc).hasBinary) return;
     const path = nextRow?.doc?.storage_path ?? nextRow?.entityDoc?.storage_path ?? null;
-    if (!path || previewCacheRef.current.has(path)) return;
+    if (!path || readPreviewCache(previewCacheRef.current, path)) return;
     let cancelled = false;
     void signCompliancePreviewUrl({
       storagePath: path,
@@ -779,10 +803,7 @@ export function ComplianceDocumentWorkspace({
       docType: nextRow.type,
     }).then((url) => {
       if (cancelled || !url) return;
-      previewCacheRef.current.set(path, {
-        url,
-        mime: guessCompliancePreviewMime(path, nextRow.doc?.mime_type),
-      });
+      writePreviewCache(previewCacheRef.current, path, url, guessCompliancePreviewMime(path, nextRow.doc?.mime_type));
     });
     return () => {
       cancelled = true;
