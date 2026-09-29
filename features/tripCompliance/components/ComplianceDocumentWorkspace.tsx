@@ -27,8 +27,7 @@ import {
   type ComplianceDocRow,
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import { complianceReviewDecisionActions } from "@/features/tripCompliance/utils/complianceReviewActions.util";
-import { isTypedDetailsTripDoc } from "@/features/tripCompliance/utils/complianceChecklist.util";
-import { parseEwayFieldEntries } from "@/features/trips/services/ewayBillFields.util";
+import { classifyTripDocument, readTypedDetails } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { markTripHardCopyPodReceived } from "@/features/trips/services/tripDocumentLrPod.service";
@@ -75,33 +74,17 @@ function rowsForTab(summary: ComplianceTripSummary, tab: DocTab): ComplianceDocR
   return deriveComplianceDocumentRows(summary.documents);
 }
 
+/** Row has reviewable content: a present trip doc (per classifier) or an entity file. */
 function hasFile(row: ComplianceDocRow): boolean {
-  return Boolean(row.doc?.storage_path || row.entityDoc?.storage_path);
+  if (row.doc) return classifyTripDocument(row.doc).present;
+  return Boolean(row.entityDoc?.storage_path);
 }
 
-/** Label/value pairs for a typed-in (fields.json) doc — no file to sign. */
+/** Typed-details lines for a details-only trip doc; null when there is a binary to preview instead. */
 function typedDetailsLines(row: ComplianceDocRow | null): { label: string; value: string }[] | null {
   const doc = row?.doc;
-  if (!doc || !isTypedDetailsTripDoc(doc)) return null;
-  if (row.type === "eway_bill") {
-    return parseEwayFieldEntries(doc.document_number).flatMap((entry, index, all) => {
-      const suffix = all.length > 1 ? ` ${index + 1}` : "";
-      return [
-        { label: `E-way bill no.${suffix}`, value: entry.ewayNo },
-        { label: "Created", value: entry.createdDate },
-        { label: "Valid till", value: entry.validTill },
-        { label: "Doc no.", value: entry.docNo },
-      ].filter((line) => line.value);
-    });
-  }
-  try {
-    const parsed = JSON.parse(doc.document_number ?? "") as Record<string, unknown>;
-    return Object.entries(parsed)
-      .filter(([, value]) => typeof value === "string" || typeof value === "number")
-      .map(([label, value]) => ({ label, value: String(value) }));
-  } catch {
-    return [{ label: "Details", value: doc.document_number ?? "" }];
-  }
+  if (!doc || classifyTripDocument(doc).kind !== "details") return null;
+  return readTypedDetails(doc.document_number);
 }
 
 function originalDocumentSize(
@@ -666,7 +649,7 @@ export function ComplianceDocumentWorkspace({
   useEffect(() => {
     const row = previewable[docIndex] ?? null;
     const path = row?.doc?.storage_path ?? row?.entityDoc?.storage_path ?? null;
-    if (!row || !path || !canViewDocuments || !organizationId || (row.doc && isTypedDetailsTripDoc(row.doc))) {
+    if (!row || !path || !canViewDocuments || !organizationId || (row.doc && !classifyTripDocument(row.doc).hasBinary)) {
       setPreviewUrl(null);
       setPreviewMime(null);
       setLoadingPreview(false);

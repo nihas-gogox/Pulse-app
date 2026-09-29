@@ -11,7 +11,7 @@ import {
   type ComplianceChecklistTone,
   type ComplianceDocumentRow,
 } from "@/features/tripCompliance/tripCompliance.types";
-import { isEwayBillMetaPath } from "@/features/trips/services/ewayBillFields.util";
+import { classifyTripDocument } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
 
 export function checklistTone(verified: number, total: number): ComplianceChecklistTone {
   if (total > 0 && verified >= total) return "success";
@@ -115,22 +115,13 @@ export function isEntityDocumentSlotVerified(
 }
 
 /**
- * Documents reach trip_documents two ways: an uploaded file, or typed-in
- * details saved as `<trip>/<type>/fields.json` with the values in
- * `document_number` (most E-way bills, some LR OCR). Both count as "on file" —
- * same rule the stage derivation and `mark_trip_compliance_verified` use.
- * A fields row with no values is still treated as missing.
+ * Checklist presence for a trip document: the classifier says the row holds
+ * something (file, typed details, vault reference, or URL) and it is not
+ * rejected. Status is judged here; content is judged only by the classifier.
  */
-export function isTypedDetailsTripDoc(
-  doc: Pick<ComplianceDocumentRow, "storage_path" | "file_name" | "document_number">,
-): boolean {
-  return isEwayBillMetaPath(doc.storage_path, doc.file_name) && Boolean((doc.document_number ?? "").trim());
-}
-
 export function isTripVaultDocumentOnFile(doc: ComplianceDocumentRow): boolean {
   if (!doc.document_type || doc.status === "rejected") return false;
-  if (isEwayBillMetaPath(doc.storage_path, doc.file_name)) return isTypedDetailsTripDoc(doc);
-  return Boolean(doc.storage_path) || doc.status === "verified";
+  return classifyTripDocument(doc).present;
 }
 
 function buildGroup(

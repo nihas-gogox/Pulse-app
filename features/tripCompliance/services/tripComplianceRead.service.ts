@@ -12,6 +12,7 @@ import {
     type ComplianceTripSummary,
 } from "@/features/tripCompliance/tripCompliance.types";
 import { buildComplianceChecklist, listExpiredRequiredVehicleDocTypes } from "@/features/tripCompliance/utils/complianceChecklist.util";
+import { classifyTripDocument } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
 import {
     mergeComplianceEntityDocs,
     normalizeTripDocumentType,
@@ -404,26 +405,6 @@ export function uniqueTripsNeedingVehicleViewer(
   return unique;
 }
 
-/**
- * Partner vehicles need one viewer RPC each, and vault docs rarely change —
- * remember results (including "no access" nulls) across pipeline rebuilds so a
- * refetch doesn't re-fire N RPCs. Cleared per vehicle by the single-trip refresh.
- */
-const VEHICLE_VIEWER_TTL_MS = 5 * 60_000;
-const vehicleViewerCache = new Map<string, { at: number; vehicle: Awaited<ReturnType<typeof getVehicleForTripViewer>>["vehicle"] }>();
-
-export function forgetVehicleViewerCache(vehicleIds: (string | null | undefined)[]): void {
-  for (const id of vehicleIds) if (id) vehicleViewerCache.delete(id);
-}
-
-async function getVehicleForTripViewerCached(vehicleId: string, tripId: string, orgId: string) {
-  const hit = vehicleViewerCache.get(vehicleId);
-  if (hit && Date.now() - hit.at < VEHICLE_VIEWER_TTL_MS) return hit.vehicle;
-  const { vehicle, error } = await getVehicleForTripViewer(vehicleId, tripId, orgId);
-  if (!error) vehicleViewerCache.set(vehicleId, { at: Date.now(), vehicle });
-  return vehicle;
-}
-
 async function fetchVehicleVaultDocumentsForTrips(
   trips: TripRow[],
 ): Promise<Map<string, ComplianceEntityDocument[]>> {
@@ -453,7 +434,7 @@ async function fetchVehicleVaultDocumentsForTrips(
     await runWithConcurrencyLimit(missingById, 4, async (trip) => {
       const vehicleId = trip.vehicle_id ?? trip.owner_vehicle_id;
       if (!vehicleId) return;
-      const vehicle = await getVehicleForTripViewerCached(vehicleId, trip.id, orgId);
+      const { vehicle } = await getVehicleForTripViewer(vehicleId, trip.id, orgId);
       if (!vehicle) return;
       const docs = vehicleVaultDocumentsToEntityDocs(vehicleId, (vehicle.documents ?? null) as VehicleDocuments | null);
       indexVehicleVaultDocs(
@@ -611,14 +592,17 @@ export async function buildComplianceTripSummaries(
       driverDocuments,
     });
 
+    // Presence and counts come from the classifier: an `empty` row (no file,
+    // no typed values, no reference) is not a document.
+    const presentDocuments = documents.filter((d) => classifyTripDocument(d).present);
     const documentCounts = {
-      total: documents.length,
-      verified: documents.filter((d) => d.status === "verified").length,
-      rejected: documents.filter((d) => d.status === "rejected").length,
-      pending: documents.filter((d) => d.status === "pending").length,
+      total: presentDocuments.length,
+      verified: presentDocuments.filter((d) => d.status === "verified").length,
+      rejected: presentDocuments.filter((d) => d.status === "rejected").length,
+      pending: presentDocuments.filter((d) => d.status === "pending").length,
     };
     const presentRequired = new Set(
-      documents
+      presentDocuments
         .map((d) => d.document_type)
         .filter((type) => REQUIRED_COMPLIANCE_DOCUMENT_TYPES.includes(type)),
     );

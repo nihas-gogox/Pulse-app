@@ -8,7 +8,6 @@
 import { useOptionalOrganization } from "@/contexts/OrganizationContext";
 import {
   buildComplianceTripSummaries,
-  forgetVehicleViewerCache,
 } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import type { ComplianceStage, ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import { ensureComplianceChecklist } from "@/features/tripCompliance/utils/complianceChecklist.util";
@@ -222,7 +221,6 @@ export function useRefreshComplianceTrip() {
       return;
     }
     try {
-      forgetVehicleViewerCache([cached.trip.vehicle_id, cached.trip.owner_vehicle_id]);
       const [fresh] = await buildComplianceTripSummaries([cached.trip]);
       if (!fresh) return;
       qc.setQueriesData<ComplianceTripSummary[]>({ queryKey: pipelinePrefix }, (rows) =>

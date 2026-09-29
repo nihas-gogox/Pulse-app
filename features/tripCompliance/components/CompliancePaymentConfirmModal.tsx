@@ -23,6 +23,7 @@ import {
     useWindowDimensions,
     View,
 } from "react-native";
+import { classifyTripDocument } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
 
 type PaymentTripFacts = TripRow & {
   sale_unit_rate?: number | null;
@@ -135,7 +136,11 @@ export function CompliancePaymentConfirmModal({
   const categoryLabel = category === "compliance_balance" ? "balance" : "advance";
   const trip = summary?.trip as PaymentTripFacts | undefined;
   const tripLabel = trip?.booking_ref ?? trip?.id.slice(0, 8) ?? "—";
-  const lrDocument = summary?.documents.find((doc) => (doc.document_type ?? "").toLowerCase() === "lr") ?? null;
+  // Only an openable LR (file / url / reference) — a typed-details row has nothing to sign.
+  const lrDocument =
+    summary?.documents.find(
+      (doc) => (doc.document_type ?? "").toLowerCase() === "lr" && classifyTripDocument(doc).hasBinary,
+    ) ?? null;
 
   const openLrPreview = async () => {
     const path = lrDocument?.storage_path?.trim();
