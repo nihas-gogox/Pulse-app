@@ -1,5 +1,5 @@
 import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
-import { deriveComplianceQueueReadiness, summarizeRequiredTripDocuments } from "@/features/tripCompliance/utils/complianceReadiness.util";
+import { deriveComplianceQueueReadiness, isCompliancePaymentPending, summarizeRequiredTripDocuments } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { classifyPreviewFailure } from "@/features/tripCompliance/utils/compliancePreviewFailure.util";
 import { groupComplianceReviewRows } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 
@@ -57,6 +57,31 @@ describe("deriveComplianceQueueReadiness", () => {
     expect(readiness.advance.status).toBe("ready");
     expect(readiness.paymentReady).toBe(true);
     expect(readiness.readyCategory).toBe("compliance_advance");
+  });
+
+  it("flags payment-pending across stages until advance is posted", () => {
+    const verified = summaryFixture({
+      stage: "compliance_verified",
+      complianceVerifiedAt: "2026-09-01",
+    });
+    expect(isCompliancePaymentPending(verified)).toBe(true);
+    expect(
+      isCompliancePaymentPending(
+        summaryFixture({
+          stage: "hard_copy_pod_received",
+          complianceVerifiedAt: "2026-09-01",
+          advance: {
+            amount: 1000,
+            paymentMode: "UPI",
+            utr: "UTR",
+            paidAt: "2026-09-01",
+            actorId: "u1",
+            transactionId: "txn-1",
+          },
+        }),
+      ),
+    ).toBe(false);
+    expect(isCompliancePaymentPending(summaryFixture({ stage: "compliance_pending" }))).toBe(false);
   });
 
   it("alerts and blocks payment when RC or insurance is expired", () => {

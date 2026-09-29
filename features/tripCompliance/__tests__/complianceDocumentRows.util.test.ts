@@ -1,6 +1,7 @@
 import {
   deriveComplianceDocumentRows,
   deriveEntityComplianceRows,
+  deriveFinanceDocumentRows,
   complianceProgress,
   labelForDocType,
   requirementScopeLabel,
@@ -87,6 +88,36 @@ describe("deriveComplianceDocumentRows", () => {
   it("hides vehicle types that were uploaded against the trip", () => {
     const rows = deriveComplianceDocumentRows([doc({ id: "rc-1", document_type: "rc", status: "pending" })]);
     expect(rows.find((r) => r.type === "rc")).toBeUndefined();
+  });
+});
+
+describe("deriveFinanceDocumentRows", () => {
+  it("always includes POD and Memo slots", () => {
+    const rows = deriveFinanceDocumentRows([]);
+    expect(rows.map((r) => r.type)).toEqual(["pod", "memo"]);
+    expect(rows.every((r) => !r.required)).toBe(true);
+    expect(rows.every((r) => r.status === "missing")).toBe(true);
+  });
+
+  it("merges other present trip-vault types after the fixed slots", () => {
+    const rows = deriveFinanceDocumentRows([
+      doc({ id: "memo-1", document_type: "memo", status: "pending" }),
+      doc({ id: "slip-1", document_type: "loading_slip", status: "verified", file_name: "slip.pdf" }),
+      doc({ id: "man-1", document_type: "manifest", status: "pending", file_name: "manifest.pdf" }),
+      doc({ id: "lr-1", document_type: "lr", status: "pending" }),
+    ]);
+    expect(rows.map((r) => r.type)).toEqual(["pod", "memo", "loading_slip", "manifest"]);
+    expect(rows.find((r) => r.type === "memo")?.status).toBe("pending");
+    expect(rows.find((r) => r.type === "loading_slip")?.status).toBe("verified");
+    expect(rows.find((r) => r.type === "lr")).toBeUndefined();
+  });
+
+  it("does not surface vehicle or driver KYC types as finance extras", () => {
+    const rows = deriveFinanceDocumentRows([
+      doc({ id: "rc-1", document_type: "rc", status: "pending" }),
+      doc({ id: "lic-1", document_type: "license", status: "pending" }),
+    ]);
+    expect(rows.map((r) => r.type)).toEqual(["pod", "memo"]);
   });
 });
 

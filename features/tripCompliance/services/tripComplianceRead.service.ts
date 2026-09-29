@@ -298,17 +298,20 @@ export function advanceFromTripReceipts(
  * signals — never a persisted status column (Phase 4's explicit instruction).
  *
  * Payment progress wins over missing documents: a trip with client receipts
- * must not disappear from Advance Processed just because trip_documents is
+ * must not disappear from the post-payment queue just because trip_documents is
  * empty or Compliance Verified was never stamped.
+ *
+ * Flow after verification: Payment Pending (filter) → advance posted →
+ * AWAITING POD (`hard_copy_pod_received`) → hard-copy marked → BALANCE_PENDING
+ * → balance posted → SETTLED. Advance without POD always lands in Awaiting POD
+ * (not a separate Advance Processed bucket) so Ops can collect hard-copy next.
  *
  * Documented interpretation of a genuine spec ambiguity: "HARD_COPY_POD_RECEIVED"
  * and "BALANCE_PENDING" describe what is, functionally, the same instant (Phase 11:
  * "once hard copy POD received, show BALANCE PENDING"). Since a trip can only sit
- * in one filter bucket at a time, HARD_COPY_POD_RECEIVED is used here for "trip
- * delivered, physical POD not yet marked received" (the actionable, awaiting-Ops
- * bucket) and BALANCE_PENDING begins the moment Ops marks it received — i.e. the
- * "Mark Hard Copy Received" action is the transition point, not two separate
- * milestones with two separate durations.
+ * in one filter bucket at a time, HARD_COPY_POD_RECEIVED is "advance posted,
+ * physical POD not yet marked" and BALANCE_PENDING begins when Ops marks it
+ * received.
  */
 export function deriveComplianceStage(input: {
   documentCount: number;
@@ -325,19 +328,14 @@ export function deriveComplianceStage(input: {
   hardCopyReceived: boolean;
   balance: CompliancePaymentSummary | null;
 }): ComplianceStage {
-  const status = String(input.tripStatus ?? "")
-    .trim()
-    .toLowerCase();
-  const isDeliveredLike =
-    status === "delivered" || status === "completed" || status === "done";
+  void input.tripStatus;
 
   if (input.balance) return "payment_settled";
   // Expired RC / Insurance / FC override payment-progress chips — Ops must renew.
   if (input.hasExpiredRequiredVehicleDocs) return "pending_for_docs";
-  if (input.advance && isDeliveredLike) {
+  if (input.advance) {
     return input.hardCopyReceived ? "balance_pending" : "hard_copy_pod_received";
   }
-  if (input.advance) return "advance_payment_processed";
   if (input.complianceVerifiedAt) return "compliance_verified";
   const missingRequired =
     input.missingRequiredCount ??

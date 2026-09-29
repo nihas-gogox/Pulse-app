@@ -34,6 +34,7 @@ import type {
 } from "@/features/tripCompliance/tripCompliance.types";
 import { ensureComplianceChecklist } from "@/features/tripCompliance/utils/complianceChecklist.util";
 import { selectCompliancePipelineTrips } from "@/features/tripCompliance/utils/compliancePipelineTrips.util";
+import { isCompliancePaymentPending } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { getTripById, type TripRow } from "@/features/trips/services/trips.service";
 import { useTripsQuery } from "@/lib/queries/useTripsQuery";
 import { queryKeys } from "@/lib/queryKeys";
@@ -247,7 +248,7 @@ export function useComplianceTripsQuery(_page = 0): ComplianceQueueResult & {
   };
 }
 
-export type ComplianceQueueFilter = ComplianceStage | "all" | "pod_received";
+export type ComplianceQueueFilter = ComplianceStage | "all" | "pod_received" | "payment_pending";
 
 export function useComplianceStageFilter(summaries: ComplianceTripSummary[] | undefined) {
   const [stage, setStage] = useState<ComplianceQueueFilter>("all");
@@ -255,6 +256,7 @@ export function useComplianceStageFilter(summaries: ComplianceTripSummary[] | un
     if (!summaries) return [];
     if (stage === "all") return summaries;
     if (stage === "pod_received") return summaries.filter((summary) => summary.hardCopyPod?.received);
+    if (stage === "payment_pending") return summaries.filter(isCompliancePaymentPending);
     return summaries.filter((s) => s.stage === stage);
   }, [summaries, stage]);
 
@@ -280,7 +282,12 @@ export function useComplianceStageFilter(summaries: ComplianceTripSummary[] | un
     [summaries],
   );
 
-  return { stage, setStage, filtered, counts, podReceivedCount };
+  const paymentPendingCount = useMemo(
+    () => (summaries ?? []).filter(isCompliancePaymentPending).length,
+    [summaries],
+  );
+
+  return { stage, setStage, filtered, counts, podReceivedCount, paymentPendingCount };
 }
 
 /** Client-side page over an already-filtered summary list. */

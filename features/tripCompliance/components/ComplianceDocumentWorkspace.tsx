@@ -7,6 +7,7 @@ import {
   signCompliancePreviewUrl,
 } from "@/features/tripCompliance/services/complianceDocumentView.service";
 import { NoDocumentPreviewEmpty, NoTripsFoundEmpty } from "@/features/tripCompliance/components/ComplianceEmptyState";
+import { COMPLIANCE_STATUS_META } from "@/features/tripCompliance/components/ComplianceStatusIcon";
 import { ComplianceInputModal, type ComplianceInputField } from "@/features/tripCompliance/components/ComplianceInputModal";
 import { setTripDocumentVerification } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import {
@@ -18,13 +19,14 @@ import {
 import {
   complianceTripDisplayId,
   formatComplianceTimestamp,
-  complianceEventAt,
   verificationStatusVisual,
 } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import {
   deriveComplianceDocumentRows,
   deriveEntityComplianceRows,
+  deriveFinanceDocumentRows,
   labelForDocType,
+  requirementScopeLabel,
   type ComplianceDocRow,
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import {
@@ -36,7 +38,7 @@ import {
 } from "@/features/tripCompliance/utils/complianceReviewActions.util";
 import type { ComplianceChange } from "@/features/tripCompliance/services/compliancePipelineSync.service";
 import { classifyTripDocument, readTypedDetails } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
-import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
+import { deriveComplianceQueueReadiness, paymentReadinessLabel } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { markTripHardCopyPodReceived } from "@/features/trips/services/tripDocumentLrPod.service";
 import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
@@ -49,7 +51,8 @@ import {
 import type { VehicleComplianceDocType } from "@/features/vehicles/utils/vehicleDocuments.util";
 import { formatIndianVehicleNumber } from "@/lib/format";
 import { SIGNED_URL_CACHE_TTL_MS, SIGNED_URL_EXPIRY_SEC } from "@/lib/storageSignedUrlCache";
-import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, X } from "lucide-react-native";
+import { useComplianceListTripFacts } from "@/features/tripCompliance/hooks/useComplianceListTripFacts";
+import { ChevronLeft, ChevronRight, Eye, Minus, Plus, RotateCcw, Upload, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -60,6 +63,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   useWindowDimensions,
   View,
   type StyleProp,
@@ -106,12 +110,37 @@ function writePreviewCache(cache: Map<string, PreviewCacheEntry>, path: string, 
 }
 
 type DocTab = "trip" | "vehicle" | "driver";
+type ChecklistPreviewMode = "document" | "trip" | "advance" | "finance";
 
 const TABS: { key: DocTab; label: string }[] = [
   { key: "trip", label: "Trip" },
   { key: "vehicle", label: "Vehicle" },
   { key: "driver", label: "Driver" },
 ];
+
+const TAB_VAULT_COPY: Record<
+  DocTab,
+  { vaultLabel: string; vaultHint: string; unassignedTitle: string; unassignedHint: string }
+> = {
+  trip: {
+    vaultLabel: "Trip vault",
+    vaultHint: "Upload these from the trip asset vault to continue compliance",
+    unassignedTitle: "",
+    unassignedHint: "",
+  },
+  vehicle: {
+    vaultLabel: "Vehicle vault",
+    vaultHint: "Upload these from the vehicle asset vault for this trip",
+    unassignedTitle: "No vehicle assigned",
+    unassignedHint: "Assign a vehicle to this trip to manage vehicle compliance documents.",
+  },
+  driver: {
+    vaultLabel: "Driver vault",
+    vaultHint: "Upload these from the driver asset vault for this trip",
+    unassignedTitle: "No driver assigned",
+    unassignedHint: "Assign a driver to this trip to manage driver compliance documents.",
+  },
+};
 
 function rowsForTab(summary: ComplianceTripSummary, tab: DocTab): ComplianceDocRow[] {
   if (tab === "vehicle") return deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, summary.vehicleDocuments);
@@ -643,6 +672,7 @@ export function ComplianceDocumentWorkspace({
   onPay,
   onMarkComplianceVerified,
   selectedTripId = null,
+  onReviewTripDocs,
 }: {
   summaries: ComplianceTripSummary[];
   organizationId: string;
@@ -661,12 +691,24 @@ export function ComplianceDocumentWorkspace({
   onMarkComplianceVerified?: (tripId: string) => Promise<void>;
   /** Trip to show when opening the card view from the table. */
   selectedTripId?: string | null;
+  /** Open document review for upload — trip / vehicle / driver vault. */
+  onReviewTripDocs?: (
+    tripId: string,
+    documentKey: string | null,
+    scope?: "trip" | "vehicle" | "driver",
+  ) => void;
 }) {
   const listRef = useRef<ScrollView>(null);
   const scrolledTripId = useRef<string | null>(null);
+  const { truckTypeByVehicleId, supplierNameByTripId } = useComplianceListTripFacts(
+    summaries,
+    organizationId,
+  );
   const [selectedId, setSelectedId] = useState<string | null>(selectedTripId ?? summaries[0]?.trip.id ?? null);
   const [tab, setTab] = useState<DocTab>("trip");
   const [docIndex, setDocIndex] = useState(0);
+  const [checklistKey, setChecklistKey] = useState<string | null>(null);
+  const [checklistPreviewMode, setChecklistPreviewMode] = useState<ChecklistPreviewMode>("document");
   const [zoom, setZoom] = useState(1);
   const [screenOpen, setScreenOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -686,9 +728,46 @@ export function ComplianceDocumentWorkspace({
   const previewCacheRef = useRef<Map<string, PreviewCacheEntry>>(new Map());
 
   const summary = summaries.find((item) => item.trip.id === selectedId) ?? summaries[0] ?? null;
+  const isPendingDocsTrip = Boolean(summary && verificationStatusVisual(summary).kind === "pending_docs");
   const rows = useMemo(() => (summary ? rowsForTab(summary, tab) : []), [summary, tab]);
-  const previewable = useMemo(() => rows.filter(hasFile), [rows]);
-  const activeRow = previewable[docIndex] ?? rows[docIndex] ?? null;
+  const missingUploadRows = useMemo(
+    () => rows.filter((row) => row.status === "missing"),
+    [rows],
+  );
+  const entityUnassigned =
+    (tab === "vehicle" && !summary?.trip.vehicle_id) ||
+    (tab === "driver" && !summary?.trip.driver_id);
+  const showVaultChecklist =
+    !entityUnassigned &&
+    rows.length > 0 &&
+    (tab !== "trip" || isPendingDocsTrip) &&
+    (missingUploadRows.length > 0 || rows.some(hasFile));
+  const showEntityUnassigned = Boolean(summary && entityUnassigned);
+  const checklistRows = showVaultChecklist ? rows : [];
+  const financeRows = useMemo(
+    () => (summary ? deriveFinanceDocumentRows(summary.documents) : []),
+    [summary],
+  );
+  const checklistSelectedRow = useMemo(() => {
+    if (!showVaultChecklist) return null;
+    return (
+      checklistRows.find((row) => row.key === checklistKey) ??
+      financeRows.find((row) => row.key === checklistKey) ??
+      null
+    );
+  }, [showVaultChecklist, checklistRows, financeRows, checklistKey]);
+  const previewable = useMemo(() => {
+    if (showEntityUnassigned) return [];
+    if (showVaultChecklist) return checklistRows.filter(hasFile);
+    return rows.filter(hasFile);
+  }, [rows, showVaultChecklist, showEntityUnassigned, checklistRows]);
+  const activeRow = showEntityUnassigned
+    ? null
+    : showVaultChecklist
+      ? checklistSelectedRow && hasFile(checklistSelectedRow)
+        ? checklistSelectedRow
+        : null
+      : previewable[docIndex] ?? rows[docIndex] ?? null;
   const effectiveActiveRow = useMemo(() => {
     if (!activeRow) return null;
     return applyOptimisticDecision(activeRow, localDecisionByKey[activeRow.key]);
@@ -714,6 +793,7 @@ export function ComplianceDocumentWorkspace({
   useEffect(() => {
     setDocIndex(0);
     setZoom(1);
+    setChecklistPreviewMode("document");
     setDeclineOpen(false);
     setLocalDecisionByKey({});
     setExpiryPrompt((prev) => {
@@ -721,6 +801,19 @@ export function ComplianceDocumentWorkspace({
       return null;
     });
   }, [summary?.trip.id, tab]);
+
+  useEffect(() => {
+    if (!showVaultChecklist) {
+      setChecklistKey(null);
+      return;
+    }
+    setChecklistKey((prev) => {
+      if (prev && checklistRows.some((row) => row.key === prev)) return prev;
+      const firstWithFile = checklistRows.find(hasFile);
+      const firstMissing = checklistRows.find((row) => row.status === "missing");
+      return firstWithFile?.key ?? firstMissing?.key ?? checklistRows[0]?.key ?? null;
+    });
+  }, [showVaultChecklist, checklistRows, summary?.trip.id, tab]);
 
   const activePreviewPath =
     activeRow?.doc?.storage_path ?? activeRow?.entityDoc?.storage_path ?? null;
@@ -1049,6 +1142,57 @@ export function ComplianceDocumentWorkspace({
     onMarkComplianceVerified && summary && !summary.complianceVerifiedAt && readiness?.requiredDocs.markVerifiedReady,
   );
   const [markingVerified, setMarkingVerified] = useState(false);
+  const vaultCopy = TAB_VAULT_COPY[tab];
+  const missingRequiredCount = missingUploadRows.filter((row) => row.required).length;
+  const missingOptionalCount = missingUploadRows.length - missingRequiredCount;
+  const uploadedCount = checklistRows.filter(hasFile).length;
+  const missingHeadline =
+    missingUploadRows.length === 0
+      ? uploadedCount > 0
+        ? `${uploadedCount} document${uploadedCount === 1 ? "" : "s"} on file — preview below`
+        : "No documents in this vault yet"
+      : missingRequiredCount > 0
+        ? `${missingRequiredCount} required document${missingRequiredCount === 1 ? "" : "s"} not uploaded`
+        : `${missingUploadRows.length} document${missingUploadRows.length === 1 ? "" : "s"} not uploaded`;
+  const missingSubline =
+    missingUploadRows.length === 0
+      ? "Use the eye icon to preview, or Upload to replace a file"
+      : missingOptionalCount > 0 && missingRequiredCount > 0
+        ? `Plus ${missingOptionalCount} optional from this ${vaultCopy.vaultLabel.toLowerCase()}`
+        : vaultCopy.vaultHint;
+  const openVaultUpload = useCallback(
+    (documentKey: string | null) => {
+      if (!summary || !onReviewTripDocs) return;
+      setChecklistPreviewMode("document");
+      if (documentKey) setChecklistKey(documentKey);
+      onReviewTripDocs(summary.trip.id, documentKey, tab);
+    },
+    [onReviewTripDocs, summary, tab],
+  );
+  const previewChecklistRow = useCallback((row: ComplianceDocRow) => {
+    setChecklistPreviewMode("document");
+    setChecklistKey(row.key);
+    if (!hasFile(row)) return;
+    setZoom(1);
+  }, []);
+  const tabMissingCounts = useMemo(() => {
+    if (!summary) return { trip: 0, vehicle: 0, driver: 0, finance: 0 };
+    const finance = deriveFinanceDocumentRows(summary.documents);
+    return {
+      trip: deriveComplianceDocumentRows(summary.documents).filter((row) => row.status === "missing").length,
+      vehicle: summary.trip.vehicle_id
+        ? deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, summary.vehicleDocuments).filter(
+            (row) => row.status === "missing",
+          ).length
+        : 0,
+      driver: summary.trip.driver_id
+        ? deriveEntityComplianceRows(COMPLIANCE_DRIVER_DOCUMENT_TYPES, summary.driverDocuments).filter(
+            (row) => row.status === "missing",
+          ).length
+        : 0,
+      finance: finance.filter((row) => row.status === "missing").length,
+    };
+  }, [summary]);
 
   return (
     <View style={[styles.workspace, stacked && styles.workspaceStacked, style]}>
@@ -1084,9 +1228,17 @@ export function ComplianceDocumentWorkspace({
               <TripListRow
                 summary={item}
                 selected={item.trip.id === summary?.trip.id}
+                truckType={
+                  item.trip.vehicle_id
+                    ? truckTypeByVehicleId[item.trip.vehicle_id] ?? null
+                    : null
+                }
+                supplierName={supplierNameByTripId[item.trip.id] ?? null}
                 onPress={() => {
                   setSelectedId(item.trip.id);
                   setTab("trip");
+                  setDocIndex(0);
+                  setZoom(1);
                 }}
               />
             </View>
@@ -1096,10 +1248,15 @@ export function ComplianceDocumentWorkspace({
       </View>
 
       <View style={styles.previewPane}>
+        {!showVaultChecklist ? (
         <View style={styles.tabRow}>
           <View style={styles.tabGroup}>
             {TABS.map((item) => {
               const active = tab === item.key;
+              const missingCount = tabMissingCounts[item.key];
+              const showTabBadge =
+                missingCount > 0 &&
+                (item.key !== "trip" || isPendingDocsTrip);
               return (
                 <Pressable
                   key={item.key}
@@ -1109,12 +1266,19 @@ export function ComplianceDocumentWorkspace({
                   accessibilityState={{ selected: active }}
                 >
                   <Text style={[styles.tabText, active && styles.tabTextActive]}>{item.label}</Text>
+                  {showTabBadge ? (
+                    <View style={[styles.tabBadge, active && styles.tabBadgeActive]}>
+                      <Text style={[styles.tabBadgeText, active && styles.tabBadgeTextActive]}>
+                        {missingCount}
+                      </Text>
+                    </View>
+                  ) : null}
                 </Pressable>
               );
             })}
           </View>
           <View style={styles.previewTools}>
-            {canManagePod ? (
+            {canManagePod && !isPendingDocsTrip ? (
               <Pressable
                 style={[styles.podBtn, !summary && styles.btnDisabled]}
                 disabled={!summary}
@@ -1127,33 +1291,386 @@ export function ComplianceDocumentWorkspace({
                 </Text>
               </Pressable>
             ) : null}
-            <View style={styles.navPill}>
-              <Pressable onPress={goPrev} hitSlop={8} accessibilityLabel="Previous document" disabled={previewable.length < 2}>
-                <ChevronLeft size={12} color={Theme.textPrimaryDark} />
-              </Pressable>
-              <Text style={styles.navLabel} numberOfLines={1}>{docTitle}</Text>
-              <Pressable onPress={goNext} hitSlop={8} accessibilityLabel="Next document" disabled={previewable.length < 2}>
-                <ChevronRight size={12} color={Theme.textPrimaryDark} />
-              </Pressable>
-            </View>
-            <View style={styles.zoomBar}>
-            <Pressable style={styles.zoomBtn} onPress={() => setZoom((value) => Math.max(0.6, Number((value - 0.2).toFixed(2))))} accessibilityLabel="Zoom out">
-              <Minus size={12} color={Theme.textPrimaryDark} />
-            </Pressable>
-            <Text style={styles.zoomLabel}>{Math.round(zoom * 100)}%</Text>
-            <Pressable style={styles.zoomBtn} onPress={() => setZoom((value) => Math.min(2.4, Number((value + 0.2).toFixed(2))))} accessibilityLabel="Zoom in">
-              <Plus size={12} color={Theme.textPrimaryDark} />
-            </Pressable>
-            <Pressable style={styles.zoomBtn} onPress={() => setZoom(1)} accessibilityLabel="Reset zoom">
-              <RotateCcw size={12} color={Theme.textPrimaryDark} />
-            </Pressable>
-            </View>
+            {showEntityUnassigned ? (
+              <View style={styles.missingNavPill}>
+                <Text style={styles.missingNavLabel} numberOfLines={1}>
+                  Unassigned
+                </Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.navPill}>
+                  <Pressable onPress={goPrev} hitSlop={8} accessibilityLabel="Previous document" disabled={previewable.length < 2}>
+                    <ChevronLeft size={12} color={Theme.textPrimaryDark} />
+                  </Pressable>
+                  <Text style={styles.navLabel} numberOfLines={1}>{docTitle}</Text>
+                  <Pressable onPress={goNext} hitSlop={8} accessibilityLabel="Next document" disabled={previewable.length < 2}>
+                    <ChevronRight size={12} color={Theme.textPrimaryDark} />
+                  </Pressable>
+                </View>
+                <View style={styles.zoomBar}>
+                  <Pressable style={styles.zoomBtn} onPress={() => setZoom((value) => Math.max(0.6, Number((value - 0.2).toFixed(2))))} accessibilityLabel="Zoom out">
+                    <Minus size={12} color={Theme.textPrimaryDark} />
+                  </Pressable>
+                  <Text style={styles.zoomLabel}>{Math.round(zoom * 100)}%</Text>
+                  <Pressable style={styles.zoomBtn} onPress={() => setZoom((value) => Math.min(2.4, Number((value + 0.2).toFixed(2))))} accessibilityLabel="Zoom in">
+                    <Plus size={12} color={Theme.textPrimaryDark} />
+                  </Pressable>
+                  <Pressable style={styles.zoomBtn} onPress={() => setZoom(1)} accessibilityLabel="Reset zoom">
+                    <RotateCcw size={12} color={Theme.textPrimaryDark} />
+                  </Pressable>
+                </View>
+              </>
+            )}
           </View>
         </View>
+        ) : null}
 
         <View style={styles.stage}>
+          {showEntityUnassigned ? (
+            <View style={styles.emptyStage}>
+              <View style={styles.missingHeader}>
+                <Text style={styles.missingTitle}>{vaultCopy.unassignedTitle}</Text>
+                <Text style={styles.missingHint}>{vaultCopy.unassignedHint}</Text>
+              </View>
+            </View>
+          ) : showVaultChecklist ? (
+            <View style={[styles.checklistStage, stacked && styles.checklistStageStacked]}>
+              <View style={[styles.checklistListPane, stacked && styles.checklistListPaneStacked]}>
+                <View style={styles.checklistPanelToolbar}>
+                  <View style={styles.checklistPanelTabs}>
+                    <Pressable
+                      onPress={() => setChecklistPreviewMode("finance")}
+                      style={[
+                        styles.tab,
+                        styles.checklistPanelTab,
+                        checklistPreviewMode === "finance" && styles.tabActive,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: checklistPreviewMode === "finance" }}
+                      accessibilityLabel="Show finance documents"
+                    >
+                      <Text
+                        style={[
+                          styles.tabText,
+                          styles.checklistPanelTabText,
+                          checklistPreviewMode === "finance" && styles.tabTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        Finance
+                      </Text>
+                      {tabMissingCounts.finance > 0 ? (
+                        <View
+                          style={[
+                            styles.tabBadge,
+                            styles.checklistPanelTabBadge,
+                            checklistPreviewMode === "finance" && styles.tabBadgeActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.tabBadgeText,
+                              styles.checklistPanelTabBadgeText,
+                              checklistPreviewMode === "finance" && styles.tabBadgeTextActive,
+                            ]}
+                          >
+                            {tabMissingCounts.finance}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </Pressable>
+                    {TABS.map((item) => {
+                      const active = tab === item.key && checklistPreviewMode !== "finance";
+                      const missingCount = tabMissingCounts[item.key];
+                      const showTabBadge =
+                        missingCount > 0 &&
+                        (item.key !== "trip" || isPendingDocsTrip);
+                      return (
+                        <Pressable
+                          key={item.key}
+                          onPress={() => {
+                            setTab(item.key);
+                            setChecklistPreviewMode("document");
+                          }}
+                          style={[
+                            styles.tab,
+                            styles.checklistPanelTab,
+                            active && styles.tabActive,
+                          ]}
+                          accessibilityRole="tab"
+                          accessibilityState={{ selected: active }}
+                        >
+                          <Text
+                            style={[
+                              styles.tabText,
+                              styles.checklistPanelTabText,
+                              active && styles.tabTextActive,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {item.label}
+                          </Text>
+                          {showTabBadge ? (
+                            <View
+                              style={[
+                                styles.tabBadge,
+                                styles.checklistPanelTabBadge,
+                                active && styles.tabBadgeActive,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.tabBadgeText,
+                                  styles.checklistPanelTabBadgeText,
+                                  active && styles.tabBadgeTextActive,
+                                ]}
+                              >
+                                {missingCount}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <View style={[styles.missingNavPill, styles.checklistUploadPill]}>
+                    <Text style={[styles.missingNavLabel, styles.checklistUploadPillText]} numberOfLines={1}>
+                      {missingUploadRows.length > 0
+                        ? `${missingUploadRows.length} to upload`
+                        : `${uploadedCount} on file`}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.missingHeader}>
+                  <Text style={styles.missingTitle}>DOCUMENTS TO UPLOAD</Text>
+                  <Text style={styles.missingSubtitle} numberOfLines={1}>
+                    {missingHeadline}
+                  </Text>
+                  <Text style={styles.missingHint} numberOfLines={2}>
+                    {missingSubline}
+                  </Text>
+                </View>
+                <ScrollView
+                  style={styles.checklistListScroll}
+                  contentContainerStyle={styles.checklistListContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {checklistRows.map((row, index) => {
+                    const rowHasFile = hasFile(row);
+                    const statusMeta = COMPLIANCE_STATUS_META[row.status];
+                    const selected = checklistKey === row.key;
+                    const uploadLabel = row.status === "missing" ? "Upload" : "Replace";
+                    const statusLabel =
+                      row.status === "missing"
+                        ? "Not uploaded yet"
+                        : rowHasFile
+                          ? `${statusMeta.label} · ready to preview`
+                          : statusMeta.label;
+                    return (
+                      <View
+                        key={row.key}
+                        style={[
+                          styles.missingRow,
+                          index > 0 && styles.missingRowBorder,
+                          selected && styles.missingRowSelected,
+                        ]}
+                      >
+                        <Pressable
+                          style={styles.missingRowCopy}
+                          onPress={() => previewChecklistRow(row)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${labelForDocType(row.type)} details`}
+                        >
+                          <View style={styles.missingTitleRow}>
+                            <Text style={styles.missingDocName} numberOfLines={1}>
+                              {labelForDocType(row.type).toUpperCase()}
+                            </Text>
+                            <View
+                              style={[
+                                styles.missingScopeTag,
+                                row.required ? styles.missingScopeRequired : styles.missingScopeOptional,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.missingScopeText,
+                                  row.required
+                                    ? styles.missingScopeTextRequired
+                                    : styles.missingScopeTextOptional,
+                                ]}
+                              >
+                                {requirementScopeLabel(row.required)}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text
+                            style={[
+                              styles.missingStatus,
+                              row.status === "missing" ? null : { color: statusMeta.color },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {statusLabel}
+                          </Text>
+                        </Pressable>
+                        <View style={styles.missingRowActions}>
+                          <TouchableOpacity
+                            style={[styles.missingEyeBtn, !rowHasFile && styles.missingEyeBtnDisabled]}
+                            activeOpacity={0.75}
+                            disabled={!canViewDocuments || !rowHasFile}
+                            onPress={() => previewChecklistRow(row)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Preview ${labelForDocType(row.type)}`}
+                            accessibilityState={{ disabled: !rowHasFile }}
+                          >
+                            <Eye
+                              size={12}
+                              color={rowHasFile ? Theme.textPrimaryDark : Theme.textMuted}
+                              strokeWidth={2.2}
+                            />
+                          </TouchableOpacity>
+                          {onReviewTripDocs ? (
+                            <TouchableOpacity
+                              style={styles.missingUploadBtn}
+                              activeOpacity={0.8}
+                              onPress={() => openVaultUpload(row.key)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`${uploadLabel} ${labelForDocType(row.type)}`}
+                            >
+                              <Upload size={11} color={Theme.cardWhite} strokeWidth={2.4} />
+                              <Text style={styles.missingUploadBtnText}>{uploadLabel}</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+                <View style={styles.checklistPreviewActionsSection}>
+                  <Text style={styles.checklistPreviewActionsLabel}>PREVIEW</Text>
+                  <View style={styles.checklistPreviewActionsRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.checklistModeBtn,
+                        checklistPreviewMode === "trip" && styles.checklistModeBtnActive,
+                      ]}
+                      activeOpacity={0.8}
+                      onPress={() => setChecklistPreviewMode("trip")}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: checklistPreviewMode === "trip" }}
+                      accessibilityLabel="Show trip details"
+                    >
+                      <Text
+                        style={[
+                          styles.checklistModeBtnText,
+                          checklistPreviewMode === "trip" && styles.checklistModeBtnTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        Trip Detail
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.checklistModeBtn,
+                        checklistPreviewMode === "advance" && styles.checklistModeBtnActive,
+                      ]}
+                      activeOpacity={0.8}
+                      onPress={() => setChecklistPreviewMode("advance")}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: checklistPreviewMode === "advance" }}
+                      accessibilityLabel="Show advance payment details"
+                    >
+                      <Text
+                        style={[
+                          styles.checklistModeBtnText,
+                          checklistPreviewMode === "advance" && styles.checklistModeBtnTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        Advance Payment
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <View style={styles.checklistListFooter}>
+                  <Text style={styles.checklistFooterVaultText} numberOfLines={1}>
+                    {vaultCopy.vaultLabel} ·{" "}
+                    {missingUploadRows.length > 0
+                      ? `${missingUploadRows.length} remaining`
+                      : `${uploadedCount} on file`}
+                  </Text>
+                </View>
+              </View>
 
-          {loadingPreview ? (
+              <View style={[styles.checklistPreviewPane, stacked && styles.checklistPreviewPaneStacked]}>
+                <View style={styles.checklistPreviewBody}>
+                  {checklistPreviewMode === "trip" && summary ? (
+                    <ChecklistTripDetailsPanel
+                      summary={summary}
+                      truckType={
+                        summary.trip.vehicle_id
+                          ? truckTypeByVehicleId[summary.trip.vehicle_id] ?? null
+                          : null
+                      }
+                      supplierName={supplierNameByTripId[summary.trip.id] ?? null}
+                    />
+                  ) : checklistPreviewMode === "advance" && summary ? (
+                    <ChecklistAdvancePaymentPanel
+                      summary={summary}
+                      readiness={readiness}
+                      canPay={showPay}
+                      onPay={onPay}
+                    />
+                  ) : checklistPreviewMode === "finance" && summary ? (
+                    <ChecklistFinanceDocsPanel
+                      rows={financeRows}
+                      onPreview={previewChecklistRow}
+                    />
+                  ) : loadingPreview ? (
+                    <View style={styles.checklistPreviewEmpty}>
+                      <ActivityIndicator color={Theme.textPrimaryDark} />
+                    </View>
+                  ) : typedLines && canViewDocuments ? (
+                    <ScrollView
+                      contentContainerStyle={styles.checklistTypedWrap}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      <Text style={styles.typedTitle}>{docTitle} · entered details (no file)</Text>
+                      {typedLines.map((line, index) => (
+                        <View key={`${line.label}-${index}`} style={styles.typedRow}>
+                          <Text style={styles.typedLabel}>{line.label}</Text>
+                          <Text style={styles.typedValue}>{line.value}</Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  ) : previewUrl ? (
+                    <>
+                      <OriginalDocumentPreview uri={previewUrl} isPdf={isPdf} zoom={zoom} label={docTitle} />
+                      <Pressable
+                        style={styles.openLayer}
+                        onPress={() => setScreenOpen(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open ${docTitle}`}
+                      />
+                    </>
+                  ) : (
+                    <View style={styles.checklistPreviewEmpty}>
+                      <Text style={styles.checklistPreviewEmptyTitle}>
+                        {checklistSelectedRow
+                          ? `${labelForDocType(checklistSelectedRow.type)} has no file to preview`
+                          : "Select a document to preview"}
+                      </Text>
+                      <Text style={styles.checklistPreviewEmptyHint}>
+                        Tap the eye icon on an uploaded document, or use Finance / Trip Detail / Advance Payment.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          ) : loadingPreview ? (
             <View style={styles.stageBody}>
               <ActivityIndicator color={Theme.textPrimaryDark} />
             </View>
@@ -1190,6 +1707,15 @@ export function ComplianceDocumentWorkspace({
           )}
         </View>
 
+        {showVaultChecklist ? null : showEntityUnassigned ? (
+          <View style={styles.decisionRow}>
+            <View style={styles.missingFooterMeta}>
+              <Text style={styles.missingFooterText} numberOfLines={1}>
+                {vaultCopy.vaultLabel} · unavailable
+              </Text>
+            </View>
+          </View>
+        ) : (
         <View style={styles.decisionRow}>
           <Pressable
             style={[styles.declineBtn, (!decisions.canDecline || !canAct) && styles.btnDisabled]}
@@ -1274,6 +1800,7 @@ export function ComplianceDocumentWorkspace({
             </Pressable>
           </View>
         </View>
+        )}
       </View>
       {previewUrl ? (
         <DocumentScreen
@@ -1346,32 +1873,289 @@ export function ComplianceDocumentWorkspace({
   );
 }
 
+function ChecklistDetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.checklistDetailRow}>
+      <Text style={styles.checklistDetailLabel}>{label}</Text>
+      <Text style={styles.checklistDetailValue} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function ChecklistFinanceDocsPanel({
+  rows,
+  onPreview,
+}: {
+  rows: ComplianceDocRow[];
+  onPreview: (row: ComplianceDocRow) => void;
+}) {
+  return (
+    <ScrollView
+      style={styles.checklistInfoScroll}
+      contentContainerStyle={styles.checklistInfoContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.checklistInfoTitle}>Finance documents</Text>
+      <Text style={styles.checklistInfoHint}>
+        Memo, POD, and other documents from the trip asset vault
+      </Text>
+      <View style={styles.checklistInfoCard}>
+        {rows.length === 0 ? (
+          <View style={styles.checklistDetailRow}>
+            <Text style={styles.checklistDetailValue}>No finance documents on this trip</Text>
+          </View>
+        ) : (
+          rows.map((row, index) => {
+            const statusMeta = COMPLIANCE_STATUS_META[row.status];
+            const rowHasFile = hasFile(row);
+            const statusLabel =
+              row.status === "missing"
+                ? "Not uploaded yet"
+                : rowHasFile
+                  ? `${statusMeta.label} · ready to preview`
+                  : statusMeta.label;
+            return (
+              <View
+                key={row.key}
+                style={[styles.checklistFinanceRow, index > 0 && styles.checklistDetailRowBorder]}
+              >
+                <View style={styles.checklistFinanceRowMain}>
+                  <View style={styles.checklistFinanceRowTitleRow}>
+                    <Text style={styles.checklistFinanceDocName} numberOfLines={1}>
+                      {labelForDocType(row.type).toUpperCase()}
+                    </Text>
+                    <View
+                      style={[
+                        styles.missingScopeTag,
+                        row.required ? styles.missingScopeRequired : styles.missingScopeOptional,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.missingScopeText,
+                          row.required
+                            ? styles.missingScopeTextRequired
+                            : styles.missingScopeTextOptional,
+                        ]}
+                      >
+                        {requirementScopeLabel(row.required)}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.checklistFinanceStatus} numberOfLines={1}>
+                    {statusLabel}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.missingEyeBtn, !rowHasFile && styles.missingEyeBtnDisabled]}
+                  activeOpacity={0.75}
+                  disabled={!rowHasFile}
+                  onPress={() => onPreview(row)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Preview ${labelForDocType(row.type)}`}
+                  accessibilityState={{ disabled: !rowHasFile }}
+                >
+                  <Eye
+                    size={12}
+                    color={rowHasFile ? Theme.textPrimaryDark : Theme.textMuted}
+                    strokeWidth={2.2}
+                  />
+                </TouchableOpacity>
+              </View>
+            );
+          })
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+function ChecklistTripDetailsPanel({
+  summary,
+  truckType,
+  supplierName,
+}: {
+  summary: ComplianceTripSummary;
+  truckType: string | null;
+  supplierName: string | null;
+}) {
+  const trip = summary.trip;
+  const verification = verificationStatusVisual(summary);
+  const customerName = trip.client_name?.trim() || "—";
+  const supplierLabel = (supplierName ?? trip.supplier_name)?.trim() || "—";
+  const origin = splitHubRouteLocationDisplay(trip.pickup_area ?? "");
+  const dest = splitHubRouteLocationDisplay(trip.drop_location ?? "");
+  const vehicle =
+    formatIndianVehicleNumber(trip.vehicle_display_number?.trim() || "").trim() ||
+    trip.vehicle_display_number?.trim() ||
+    "—";
+  const truckLabel = truckType?.trim() || "—";
+  const inTransitAt = formatComplianceTimestamp(trip.started_at);
+  const executionModel = getTripExecutionModel(trip);
+  const isAsset = executionModel === "asset";
+  const routeLine = `${origin.city || "—"}${origin.state ? `, ${origin.state}` : ""} → ${dest.city || "—"}${
+    dest.state ? `, ${dest.state}` : ""
+  }`;
+
+  const rows: { label: string; value: string }[] = [
+    { label: "Trip ID", value: complianceTripDisplayId(trip) },
+    { label: "Customer", value: customerName },
+    { label: "Supplier", value: supplierLabel },
+    { label: "Route", value: routeLine },
+    { label: "Vehicle", value: vehicle },
+    { label: "Truck type", value: truckLabel },
+    { label: "Model", value: isAsset ? "Asset" : "Aggregate" },
+    { label: "In-transit", value: inTransitAt },
+    { label: "Status", value: verification.label },
+  ];
+
+  return (
+    <ScrollView
+      style={styles.checklistInfoScroll}
+      contentContainerStyle={styles.checklistInfoContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.checklistInfoTitle}>Trip details</Text>
+      <Text style={styles.checklistInfoHint}>Selected trip facts from the compliance queue</Text>
+      <View style={styles.checklistInfoCard}>
+        {rows.map((row, index) => (
+          <View key={row.label} style={index > 0 ? styles.checklistDetailRowBorder : undefined}>
+            <ChecklistDetailRow label={row.label} value={row.value} />
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+function ChecklistAdvancePaymentPanel({
+  summary,
+  readiness,
+  canPay,
+  onPay,
+}: {
+  summary: ComplianceTripSummary;
+  readiness: ReturnType<typeof deriveComplianceQueueReadiness> | null;
+  canPay: boolean;
+  onPay?: (summary: ComplianceTripSummary) => void;
+}) {
+  const advance = summary.advance;
+  const payMeta = readiness ? paymentReadinessLabel(readiness) : null;
+  const lane = readiness?.advance ?? null;
+
+  return (
+    <ScrollView
+      style={styles.checklistInfoScroll}
+      contentContainerStyle={styles.checklistInfoContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.checklistInfoTitle}>Advance payment</Text>
+      <Text style={styles.checklistInfoHint}>Payment status for this trip's compliance advance</Text>
+      <View style={styles.checklistInfoCard}>
+        {advance ? (
+          <>
+            <ChecklistDetailRow label="Status" value="Advance processed" />
+            <View style={styles.checklistDetailRowBorder}>
+              <ChecklistDetailRow label="Amount" value={`₹${advance.amount.toLocaleString("en-IN")}`} />
+            </View>
+            <View style={styles.checklistDetailRowBorder}>
+              <ChecklistDetailRow label="Mode" value={advance.paymentMode?.trim() || "—"} />
+            </View>
+            <View style={styles.checklistDetailRowBorder}>
+              <ChecklistDetailRow label="UTR" value={advance.utr?.trim() || "—"} />
+            </View>
+            <View style={styles.checklistDetailRowBorder}>
+              <ChecklistDetailRow label="Paid at" value={formatComplianceTimestamp(advance.paidAt)} />
+            </View>
+          </>
+        ) : (
+          <>
+            <ChecklistDetailRow label="Status" value={lane?.status === "ready" ? "Ready to pay" : "Not posted"} />
+            <View style={styles.checklistDetailRowBorder}>
+              <ChecklistDetailRow label="Readiness" value={payMeta?.label ?? "—"} />
+            </View>
+            <View style={styles.checklistDetailRowBorder}>
+              <ChecklistDetailRow
+                label="Detail"
+                value={lane?.reason?.trim() || payMeta?.detail?.trim() || readiness?.nextAction?.trim() || "—"}
+              />
+            </View>
+          </>
+        )}
+      </View>
+      {!advance && canPay && onPay ? (
+        <TouchableOpacity
+          style={styles.checklistPayBtn}
+          activeOpacity={0.85}
+          onPress={() => onPay(summary)}
+          accessibilityRole="button"
+          accessibilityLabel="Pay advance"
+        >
+          <Text style={styles.checklistPayBtnText}>Pay advance</Text>
+        </TouchableOpacity>
+      ) : null}
+      {!advance && readiness?.blockerLines?.length ? (
+        <View style={styles.checklistBlockerBox}>
+          {readiness.blockerLines.slice(0, 4).map((line) => (
+            <Text key={line} style={styles.checklistBlockerText}>
+              {line}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+    </ScrollView>
+  );
+}
+
 function TripListRow({
   summary,
   selected,
+  truckType,
+  supplierName,
   onPress,
 }: {
   summary: ComplianceTripSummary;
   selected: boolean;
+  truckType: string | null;
+  supplierName: string | null;
   onPress: () => void;
 }) {
   const trip = summary.trip;
   const verification = verificationStatusVisual(summary);
-  const clientName = trip.client_name?.trim() || "—";
+  const customerName = trip.client_name?.trim() || "—";
+  const supplierLabel = (supplierName ?? trip.supplier_name)?.trim() || "—";
   const origin = splitHubRouteLocationDisplay(trip.pickup_area ?? "");
   const dest = splitHubRouteLocationDisplay(trip.drop_location ?? "");
-  const vehicle = formatIndianVehicleNumber(trip.vehicle_display_number?.trim() || "").trim() || trip.vehicle_display_number?.trim() || "Unassigned";
-  const driver = trip.driver_display_name?.trim() || "Unassigned";
+  const vehicle =
+    formatIndianVehicleNumber(trip.vehicle_display_number?.trim() || "").trim() ||
+    trip.vehicle_display_number?.trim() ||
+    "—";
+  const truckLabel = truckType?.trim() || "—";
+  const inTransitAt = formatComplianceTimestamp(trip.started_at);
   const executionModel = getTripExecutionModel(trip);
   const isAsset = executionModel === "asset";
+  const headerName = supplierLabel !== "—" ? supplierLabel : customerName;
+  const headerSeed = trip.supplier_id ?? trip.client_id ?? trip.id;
+
   return (
     <Pressable onPress={onPress} style={[styles.row, selected && styles.rowSelected]} accessibilityRole="button">
       <View style={styles.rowHead}>
-        <PartyAvatar name={clientName} entityType="client" size={30} initialsColorSeed={trip.client_id ?? trip.id} />
+        <PartyAvatar
+          name={headerName}
+          entityType={trip.supplier_id ? "supplier" : "client"}
+          size={26}
+          initialsColorSeed={headerSeed}
+        />
         <View style={styles.rowTitle}>
-          <Text style={[styles.client, selected && styles.clientSelected]} numberOfLines={1}>{clientName.toUpperCase()}</Text>
+          <Text style={[styles.client, selected && styles.clientSelected]} numberOfLines={1}>
+            {headerName.toUpperCase()}
+          </Text>
           <View style={styles.idLine}>
-            <Text style={[styles.tripId, selected && styles.tripIdSelected]} numberOfLines={1}>{complianceTripDisplayId(trip)}</Text>
+            <Text style={[styles.tripId, selected && styles.tripIdSelected]} numberOfLines={1}>
+              {complianceTripDisplayId(trip)}
+            </Text>
             <View style={[styles.modelTag, isAsset ? styles.modelTagAsset : styles.modelTagAggregate]}>
               <Text style={[styles.modelTagText, isAsset ? styles.modelTagTextAsset : styles.modelTagTextAggregate]}>
                 {isAsset ? "Asset" : "Aggregate"}
@@ -1385,25 +2169,53 @@ function TripListRow({
               {verification.label.toUpperCase()}
             </Text>
           </View>
-          <Text style={[styles.when, selected && styles.whenSelected]} numberOfLines={1}>{formatComplianceTimestamp(complianceEventAt(trip))}</Text>
         </View>
       </View>
+
       <View style={styles.route}>
         <View style={styles.leg}>
-          <Text style={[styles.city, selected && styles.citySelected]} numberOfLines={1}>{origin.city || "—"}</Text>
-          <Text style={[styles.region, selected && styles.regionSelected]} numberOfLines={1}>{origin.state || " "}</Text>
+          <Text style={[styles.city, selected && styles.citySelected]} numberOfLines={1}>
+            {origin.city || "—"}
+          </Text>
+          <Text style={[styles.region, selected && styles.regionSelected]} numberOfLines={1}>
+            {origin.state || " "}
+          </Text>
         </View>
         <View style={styles.arrowSlot}>
           <Text style={[styles.arrow, selected && styles.arrowSelected]}>→</Text>
         </View>
         <View style={[styles.leg, styles.legEnd]}>
-          <Text style={[styles.city, styles.alignEnd, selected && styles.citySelected]} numberOfLines={1}>{dest.city || "—"}</Text>
-          <Text style={[styles.region, styles.alignEnd, selected && styles.regionSelected]} numberOfLines={1}>{dest.state || " "}</Text>
+          <Text style={[styles.city, styles.alignEnd, selected && styles.citySelected]} numberOfLines={1}>
+            {dest.city || "—"}
+          </Text>
+          <Text style={[styles.region, styles.alignEnd, selected && styles.regionSelected]} numberOfLines={1}>
+            {dest.state || " "}
+          </Text>
         </View>
       </View>
-      <View style={[styles.party, selected && styles.partySelected]}>
-        <Text style={[styles.partyText, selected && styles.partyTextSelected]} numberOfLines={1}>{vehicle}</Text>
-        <Text style={[styles.partyText, styles.alignEnd, selected && styles.partyTextSelected]} numberOfLines={1}>{driver}</Text>
+
+      <View style={[styles.facts, selected && styles.factsSelected]}>
+        <View style={styles.factCell}>
+          <Text style={[styles.factLabel, selected && styles.factLabelSelected]}>Customer</Text>
+          <Text style={[styles.factValue, selected && styles.factValueSelected]} numberOfLines={1}>
+            {customerName}
+          </Text>
+        </View>
+        <View style={[styles.factCell, styles.factCellEnd]}>
+          <Text style={[styles.factValueBare, styles.alignEnd, selected && styles.factValueSelected]} numberOfLines={1}>
+            {vehicle}
+          </Text>
+        </View>
+        <View style={styles.factCell}>
+          <Text style={[styles.factValueBare, selected && styles.factValueSelected]} numberOfLines={1}>
+            {truckLabel}
+          </Text>
+        </View>
+        <View style={[styles.factCell, styles.factCellEnd]}>
+          <Text style={[styles.factValueBare, styles.alignEnd, selected && styles.factValueSelected]} numberOfLines={1}>
+            {inTransitAt}
+          </Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -1434,61 +2246,78 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   listScroll: { flex: 1 },
-  listContent: { padding: 10, gap: 8 },
+  listContent: { padding: 8, gap: 6 },
   row: {
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Theme.complianceTripCardBorder,
     backgroundColor: Theme.complianceTripCardBg,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    gap: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 6,
   },
   rowSelected: {
     borderWidth: 1.5,
     borderColor: Theme.complianceTripCardSelectedBorder,
     backgroundColor: Theme.complianceTripCardSelectedBg,
   },
-  rowHead: { flexDirection: "row", alignItems: "center", gap: 10 },
-  rowTitle: { flex: 1, minWidth: 0, gap: 1 },
-  client: { fontSize: 12, fontWeight: "600", letterSpacing: 0.2, color: Theme.textPrimaryDark },
+  rowHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  rowTitle: { flex: 1, minWidth: 0, gap: 0 },
+  client: { fontSize: 11, fontWeight: "600", letterSpacing: 0.2, color: Theme.textPrimaryDark },
   clientSelected: { color: Theme.complianceTripCardOnSelected },
-  idLine: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2, minWidth: 0 },
-  tripId: { flexShrink: 1, fontSize: 11, fontWeight: "500", color: Theme.textSecondary },
+  idLine: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1, minWidth: 0 },
+  tripId: { flexShrink: 1, fontSize: 10, fontWeight: "500", color: Theme.textSecondary },
   tripIdSelected: { color: Theme.complianceTripCardMutedOnSelected },
-  modelTag: { flexShrink: 0, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 },
+  modelTag: { flexShrink: 0, borderRadius: 999, paddingHorizontal: 5, paddingVertical: 1 },
   modelTagAsset: { backgroundColor: Theme.positiveMuted },
   modelTagAggregate: { backgroundColor: Theme.complianceStageInfoBg },
-  modelTagText: { fontSize: 9, fontWeight: "600", letterSpacing: 0.2, lineHeight: 12 },
+  modelTagText: { fontSize: 8, fontWeight: "600", letterSpacing: 0.2, lineHeight: 11 },
   modelTagTextAsset: { color: Theme.darkGreen },
   modelTagTextAggregate: { color: Theme.complianceStageInfoFg },
-  rowMeta: { width: 118, alignItems: "flex-end", justifyContent: "center", gap: 3 },
-  statusPill: { maxWidth: 118, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 },
-  statusText: { fontSize: 9, fontWeight: "600", letterSpacing: 0.3 },
-  when: { fontSize: 10, fontWeight: "400", color: Theme.textMuted, textAlign: "right" },
-  whenSelected: { color: Theme.complianceTripCardMutedOnSelected },
+  rowMeta: { maxWidth: 108, alignItems: "flex-end", justifyContent: "center" },
+  statusPill: { maxWidth: 108, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 },
+  statusText: { fontSize: 8, fontWeight: "600", letterSpacing: 0.3 },
   route: { flexDirection: "row", alignItems: "center" },
   leg: { flex: 1, minWidth: 0 },
   legEnd: { alignItems: "flex-end" },
-  city: { fontSize: 11, fontWeight: "600", letterSpacing: 0.3, color: Theme.textPrimaryDark, textTransform: "uppercase" },
+  city: {
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+    color: Theme.textPrimaryDark,
+    textTransform: "uppercase",
+  },
   citySelected: { color: Theme.complianceTripCardOnSelected },
-  region: { fontSize: 10, fontWeight: "400", color: Theme.textMuted, marginTop: 1 },
+  region: { fontSize: 9, fontWeight: "400", color: Theme.textMuted, marginTop: 0 },
   regionSelected: { color: Theme.complianceTripCardMutedOnSelected },
   alignEnd: { textAlign: "right", alignSelf: "stretch" },
-  arrowSlot: { width: 28, alignItems: "center", justifyContent: "center" },
-  arrow: { fontSize: 13, fontWeight: "400", color: Theme.complianceStageInfoFg },
+  arrowSlot: { width: 22, alignItems: "center", justifyContent: "center" },
+  arrow: { fontSize: 12, fontWeight: "400", color: Theme.complianceStageInfoFg },
   arrowSelected: { color: Theme.complianceTripCardOnSelected },
-  party: {
+  facts: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+    flexWrap: "wrap",
+    alignItems: "flex-end",
+    rowGap: 3,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Theme.complianceTripCardBorder,
-    paddingTop: 8,
+    paddingTop: 6,
   },
-  partySelected: { borderTopColor: Theme.complianceTripCardDividerOnSelected },
-  partyText: { flex: 1, minWidth: 0, fontSize: 12, fontWeight: "500", color: Theme.textSecondary },
-  partyTextSelected: { color: Theme.complianceTripCardMutedOnSelected },
+  factsSelected: { borderTopColor: Theme.complianceTripCardDividerOnSelected },
+  factCell: { width: "50%", paddingRight: 6, minWidth: 0, justifyContent: "flex-end" },
+  factCellEnd: { paddingRight: 0, paddingLeft: 6, alignItems: "flex-end" },
+  factLabel: {
+    fontSize: 8,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    color: Theme.textMuted,
+    lineHeight: 10,
+  },
+  factLabelSelected: { color: Theme.complianceTripCardMutedOnSelected },
+  factValue: { fontSize: 10, fontWeight: "500", color: Theme.textSecondary, lineHeight: 13, marginTop: 1 },
+  factValueBare: { fontSize: 10, fontWeight: "500", color: Theme.textSecondary, lineHeight: 13 },
+  factValueSelected: { color: Theme.complianceTripCardMutedOnSelected },
   previewPane: {
     flex: 1,
     minWidth: 0,
@@ -1514,13 +2343,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Theme.complianceCardBorder,
     backgroundColor: Theme.cardWhite,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 5,
     overflow: "hidden",
   },
   tabActive: { backgroundColor: Theme.buttonDark, borderColor: Theme.buttonDark },
   tabText: { fontSize: 11, fontWeight: "500", lineHeight: 14, textAlign: "center", color: Theme.textPrimaryDark },
   tabTextActive: { color: Theme.buttonDarkText, fontWeight: "600" },
+  tabBadge: {
+    minWidth: 14,
+    height: 14,
+    borderRadius: 999,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Theme.complianceStageDocsBg,
+  },
+  tabBadgeActive: { backgroundColor: Theme.cardWhite },
+  tabBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    lineHeight: 11,
+    color: Theme.complianceStageDocsFg,
+  },
+  tabBadgeTextActive: { color: Theme.complianceStageDocsFg },
   stage: {
     flex: 1,
     minHeight: 0,
@@ -1668,6 +2516,458 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 14,
     paddingHorizontal: 24,
+  },
+  missingListScroll: { flexGrow: 0, flexShrink: 1, flexBasis: "auto" },
+  checklistStage: {
+    flex: 1,
+    minHeight: 0,
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 12,
+    paddingHorizontal: 6,
+    paddingBottom: 6,
+    paddingTop: 2,
+  },
+  checklistStageStacked: {
+    flexDirection: "column",
+  },
+  checklistListPane: {
+    width: 360,
+    maxWidth: "46%",
+    flexShrink: 0,
+    minHeight: 0,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.complianceTripCardBg,
+    overflow: "hidden",
+  },
+  checklistListPaneStacked: {
+    width: "100%",
+    maxWidth: "100%",
+    maxHeight: "46%",
+    flexShrink: 1,
+  },
+  checklistPanelToolbar: {
+    flexShrink: 0,
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.complianceTripCardBg,
+  },
+  checklistPanelTabs: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    flexWrap: "nowrap",
+  },
+  checklistPanelTab: {
+    flexShrink: 1,
+    minWidth: 0,
+    height: 22,
+    paddingHorizontal: 5,
+    paddingVertical: 0,
+    gap: 3,
+  },
+  checklistPanelTabText: {
+    fontSize: 9,
+    lineHeight: 11,
+  },
+  checklistPanelTabBadge: {
+    minWidth: 12,
+    height: 12,
+    paddingHorizontal: 3,
+  },
+  checklistPanelTabBadgeText: {
+    fontSize: 8,
+    lineHeight: 10,
+  },
+  checklistUploadPill: {
+    flexShrink: 0,
+    height: 22,
+    paddingHorizontal: 7,
+  },
+  checklistUploadPillText: {
+    fontSize: 8,
+  },
+  checklistListScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  checklistListContent: {
+    paddingVertical: 2,
+  },
+  checklistListFooter: {
+    flexShrink: 0,
+    minHeight: 28,
+    paddingHorizontal: 10,
+    justifyContent: "center",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.compliancePageBg,
+  },
+  checklistPreviewActionsSection: {
+    flexShrink: 0,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.complianceTripCardBg,
+  },
+  checklistPreviewActionsLabel: {
+    fontSize: 9,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    color: Theme.textMuted,
+  },
+  checklistPreviewActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  checklistModeBtn: {
+    flex: 1,
+    minWidth: 0,
+    height: 28,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  checklistModeBtnActive: {
+    backgroundColor: Theme.buttonDark,
+    borderColor: Theme.buttonDark,
+  },
+  checklistModeBtnText: {
+    fontSize: 9,
+    fontWeight: "600",
+    color: Theme.textPrimaryDark,
+  },
+  checklistModeBtnTextActive: {
+    color: Theme.buttonDarkText,
+  },
+  checklistFooterVaultText: {
+    fontSize: 9,
+    fontWeight: "400",
+    color: Theme.textMuted,
+  },
+  checklistFinanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  checklistFinanceRowMain: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  checklistFinanceRowTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  checklistFinanceDocName: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Theme.textPrimaryDark,
+    letterSpacing: 0.2,
+  },
+  checklistFinanceStatus: {
+    fontSize: 9,
+    fontWeight: "400",
+    color: Theme.textMuted,
+  },
+  checklistInfoScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  checklistInfoContent: {
+    padding: 12,
+    gap: 10,
+  },
+  checklistInfoTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    color: Theme.textPrimaryDark,
+    textTransform: "uppercase",
+  },
+  checklistInfoHint: {
+    fontSize: 9,
+    fontWeight: "400",
+    color: Theme.textMuted,
+    marginTop: -6,
+  },
+  checklistInfoCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.cardWhite,
+    overflow: "hidden",
+  },
+  checklistDetailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  checklistDetailRowBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Theme.complianceTripCardBorder,
+  },
+  checklistDetailLabel: {
+    width: 88,
+    flexShrink: 0,
+    fontSize: 8,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    color: Theme.textMuted,
+    paddingTop: 1,
+  },
+  checklistDetailValue: {
+    flex: 1,
+    minWidth: 0,
+    textAlign: "right",
+    fontSize: 11,
+    fontWeight: "500",
+    color: Theme.textPrimaryDark,
+    lineHeight: 14,
+  },
+  checklistPayBtn: {
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: Theme.positive,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checklistPayBtnText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Theme.cardWhite,
+  },
+  checklistBlockerBox: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.complianceStageDocsFg,
+    backgroundColor: Theme.complianceStageDocsBg,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 4,
+  },
+  checklistBlockerText: {
+    fontSize: 9,
+    fontWeight: "500",
+    color: Theme.complianceStageDocsFg,
+    lineHeight: 12,
+  },
+  missingListContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    gap: 14,
+  },
+  missingHeader: {
+    gap: 2,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Theme.complianceTripCardBorder,
+  },
+  missingTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    color: Theme.textPrimaryDark,
+  },
+  missingSubtitle: {
+    fontSize: 10,
+    fontWeight: "500",
+    marginTop: 2,
+    color: Theme.complianceStageDocsFg,
+  },
+  missingHint: {
+    fontSize: 9,
+    fontWeight: "400",
+    lineHeight: 12,
+    marginTop: 1,
+    color: Theme.textMuted,
+  },
+  missingCard: {
+    width: "100%",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.complianceTripCardBg,
+    overflow: "hidden",
+  },
+  missingRow: {
+    minHeight: 48,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  missingRowSelected: {
+    backgroundColor: Theme.complianceTripCardSelectedBg,
+    borderLeftWidth: 1.5,
+    borderLeftColor: Theme.complianceTripCardSelectedBorder,
+  },
+  missingRowBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Theme.complianceTripCardBorder,
+  },
+  missingRowCopy: { flex: 1, minWidth: 0, gap: 2 },
+  missingRowActions: { flexDirection: "row", alignItems: "center", gap: 5, flexShrink: 0 },
+  missingTitleRow: { flexDirection: "row", alignItems: "center", gap: 5, minWidth: 0 },
+  missingDocName: {
+    flexShrink: 1,
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+    color: Theme.textPrimaryDark,
+  },
+  missingScopeTag: {
+    flexShrink: 0,
+    borderRadius: 999,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  missingScopeRequired: { backgroundColor: Theme.complianceStageDocsBg },
+  missingScopeOptional: { backgroundColor: Theme.complianceStageInfoBg },
+  missingScopeText: { fontSize: 8, fontWeight: "600", letterSpacing: 0.2, lineHeight: 11 },
+  missingScopeTextRequired: { color: Theme.complianceStageDocsFg },
+  missingScopeTextOptional: { color: Theme.complianceStageInfoFg },
+  missingStatus: { fontSize: 9, fontWeight: "400", color: Theme.textMuted, marginTop: 1 },
+  missingEyeBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  missingEyeBtnDisabled: { opacity: 0.4 },
+  missingUploadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    minHeight: 26,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: Theme.positive,
+  },
+  missingUploadBtnText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Theme.cardWhite,
+  },
+  checklistPreviewPane: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 0,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.cardWhite,
+    overflow: "hidden",
+  },
+  checklistPreviewPaneStacked: {
+    minHeight: 220,
+    flex: 1,
+  },
+  checklistPreviewBody: {
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+    backgroundColor: Theme.compliancePageBg,
+  },
+  checklistPreviewEmpty: {
+    flex: 1,
+    minHeight: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    gap: 4,
+  },
+  checklistPreviewEmptyTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Theme.textPrimaryDark,
+    textAlign: "center",
+  },
+  checklistPreviewEmptyHint: {
+    fontSize: 9,
+    lineHeight: 12,
+    color: Theme.textMuted,
+    textAlign: "center",
+    maxWidth: 240,
+  },
+  checklistTypedWrap: {
+    padding: 12,
+    gap: 8,
+  },
+  missingNavPill: {
+    flexShrink: 0,
+    height: 22,
+    minHeight: 22,
+    maxHeight: 22,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Theme.complianceStageDocsFg,
+    backgroundColor: Theme.complianceStageDocsBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  missingNavLabel: {
+    fontSize: 9,
+    fontWeight: "600",
+    lineHeight: 11,
+    color: Theme.complianceStageDocsFg,
+  },
+  missingFooterMeta: { flex: 1, minWidth: 0, paddingRight: 8 },
+  missingFooterText: { fontSize: 9, fontWeight: "400", color: Theme.textMuted },
+  missingPreviewOpenBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    height: 26,
+    minHeight: 26,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.cardWhite,
+  },
+  missingPreviewOpenBtnText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Theme.textPrimaryDark,
   },
   navPill: {
     flexShrink: 1,
