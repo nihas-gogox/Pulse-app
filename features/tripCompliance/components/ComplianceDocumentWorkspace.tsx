@@ -28,8 +28,11 @@ import {
   type ComplianceDocRow,
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import {
+  applyOptimisticDecision,
   canModerateComplianceRow,
   complianceReviewDecisionActions,
+  recordOptimisticDecision,
+  type OptimisticComplianceDecision,
 } from "@/features/tripCompliance/utils/complianceReviewActions.util";
 import type { ComplianceChange } from "@/features/tripCompliance/services/compliancePipelineSync.service";
 import { classifyTripDocument, readTypedDetails } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
@@ -678,7 +681,7 @@ export function ComplianceDocumentWorkspace({
   } | null>(null);
   /** Optimistic decisions so Approve/Decline feel instant before pipeline refetch. */
   const [localDecisionByKey, setLocalDecisionByKey] = useState<
-    Record<string, "verified" | "rejected">
+    Record<string, OptimisticComplianceDecision>
   >({});
   const previewCacheRef = useRef<Map<string, PreviewCacheEntry>>(new Map());
 
@@ -688,9 +691,7 @@ export function ComplianceDocumentWorkspace({
   const activeRow = previewable[docIndex] ?? rows[docIndex] ?? null;
   const effectiveActiveRow = useMemo(() => {
     if (!activeRow) return null;
-    const local = localDecisionByKey[activeRow.key];
-    if (!local) return activeRow;
-    return { ...activeRow, status: local };
+    return applyOptimisticDecision(activeRow, localDecisionByKey[activeRow.key]);
   }, [activeRow, localDecisionByKey]);
   const decisions = useMemo(() => {
     if (!effectiveActiveRow || !canModerateComplianceRow(effectiveActiveRow, tab)) {
@@ -832,8 +833,8 @@ export function ComplianceDocumentWorkspace({
 
   /** Local UI follow-up only — each approve/decline branch sends its own typed ComplianceChange. */
   const finishDecision = useCallback(
-    (rowKey: string, decision: "verified" | "rejected") => {
-      setLocalDecisionByKey((prev) => ({ ...prev, [rowKey]: decision }));
+    (row: ComplianceDocRow, decision: OptimisticComplianceDecision["decision"]) => {
+      setLocalDecisionByKey((prev) => ({ ...prev, [row.key]: recordOptimisticDecision(row, decision) }));
       setDeclineOpen(false);
       setBusy(false);
       if (previewable.length > 1) {
@@ -867,7 +868,6 @@ export function ComplianceDocumentWorkspace({
 
     const tripId = summary.trip.id;
     const row = activeRow;
-    const rowKey = row.key;
     const existingExpiry = row.entityDoc?.expiry_date?.trim() ?? "";
     let expiryDate = existingExpiry;
     let enteredNewExpiry = false;
@@ -960,7 +960,7 @@ export function ComplianceDocumentWorkspace({
         alertMessage("Couldn't approve document", "This document can't be approved from this preview.");
         return;
       }
-      finishDecision(rowKey, "verified");
+      finishDecision(row, "verified");
     } finally {
       setBusy(false);
     }
@@ -988,7 +988,6 @@ export function ComplianceDocumentWorkspace({
 
     const tripId = summary.trip.id;
     const row = activeRow;
-    const rowKey = row.key;
 
     setDeclineOpen(false);
     setBusy(true);
@@ -1036,7 +1035,7 @@ export function ComplianceDocumentWorkspace({
         alertMessage("Couldn't decline document", "This document can't be declined from this preview.");
         return;
       }
-      finishDecision(rowKey, "rejected");
+      finishDecision(row, "rejected");
     } finally {
       setBusy(false);
     }
