@@ -12284,6 +12284,9 @@ export type Database = {
           client_name: string
           client_price: number
           completed_at: string | null
+          compliance_decline_reason: string | null
+          compliance_declined_at: string | null
+          compliance_declined_by: string | null
           compliance_decision: string | null
           compliance_exception_reason: string | null
           compliance_outstanding_summary: Json | null
@@ -12376,6 +12379,9 @@ export type Database = {
           client_name: string
           client_price?: number
           completed_at?: string | null
+          compliance_decline_reason?: string | null
+          compliance_declined_at?: string | null
+          compliance_declined_by?: string | null
           compliance_decision?: string | null
           compliance_exception_reason?: string | null
           compliance_outstanding_summary?: Json | null
@@ -12468,6 +12474,9 @@ export type Database = {
           client_name?: string
           client_price?: number
           completed_at?: string | null
+          compliance_decline_reason?: string | null
+          compliance_declined_at?: string | null
+          compliance_declined_by?: string | null
           compliance_decision?: string | null
           compliance_exception_reason?: string | null
           compliance_outstanding_summary?: Json | null
@@ -15420,6 +15429,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      decline_trip_compliance: {
+        Args: {
+          p_idempotency_key?: string
+          p_reason: string
+          p_trip_id: string
+        }
+        Returns: undefined
       }
       detect_cron_incident_guarded: { Args: never; Returns: undefined }
       discover_extract_city: { Args: { p_location: string }; Returns: string }
