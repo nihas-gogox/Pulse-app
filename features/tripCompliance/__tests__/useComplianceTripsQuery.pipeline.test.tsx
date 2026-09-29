@@ -56,6 +56,7 @@ import { useComplianceChangeSync, useComplianceTripsQuery } from "@/features/tri
 import type { ComplianceTripInputs } from "@/features/tripCompliance/tripCompliance.types";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import { queryKeys } from "@/lib/queryKeys";
+import { patchCachedCompliancePod } from "@/lib/queries/hardCopyPodCache.util";
 
 function trip(id: string, status = "delivered"): TripRow {
   return { id, organization_id: mockOrgId, status, driver_id: "d1", vehicle_id: null } as TripRow;
@@ -270,5 +271,72 @@ describe("persisted / hydrated cache", () => {
     expect(mockLoad.mock.calls[0][2]).toEqual({ full: true });
     second.hook.unmount();
     mockUserId = "user-1";
+  });
+});
+
+describe("race: writers outside the Phase 2 write log (lib hard-copy POD patch)", () => {
+  const podFlags = (rows: ComplianceTripInputs[] | undefined, id: string) =>
+    rows?.find((row) => row.trip.id === id)?.flags?.pod_received_at ?? null;
+
+  it("a POD patch landing while an older pipeline read is in flight survives that read", async () => {
+    const { qc, hook } = setup("org-race-pod");
+    await waitFor(() => expect(hook.result.current.query.summaries).toHaveLength(2));
+    const key = queryKeys.tripCompliance.pipeline("org-race-pod");
+
+    const stale = deferred<ComplianceTripInputs[]>();
+    mockLoad.mockImplementationOnce(() => stale.promise);
+    let refetch!: Promise<unknown>;
+    act(() => {
+      refetch = qc.refetchQueries({ queryKey: key });
+    });
+    await waitFor(() => expect(mockLoad).toHaveBeenCalledTimes(2));
+
+    act(() => {
+      qc.setQueriesData({ queryKey: ["q", "tripCompliance"] }, (old) =>
+        patchCachedCompliancePod(old, "t1", {
+          received: true,
+          receivedAt: "2026-09-29T10:00:00.000Z",
+          courier: "BlueDart",
+          awbNumber: "AWB1",
+          receivedBy: "Ravi",
+        }),
+      );
+    });
+    expect(podFlags(qc.getQueryData(key), "t1")).toBe("2026-09-29T10:00:00.000Z");
+
+    await act(async () => {
+      stale.resolve(inputsFor([trip("t1"), trip("t2")])); // snapshot from before the POD write
+      await refetch;
+    });
+    expect(podFlags(qc.getQueryData(key), "t1")).toBe("2026-09-29T10:00:00.000Z");
+  });
+
+  it("rows only rebuilt by the trips-list reconcile do NOT block a fresher read", async () => {
+    const { qc, hook } = setup("org-race-reconcile-fresh");
+    await waitFor(() => expect(hook.result.current.query.summaries).toHaveLength(2));
+    const key = queryKeys.tripCompliance.pipeline("org-race-reconcile-fresh");
+
+    const fresh = deferred<ComplianceTripInputs[]>();
+    mockLoad.mockImplementationOnce(() => fresh.promise);
+    let refetch!: Promise<unknown>;
+    act(() => {
+      refetch = qc.refetchQueries({ queryKey: key });
+    });
+    await waitFor(() => expect(mockLoad).toHaveBeenCalledTimes(2));
+
+    mockPatchForTrips.mockImplementationOnce(async () => (cur: ComplianceTripInputs[]) =>
+      cur.map((row) => (row.trip.id === "t1" ? { ...row, trip: { ...row.trip, status: "completed" } as TripRow } : row)),
+    );
+    mockTripsState = { data: [trip("t1", "completed"), trip("t2")], dataUpdatedAt: 3 };
+    hook.rerender({});
+    await waitFor(() => expect(mockPatchForTrips).toHaveBeenCalledTimes(1));
+
+    const serverRows = inputsFor([trip("t1", "completed"), trip("t2")]);
+    serverRows[0] = { ...serverRows[0], documents: [{ ...serverRows[0].documents[0], status: "verified" }] };
+    await act(async () => {
+      fresh.resolve(serverRows);
+      await refetch;
+    });
+    expect(qc.getQueryData<ComplianceTripInputs[]>(key)?.[0].documents[0].status).toBe("verified");
   });
 });

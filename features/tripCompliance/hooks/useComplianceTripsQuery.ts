@@ -89,6 +89,34 @@ function writeLogFor(orgId: string): ComplianceWriteLog {
   return log;
 }
 
+/** Rows the trips-list reconcile rebuilt (trip-row swap / fresh inputs) — not "newer writes". */
+const reconciledRows = new WeakSet<ComplianceTripInputs>();
+
+/**
+ * Trips whose CURRENT row must win over a read that started at `startedAt`
+ * from `snapshot`:
+ *   - every trip this hook's write log recorded since the read began, and
+ *   - every trip whose row object changed since the snapshot by a writer that
+ *     does not use the write log (e.g. `lib/queries` hard-copy POD cache patch),
+ *     excluding rows the reconcile merely rebuilt from the trips list.
+ * Rows are never mutated in place, so a changed object means a newer write.
+ */
+function protectedTripIds(
+  log: ComplianceWriteLog,
+  startedAt: number,
+  snapshot: ComplianceTripInputs[] | undefined,
+  current: ComplianceTripInputs[] | undefined,
+): Set<string> {
+  const ids = tripsWrittenSince(log, startedAt);
+  if (ids || !snapshot || !current || snapshot === current) return ids;
+  const before = new Map(snapshot.map((row) => [row.trip.id, row]));
+  for (const row of current) {
+    const prev = before.get(row.trip.id);
+    if (prev && prev !== row && !reconciledRows.has(row)) ids.add(row.trip.id);
+  }
+  return ids;
+}
+
 function useComplianceOrgId(): string {
   const orgCtx = useOptionalOrganization();
   return orgCtx?.currentOrganization?.id ?? "";
@@ -144,7 +172,8 @@ export function useComplianceTripsQuery(_page = 0): ComplianceQueueResult & {
       const rows = await loadCompliancePipelineInputs(previous, pipelineTripsRef.current, { full });
       if (full) fullyLoadedSessions.add(sessionKey);
       // A write that landed while this read was in flight wins over its snapshot.
-      return preserveNewerWrites(rows, qc.getQueryData<ComplianceTripInputs[]>(pipelineKey), tripsWrittenSince(log, startedAt));
+      const current = qc.getQueryData<ComplianceTripInputs[]>(pipelineKey);
+      return preserveNewerWrites(rows, current, protectedTripIds(log, startedAt, previous, current));
     },
     enabled: !!orgId && tripsQuery.isSuccess,
     staleTime: 15_000,
@@ -164,9 +193,17 @@ export function useComplianceTripsQuery(_page = 0): ComplianceQueueResult & {
     void patchForPipelineTrips(current, pipelineTrips)
       .then((patch) => {
         if (cancelled) return;
-        qc.setQueryData<ComplianceTripInputs[]>(pipelineKey, (cur) =>
-          cur ? preserveNewerWrites(patch(cur), cur, tripsWrittenSince(log, startedAt)) : cur,
-        );
+        let before: ComplianceTripInputs[] | undefined;
+        qc.setQueryData<ComplianceTripInputs[]>(pipelineKey, (cur) => {
+          before = cur;
+          return cur ? preserveNewerWrites(patch(cur), cur, protectedTripIds(log, startedAt, current, cur)) : cur;
+        });
+        // Mark what the cache actually stored (structural sharing may copy rows).
+        const stored = qc.getQueryData<ComplianceTripInputs[]>(pipelineKey);
+        if (before && stored && stored !== before) {
+          const prior = new Set(before);
+          for (const row of stored) if (!prior.has(row)) reconciledRows.add(row);
+        }
       })
       .catch(() => {
         // Next pipeline refetch will reconcile.
@@ -328,7 +365,7 @@ export function useComplianceChangeSync() {
         qc.setQueryData<ComplianceTripInputs[]>(key, (cur) => {
           if (!cur) return cur;
           // If another write touched these trips while this change was reading, keep that write.
-          const next = preserveNewerWrites(patch(cur), cur, tripsWrittenSince(log, startedAt));
+          const next = preserveNewerWrites(patch(cur), cur, protectedTripIds(log, startedAt, current, cur));
           recordComplianceWrites(log, changedTripIds(cur, next));
           if (change.type === "payment") patchedTrip = next.find((row) => row.trip.id === change.tripId)?.trip ?? null;
           return next;

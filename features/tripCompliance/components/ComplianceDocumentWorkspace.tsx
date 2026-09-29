@@ -1,7 +1,7 @@
 import { PartyAvatar } from "@/components/PartyAvatar";
 import { TripVaultFilePreview } from "@/features/trips/components/trip-detail/TripVaultFilePreview";
 import Theme from "@/constants/Theme";
-import { rejectDocument, verifyDocument } from "@/features/compliance/services/documents.service";
+import { rejectDocument, updateEntityDocumentExpiry, verifyDocument } from "@/features/compliance/services/documents.service";
 import {
   guessCompliancePreviewMime,
   signCompliancePreviewUrl,
@@ -12,6 +12,7 @@ import { setTripDocumentVerification } from "@/features/tripCompliance/services/
 import {
   COMPLIANCE_DRIVER_DOCUMENT_TYPES,
   COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
+  documentRequiresExpiry,
   type ComplianceTripSummary,
 } from "@/features/tripCompliance/tripCompliance.types";
 import {
@@ -40,7 +41,12 @@ const HARD_COPY_POD_FIELDS: ComplianceInputField[] = [
 ];
 import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
 import { getTripExecutionModel } from "@/features/trips/domain/tripExecutionModel";
-import { markVehicleDocumentVerified } from "@/features/vehicles/services/vehicleDocuments.service";
+import {
+  markVehicleDocumentVerified,
+  resolveVehicleDocumentsWriteTarget,
+  updateVehicleDocumentExpiry,
+} from "@/features/vehicles/services/vehicleDocuments.service";
+import type { VehicleComplianceDocType } from "@/features/vehicles/utils/vehicleDocuments.util";
 import { formatIndianVehicleNumber } from "@/lib/format";
 import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -631,6 +637,11 @@ export function ComplianceDocumentWorkspace({
   const [busy, setBusy] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
   const [podOpen, setPodOpen] = useState(false);
+  const [expiryPrompt, setExpiryPrompt] = useState<{ docType: string; resolve: (value: string | null) => void } | null>(null);
+  const promptExpiryDate = useCallback(
+    (docType: string) => new Promise<string | null>((resolve) => setExpiryPrompt({ docType, resolve })),
+    [],
+  );
   const [declineReason, setDeclineReason] = useState("");
 
   const summary = summaries.find((item) => item.trip.id === selectedId) ?? summaries[0] ?? null;
@@ -701,6 +712,19 @@ export function ComplianceDocumentWorkspace({
     if (!complianceReviewDecisionActions(activeRow).canApprove) return;
     setBusy(true);
     try {
+      // License / insurance / fitness only count as verified with an expiry date
+      // (see entityRowStatus) — ask for it here, same as the review sheet.
+      let expiryDate = activeRow.entityDoc?.expiry_date?.trim() ?? "";
+      const needsExpiry = tab !== "trip" && documentRequiresExpiry(activeRow.type) && !expiryDate;
+      if (needsExpiry) {
+        const entered = (await promptExpiryDate(activeRow.type))?.trim() ?? "";
+        if (!entered) return;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(entered)) {
+          alertMessage("Invalid expiry date", "Use YYYY-MM-DD (for example 2027-03-15).");
+          return;
+        }
+        expiryDate = entered;
+      }
       if (tab === "trip") {
         if (!activeRow.doc) return;
         const { error } = await setTripDocumentVerification({
@@ -715,6 +739,22 @@ export function ComplianceDocumentWorkspace({
         }
         onChanged({ type: "tripDocumentDecision", tripId: summary.trip.id, documentId: activeRow.doc.id, status: "verified", actorId });
       } else if (activeRow.entityDoc?.source === "vehicle-vault" && summary.trip.vehicle_id) {
+        if (needsExpiry) {
+          const vehicleId = summary.trip.vehicle_id;
+          const docType = activeRow.type as VehicleComplianceDocType;
+          const { error } = await updateVehicleDocumentExpiry(organizationId, vehicleId, docType, expiryDate, null);
+          if (error) {
+            // Cross-org vault write may fail — retry against the vehicle's owning org.
+            const resolved = await resolveVehicleDocumentsWriteTarget(vehicleId, [organizationId]);
+            const retry = resolved
+              ? await updateVehicleDocumentExpiry(resolved.orgId, vehicleId, docType, expiryDate, resolved.documents)
+              : { error };
+            if (retry.error) {
+              alertMessage("Couldn't approve document", retry.error.message || "Could not save the expiry date.");
+              return;
+            }
+          }
+        }
         const marked = await markVehicleDocumentVerified(organizationId, summary.trip.vehicle_id, activeRow.type);
         if (marked.error) {
           alertMessage("Couldn't approve document", marked.error.message);
@@ -722,6 +762,13 @@ export function ComplianceDocumentWorkspace({
         }
         onChanged({ type: "vehicleDocuments", vehicleId: summary.trip.vehicle_id });
       } else if (activeRow.entityDoc?.id && activeRow.entityDoc.source !== "driver-kyc") {
+        if (needsExpiry) {
+          const { error: expiryError } = await updateEntityDocumentExpiry(activeRow.entityDoc.id, expiryDate);
+          if (expiryError) {
+            alertMessage("Couldn't approve document", expiryError.message);
+            return;
+          }
+        }
         const { error } = await verifyDocument(activeRow.entityDoc.id, actorId);
         if (error) {
           alertMessage("Couldn't approve document", error.message);
@@ -1028,6 +1075,20 @@ export function ComplianceDocumentWorkspace({
           onClose={() => setScreenOpen(false)}
         />
       ) : null}
+      <ComplianceInputModal
+        visible={expiryPrompt != null}
+        title={`Expiry date — ${expiryPrompt ? labelForDocType(expiryPrompt.docType) : "Document"}`}
+        fields={[{ key: "expiry", label: "Expiry date (YYYY-MM-DD)", placeholder: "2027-03-15", required: true }]}
+        confirmLabel="Approve"
+        onCancel={() => {
+          expiryPrompt?.resolve(null);
+          setExpiryPrompt(null);
+        }}
+        onSubmit={(values) => {
+          expiryPrompt?.resolve(values.expiry ?? null);
+          setExpiryPrompt(null);
+        }}
+      />
       <ComplianceInputModal
         visible={podOpen}
         title="Log hardcopy POD"
