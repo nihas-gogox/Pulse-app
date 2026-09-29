@@ -113,7 +113,7 @@ export default function ComplianceScreen() {
     isFetching,
     refetch,
   } = useComplianceTripsQuery();
-  const { stage, setStage, filtered, counts, podReceivedCount } = useComplianceStageFilter(summaries);
+  const { stage, setStage, filtered, counts, podReceivedCount, paymentPendingCount } = useComplianceStageFilter(summaries);
   const syncChange = useComplianceChangeSync();
   const markTripVerified = useCallback(
     async (tripId: string) => {
@@ -275,6 +275,20 @@ export default function ComplianceScreen() {
                   compact={isNarrow}
                 />
               );
+              if (s === "advance_payment_processed") {
+                return [
+                  chip,
+                  <StageChip
+                    key="payment_pending"
+                    label="Payment Pending"
+                    count={paymentPendingCount}
+                    countColor={Theme.complianceStageBalanceFg}
+                    active={stage === "payment_pending"}
+                    onPress={() => setStage("payment_pending")}
+                    compact={isNarrow}
+                  />,
+                ];
+              }
               if (s !== "hard_copy_pod_received") return [chip];
               return [
                 chip,
@@ -321,7 +335,9 @@ export default function ComplianceScreen() {
             {search.trim()
               ? "No trips match your search."
               : summaries.length
-                ? "No trips in this stage."
+                ? stage === "payment_pending"
+                  ? "No trips are ready for advance or balance payment."
+                  : "No trips in this stage."
                 : "No Loading→Completed trips in the Compliance queue yet."}
           </Text>
         </View>
@@ -637,8 +653,8 @@ const styles = StyleSheet.create({
   },
   chip: {
     flexShrink: 0,
-    height: 28,
-    paddingHorizontal: 10,
+    height: 30,
+    paddingHorizontal: 11,
     borderRadius: 999,
     backgroundColor: Theme.cardWhite,
     borderWidth: 1,
@@ -649,21 +665,21 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chipCompact: {
-    height: 26,
-    paddingHorizontal: 8,
-    gap: 4,
+    height: 28,
+    paddingHorizontal: 9,
+    gap: 5,
   },
   chipActive: {
     backgroundColor: Theme.buttonDark,
     borderColor: Theme.buttonDark,
   },
-  chipText: { fontSize: 12, fontWeight: "500", color: Theme.textPrimary, lineHeight: 14 },
-  chipTextCompact: { fontSize: 11, lineHeight: 13 },
+  chipText: { fontSize: 12, fontWeight: "500", color: Theme.textPrimary, lineHeight: 15 },
+  chipTextCompact: { fontSize: 11, lineHeight: 14 },
   chipTextActive: { color: Theme.buttonDarkText, fontWeight: "600" },
   chipCountBadge: {
-    minWidth: 16,
-    height: 16,
-    paddingHorizontal: 4,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",

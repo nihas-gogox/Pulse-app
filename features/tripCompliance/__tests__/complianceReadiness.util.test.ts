@@ -1,5 +1,5 @@
 import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
-import { deriveComplianceQueueReadiness, summarizeRequiredTripDocuments } from "@/features/tripCompliance/utils/complianceReadiness.util";
+import { deriveComplianceQueueReadiness, isCompliancePaymentPending, summarizeRequiredTripDocuments } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { classifyPreviewFailure } from "@/features/tripCompliance/utils/compliancePreviewFailure.util";
 import { groupComplianceReviewRows } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 
@@ -57,6 +57,27 @@ describe("deriveComplianceQueueReadiness", () => {
     expect(readiness.advance.status).toBe("ready");
     expect(readiness.paymentReady).toBe(true);
     expect(readiness.readyCategory).toBe("compliance_advance");
+  });
+
+  it("flags payment-pending across stages when a payment lane is ready", () => {
+    const verifiedReady = summaryFixture({
+      stage: "compliance_verified",
+      complianceVerifiedAt: "2026-09-01",
+      documents: ["lr", "eway_bill", "invoice"].map((type) => ({
+        id: type,
+        trip_id: "trip-1",
+        document_type: type,
+        file_name: `${type}.pdf`,
+        storage_path: type,
+        uploaded_at: "2026-09-01",
+        status: "verified" as const,
+        verified_by: "u1",
+        verified_at: "2026-09-01",
+        rejection_reason: null,
+      })),
+    });
+    expect(isCompliancePaymentPending(verifiedReady)).toBe(true);
+    expect(isCompliancePaymentPending(summaryFixture({ stage: "compliance_pending" }))).toBe(false);
   });
 
   it("alerts and blocks payment when RC or insurance is expired", () => {
