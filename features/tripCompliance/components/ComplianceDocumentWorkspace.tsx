@@ -809,8 +809,9 @@ export function ComplianceDocumentWorkspace({
     setZoom(1);
   };
 
+  /** Local UI follow-up only — each approve/decline branch sends its own typed ComplianceChange. */
   const finishDecision = useCallback(
-    (tripId: string, rowKey: string, decision: "verified" | "rejected") => {
+    (rowKey: string, decision: "verified" | "rejected") => {
       setLocalDecisionByKey((prev) => ({ ...prev, [rowKey]: decision }));
       setDeclineOpen(false);
       setBusy(false);
@@ -818,9 +819,8 @@ export function ComplianceDocumentWorkspace({
         setDocIndex((index) => (index + 1) % previewable.length);
         setZoom(1);
       }
-      // Pipeline notification is sent per branch as a typed ComplianceChange.
     },
-    [onChanged, previewable.length],
+    [previewable.length],
   );
 
   const promptExpiryDate = useCallback((docType: string) => {
@@ -939,7 +939,7 @@ export function ComplianceDocumentWorkspace({
         alertMessage("Couldn't approve document", "This document can't be approved from this preview.");
         return;
       }
-      finishDecision(tripId, rowKey, "verified");
+      finishDecision(rowKey, "verified");
     } finally {
       setBusy(false);
     }
@@ -1015,7 +1015,7 @@ export function ComplianceDocumentWorkspace({
         alertMessage("Couldn't decline document", "This document can't be declined from this preview.");
         return;
       }
-      finishDecision(tripId, rowKey, "rejected");
+      finishDecision(rowKey, "rejected");
     } finally {
       setBusy(false);
     }
