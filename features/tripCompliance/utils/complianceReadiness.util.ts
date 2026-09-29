@@ -225,11 +225,3 @@ export function paymentReadinessLabel(readiness: ComplianceQueueReadiness): { la
     detail: readiness.blockerLines[0] ?? "This trip is not ready for payment.",
   };
 }
-
-/**
- * Cross-cutting Payment Pending queue: any trip where advance or balance can
- * be posted right now — independent of the exclusive `summary.stage` chip.
- */
-export function isCompliancePaymentPending(summary: ComplianceTripSummary): boolean {
-  return deriveComplianceQueueReadiness(summary).paymentReady;
-}
