@@ -164,9 +164,14 @@ test.describe('Compliance table view', () => {
       void d.accept();
     });
     await openTable(page);
-    const enabled = page.locator('[data-testid^="compliance-verify-"]:not([aria-disabled="true"])').first();
-    test.skip(!(await enabled.isVisible().catch(() => false)), 'No trip with all trip docs approved.');
-    const testId = (await enabled.getAttribute('data-testid'))!;
+    // Not-ready Verify opens the trip documents instead of calling the RPC, so pick a
+    // row whose Trip status pill reads "Approved" (LR / E-way Bill / Invoice verified).
+    const approvedTrip = page.locator('[data-testid^="compliance-status-trip-"]', { hasText: /^Approved$/ }).first();
+    test.skip(!(await approvedTrip.isVisible().catch(() => false)), 'No trip with all trip docs approved.');
+    const tripId = (await approvedTrip.getAttribute('data-testid'))!.replace('compliance-status-trip-', '');
+    const testId = `compliance-verify-${tripId}`;
+    const enabled = page.getByTestId(testId);
+    await expect(enabled).toBeVisible();
     await enabled.click();
     await expect.poll(() => calls.length).toBe(1);
     await expect(page.getByTestId(testId)).toHaveText('Verify');
