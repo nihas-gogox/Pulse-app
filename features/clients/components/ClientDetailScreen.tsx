@@ -68,7 +68,6 @@ import {
   clearInitialClientForDetail,
   getInitialClientForDetail,
 } from "@/features/clients/initialClientForDetail";
-import { ClientInvoicePodPolicySection } from "@/features/clients/components/ClientInvoicePodPolicySection";
 import { getSignedAvatarUrl } from "@/lib/avatarUpload";
 import { canAccessFinance } from "@/lib/capabilities";
 import { useCapabilities } from "@/lib/useCapabilities";
@@ -2766,13 +2765,6 @@ export default function ClientDetailScreen({
           style={[styles.profileModalWrap, { paddingBottom: insets.bottom }]}
         >
           <Suspense fallback={<LazySuspenseNullFallback />}>
-          {currentOrganization?.id && client?.id ? (
-            <ClientInvoicePodPolicySection
-              orgId={currentOrganization.id}
-              clientId={client.id}
-              rawPolicy={client.invoice_pod_policy}
-            />
-          ) : null}
           <CounterpartyProfileSystemCard
             visible={showProfileModal}
             type="client"

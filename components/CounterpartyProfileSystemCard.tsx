@@ -283,6 +283,8 @@ export type CounterpartyProfileSystemCardProps = {
   gridVolumeLabel?: string;
   /** e.g. "94.2%" or health-derived */
   networkTrustLabel?: string;
+  /** Selected invoice POD policy, shown after the Core badge. */
+  podStatusLabel?: string | null;
   isIntegrated?: boolean;
   entityDisplayId?: string | null;
   warehouses?: ProfileWarehouse[];
@@ -290,6 +292,8 @@ export type CounterpartyProfileSystemCardProps = {
   kycDocs?: ProfileKycDoc[];
   /** Page header accessory, rendered beside the customer name. */
   headerSlot?: ReactNode;
+  /** Extra fields rendered inside the Edit profile dialog (client page). */
+  editSlot?: ReactNode;
   onClose: () => void;
   /** Opens full edit flow (router / modal) */
   onEditPress?: () => void;
@@ -486,12 +490,14 @@ export function CounterpartyProfileSystemCard({
   validTo,
   gridVolumeLabel,
   networkTrustLabel = "94.2%",
+  podStatusLabel = null,
   isIntegrated,
   entityDisplayId,
   warehouses = [],
   contracts = [],
   kycDocs = [],
   headerSlot,
+  editSlot,
   onClose,
   onEditPress,
   canEdit = true,
@@ -504,7 +510,7 @@ export function CounterpartyProfileSystemCard({
   supplierVaultSlot,
 }: CounterpartyProfileSystemCardProps) {
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isPage = presentation === "page";
   const isWide = windowWidth >= 900;
   /** Desktop page: wider canvas + breathable side padding (not the mobile 16px). */
@@ -1346,6 +1352,16 @@ export function CounterpartyProfileSystemCard({
                         {isIntegrated ? "Integrated" : "Core"}
                       </Text>
                     </View>
+                    {podStatusLabel ? (
+                      <View style={styles.pillEmerald}>
+                        <Text
+                          style={[styles.pillEmeraldText, styles.pillTextPage, styles.pillPodText]}
+                          numberOfLines={1}
+                        >
+                          {podStatusLabel}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
               </>
@@ -2263,6 +2279,11 @@ export function CounterpartyProfileSystemCard({
                   <FontAwesome name="times" size={14} color={Theme.textPrimaryDark} />
                 </TouchableOpacity>
               </View>
+              <ScrollView
+                style={{ maxHeight: Math.max(280, windowHeight - 180) }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
               <View style={styles.editDialogGrid}>
                 <View style={styles.editDialogCell}>
                   <Text style={[styles.fieldLabel, styles.fieldLabelPage]}>
@@ -2361,8 +2382,10 @@ export function CounterpartyProfileSystemCard({
                     placeholderTextColor={Theme.textSection}
                   />
                 </View>
+                {editSlot ? <View style={styles.editDialogFull}>{editSlot}</View> : null}
                 {dateError ? <Text style={styles.editDialogError}>{dateError}</Text> : null}
               </View>
+              </ScrollView>
               <View style={styles.editDialogActions}>
                 <TouchableOpacity style={styles.editDialogDiscard} onPress={() => setMode("view")}>
                   <Text style={styles.editDialogDiscardText}>Discard</Text>
@@ -2931,6 +2954,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   pillEmeraldText: { fontSize: 10, fontWeight: "900", color: Theme.positive, textTransform: "uppercase" },
+  pillPodText: { textTransform: "none", letterSpacing: 0.1 },
   pillTextPage: { fontSize: 8, fontWeight: "700", letterSpacing: 0.3 },
   pillIndigo: {
     paddingHorizontal: 8,

@@ -35,6 +35,8 @@ type Props = {
   rawPolicy?: unknown;
   /** Header-sized card placed beside the customer name. */
   compact?: boolean;
+  /** Drop outer page margins so the card sits inside a dialog or form. */
+  embedded?: boolean;
 };
 
 export function ClientInvoicePodPolicySection({
@@ -42,6 +44,7 @@ export function ClientInvoicePodPolicySection({
   clientId,
   rawPolicy,
   compact = false,
+  embedded = false,
 }: Props) {
   const queryClient = useQueryClient();
   const policyQueryKey = queryKeys.clients.invoicePodPolicy(orgId, clientId);
@@ -108,7 +111,10 @@ export function ClientInvoicePodPolicySection({
       : "Unconfigured";
 
   return (
-    <View style={[styles.wrap, compact && styles.wrapCompact]} accessibilityLabel="POD for Invoicing">
+    <View
+      style={[styles.wrap, compact && styles.wrapCompact, embedded && styles.wrapEmbedded]}
+      accessibilityLabel="POD for Invoicing"
+    >
       <View style={styles.head}>
         <Text style={[styles.kicker, compact && styles.kickerCompact]} numberOfLines={1}>
           POD for Invoicing
@@ -339,6 +345,11 @@ const styles = StyleSheet.create({
   },
   spinner: {
     marginTop: 8,
+  },
+  wrapEmbedded: {
+    marginHorizontal: 0,
+    marginTop: 0,
+    marginBottom: 0,
   },
   wrapCompact: {
     marginHorizontal: 0,
