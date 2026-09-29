@@ -837,10 +837,10 @@ export function TripExpensesScreen({
     return events;
   }, [actionNeededEvents, events, listFilter]);
 
-  const iconSm = comfortable ? 14 : embedded ? 10 : 12;
-  const iconMd = comfortable ? 16 : embedded ? 11 : 14;
-  const iconLg = comfortable ? 18 : embedded ? 14 : 16;
-  const iconEmpty = comfortable ? 28 : embedded ? 18 : 22;
+  const iconSm = comfortable ? 14 : embedded ? 13 : 12;
+  const iconMd = comfortable ? 16 : embedded ? 14 : 14;
+  const iconLg = comfortable ? 18 : embedded ? 16 : 16;
+  const iconEmpty = comfortable ? 24 : embedded ? 16 : 18;
 
   const quickActions = [
     { key: "fuel", label: "Fuel", icon: "droplet" as const, onPress: onAddFuel },
@@ -907,7 +907,7 @@ export function TripExpensesScreen({
                   >
                     <Feather
                       name="book-open"
-                      size={comfortable ? 16 : 11}
+                      size={comfortable ? 16 : 13}
                       color={Theme.primary}
                     />
                   </View>
@@ -1105,7 +1105,7 @@ export function TripExpensesScreen({
                     comfortable && styles.addExpenseBtnIconComfortable,
                   ]}
                 >
-                  <Feather name="plus" size={comfortable ? 16 : 12} color="#fff" />
+                  <Feather name="plus" size={comfortable ? 16 : 13} color="#fff" />
                 </View>
                 <View style={styles.addExpenseBtnCopy}>
                   <Text
@@ -1168,7 +1168,7 @@ export function TripExpensesScreen({
                       >
                         <Feather
                           name={action.icon}
-                          size={comfortable ? 18 : 14}
+                          size={comfortable ? 18 : 13}
                           color={accent.fg}
                         />
                       </View>
@@ -1281,6 +1281,76 @@ export function TripExpensesScreen({
             </Pressable>
           </View>
 
+          {!summaryQuery.isLoading &&
+          !summaryQuery.isError &&
+          displayedEvents.length === 0 ? (
+            <View
+              style={[
+                styles.emptyUnderSegment,
+                comfortable && styles.emptyUnderSegmentComfortable,
+              ]}
+            >
+              <View
+                style={[
+                  styles.emptyCard,
+                  embedded && styles.emptyCardEmbedded,
+                  comfortable && styles.emptyCardComfortable,
+                ]}
+              >
+                <Feather
+                  name={listFilter === "action" ? "check-circle" : "inbox"}
+                  size={iconEmpty}
+                  color={Theme.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.emptyTitle,
+                    comfortable && styles.emptyTitleComfortable,
+                  ]}
+                >
+                  {listFilter === "action" ? "All caught up" : "No expenses yet"}
+                </Text>
+                <Text
+                  style={[styles.empty, comfortable && styles.emptyComfortable]}
+                >
+                  {listFilter === "action"
+                    ? isDriverViewer
+                      ? "No reimbursement requests waiting on fleet right now."
+                      : "Nothing waiting for approve, post, or reimburse."
+                    : isDriverViewer
+                      ? "Log fuel, toll, or other trip costs you paid for reimbursement."
+                      : "Add fuel, toll, or other costs for this trip."}
+                </Text>
+                {listFilter !== "action" && onAddExpense ? (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.emptyAddBtn,
+                      comfortable && styles.emptyAddBtnComfortable,
+                      pressed && styles.addExpenseBtnPressed,
+                    ]}
+                    onPress={onAddExpense}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add expense"
+                  >
+                    <Feather
+                      name="plus"
+                      size={comfortable ? 16 : 12}
+                      color="#fff"
+                    />
+                    <Text
+                      style={[
+                        styles.emptyAddBtnText,
+                        comfortable && styles.emptyAddBtnTextComfortable,
+                      ]}
+                    >
+                      Add expense
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+
           {showDriverPaymentCta ? (
             <Pressable
               style={({ pressed }) => [
@@ -1354,49 +1424,7 @@ export function TripExpensesScreen({
               Loading expenses…
             </Text>
           </View>
-        ) : displayedEvents.length === 0 ? (
-          <View style={[styles.emptyCard, comfortable && styles.emptyCardComfortable]}>
-            <Feather
-              name={listFilter === "action" ? "check-circle" : "inbox"}
-              size={iconEmpty}
-              color={Theme.textMuted}
-            />
-            <Text style={[styles.emptyTitle, comfortable && styles.emptyTitleComfortable]}>
-              {listFilter === "action" ? "All caught up" : "No expenses yet"}
-            </Text>
-            <Text style={[styles.empty, comfortable && styles.emptyComfortable]}>
-              {listFilter === "action"
-                ? isDriverViewer
-                  ? "No reimbursement requests waiting on fleet right now."
-                  : "Nothing waiting for approve, post, or reimburse."
-                : isDriverViewer
-                  ? "Log fuel, toll, or other trip costs you paid for reimbursement."
-                  : "Add fuel, toll, or other costs for this trip."}
-            </Text>
-            {listFilter !== "action" && onAddExpense ? (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.emptyAddBtn,
-                  comfortable && styles.emptyAddBtnComfortable,
-                  pressed && styles.addExpenseBtnPressed,
-                ]}
-                onPress={onAddExpense}
-                accessibilityRole="button"
-                accessibilityLabel="Add expense"
-              >
-                <Feather name="plus" size={comfortable ? 16 : 14} color="#fff" />
-                <Text
-                  style={[
-                    styles.emptyAddBtnText,
-                    comfortable && styles.emptyAddBtnTextComfortable,
-                  ]}
-                >
-                  Add expense
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : (
+        ) : displayedEvents.length === 0 ? null : (
           <>
             {!summaryQuery.isLoading && displayedEvents.length > 0 ? (
               <View
@@ -1575,46 +1603,61 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   toolbar: {
-    gap: 6,
-    marginBottom: 6,
+    gap: 10,
+    marginBottom: 10,
   },
   toolbarEmbedded: {
-    gap: 6,
-    marginBottom: 4,
+    gap: 10,
+    marginBottom: 8,
   },
   hubShell: {
     backgroundColor: Theme.cardWhite,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
     overflow: "hidden",
     ...Platform.select({
       ios: {
         shadowColor: "#0f172a",
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
-        shadowRadius: 8,
+        shadowRadius: 12,
       },
-      android: { elevation: 2 },
-      default: { boxShadow: "0 2px 10px rgba(15,23,42,0.06)" } as object,
+      android: { elevation: 1 },
+      default: { boxShadow: "0 4px 14px rgba(15,23,42,0.05)" } as object,
     }),
   },
   hubShellEmbedded: {
+    borderRadius: 14,
+    width: "100%",
+    alignSelf: "stretch",
   },
   ledgerHero: {
     position: "relative",
-    backgroundColor: Theme.pulseIndigoWash,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#e6edf5",
+    backgroundColor: Theme.brandBlueSoft,
+    borderBottomWidth: 0,
+    borderBottomColor: Theme.borderLight,
+    marginHorizontal: 10,
+    marginTop: 10,
+    marginBottom: 0,
+    borderRadius: 12,
+    overflow: "hidden",
   },
   driverSummaryHero: {
     position: "relative",
     backgroundColor: "#f0fdf4",
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
     borderBottomColor: "#dcfce7",
+    marginHorizontal: 10,
+    marginTop: 10,
+    borderRadius: 12,
+    overflow: "hidden",
   },
   driverSummaryHint: {
-    fontSize: 9,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "500",
     color: Theme.textSecondary,
-    lineHeight: 13,
+    lineHeight: 15,
   },
   ledgerAccent: {
     position: "absolute",
@@ -1624,31 +1667,37 @@ const styles = StyleSheet.create({
     width: 3,
     borderTopRightRadius: 3,
     borderBottomRightRadius: 3,
-    backgroundColor: Theme.buttonPrimary,
+    backgroundColor: Theme.primary,
   },
   ledgerHeroBody: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    paddingLeft: 12,
-    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    paddingLeft: 14,
+    gap: 6,
   },
   ledgerHeroTop: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   ledgerHeroIcon: {
-    width: 22,
-    height: 22,
+    width: 28,
+    height: 28,
+    borderRadius: 9,
     backgroundColor: Theme.cardWhite,
     alignItems: "center",
     justifyContent: "center",
   },
   controlDeck: {
     gap: 8,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+    paddingTop: 4,
   },
   controlDeckEmbedded: {
-    gap: 6,
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
   },
   summaryCard: {
     backgroundColor: Theme.cardWhite,
@@ -1672,38 +1721,38 @@ const styles = StyleSheet.create({
   },
   summaryTitleRow: {
     flexDirection: "row",
-    alignItems: "baseline",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 10,
   },
   summaryLabel: {
-    fontSize: 8,
-    fontWeight: "800",
-    color: "#94a3b8",
+    fontSize: 10,
+    fontWeight: "700",
+    color: Theme.textMuted,
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
     flexShrink: 1,
   },
   summaryValue: {
-    fontSize: 16,
-    fontWeight: "800",
+    fontSize: 20,
+    fontWeight: "700",
     color: Theme.textPrimaryDark,
     fontVariant: ["tabular-nums"],
     letterSpacing: -0.3,
-    lineHeight: 20,
+    lineHeight: 24,
   },
   vehicleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    paddingTop: 2,
+    paddingTop: 0,
   },
   vehicleRowText: {
     flex: 1,
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: "600",
     color: Theme.textSecondary,
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   vehiclePill: {
     flexDirection: "row",
@@ -1864,25 +1913,25 @@ const styles = StyleSheet.create({
   addExpenseBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginHorizontal: 8,
-    marginTop: 6,
+    gap: 10,
+    marginHorizontal: 10,
+    marginTop: 8,
     marginBottom: 0,
-    paddingVertical: 6,
+    paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Theme.borderLight,
-    backgroundColor: Theme.cardWhite,
-    minHeight: 40,
+    backgroundColor: Theme.surface,
+    minHeight: 44,
   },
   addExpenseBtnPressed: {
-    opacity: 0.88,
+    opacity: 0.9,
   },
   addExpenseBtnIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: Theme.primary,
@@ -1890,32 +1939,81 @@ const styles = StyleSheet.create({
   addExpenseBtnCopy: {
     flex: 1,
     minWidth: 0,
-    gap: 0,
+    gap: 1,
   },
   addExpenseBtnTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Theme.textPrimaryDark,
+    letterSpacing: -0.1,
+  },
+  addExpenseBtnSub: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: Theme.textMuted,
+  },
+  emptyUnderSegment: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 2,
+    paddingBottom: 2,
+  },
+  emptyUnderSegmentComfortable: {
+    paddingTop: 4,
+    paddingBottom: 2,
+  },
+  emptyCard: {
+    width: "100%",
+    maxWidth: 260,
+    alignSelf: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
+    backgroundColor: Theme.surface,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    gap: 3,
+  },
+  emptyCardEmbedded: {
+    maxWidth: 240,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: Theme.surface,
+  },
+  emptyTitle: {
     fontSize: 12,
     fontWeight: "700",
     color: Theme.textPrimaryDark,
+    letterSpacing: -0.1,
+    textAlign: "center",
   },
-  addExpenseBtnSub: {
+  empty: {
     fontSize: 10,
     fontWeight: "500",
     color: Theme.textMuted,
+    textAlign: "center",
+    lineHeight: 14,
+    maxWidth: 200,
   },
   emptyAddBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    marginTop: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
+    gap: 4,
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
     backgroundColor: Theme.primary,
-    minHeight: 40,
+    minHeight: 28,
+    alignSelf: "center",
+    minWidth: 0,
   },
   emptyAddBtnText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "700",
     color: "#fff",
   },
@@ -1923,36 +2021,42 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "stretch",
     gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    backgroundColor: Theme.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#e6edf5",
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 10,
+    backgroundColor: "transparent",
+    borderTopWidth: 0,
+    borderTopColor: Theme.borderLight,
   },
   quickTile: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
-    paddingVertical: 4,
+    gap: 4,
+    paddingVertical: 8,
     paddingHorizontal: 4,
-    minHeight: 44,
+    minHeight: 56,
+    borderRadius: 12,
+    backgroundColor: Theme.surface,
+    borderWidth: 1,
+    borderColor: Theme.borderLight,
   },
   quickTilePressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.97 }],
+    opacity: 0.86,
+    transform: [{ scale: 0.98 }],
   },
   quickTileIcon: {
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
+    borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
   },
   quickTileLabel: {
-    fontSize: 8,
-    fontWeight: "800",
+    fontSize: 10,
+    fontWeight: "700",
     color: Theme.textPrimaryDark,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
     textTransform: "uppercase",
   },
   quickActionBtn: {
@@ -1968,69 +2072,73 @@ const styles = StyleSheet.create({
   },
   quickActionBtnText: {
     color: Theme.textPrimaryDark,
-    fontSize: 8,
+    fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.2,
   },
   segmentTrack: {
     flexDirection: "row",
     padding: 3,
-    backgroundColor: Theme.surface,
+    backgroundColor: Theme.surfaceGray,
     gap: 3,
+    borderRadius: 12,
   },
   segmentTrackEmbedded: {
-    padding: 2,
+    padding: 3,
+    borderRadius: 12,
   },
   segmentBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
+    gap: 5,
     paddingVertical: 6,
-    minHeight: 28,
+    minHeight: 32,
+    borderRadius: 9,
   },
   segmentBtnActive: {
     backgroundColor: Theme.cardWhite,
     ...Platform.select({
       ios: {
-        shadowColor: Theme.pulseIndigo,
+        shadowColor: "#0f172a",
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.12,
+        shadowOpacity: 0.06,
         shadowRadius: 3,
       },
       android: { elevation: 1 },
-      default: { boxShadow: "0 1px 4px rgba(79,70,229,0.12)" } as object,
+      default: { boxShadow: "0 1px 3px rgba(15,23,42,0.06)" } as object,
     }),
   },
   segmentBtnPressed: {
-    opacity: 0.85,
+    opacity: 0.88,
     transform: [{ scale: 0.98 }],
   },
   segmentBtnText: {
-    fontSize: 8,
+    fontSize: 11,
     fontWeight: "600",
     color: Theme.textSecondary,
   },
   segmentBtnTextActive: {
-    color: Theme.primary,
+    color: Theme.textPrimaryDark,
     fontWeight: "700",
   },
   segmentCount: {
     minWidth: 18,
     paddingHorizontal: 5,
     paddingVertical: 1,
+    borderRadius: 999,
     backgroundColor: Theme.borderLight,
     alignItems: "center",
   },
   segmentCountActive: {
-    backgroundColor: "#eef2ff",
+    backgroundColor: Theme.brandBlueSoft,
   },
   segmentCountHighlight: {
     backgroundColor: "#fef3c7",
   },
   segmentCountText: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: "700",
     color: Theme.textSecondary,
   },
@@ -2042,7 +2150,7 @@ const styles = StyleSheet.create({
   },
   list: { flex: 1 },
   listContent: {
-    gap: 6,
+    gap: 8,
     paddingTop: 2,
   },
   listSectionHead: {
@@ -2239,27 +2347,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Theme.buttonPrimaryText,
   },
-  emptyCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e6edf5",
-    backgroundColor: Theme.surface,
-    padding: 14,
-    alignItems: "center",
-    gap: 5,
-  },
-  emptyTitle: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: Theme.textPrimaryDark,
-  },
-  empty: {
-    fontSize: 8,
-    fontWeight: "500",
-    color: Theme.textMuted,
-    textAlign: "center",
-    lineHeight: 12,
-  },
   // ── Desktop density: editorial, readable, not oversized ───────────────────
   containerComfortable: {
     width: "100%",
@@ -2271,7 +2358,7 @@ const styles = StyleSheet.create({
   hubShellComfortable: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: Theme.borderLight,
     overflow: "hidden",
     backgroundColor: Theme.cardWhite,
   },
@@ -2538,27 +2625,29 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   emptyCardComfortable: {
-    padding: 24,
-    gap: 10,
-    borderRadius: 16,
+    maxWidth: 300,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    gap: 6,
+    borderRadius: 14,
   },
   emptyTitleComfortable: {
-    fontSize: 16,
+    fontSize: 14,
   },
   emptyComfortable: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
   },
   emptyAddBtnComfortable: {
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    minHeight: 44,
-    borderRadius: 12,
-    gap: 8,
+    marginTop: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    minHeight: 34,
+    borderRadius: 999,
+    gap: 5,
   },
   emptyAddBtnTextComfortable: {
-    fontSize: 14,
+    fontSize: 12,
   },
   payoutSectionComfortable: {
     marginTop: 8,
