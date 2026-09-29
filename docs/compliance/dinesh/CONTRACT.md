@@ -25,7 +25,7 @@ Branch `compliance-dinesh-sir` · base V1 `07125814` · lead-owned doc (Agent 1 
 
 ### A. E-way Bill column (UI only)
 - New column **E-way Bill** between **To** and **Trip**: number (first entry with content) + "Valid till <date>".
-- Pick the first `eway_bill` doc (in document order) whose `document_number` parses to an entry with content — same as Trip Detail (see §1 correction).
+- Pick the newest (`uploaded_at` desc, as Trip Detail loads them) `eway_bill` doc whose `document_number` parses to an entry with content — same as Trip Detail (see §1 correction).
 - Empty: "—". Unparseable date: show raw string, never fabricate. Multiple entries: show first + "+N".
 - Expired (validTill < today, local date): see decision D3.
 
@@ -89,7 +89,7 @@ Each AC is one observable check. `[D#]` = depends on an unconfirmed decision in 
 - AC-2: For a trip whose E-way editor saved `ewayNo=1234 5678 9012`, `validTill=04-Sep-26`, the cell shows `1234 5678 9012` and `Valid till 04-Sep-26` without opening the row.
 - AC-3: `validTill` is stored as `DD-Mon-YY` (`formatVaultDocDate`); the cell parses it via `vaultDocDateToIso` and shows the stored text; unparseable values are shown raw, never replaced by a made-up date.
 - AC-4: Trip with no `eway_bill` row, or rows with no `ewayNo`/`validTill`, shows `—` in the cell (no crash, no "Invalid Date").
-- AC-5: Trip with 3 E-way entries shows the first entry plus `+2`; the row picked is the same one Trip Detail shows (`useTripDetail`: first row whose `document_number` parses to ≥1 entry).
+- AC-5: Trip with 3 E-way entries shows the first entry plus `+2`; the row picked is the same one Trip Detail shows (`useTripDetail`: newest-first rows, first whose `document_number` parses to ≥1 entry).
 - AC-6: Only number but no date → number and `Valid till —`; only date → `—` and the date.
 - AC-7: `validTill` before today (local date) shows a red `Expired` tag; today or later shows no tag; with `HIGHLIGHT_EXPIRED_EWAY_BILL=false` no tag ever. [D3]
 - AC-8: Editing E-way fields in Trip Detail, then returning to Table view, shows the new values with no manual reload.
