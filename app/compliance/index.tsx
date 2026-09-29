@@ -20,6 +20,7 @@ import {
   useComplianceTripsQuery,
   useComplianceTripQuery,
   useInvalidateComplianceTrips,
+  useRefreshComplianceTrip,
 } from "@/features/tripCompliance/hooks/useComplianceTripsQuery";
 import { postCompliancePayment, markTripComplianceVerified, type ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import { COMPLIANCE_STAGE_FILTER_LABEL, COMPLIANCE_STAGES, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
@@ -115,6 +116,7 @@ export default function ComplianceScreen() {
   } = useComplianceTripsQuery();
   const { stage, setStage, filtered, counts, podReceivedCount } = useComplianceStageFilter(summaries);
   const invalidate = useInvalidateComplianceTrips();
+  const refreshTrip = useRefreshComplianceTrip();
   const markTripVerified = useCallback(
     async (tripId: string) => {
       if (!canMarkVerified) {
@@ -130,9 +132,9 @@ export default function ComplianceScreen() {
         alertMessage("Couldn't verify compliance", formatMarkComplianceVerifiedError(error.message));
         return;
       }
-      invalidate(tripId);
+      await refreshTrip(tripId);
     },
-    [canMarkVerified, invalidate, user?.uid],
+    [canMarkVerified, refreshTrip, user?.uid],
   );
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const [cardTripId, setCardTripId] = useState<string | null>(null);
@@ -358,7 +360,7 @@ export default function ComplianceScreen() {
           canManagePod={canManagePod}
           selectedTripId={cardTripId}
           stacked={isNarrow}
-          onChanged={(tripId) => invalidate(tripId)}
+          onChanged={(tripId) => void refreshTrip(tripId)}
         />
       )}
 
@@ -488,7 +490,7 @@ export default function ComplianceScreen() {
           canManageFinance={canManageFinance}
           summary={reviewingSummary}
           initialSelectedKey={review?.documentKey ?? null}
-          onChanged={() => invalidate(reviewingSummary.trip.id)}
+          onChanged={() => void refreshTrip(reviewingSummary.trip.id)}
           onPay={() => openPay(reviewingSummary)}
           scope={review?.scope ?? "trip"}
           vehicleId={reviewingSummary.trip.vehicle_id}

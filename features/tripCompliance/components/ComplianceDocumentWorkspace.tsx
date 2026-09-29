@@ -27,6 +27,8 @@ import {
   type ComplianceDocRow,
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import { complianceReviewDecisionActions } from "@/features/tripCompliance/utils/complianceReviewActions.util";
+import { isTypedDetailsTripDoc } from "@/features/tripCompliance/utils/complianceChecklist.util";
+import { parseEwayFieldEntries } from "@/features/trips/services/ewayBillFields.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { markTripHardCopyPodReceived } from "@/features/trips/services/tripDocumentLrPod.service";
@@ -75,6 +77,31 @@ function rowsForTab(summary: ComplianceTripSummary, tab: DocTab): ComplianceDocR
 
 function hasFile(row: ComplianceDocRow): boolean {
   return Boolean(row.doc?.storage_path || row.entityDoc?.storage_path);
+}
+
+/** Label/value pairs for a typed-in (fields.json) doc — no file to sign. */
+function typedDetailsLines(row: ComplianceDocRow | null): { label: string; value: string }[] | null {
+  const doc = row?.doc;
+  if (!doc || !isTypedDetailsTripDoc(doc)) return null;
+  if (row.type === "eway_bill") {
+    return parseEwayFieldEntries(doc.document_number).flatMap((entry, index, all) => {
+      const suffix = all.length > 1 ? ` ${index + 1}` : "";
+      return [
+        { label: `E-way bill no.${suffix}`, value: entry.ewayNo },
+        { label: "Created", value: entry.createdDate },
+        { label: "Valid till", value: entry.validTill },
+        { label: "Doc no.", value: entry.docNo },
+      ].filter((line) => line.value);
+    });
+  }
+  try {
+    const parsed = JSON.parse(doc.document_number ?? "") as Record<string, unknown>;
+    return Object.entries(parsed)
+      .filter(([, value]) => typeof value === "string" || typeof value === "number")
+      .map(([label, value]) => ({ label, value: String(value) }));
+  } catch {
+    return [{ label: "Details", value: doc.document_number ?? "" }];
+  }
 }
 
 function originalDocumentSize(
@@ -639,7 +666,7 @@ export function ComplianceDocumentWorkspace({
   useEffect(() => {
     const row = previewable[docIndex] ?? null;
     const path = row?.doc?.storage_path ?? row?.entityDoc?.storage_path ?? null;
-    if (!row || !path || !canViewDocuments || !organizationId) {
+    if (!row || !path || !canViewDocuments || !organizationId || (row.doc && isTypedDetailsTripDoc(row.doc))) {
       setPreviewUrl(null);
       setPreviewMime(null);
       setLoadingPreview(false);
@@ -766,6 +793,7 @@ export function ComplianceDocumentWorkspace({
   const docTitle = activeRow ? labelForDocType(activeRow.type) : "No document";
   const isPdf = (previewMime ?? "").includes("pdf");
   const readiness = summary ? deriveComplianceQueueReadiness(summary) : null;
+  const typedLines = typedDetailsLines(activeRow);
   const showPay = Boolean(canManageFinance && readiness?.paymentReady && onPay && summary);
   const showMarkVerified = Boolean(
     onMarkComplianceVerified && summary && !summary.complianceVerifiedAt && readiness?.requiredDocs.markVerifiedReady,
@@ -878,6 +906,18 @@ export function ComplianceDocumentWorkspace({
           {loadingPreview ? (
             <View style={styles.stageBody}>
               <ActivityIndicator color={Theme.textPrimaryDark} />
+            </View>
+          ) : typedLines && canViewDocuments ? (
+            <View style={styles.emptyStage}>
+              <View style={styles.typedCard}>
+                <Text style={styles.typedTitle}>{docTitle} · entered details (no file)</Text>
+                {typedLines.map((line, index) => (
+                  <View key={`${line.label}-${index}`} style={styles.typedRow}>
+                    <Text style={styles.typedLabel}>{line.label}</Text>
+                    <Text style={styles.typedValue}>{line.value}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           ) : previewUrl ? (
             <>
@@ -1316,6 +1356,21 @@ const styles = StyleSheet.create({
   stageFill: { width: "100%", height: "100%" },
   stageScrollCenter: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   stageScrollStart: { flexGrow: 1, alignItems: "flex-start", justifyContent: "flex-start" },
+  typedCard: {
+    minWidth: 280,
+    maxWidth: 420,
+    width: "100%",
+    padding: 16,
+    gap: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    backgroundColor: Theme.cardWhite,
+  },
+  typedTitle: { fontSize: 13, fontWeight: "700", color: Theme.textPrimaryDark, marginBottom: 4 },
+  typedRow: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
+  typedLabel: { fontSize: 12, color: Theme.textMuted },
+  typedValue: { fontSize: 12, fontWeight: "600", color: Theme.textPrimaryDark },
   emptyStage: {
     flex: 1,
     minHeight: 0,

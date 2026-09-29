@@ -8,6 +8,7 @@
 import { useOptionalOrganization } from "@/contexts/OrganizationContext";
 import {
   buildComplianceTripSummaries,
+  forgetVehicleViewerCache,
 } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import type { ComplianceStage, ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import { ensureComplianceChecklist } from "@/features/tripCompliance/utils/complianceChecklist.util";
@@ -195,6 +196,41 @@ export function useInvalidateComplianceTrips() {
       void qc.invalidateQueries({ queryKey: queryKeys.tripCompliance.detail(orgId, tripId) });
     } else {
       void qc.invalidateQueries({ queryKey: ["q", "tripCompliance", "detail", "v1", orgId] });
+    }
+  };
+}
+
+/**
+ * Doc approve / decline, Mark verified, and POD only change that one trip's
+ * compliance data — re-read just that trip (same batched reads, scoped to one
+ * id) and patch it into the cached pipeline instead of refetching the whole
+ * trip catalog + every summary. Payments still use the full invalidate since
+ * they change trip totals.
+ */
+export function useRefreshComplianceTrip() {
+  const orgId = useComplianceOrgId();
+  const qc = useQueryClient();
+  return async (tripId: string) => {
+    if (!orgId) return;
+    const pipelinePrefix = ["q", "tripCompliance", "pipeline", "v1", orgId];
+    const cached = qc
+      .getQueriesData<ComplianceTripSummary[]>({ queryKey: pipelinePrefix })
+      .flatMap(([, rows]) => rows ?? [])
+      .find((row) => row.trip.id === tripId);
+    if (!cached) {
+      void qc.invalidateQueries({ queryKey: pipelinePrefix });
+      return;
+    }
+    try {
+      forgetVehicleViewerCache([cached.trip.vehicle_id, cached.trip.owner_vehicle_id]);
+      const [fresh] = await buildComplianceTripSummaries([cached.trip]);
+      if (!fresh) return;
+      qc.setQueriesData<ComplianceTripSummary[]>({ queryKey: pipelinePrefix }, (rows) =>
+        rows?.map((row) => (row.trip.id === tripId ? fresh : row)),
+      );
+      void qc.invalidateQueries({ queryKey: queryKeys.tripCompliance.detail(orgId, tripId) });
+    } catch {
+      void qc.invalidateQueries({ queryKey: pipelinePrefix });
     }
   };
 }

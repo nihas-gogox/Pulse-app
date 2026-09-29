@@ -114,9 +114,22 @@ export function isEntityDocumentSlotVerified(
   return doc.status === "verified" || doc.status === "active";
 }
 
+/**
+ * Documents reach trip_documents two ways: an uploaded file, or typed-in
+ * details saved as `<trip>/<type>/fields.json` with the values in
+ * `document_number` (most E-way bills, some LR OCR). Both count as "on file" —
+ * same rule the stage derivation and `mark_trip_compliance_verified` use.
+ * A fields row with no values is still treated as missing.
+ */
+export function isTypedDetailsTripDoc(
+  doc: Pick<ComplianceDocumentRow, "storage_path" | "file_name" | "document_number">,
+): boolean {
+  return isEwayBillMetaPath(doc.storage_path, doc.file_name) && Boolean((doc.document_number ?? "").trim());
+}
+
 export function isTripVaultDocumentOnFile(doc: ComplianceDocumentRow): boolean {
   if (!doc.document_type || doc.status === "rejected") return false;
-  if (isEwayBillMetaPath(doc.storage_path, doc.file_name)) return false;
+  if (isEwayBillMetaPath(doc.storage_path, doc.file_name)) return isTypedDetailsTripDoc(doc);
   return Boolean(doc.storage_path) || doc.status === "verified";
 }
 

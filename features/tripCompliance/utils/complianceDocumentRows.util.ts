@@ -16,6 +16,7 @@ import {
 } from "@/features/tripCompliance/tripCompliance.types";
 import {
   isEntityDocumentExpired,
+  isTypedDetailsTripDoc,
 } from "@/features/tripCompliance/utils/complianceChecklist.util";
 import { isEwayBillMetaPath } from "@/features/trips/services/ewayBillFields.util";
 
@@ -56,12 +57,16 @@ function isMetaOnlyTripDoc(doc: ComplianceDocumentRow): boolean {
   return isEwayBillMetaPath(doc.storage_path, doc.file_name);
 }
 
+/** Latest doc per type — an uploaded file wins; typed-in details are the fallback. */
 function latestDocByType(documents: ComplianceDocumentRow[]): Map<string | null, ComplianceDocumentRow> {
   const byType = new Map<string | null, ComplianceDocumentRow>();
   for (const doc of documents) {
-    if (isMetaOnlyTripDoc(doc)) continue;
+    const meta = isMetaOnlyTripDoc(doc);
+    if (meta && !isTypedDetailsTripDoc(doc)) continue;
     const current = byType.get(doc.document_type);
-    if (!current || (doc.uploaded_at ?? "") > (current.uploaded_at ?? "")) {
+    const currentMeta = current ? isMetaOnlyTripDoc(current) : false;
+    const newer = !current || (doc.uploaded_at ?? "") > (current.uploaded_at ?? "");
+    if (!current || (currentMeta && !meta) || (currentMeta === meta && newer)) {
       byType.set(doc.document_type, doc);
     }
   }
