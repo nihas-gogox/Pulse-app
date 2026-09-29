@@ -42,9 +42,9 @@ import { resolveTripDocumentPreviewUrl } from "@/features/tripCompliance/service
 import { getVehicleById } from "@/features/vehicles/services/vehicles.service";
 import type { VehicleDocuments } from "@/features/vehicles/utils/vehicleDocuments.util";
 import {
-    DOCUMENT_EXPIRY_ORDER,
     DOCUMENT_LABELS,
     VEHICLE_COMPLIANCE_TYPE_HINT,
+    VEHICLE_UPLOAD_CHOOSER_ORDER,
     vehicleComplianceOnFileSummary,
 } from "@/features/vehicles/utils/vehicleDocuments.util";
 import { getSignedAvatarUrl } from "@/lib/avatarUpload";
@@ -130,7 +130,7 @@ import type { ReassignCompletedMeta } from "../../reassign/reassign.types";
 
 export type { ReassignCompletedMeta };
 import type { TripDetailTab } from "../TripDetailFinanceView";
-import { isPdfTripDoc, TRIP_DETAILS_TYPE_HINT, type TripDetailsSlot, type TripDocFile, type TripDocItem } from "../tripDocTypes";
+import { isPdfTripDoc, joinInvoiceNumbers, readStoredInvoiceNumber, TRIP_DETAILS_TYPE_HINT, type TripDetailsSlot, type TripDocFile, type TripDocItem } from "../tripDocTypes";
 import {
   isNarrowWebViewport,
   shouldFetchTripSubcontractsOnDetail,
@@ -185,6 +185,7 @@ function tripDocumentsFromBundle(
     uploaded_at: doc.uploaded_at,
     uploaded_by: doc.uploaded_by,
     document_type: doc.document_type ?? "pod",
+    document_number: doc.document_number ?? null,
   }));
 }
 
@@ -237,10 +238,16 @@ function buildSlotCard(
     };
   }
   const isEwaySlot = slot.category === "eway" || slot.id === "eway_bill";
+  const isInvoiceSlot = slot.id === "invoice" || slot.category === "invoice";
   const files = rows.map((row, index) => {
+    const invoiceNumber = isInvoiceSlot
+      ? readStoredInvoiceNumber(row.document_number)
+      : "";
     const number = isEwaySlot
       ? parseEwayFieldValues(row.document_number).ewayNo
-      : parseLrFieldValues(row.document_number).lrNumber;
+      : isInvoiceSlot
+        ? invoiceNumber
+        : parseLrFieldValues(row.document_number).lrNumber;
     return {
       id: `${slot.id}-${row.id}`,
       label: number
@@ -251,6 +258,8 @@ function buildSlotCard(
       type: tripDocItemType(row),
       storagePath: row.storage_path,
       documentId: row.id,
+      fileName: row.file_name?.trim() || undefined,
+      invoiceNumber: invoiceNumber || undefined,
     };
   });
   const storedFields = rows
@@ -276,7 +285,17 @@ function buildSlotCard(
     files,
     documentNumber,
     documentDate: storedFields?.date || rows[0]?.document_date || null,
-    invoiceNumber: storedFields?.invoice || null,
+    invoiceNumber: isInvoiceSlot
+      ? joinInvoiceNumbers(
+          [...rows]
+            .sort(
+              (a, b) =>
+                (Date.parse(a.uploaded_at ?? "") || 0) -
+                (Date.parse(b.uploaded_at ?? "") || 0),
+            )
+            .map((row) => readStoredInvoiceNumber(row.document_number)),
+        ) || null
+      : storedFields?.invoice || null,
     uploadedAt: rows[0]?.uploaded_at ?? null,
   };
 }
@@ -1198,7 +1217,7 @@ export function useTripDetail({
 
   // ── Vehicle preview docs ──────────────────────────────────────────────────
   const vehiclePreviewDocs = useMemo<VehiclePreviewDoc[]>(() => {
-    const complianceDocs = DOCUMENT_EXPIRY_ORDER.map((docType) => {
+    const complianceDocs = VEHICLE_UPLOAD_CHOOSER_ORDER.map((docType) => {
       const vDoc = vehicleDocs?.[docType];
       const storagePath = vDoc?.url?.trim();
       return storagePath
@@ -1296,17 +1315,23 @@ export function useTripDetail({
           tripDocuments.filter((d) => d.document_type === "memo"),
           { id: "memo", label: "Memo", pendingType: "PDF", category: "trip" },
         );
+        const otherSlot = buildSlotCard(
+          tripDocuments.filter((d) => d.document_type === "other"),
+          { id: "other", label: "Other Documents", pendingType: "PDF", category: "trip" },
+        );
         const tag = (card: TripDocItem, slotType: TripDetailsSlot): TripDocFile[] =>
           (card.files ?? []).map((file) => ({ ...file, slotType }));
         const files = [
           ...tag(lrSlot, "lr"),
           ...tag(invoiceSlot, "invoice"),
           ...tag(memoSlot, "memo"),
+          ...tag(otherSlot, "other"),
         ];
         const onFile = [
           lrSlot.status !== "Pending" ? "LR" : null,
           invoiceSlot.status !== "Pending" ? "INVOICE" : null,
           memoSlot.status !== "Pending" ? "MEMO" : null,
+          otherSlot.status !== "Pending" ? "OTHER" : null,
         ].filter((label): label is string => !!label);
         return {
           id: "trip-details",
@@ -1324,7 +1349,11 @@ export function useTripDetail({
             invoiceSlot.documentNumber ||
             lrSlot.invoiceNumber,
           uploadedAt:
-            lrSlot.uploadedAt ?? invoiceSlot.uploadedAt ?? memoSlot.uploadedAt ?? null,
+            lrSlot.uploadedAt ??
+            invoiceSlot.uploadedAt ??
+            memoSlot.uploadedAt ??
+            otherSlot.uploadedAt ??
+            null,
         };
       })(),
       buildSlotCard(
@@ -2608,7 +2637,16 @@ export function useTripDetail({
         : []) as unknown as TripAdjustment[],
     );
     if (!documentsViewerActiveRef.current) {
-      setTripDocuments(tripDocumentsFromBundle(bundle.documents));
+      setTripDocuments((prev) => {
+        const incoming = tripDocumentsFromBundle(bundle.documents);
+        return incoming.map((row) => {
+          if (row.document_number?.trim()) return row;
+          const previous = prev.find((item) => item.id === row.id);
+          return previous?.document_number
+            ? { ...row, document_number: previous.document_number }
+            : row;
+        });
+      });
     }
 
     if (bundle.otp) {
@@ -2793,7 +2831,7 @@ export function useTripDetail({
     if (tripId) loadAssignmentAudit();
   }, [tripId, loadAssignmentAudit, bundleActive]);
 
-  // Legacy path: one table-only document list. Bundle path seeds from RPC.
+  // Table read includes document_number (invoice / LR). The bundle seed does not.
   // OCR + Storage fallback wait until Documents/POD viewer (ensureTripDocumentsForViewer).
   useEffect(() => {
     documentsViewerActiveRef.current = false;
@@ -2802,10 +2840,9 @@ export function useTripDetail({
   }, [tripId]);
 
   useEffect(() => {
-    if (bundleActive) return;
     if (trip?.id) loadTripDocuments();
     else setTripDocuments([]);
-  }, [trip?.id, loadTripDocuments, bundleActive]);
+  }, [trip?.id, loadTripDocuments]);
 
   useEffect(() => {
     if (!selectedDoc) return;

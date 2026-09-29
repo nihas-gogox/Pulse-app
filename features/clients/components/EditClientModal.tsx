@@ -6,6 +6,7 @@ import type {
   ClientRow,
   UpdateClientData,
 } from "@/features/clients/services/clients.service";
+import { ClientInvoicePodPolicySection } from "@/features/clients/components/ClientInvoicePodPolicySection";
 import { isIntegratedClientRow } from "@/features/trips/visibility/tripVisibility";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useEffect, useState } from "react";
@@ -367,6 +368,15 @@ export function EditClientModal({
                   textAlignVertical="top"
                 />
               </Pressable>
+
+              {client?.organization_id && client.id ? (
+                <ClientInvoicePodPolicySection
+                  orgId={client.organization_id}
+                  clientId={client.id}
+                  rawPolicy={client.invoice_pod_policy}
+                  embedded
+                />
+              ) : null}
 
               <View
                 style={[

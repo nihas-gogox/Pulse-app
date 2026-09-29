@@ -1033,15 +1033,13 @@ export default function CreateIndentScreen() {
   }, [confirmDialog, form, lastSavedForm, safeBack]);
 
   const handleBackPress = useCallback(() => {
-    if (isMobileWizard) {
-      const idx = INDENT_WIZARD_STEPS.indexOf(wizardStep);
-      if (idx > 0) {
-        setWizardStep(INDENT_WIZARD_STEPS[idx - 1]!);
-        return;
-      }
+    const idx = INDENT_WIZARD_STEPS.indexOf(wizardStep);
+    if (idx > 0) {
+      setWizardStep(INDENT_WIZARD_STEPS[idx - 1]!);
+      return;
     }
     handleClosePress();
-  }, [handleClosePress, isMobileWizard, wizardStep]);
+  }, [handleClosePress, wizardStep]);
 
   // Wizard-specific submit/labels are derived after `canSubmit` is computed.
 

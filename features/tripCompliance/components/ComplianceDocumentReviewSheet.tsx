@@ -111,7 +111,7 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
-const VAULT_VEHICLE_TYPES = new Set(["rc", "insurance", "fitness", "pollution"]);
+const VAULT_VEHICLE_TYPES = new Set(["rc", "insurance", "fitness", "pollution", "permit", "road_tax"]);
 
 export type ComplianceReviewScope = ComplianceChecklistGroup["key"];
 

@@ -16,6 +16,7 @@ import {
 import { getTripOtpForDisplay } from '@/features/trips/services/tripOtp.service';
 import type { AddTripCompleteResult } from '@/features/trips/components/add-trip/types';
 import { useInvalidateTrips } from '@/lib/queries/useTripsQuery';
+import { useSafeBack } from '@/lib/useSafeBack';
 import { createIndent } from '@/features/indents/services/indents.service';
 import type { CreateIndentInput } from '@/features/indents/services/indents.service';
 import { useInvalidateIndents, useVisibleIndentQuery } from '@/lib/queries/useIndentsQuery';
@@ -62,10 +63,7 @@ function AddTripPageContent() {
   const invalidateTrips = useInvalidateTrips();
   const invalidateIndents = useInvalidateIndents();
 
-  const closeAndGoBack = () => {
-    // If we're coming from Ops Agent or want to force Trips view:
-    router.replace('/(tabs)/trips');
-  };
+  const closeAndGoBack = useSafeBack('/(tabs)/trips');
 
   const ensureSessionReady = () => {
     if (!currentOrganization?.id || !user?.uid) {

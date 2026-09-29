@@ -102,6 +102,7 @@ import {
   DOCUMENT_LABELS,
   VEHICLE_COMPLIANCE_TYPE_HINT,
   VEHICLE_UPLOAD_CHOOSER_ORDER,
+  isVehicleComplianceDocType,
   vehicleComplianceOnFileSummary,
   type VehicleComplianceDocType,
 } from "@/features/vehicles/utils/vehicleDocuments.util";
@@ -169,14 +170,6 @@ function vaultPreviewStoragePath(doc: TripDocItem): string | null {
   if (primary) return primary;
   const nested = doc.files?.find((file) => file.storagePath?.trim())?.storagePath?.trim();
   return nested || null;
-}
-
-function rawVaultInvoiceNumber(value?: string | null): string {
-  const trimmed = (value ?? "").trim();
-  if (!trimmed) return "";
-  const parsed = parseLrFieldValues(trimmed);
-  if (trimmed.startsWith("{")) return parsed.invoice;
-  return parsed.invoice || parsed.lrNumber;
 }
 
 function vaultDocPreviewMime(doc: TripDocItem): string | null {
@@ -1329,14 +1322,14 @@ export default function TripDetailScreen({
   } | null>(null);
   const [pendingLrNumber, setPendingLrNumber] = useState("");
   const [pendingLrDate, setPendingLrDate] = useState("");
-  const [pendingInvoiceNumber, setPendingInvoiceNumber] = useState("");
+  const [pendingInvoiceNumbers, setPendingInvoiceNumbers] = useState<string[]>([]);
   const [showPendingLrCalendar, setShowPendingLrCalendar] = useState(false);
   const [pendingLrIsDuplicate, setPendingLrIsDuplicate] = useState(false);
   const [lrDuplicateAlertVisible, setLrDuplicateAlertVisible] = useState(false);
   const resetPendingLrFields = useCallback(() => {
     setPendingLrNumber("");
     setPendingLrDate("");
-    setPendingInvoiceNumber("");
+    setPendingInvoiceNumbers([]);
     setShowPendingLrCalendar(false);
     setPendingLrIsDuplicate(false);
     setLrDuplicateAlertVisible(false);
@@ -1393,7 +1386,7 @@ export default function TripDetailScreen({
     category?: string;
     kind?: "trip" | "vehicle_extra" | "vehicle_compliance" | "driver_identity";
     extraId?: string;
-    complianceType?: "rc" | "insurance" | "fitness" | "pollution";
+    complianceType?: VehicleComplianceDocType;
     driverKind?: DriverIdentityDocType;
   } | null>(null);
   const pendingPreviewIsPdf = isPdfTripDoc({
@@ -1520,6 +1513,7 @@ export default function TripDetailScreen({
         })),
       ];
       let uploadedCount = 0;
+      const uploadedNames: string[] = [];
       let lrOcrTarget: {
         uri: string;
         tripDocumentId: string;
@@ -1593,6 +1587,7 @@ export default function TripDetailScreen({
             return;
           }
           uploadedCount = 1;
+          if (first.fileName.trim()) uploadedNames.push(first.fileName.trim());
           if (documents) detail.setVehicleDocs(documents);
         } else {
           const { documents, error } = await uploadAndSaveVehicleExtraDocuments(
@@ -1606,6 +1601,10 @@ export default function TripDetailScreen({
             return;
           }
           uploadedCount = buffers.length;
+          for (const buffer of buffers) {
+            const name = buffer.fileName.trim();
+            if (name) uploadedNames.push(name);
+          }
           if (documents) detail.setVehicleDocs(documents);
         }
       } else if (pending.docType === "driver_identity") {
@@ -1669,6 +1668,7 @@ export default function TripDetailScreen({
           return;
         }
         uploadedCount = 1;
+        if (first.fileName.trim()) uploadedNames.push(first.fileName.trim());
         detail.setDriverIdentityDocs({
           ...(detail.driverIdentityDocs ?? {}),
           [driverKind]: {
@@ -1705,7 +1705,9 @@ export default function TripDetailScreen({
                 })
               : "";
           const invoicePayload =
-            pending.docType === "invoice" ? pendingInvoiceNumber.trim() : "";
+            pending.docType === "invoice"
+              ? (pendingInvoiceNumbers[index] ?? "").trim()
+              : "";
           const storedNumber =
             pending.docType === "lr"
               ? lrPayload || undefined
@@ -1738,6 +1740,7 @@ export default function TripDetailScreen({
             return;
           }
           uploadedCount += 1;
+          if (file.fileName.trim()) uploadedNames.push(file.fileName.trim());
           if (doc) {
             if (lrPayload && !doc.document_number?.trim()) {
               await tripDocumentsService.updateTripDocumentNumber(doc.id, lrPayload);
@@ -1775,6 +1778,11 @@ export default function TripDetailScreen({
         uploadedCount > 1
           ? `${uploadedCount} documents are saved in the vault.`
           : `${pending.label} is saved in the vault.`,
+        {
+          tone: "success",
+          actionLabel: "Done",
+          fileNames: uploadedNames,
+        },
       );
       const typedLr = pending.docType === "lr" ? pendingLrNumber.trim() : "";
       const typedLrFields =
@@ -1809,7 +1817,7 @@ export default function TripDetailScreen({
     pendingVaultUpload,
     pendingLrNumber,
     pendingLrDate,
-    pendingInvoiceNumber,
+    pendingInvoiceNumbers,
     resetPendingLrFields,
     detail.trip?.id,
     detail.trip?.organization_id,
@@ -1975,12 +1983,7 @@ export default function TripDetailScreen({
         const complianceType = current.id.startsWith("vehicle-")
           ? current.id.slice("vehicle-".length)
           : "";
-        if (
-          complianceType === "rc" ||
-          complianceType === "insurance" ||
-          complianceType === "fitness" ||
-          complianceType === "pollution"
-        ) {
+        if (isVehicleComplianceDocType(complianceType)) {
           setVaultDeleteTarget({
             cardId: selected.id,
             label: current.label,
@@ -2095,15 +2098,15 @@ export default function TripDetailScreen({
             ? "invoice"
             : doc.id === "memo"
               ? "memo"
-              : CATEGORY_TO_DOC_TYPE[doc.category ?? ""] ?? "manifest";
+              : doc.id === "other"
+                ? "other"
+                : CATEGORY_TO_DOC_TYPE[doc.category ?? ""] ?? "manifest";
         if (nextDocType === "lr") {
           fillPendingLrFields(doc.documentNumber, doc.documentDate);
-          setPendingInvoiceNumber("");
+          setPendingInvoiceNumbers([]);
         } else if (nextDocType === "invoice") {
           resetPendingLrFields();
-          setPendingInvoiceNumber(
-            rawVaultInvoiceNumber(doc.invoiceNumber ?? lrVaultSlot?.invoiceNumber),
-          );
+          setPendingInvoiceNumbers(Array.from({ length: 1 + extraFiles.length }, () => ""));
         } else {
           resetPendingLrFields();
         }
@@ -2130,7 +2133,6 @@ export default function TripDetailScreen({
       pendingVaultUpload,
       fillPendingLrFields,
       resetPendingLrFields,
-      lrVaultSlot?.invoiceNumber,
     ],
   );
 
@@ -2153,7 +2155,7 @@ export default function TripDetailScreen({
       const mimeType = vaultMimeFromFileName(asset.name, asset.mimeType);
 
       fillPendingLrFields(lrVaultSlot?.documentNumber, lrVaultSlot?.documentDate);
-      setPendingInvoiceNumber("");
+      setPendingInvoiceNumbers([]);
       setPendingVaultUpload({
         slotId: "lr",
         label: rest.length > 0 ? "LR Documents" : "LR Document",
@@ -2364,7 +2366,12 @@ export default function TripDetailScreen({
       }
       void handleVaultUpload({
         id: slot,
-        label: slot === "invoice" ? "Invoice" : "Memo",
+        label:
+          slot === "invoice"
+            ? "Invoice"
+            : slot === "other"
+              ? "Other Documents"
+              : "Memo",
         type: "PDF",
         status: "Pending",
         category: slot === "invoice" ? "invoice" : "trip_details",
@@ -2637,34 +2644,22 @@ export default function TripDetailScreen({
       if (files.length === 0) return;
       const label =
         TRIP_DETAILS_SLOTS.find((item) => item.id === slot)?.label ?? slot;
-      if (files.length > 1) {
-        detail.setSelectedDoc({
-          id: `trip-details-${slot}`,
-          label,
-          type: "FILES",
-          status: "Uploaded",
-          category: slot === "invoice" ? "invoice" : slot === "lr" ? "lr" : "trip_details",
-          files,
-          storagePath: files[0].storagePath,
-          documentId: files[0].documentId,
-        });
-        return;
-      }
-      const file = files[0];
-      void openVaultDocLikeChat(
-        {
-          id: file.id,
-          label,
-          type: file.type,
-          status: "Uploaded",
-          storagePath: file.storagePath,
-          documentId: file.documentId,
-          category: slot === "invoice" ? "invoice" : slot === "lr" ? "lr" : "trip_details",
-        },
-        file.storagePath,
-      );
+      detail.setVehiclePreviewIndex(0);
+      detail.setSelectedDoc({
+        id: `trip-details-${slot}`,
+        label,
+        type: files.length > 1 ? "FILES" : files[0].type,
+        status: "Uploaded",
+        category: slot === "invoice" ? "invoice" : slot === "lr" ? "lr" : "trip_details",
+        files,
+        storagePath: files[0].storagePath,
+        documentId: files[0].documentId,
+        documentNumber: slot === "lr" ? card?.documentNumber : null,
+        documentDate: slot === "lr" ? card?.documentDate : null,
+        invoiceNumber: slot === "invoice" ? card?.invoiceNumber : null,
+      });
     },
-    [detail, openVaultDocLikeChat],
+    [detail],
   );
 
   const previewDriverPodFile = useCallback(
@@ -3867,23 +3862,22 @@ export default function TripDetailScreen({
               ].filter((line): line is string => !!line)
             : [];
         const invoiceMeta = slot.id === "invoice" ? invoiceLabel : null;
+        const metaParts = [
+          lrMeta.length > 0 ? lrMeta.join(" · ") : null,
+          invoiceMeta,
+          files.length > 1 && !invoiceMeta ? `${files.length} files` : null,
+        ].filter((line): line is string => !!line);
         const meta =
-          lrMeta.length > 0
-            ? lrMeta.join(" · ")
-            : invoiceMeta
-              ? invoiceMeta
-              : onFile
-                ? files.length > 1
-                  ? `${files.length} files on file`
-                  : "On file"
-                : "Not uploaded";
+          metaParts.length > 0
+            ? metaParts.join(" · ")
+            : onFile
+              ? "On file"
+              : "Not uploaded";
         return (
           <View key={slot.id} style={styles.tripDetailsRow}>
             <View style={styles.tripDetailsCopy}>
               <Text style={styles.addDocTypeBtnText}>{slot.label}</Text>
-              <Text style={styles.addDocTypeBtnMeta} numberOfLines={2}>
-                {meta}
-              </Text>
+              <Text style={styles.addDocTypeBtnMeta}>{meta}</Text>
             </View>
             <TouchableOpacity
               style={styles.tripDetailsIconBtn}
@@ -3891,7 +3885,9 @@ export default function TripDetailScreen({
               disabled={!canUpload}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel={`Upload ${slot.label}`}
+              accessibilityLabel={
+                onFile ? `Add another ${slot.label}` : `Upload ${slot.label}`
+              }
             >
               <Feather
                 name="upload"
@@ -8148,7 +8144,7 @@ export default function TripDetailScreen({
 
 
       <Modal
-        visible={tripDetailsVisible}
+        visible={tripDetailsVisible && !detail.selectedDoc}
         animationType="fade"
         transparent
         onRequestClose={() => setTripDetailsVisible(false)}
@@ -8159,7 +8155,7 @@ export default function TripDetailScreen({
               <View style={styles.docModalTitleBlock}>
                 <Text style={styles.docModalTitle}>Trip Details</Text>
                 <Text style={styles.docModalSubtitle}>
-                  LR Document, Invoice, and Memo
+                  LR Document, Invoice, Memo, and Other Documents
                 </Text>
               </View>
               <TouchableOpacity
@@ -8171,15 +8167,19 @@ export default function TripDetailScreen({
                 <FontAwesome name="times" size={18} color={Theme.textPrimary} />
               </TouchableOpacity>
             </View>
-            <View style={styles.tripDetailsDialogBody}>
+            <ScrollView
+              style={styles.tripDetailsDialogScroll}
+              contentContainerStyle={styles.tripDetailsDialogBody}
+              keyboardShouldPersistTaps="handled"
+            >
               {tripDetailsFields}
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
 
       <Modal
-        visible={driverPodVisible}
+        visible={driverPodVisible && !detail.selectedDoc}
         animationType="fade"
         transparent
         onRequestClose={() => setDriverPodVisible(false)}
@@ -8287,7 +8287,7 @@ export default function TripDetailScreen({
       </Modal>
 
       <Modal
-        visible={vehicleDocChooserVisible}
+        visible={vehicleDocChooserVisible && !detail.selectedDoc}
         animationType="fade"
         transparent
         onRequestClose={() => setVehicleDocChooserVisible(false)}
@@ -8310,7 +8310,11 @@ export default function TripDetailScreen({
                 <FontAwesome name="times" size={18} color={Theme.textPrimary} />
               </TouchableOpacity>
             </View>
-            <View style={styles.tripDetailsDialogBody}>
+            <ScrollView
+              style={styles.tripDetailsDialogScroll}
+              contentContainerStyle={styles.tripDetailsDialogBody}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.tripDetailsFields}>
                 {VEHICLE_UPLOAD_CHOOSER_ORDER.map((docType) => {
                   const path = detail.vehicleDocs?.[docType]?.url?.trim() ?? "";
@@ -8364,93 +8368,14 @@ export default function TripDetailScreen({
                     </View>
                   );
                 })}
-                {(detail.vehicleDocs?.extras ?? [])
-                  .filter((extra) => !!extra.url?.trim())
-                  .map((extra) => (
-                    <View key={extra.id} style={styles.tripDetailsRow}>
-                      <View style={styles.tripDetailsCopy}>
-                        <Text style={styles.addDocTypeBtnText} numberOfLines={1}>
-                          {extra.fileName?.trim() || "Additional document"}
-                        </Text>
-                        <Text style={styles.addDocTypeBtnMeta}>On file</Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.tripDetailsIconBtn}
-                        onPress={() => chooseVehicleDocKind("extra")}
-                        disabled={!canUploadTripDocs || !!uploadingDocId}
-                        activeOpacity={0.85}
-                        accessibilityRole="button"
-                        accessibilityLabel="Upload additional vehicle document"
-                      >
-                        <Feather
-                          name="upload"
-                          size={16}
-                          color={
-                            canUploadTripDocs && !uploadingDocId
-                              ? Theme.textPrimary
-                              : Theme.textMuted
-                          }
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.tripDetailsIconBtn}
-                        onPress={() =>
-                          previewVehicleDoc(
-                            extra.url,
-                            extra.fileName?.trim() || "Additional document",
-                          )
-                        }
-                        activeOpacity={0.85}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Preview ${extra.fileName?.trim() || "additional document"}`}
-                      >
-                        <Feather name="eye" size={16} color={Theme.textPrimary} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                <View style={styles.tripDetailsRow}>
-                  <View style={styles.tripDetailsCopy}>
-                    <Text style={styles.addDocTypeBtnText}>Additional document</Text>
-                    <Text style={styles.addDocTypeBtnMeta}>
-                      Extra file, not RC / Fitness / Insurance / PUC
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.tripDetailsIconBtn}
-                    onPress={() => chooseVehicleDocKind("extra")}
-                    disabled={!canUploadTripDocs || !!uploadingDocId}
-                    activeOpacity={0.85}
-                    accessibilityRole="button"
-                    accessibilityLabel="Upload additional vehicle document"
-                  >
-                    <Feather
-                      name="upload"
-                      size={16}
-                      color={
-                        canUploadTripDocs && !uploadingDocId
-                          ? Theme.textPrimary
-                          : Theme.textMuted
-                      }
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.tripDetailsIconBtn}
-                    disabled
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: true }}
-                    accessibilityLabel="Additional document preview unavailable"
-                  >
-                    <Feather name="eye" size={16} color={Theme.textMuted} />
-                  </TouchableOpacity>
-                </View>
               </View>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
 
       <Modal
-        visible={driverDocChooserVisible}
+        visible={driverDocChooserVisible && !detail.selectedDoc}
         animationType="fade"
         transparent
         onRequestClose={() => setDriverDocChooserVisible(false)}
@@ -8724,20 +8649,46 @@ export default function TripDetailScreen({
               ) : null}
 
               {pendingVaultUpload?.docType === "invoice" ? (
-                <View style={styles.lrFieldsRow}>
-                  <View style={styles.lrFieldCol}>
-                    <Text style={styles.lrNumberFieldLabel}>INVOICE NUMBER</Text>
-                    <TextInput
-                      value={pendingInvoiceNumber}
-                      onChangeText={setPendingInvoiceNumber}
-                      placeholder="Invoice no."
-                      placeholderTextColor={Theme.textMuted}
-                      style={styles.lrNumberFieldInput}
-                      autoCapitalize="characters"
-                      editable={!uploadingDocId}
-                      returnKeyType="done"
-                    />
-                  </View>
+                <View style={styles.invoiceNumberFields}>
+                  {[
+                    {
+                      key: pendingVaultUpload.uri,
+                      fileName: pendingVaultUpload.fileName,
+                    },
+                    ...(pendingVaultUpload.extraFiles ?? []).map((file) => ({
+                      key: `${file.uri}-${file.fileName}`,
+                      fileName: file.fileName,
+                    })),
+                  ].map((file, index, all) => (
+                    <View key={file.key} style={styles.lrFieldCol}>
+                      <Text style={styles.lrNumberFieldLabel}>
+                        {all.length > 1
+                          ? `INVOICE NUMBER · ${index + 1}`
+                          : "INVOICE NUMBER"}
+                      </Text>
+                      {all.length > 1 ? (
+                        <Text style={styles.pendingExtraFileName} numberOfLines={1}>
+                          {file.fileName}
+                        </Text>
+                      ) : null}
+                      <TextInput
+                        value={pendingInvoiceNumbers[index] ?? ""}
+                        onChangeText={(text) =>
+                          setPendingInvoiceNumbers((current) => {
+                            const next = [...current];
+                            next[index] = text;
+                            return next;
+                          })
+                        }
+                        placeholder="Invoice no."
+                        placeholderTextColor={Theme.textMuted}
+                        style={styles.lrNumberFieldInput}
+                        autoCapitalize="characters"
+                        editable={!uploadingDocId}
+                        returnKeyType="done"
+                      />
+                    </View>
+                  ))}
                 </View>
               ) : null}
             </ScrollView>

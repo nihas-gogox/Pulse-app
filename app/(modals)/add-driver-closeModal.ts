@@ -1,7 +1,8 @@
-/** Shared close behavior for add-driver modal: dismiss when possible, else Network (drivers live there — not Resources/More). */
+/** Shared close behavior for add-driver modal: return to the opener, else Network. */
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { ROUTES } from '@/lib/routes';
+import { performSafeBack } from '@/lib/useSafeBack';
 
 const FALLBACK_AFTER_ADD_DRIVER = ROUTES.TABS.NETWORK;
 
@@ -9,19 +10,7 @@ export function closeModal(
   router: ReturnType<typeof useRouter>,
   returnTo?: string,
 ) {
-  if (typeof router.dismiss === 'function') {
-    router.dismiss();
-    return;
-  }
-  if (router.canGoBack()) {
-    router.back();
-    return;
-  }
-  if (returnTo) {
-    router.replace(returnTo as Parameters<typeof router.replace>[0]);
-    return;
-  }
-  router.replace(FALLBACK_AFTER_ADD_DRIVER);
+  performSafeBack(router, returnTo ?? FALLBACK_AFTER_ADD_DRIVER);
 }
 
 export default function AddDriverCloseModal() {

@@ -7191,6 +7191,10 @@ export const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 8,
   },
+  invoiceNumberFields: {
+    marginTop: 12,
+    gap: 10,
+  },
   lrFieldCol: {
     flex: 1,
     minWidth: 0,
@@ -7338,6 +7342,9 @@ export const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: Theme.borderLight,
+  },
+  tripDetailsDialogScroll: {
+    maxHeight: 480,
   },
   tripDetailsDialogBody: {
     paddingHorizontal: 14,

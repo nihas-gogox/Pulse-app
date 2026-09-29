@@ -18,6 +18,10 @@ import type { ClientRow } from "@/features/clients/services/clients.service";
 import { computeKycScore } from "@/features/clients/utils/clientManagement.util";
 import { formatCityStateLabel } from "@/lib/placeCityState.util";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import {
+  invoicePodPolicyLabel,
+  parseInvoicePodPolicy,
+} from "@/features/invoicing/utils/invoicePodPolicy.util";
 import { formatINR } from "@/lib/format";
 import { useMemo } from "react";
 import { View } from "react-native";
@@ -136,6 +140,11 @@ export function ClientProfileScreen({ clientId, onBack }: Props) {
   const isIntegrated =
     client.is_integrated ?? Boolean(client.linked_organization_id);
   const displayName = client.name?.trim() || client.contact_person?.trim() || "Customer";
+  const parsedPodPolicy = parseInvoicePodPolicy(client.invoice_pod_policy);
+  const podStatusLabel =
+    parsedPodPolicy.ok && parsedPodPolicy.policy
+      ? invoicePodPolicyLabel(parsedPodPolicy.policy)
+      : null;
 
   return (
     <View
@@ -151,12 +160,12 @@ export function ClientProfileScreen({ clientId, onBack }: Props) {
           visible
           presentation="page"
           profileTitle="Customer Profile"
-          headerSlot={
+          editSlot={
             <ClientInvoicePodPolicySection
               orgId={orgId}
               clientId={clientId}
               rawPolicy={bundle.client?.invoice_pod_policy}
-              compact
+              embedded
             />
           }
           type="client"
@@ -171,6 +180,7 @@ export function ClientProfileScreen({ clientId, onBack }: Props) {
           validTo={client.valid_to}
           gridVolumeLabel={projectedVolumeLabel(client)}
           networkTrustLabel={networkTrustLabel}
+          podStatusLabel={podStatusLabel}
           isIntegrated={isIntegrated}
           entityDisplayId={client.display_id ?? client.id?.slice(0, 8) ?? null}
           warehouses={warehouses}

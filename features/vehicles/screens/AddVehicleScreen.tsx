@@ -8,24 +8,13 @@ import { canAccessVehicles } from '@/lib/capabilities';
 import { useCapabilities } from '@/lib/useCapabilities';
 import { useMemberAccess } from '@/lib/useMemberAccess';
 import { ROUTES } from '@/lib/routes';
+import { performSafeBack } from '@/lib/useSafeBack';
 
 const DEFAULT_FALLBACK_ROUTE = ROUTES.TABS.RESOURCES;
 
 /** Dismiss modal: go back to the page that opened it. */
 function closeModal(router: ReturnType<typeof useRouter>, returnTo?: string) {
-  if (typeof router.dismiss === 'function') {
-    router.dismiss();
-    return;
-  }
-  if (router.canGoBack()) {
-    router.back();
-    return;
-  }
-  if (returnTo) {
-    router.replace(returnTo as Parameters<typeof router.replace>[0]);
-    return;
-  }
-  router.replace(DEFAULT_FALLBACK_ROUTE);
+  performSafeBack(router, returnTo ?? DEFAULT_FALLBACK_ROUTE);
 }
 
 export default function AddVehicleScreen() {

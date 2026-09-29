@@ -5,8 +5,11 @@ import { formatPhoneForDisplay } from "@/lib/phoneLookup";
 import { formatChatPartyInboxLine } from "@/features/chat/utils/partyDisplay";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Feather } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Platform,
   StyleSheet,
@@ -14,6 +17,7 @@ import {
   TouchableOpacity,
   View,
   type StyleProp,
+  type TextStyle,
   type ViewStyle,
 } from "react-native";
 
@@ -58,20 +62,88 @@ function formatVehiclePlateOnly(value: string): string {
   return formatted || platePart;
 }
 
+function AssetCopyButton({
+  value,
+  label,
+  size,
+  docsIssue,
+  style,
+}: {
+  value: string;
+  label: string;
+  size: number;
+  docsIssue: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const text = value.trim();
+  const canCopy =
+    text.length > 0 && text !== "—" && text !== "Unassigned" && text !== "Pending";
+  const idleColor = docsIssue ? Theme.destructive : Theme.textMuted;
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  if (!canCopy) {
+    return (
+      <View
+        style={[styles.copySlot, style]}
+        accessibilityLabel={
+          docsIssue ? "Documents missing or expired" : "Documents on file"
+        }
+      >
+        <Feather name="file-text" size={size} color={idleColor} />
+      </View>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      onPress={() => {
+        void (async () => {
+          try {
+            const copiedOk = await Clipboard.setStringAsync(text);
+            if (!copiedOk) {
+              Alert.alert("Copy failed", `Could not copy ${label}.`);
+              return;
+            }
+            setCopied(true);
+            if (timerRef.current) clearTimeout(timerRef.current);
+            timerRef.current = setTimeout(() => setCopied(false), 1600);
+          } catch {
+            Alert.alert("Copy failed", `Could not copy ${label}.`);
+          }
+        })();
+      }}
+      activeOpacity={0.7}
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      accessibilityRole="button"
+      accessibilityLabel={copied ? `${label} copied` : `Copy ${label}`}
+      style={[styles.copySlot, style]}
+    >
+      <Feather
+        name={copied ? "check" : "copy"}
+        size={size}
+        color={copied ? Theme.success : idleColor}
+      />
+    </TouchableOpacity>
+  );
+}
+
 function RatingMetaRow({
   ratingAvg,
-  docsIssue,
   loading,
   desktop = false,
 }: {
   ratingAvg: number | null | undefined;
-  docsIssue: boolean;
   loading: boolean;
   desktop?: boolean;
 }) {
-  const docIconColor = docsIssue ? Theme.destructive : Theme.textMuted;
   const hasRating = ratingAvg != null && Number.isFinite(ratingAvg);
-  const docIconSize = desktop ? 14 : 12;
   const starSize = desktop ? 13 : 11;
 
   if (loading) {
@@ -91,12 +163,6 @@ function RatingMetaRow({
         >
           No rating yet
         </Text>
-        <Feather
-          name="file-text"
-          size={docIconSize}
-          color={docIconColor}
-          style={styles.docIcon}
-        />
       </View>
     );
   }
@@ -116,33 +182,20 @@ function RatingMetaRow({
           {ratingAvg.toFixed(1)}
         </Text>
       </View>
-      <Feather
-        name="file-text"
-        size={docIconSize}
-        color={docIconColor}
-        style={styles.docIcon}
-        accessibilityLabel={
-          docsIssue ? "Documents missing or expired" : "Documents on file"
-        }
-      />
     </View>
   );
 }
 
 function VehicleTypeMetaRow({
   vehicleType,
-  docsIssue,
   loading,
   desktop = false,
 }: {
   vehicleType: string | null | undefined;
-  docsIssue: boolean;
   loading: boolean;
   desktop?: boolean;
 }) {
-  const docIconColor = docsIssue ? Theme.destructive : Theme.textMuted;
   const typeLabel = vehicleType?.trim() || null;
-  const docIconSize = desktop ? 14 : 10;
 
   if (loading) {
     return (
@@ -164,15 +217,6 @@ function VehicleTypeMetaRow({
       ) : (
         <View style={styles.vehicleTypeSpacer} />
       )}
-      <Feather
-        name="file-text"
-        size={docIconSize}
-        color={docIconColor}
-        style={styles.docIcon}
-        accessibilityLabel={
-          docsIssue ? "Documents missing or expired" : "Documents on file"
-        }
-      />
     </View>
   );
 }
@@ -223,6 +267,9 @@ export function ManifestRefAssetCard({
       : roleLabel;
   const avatarSize = desktop ? AVATAR_SIZE_DESKTOP : AVATAR_SIZE;
 
+  const copyValue = isDriver ? phoneDisplay : displayPrimary;
+  const copyLabel = isDriver ? "driver mobile number" : "vehicle number";
+
   return (
     <View
       style={[
@@ -231,7 +278,9 @@ export function ManifestRefAssetCard({
         fill && styles.cardFill,
         style,
       ]}
-    >      <View style={styles.headerRow}>
+    >
+      <View style={[styles.cardBody, desktop && styles.cardBodyDesktop]}>
+      <View style={styles.headerRow}>
         <Text
           style={[styles.roleLabel, desktop && styles.roleLabelDesktop]}
           numberOfLines={1}
@@ -279,35 +328,41 @@ export function ManifestRefAssetCard({
           </Text>
 
           {isDriver && phoneDisplay ? (
-            <TouchableOpacity
-              onPress={() => {
-                if (phoneDigits) void Linking.openURL(`tel:${phoneDigits}`);
-              }}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={`Call ${displayPrimary} at ${phoneDisplay}`}
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+            <Text
+              selectable
+              onPress={
+                Platform.OS === "web"
+                  ? undefined
+                  : () => {
+                      if (phoneDigits) void Linking.openURL(`tel:${phoneDigits}`);
+                    }
+              }
+              style={[
+                styles.phoneText,
+                desktop && styles.phoneTextDesktop,
+                styles.phoneTextSelectable,
+              ]}
+              numberOfLines={1}
+              accessibilityRole={Platform.OS === "web" ? "text" : "link"}
+              accessibilityLabel={
+                Platform.OS === "web"
+                  ? `Driver mobile ${phoneDisplay}`
+                  : `Call ${displayPrimary} at ${phoneDisplay}`
+              }
             >
-              <Text
-                style={[styles.phoneText, desktop && styles.phoneTextDesktop]}
-                numberOfLines={1}
-              >
-                {phoneDisplay}
-              </Text>
-            </TouchableOpacity>
+              {phoneDisplay}
+            </Text>
           ) : null}
 
           {isDriver ? (
             <RatingMetaRow
               ratingAvg={ratingAvg}
-              docsIssue={docsIssue}
               loading={insightsLoading}
               desktop={desktop}
             />
           ) : (
             <VehicleTypeMetaRow
               vehicleType={displayVehicleType}
-              docsIssue={docsIssue}
               loading={insightsLoading}
               desktop={desktop}
             />
@@ -327,12 +382,21 @@ export function ManifestRefAssetCard({
           </View>
         ) : null}
       </View>
+      </View>
+      <AssetCopyButton
+        value={copyValue}
+        label={copyLabel}
+        size={desktop ? 13 : 12}
+        docsIssue={docsIssue}
+        style={[styles.copyCorner, desktop && styles.copyCornerDesktop]}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
+    position: "relative",
     flexGrow: 0,
     flexShrink: 0,
     flexBasis: "auto",
@@ -343,10 +407,6 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.cardWhite,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Theme.borderLight,
-    paddingHorizontal: 10,
-    paddingTop: 9,
-    paddingBottom: 10,
-    gap: 8,
     ...Platform.select({
       web: {
         boxShadow: "0 1px 8px rgba(15, 23, 42, 0.06)",
@@ -366,11 +426,7 @@ const styles = StyleSheet.create({
     flexBasis: "auto",
     width: "100%",
     alignSelf: "stretch",
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 8,
     borderRadius: 8,
-    gap: 6,
     backgroundColor: Theme.surfaceGray,
     borderWidth: 1,
     borderColor: Theme.borderLight,
@@ -384,12 +440,47 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  cardBody: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 10,
+    paddingTop: 9,
+    paddingBottom: 10,
+    gap: 8,
+    justifyContent: "center",
+  },
+  cardBodyDesktop: {
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 8,
+    gap: 6,
+  },
   cardFill: {
     flexGrow: 1,
     flexShrink: 1,
     flexBasis: 0,
     minHeight: 0,
     justifyContent: "center",
+  },
+  copyCorner: {
+    position: "absolute",
+    right: 10,
+    bottom: 10,
+    zIndex: 1,
+  },
+  copyCornerDesktop: {
+    right: 8,
+    bottom: 8,
+  },
+  copySlot: {
+    width: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: { cursor: "pointer" } as ViewStyle,
+      default: {},
+    }),
   },
   headerRow: {
     flexDirection: "row",
@@ -465,6 +556,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+  phoneTextSelectable: {
+    ...Platform.select({
+      web: {
+        userSelect: "text",
+        cursor: "text",
+      } as TextStyle,
+      default: {},
+    }),
+  },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -504,6 +604,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.15,
     lineHeight: 9,
     marginTop: 1,
+    paddingRight: 18,
   },
   ratingValueDesktop: {
     fontSize: 13,
@@ -521,9 +622,6 @@ const styles = StyleSheet.create({
   vehicleTypeSpacer: {
     flex: 1,
     minHeight: 9,
-  },
-  docIcon: {
-    flexShrink: 0,
   },
   avatarCol: {
     flexShrink: 0,

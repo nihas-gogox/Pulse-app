@@ -35,6 +35,7 @@ import { QUERY_CACHE_BUSTER } from '@/lib/cache/cacheBuster';
 import { captureException, initCrashReporter } from '@/lib/crashReporter';
 import { installDevConsoleFilters } from '@/lib/devConsoleFilters';
 import { installDriverInviteDeepLinkListener } from '@/lib/driverInviteDeepLink.util';
+import { noteInAppPath } from '@/lib/inAppHistory';
 import { rememberCurrentPath } from '@/lib/lastRoute';
 import { preloadFinanceWarmup } from '@/lib/preloadFinanceWarmup';
 import type { PreloadableTab } from '@/lib/preloadRoutes';
@@ -543,6 +544,7 @@ function RootLayoutNav() {
   }, []);
   useEffect(() => {
     rememberCurrentPath(pathname);
+    noteInAppPath(pathname);
   }, [pathname]);
   useEffect(() => {
     installForegroundPruning();

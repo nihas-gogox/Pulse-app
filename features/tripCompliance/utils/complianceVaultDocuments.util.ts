@@ -8,7 +8,7 @@ import {
   type ComplianceEntityDocument,
 } from "@/features/tripCompliance/tripCompliance.types";
 
-const VAULT_VEHICLE_TYPES = ["rc", "insurance", "fitness", "pollution"] as const;
+const VAULT_VEHICLE_TYPES = ["rc", "insurance", "fitness", "pollution", "permit", "road_tax"] as const;
 
 const TRIP_DOC_TYPE_ALIASES: Record<string, string> = {
   eway: "eway_bill",

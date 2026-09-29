@@ -701,7 +701,7 @@ export function AddTripModal({
       submitting={submitting}
       lockPrimaryUntilValid={steppedFormActive}
       validationMessage={visibleValidationMessage ?? submitError}
-      onClose={isDesktopWizard ? onClose : handleWizardBackOrClose}
+      onClose={handleWizardBackOrClose}
       onBack={
         wizardEnabled && wizardStep !== "client"
           ? handleWizardBack
