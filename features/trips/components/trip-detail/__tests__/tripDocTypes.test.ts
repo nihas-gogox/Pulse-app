@@ -203,6 +203,12 @@ describe("formatInvoiceVaultNumberLabel", () => {
     expect(formatInvoiceVaultNumberLabel("45821")).toBe("Invoice No. 45821");
     expect(formatInvoiceVaultNumberLabel("")).toBeNull();
   });
+
+  it("shows every invoice number joined with slashes", () => {
+    expect(formatInvoiceVaultNumberLabel("123456/897654/345678")).toBe(
+      "Invoice No. 123456/897654/345678",
+    );
+  });
 });
 
 describe("formatLrVaultNumberLabel", () => {

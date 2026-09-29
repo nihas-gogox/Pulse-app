@@ -32,6 +32,8 @@ const TRIP_DOC_LABELS: Partial<Record<TripDocumentType, string>> = {
   pod: "Proof of Delivery (POD)",
   manifest: "Trip Manifest",
   invoice: "Invoice",
+  memo: "Memo",
+  other: "Other Documents",
   eway_bill: "E-Way Bill",
   loading_slip: "Loading Slip",
   odometer_start_photo: "Odometer (Start)",

@@ -15,7 +15,7 @@ export type DocCategory =
   | "invoice"
   | "trip_details";
 
-export type TripDetailsSlot = "lr" | "invoice" | "memo";
+export type TripDetailsSlot = "lr" | "invoice" | "memo" | "other";
 
 export const TRIP_DETAILS_SLOTS: readonly {
   id: TripDetailsSlot;
@@ -24,9 +24,10 @@ export const TRIP_DETAILS_SLOTS: readonly {
   { id: "lr", label: "LR Document" },
   { id: "invoice", label: "Invoice" },
   { id: "memo", label: "Memo" },
+  { id: "other", label: "Other Documents" },
 ];
 
-export const TRIP_DETAILS_TYPE_HINT = "LR · INVOICE · MEMO";
+export const TRIP_DETAILS_TYPE_HINT = "LR · INVOICE · MEMO · OTHER";
 
 export interface TripDocFile {
   id: string;
@@ -34,8 +35,11 @@ export interface TripDocFile {
   type: string;
   storagePath: string;
   documentId?: string;
+  fileName?: string;
   /** Which Trip Details field this file belongs to. */
   slotType?: TripDetailsSlot;
+  /** Invoice number typed for this file. */
+  invoiceNumber?: string;
 }
 
 export interface TripDocItem {
@@ -304,12 +308,30 @@ export function formatLrVaultNumberLabel(number?: string | null): string | null 
   return /^lr\s*no\.?/i.test(trimmed) ? trimmed : `LR No. ${trimmed}`;
 }
 
-/** Invoice number shown on the Invoice bar, e.g. `Invoice No. 45821`. */
+/** Invoice number stored on one invoice row: plain text, or the invoice field of an LR payload. */
+export function readStoredInvoiceNumber(raw?: string | null): string {
+  const text = (raw ?? "").trim();
+  if (!text) return "";
+  const parsed = parseLrFieldValues(text);
+  if (text.startsWith("{")) return parsed.invoice;
+  return parsed.invoice || parsed.lrNumber;
+}
+
+/** Every invoice number for the card, oldest upload first: `123456/897654/345678`. */
+export function joinInvoiceNumbers(values: Array<string | null | undefined>): string {
+  return values
+    .map((value) => (value ?? "").trim())
+    .filter((value) => value.length > 0)
+    .join("/");
+}
+
+/** Invoice number shown on the Invoice bar, e.g. `Invoice No. 123456/897654`. */
 export function formatInvoiceVaultNumberLabel(number?: string | null): string | null {
   const trimmed = (number ?? "").trim();
   if (!trimmed) return null;
-  const parsed = parseLrFieldValues(trimmed);
-  const value = parsed.invoice || parsed.lrNumber;
+  const value = trimmed.includes("/")
+    ? joinInvoiceNumbers(trimmed.split("/"))
+    : readStoredInvoiceNumber(trimmed);
   if (!value) return null;
   return /^invoice\s*no\.?/i.test(value) ? value : `Invoice No. ${value}`;
 }

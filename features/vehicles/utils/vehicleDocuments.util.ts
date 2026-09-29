@@ -7,7 +7,13 @@ export interface DocumentWithExpiry {
   verifiedAt?: string | null;
 }
 
-export type VehicleComplianceDocType = "rc" | "insurance" | "fitness" | "pollution";
+export type VehicleComplianceDocType =
+  | "rc"
+  | "insurance"
+  | "fitness"
+  | "pollution"
+  | "permit"
+  | "road_tax";
 
 /** Extra files attached from the trip vault (not RC / insurance / fitness / PUC). */
 export interface VehicleExtraDocument extends DocumentWithExpiry {
@@ -20,6 +26,8 @@ export interface VehicleDocuments {
   insurance?: DocumentWithExpiry;
   fitness?: DocumentWithExpiry;
   pollution?: DocumentWithExpiry;
+  permit?: DocumentWithExpiry;
+  road_tax?: DocumentWithExpiry;
   extras?: VehicleExtraDocument[];
 }
 
@@ -28,6 +36,8 @@ export const DOCUMENT_LABELS: Record<VehicleComplianceDocType, string> = {
   insurance: 'Insurance Policy',
   fitness: 'Fitness Certificate',
   pollution: 'PUC Certificate',
+  permit: 'Permit',
+  road_tax: 'Tax',
 };
 
 export const DOCUMENT_SHORT_LABELS: Record<VehicleComplianceDocType, string> = {
@@ -35,6 +45,8 @@ export const DOCUMENT_SHORT_LABELS: Record<VehicleComplianceDocType, string> = {
   insurance: 'Insurance',
   fitness: 'Fitness',
   pollution: 'PUC',
+  permit: 'Permit',
+  road_tax: 'Tax',
 };
 
 export const DOCUMENT_EXPIRY_ORDER: VehicleComplianceDocType[] = [
@@ -50,7 +62,15 @@ export const VEHICLE_UPLOAD_CHOOSER_ORDER: VehicleComplianceDocType[] = [
   'fitness',
   'insurance',
   'pollution',
+  'permit',
+  'road_tax',
 ];
+
+export function isVehicleComplianceDocType(
+  value: string,
+): value is VehicleComplianceDocType {
+  return (VEHICLE_UPLOAD_CHOOSER_ORDER as readonly string[]).includes(value);
+}
 
 export const VEHICLE_COMPLIANCE_TYPE_HINT = VEHICLE_UPLOAD_CHOOSER_ORDER.map(
   (docType) => DOCUMENT_SHORT_LABELS[docType],

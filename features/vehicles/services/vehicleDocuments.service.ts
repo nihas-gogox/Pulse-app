@@ -250,7 +250,14 @@ export async function mergeEntityDocumentsIntoVehicleVault(
   const filled = new Set<string>();
   for (const row of data) {
     const type = row.doc_type as VehicleComplianceDocType;
-    if (type !== "rc" && type !== "insurance" && type !== "fitness" && type !== "pollution") {
+    if (
+      type !== "rc" &&
+      type !== "insurance" &&
+      type !== "fitness" &&
+      type !== "pollution" &&
+      type !== "permit" &&
+      type !== "road_tax"
+    ) {
       continue;
     }
     if (filled.has(type)) continue;
@@ -437,7 +444,7 @@ export async function updateVehicleDocumentExpiry(
   return { documents: (savedRow.documents ?? updated) as VehicleDocuments, error: null };
 }
 
-const VAULT_SLOT_TYPES = ["rc", "insurance", "fitness", "pollution"] as const;
+const VAULT_SLOT_TYPES = ["rc", "insurance", "fitness", "pollution", "permit", "road_tax"] as const;
 
 function isVaultSlotType(docType: string): docType is VehicleComplianceDocType {
   return (VAULT_SLOT_TYPES as readonly string[]).includes(docType);

@@ -193,6 +193,7 @@ export interface BundleDocument {
   uploaded_at: string;
   uploaded_by: string | null;
   document_type: import('@/features/trips/services/tripDocuments.service').TripDocumentType;
+  document_number?: string | null;
 }
 
 export interface BundleOtp {
