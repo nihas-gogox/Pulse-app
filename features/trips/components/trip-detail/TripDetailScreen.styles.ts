@@ -671,10 +671,10 @@ export const neoStyles = StyleSheet.create({
   hero: {
     position: "relative",
     overflow: "hidden",
-    backgroundColor: Theme.cardWhite,
+    backgroundColor: Theme.buttonDark,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: Theme.borderLight,
+    borderColor: Theme.financeHeroBorder,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
@@ -685,7 +685,7 @@ export const neoStyles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: Theme.brandBlueWashSubtle,
+    backgroundColor: Theme.financeHeroRangeBg,
   },
   heroBridge: {
     flexDirection: "row",
@@ -695,7 +695,7 @@ export const neoStyles = StyleSheet.create({
     paddingBottom: 6,
     marginBottom: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Theme.borderLight,
+    borderBottomColor: Theme.financeHeroBorder,
   },
   heroParty: {
     flex: 1,
@@ -726,9 +726,9 @@ export const neoStyles = StyleSheet.create({
     right: -4,
     bottom: -4,
     borderWidth: 1.5,
-    borderColor: Theme.cardWhite,
+    borderColor: Theme.buttonDark,
     borderRadius: 999,
-    backgroundColor: Theme.surfaceGray,
+    backgroundColor: Theme.financeHeroRangeBg,
     overflow: "hidden",
   },
   heroPartyIcon: {
@@ -737,13 +737,13 @@ export const neoStyles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Theme.brandBlueSoft,
+    backgroundColor: Theme.financeHeroRangeBg,
     borderWidth: 1,
-    borderColor: Theme.borderLight,
+    borderColor: Theme.financeHeroRangeBorder,
   },
   heroPartyIconRose: {
-    backgroundColor: "rgba(244,63,94,0.14)",
-    borderColor: "rgba(244,63,94,0.22)",
+    backgroundColor: "rgba(244,63,94,0.22)",
+    borderColor: "rgba(244,63,94,0.35)",
   },
   heroPartyAvatarImage: {
     width: "100%",
@@ -778,7 +778,7 @@ export const neoStyles = StyleSheet.create({
   heroPartyName: {
     fontSize: 12,
     fontWeight: "800",
-    color: Theme.textPrimaryDark,
+    color: Theme.buttonDarkText,
     textTransform: "uppercase",
     letterSpacing: 0.2,
   },
@@ -795,7 +795,9 @@ export const neoStyles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Theme.surfaceGray,
+    backgroundColor: Theme.financeHeroRangeBg,
+    borderWidth: 1,
+    borderColor: Theme.financeHeroRangeBorder,
   },
   alignRight: {
     textAlign: "right",
@@ -813,7 +815,7 @@ export const neoStyles = StyleSheet.create({
     alignItems: "flex-end",
   },
   routeHeroCity: {
-    color: Theme.textPrimaryDark,
+    color: Theme.buttonDarkText,
     fontSize: 14,
     lineHeight: 18,
     fontWeight: "800",
@@ -837,7 +839,7 @@ export const neoStyles = StyleSheet.create({
   routeVectorLine: {
     flex: 1,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: Theme.borderLight,
+    backgroundColor: Theme.financeHeroRangeBorder,
   },
   routeVectorTruck: {
     width: 28,
@@ -845,9 +847,9 @@ export const neoStyles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Theme.brandBlueSoft,
+    backgroundColor: Theme.financeHeroRangeBg,
     borderWidth: 1,
-    borderColor: Theme.borderLight,
+    borderColor: Theme.financeHeroRangeBorder,
   },
   heroMetrics: {
     marginTop: 6,
@@ -857,9 +859,9 @@ export const neoStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 10,
-    backgroundColor: Theme.surfaceGray,
+    backgroundColor: Theme.financeHeroRangeBg,
     borderWidth: 1,
-    borderColor: Theme.borderLight,
+    borderColor: Theme.financeHeroRangeBorder,
     paddingHorizontal: 4,
     paddingVertical: 6,
   },
@@ -872,7 +874,7 @@ export const neoStyles = StyleSheet.create({
   heroMetricDivider: {
     width: StyleSheet.hairlineWidth,
     height: 28,
-    backgroundColor: Theme.borderLight,
+    backgroundColor: Theme.financeHeroRangeBorder,
   },
   heroMetricLabel: {
     fontSize: 9,
@@ -882,7 +884,7 @@ export const neoStyles = StyleSheet.create({
     letterSpacing: 1,
   },
   heroMetricValue: {
-    color: Theme.textPrimaryDark,
+    color: Theme.buttonDarkText,
     fontSize: 12,
     fontWeight: "800",
   },

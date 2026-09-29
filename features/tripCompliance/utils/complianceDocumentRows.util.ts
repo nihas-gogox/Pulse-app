@@ -5,7 +5,9 @@
  * Missing/Pending/Verified/Rejected/Expired classification from one place.
  */
 import {
+  COMPLIANCE_DRIVER_DOCUMENT_TYPES,
   COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES,
+  COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
   REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
   documentRequiresExpiry,
   isRequiredDriverDocumentType,
@@ -145,6 +147,35 @@ export function deriveComplianceDocumentRows(documents: ComplianceDocumentRow[])
   const requiredRows = REQUIRED_COMPLIANCE_DOCUMENT_TYPES.map((type) => rowForType(type, true, byType));
   const otherRows = COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES.map((type) => rowForType(type, false, byType));
   return [...requiredRows, ...otherRows];
+}
+
+/**
+ * Finance preview: fixed optional slots (POD / Memo) plus any other present
+ * trip-vault documents that are not required trip types or vehicle/driver KYC.
+ */
+export function deriveFinanceDocumentRows(documents: ComplianceDocumentRow[]): ComplianceDocRow[] {
+  const byType = latestDocByType(documents);
+  const baseRows = COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES.map((type) => rowForType(type, false, byType));
+  const reserved = new Set<string>([
+    ...REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
+    ...COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES,
+    ...COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
+    ...COMPLIANCE_DRIVER_DOCUMENT_TYPES,
+  ]);
+  const vaultExtras: ComplianceDocRow[] = [];
+  for (const [type, doc] of byType) {
+    if (!type || reserved.has(type)) continue;
+    vaultExtras.push({
+      key: type,
+      type,
+      required: false,
+      status: doc.status,
+      doc,
+      entityDoc: null,
+    });
+  }
+  vaultExtras.sort((a, b) => labelForDocType(a.type).localeCompare(labelForDocType(b.type)));
+  return [...baseRows, ...vaultExtras];
 }
 
 /** Progress is always measured against required documents only. */

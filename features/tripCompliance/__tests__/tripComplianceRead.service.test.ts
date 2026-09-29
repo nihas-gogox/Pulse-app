@@ -69,7 +69,7 @@ describe("deriveComplianceStage", () => {
     ).toBe("compliance_verified");
   });
 
-  it("is ADVANCE_PAYMENT_PROCESSED once advance posted and trip not yet delivered", () => {
+  it("is AWAITING_POD once advance posted (even if trip is not yet delivered)", () => {
     expect(
       deriveComplianceStage({
         documentCount: 3,
@@ -79,7 +79,7 @@ describe("deriveComplianceStage", () => {
         hardCopyReceived: false,
         balance: null,
       }),
-    ).toBe("advance_payment_processed");
+    ).toBe("hard_copy_pod_received");
   });
 
   it("moves to PENDING_FOR_DOCS when required vehicle docs are expired (even with advance)", () => {
@@ -111,7 +111,7 @@ describe("deriveComplianceStage", () => {
     ).toBe("payment_settled");
   });
 
-  it("keeps ADVANCE_PAYMENT_PROCESSED when Finance already collected amount_paid but docs/verification are incomplete", () => {
+  it("is AWAITING_POD when Finance already collected amount_paid but docs/verification are incomplete", () => {
     expect(
       deriveComplianceStage({
         documentCount: 0,
@@ -121,7 +121,7 @@ describe("deriveComplianceStage", () => {
         hardCopyReceived: false,
         balance: null,
       }),
-    ).toBe("advance_payment_processed");
+    ).toBe("hard_copy_pod_received");
   });
 
   it("is HARD_COPY_POD_RECEIVED for completed trips with advance (Ops Delivered status)", () => {

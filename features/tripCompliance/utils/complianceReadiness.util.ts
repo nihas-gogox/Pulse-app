@@ -225,3 +225,14 @@ export function paymentReadinessLabel(readiness: ComplianceQueueReadiness): { la
     detail: readiness.blockerLines[0] ?? "This trip is not ready for payment.",
   };
 }
+
+/**
+ * Cross-cutting Payment Pending queue: advance still owed after compliance is
+ * verified — independent of the exclusive `summary.stage` chip. Once advance is
+ * posted, derivation moves the trip to Awaiting POD.
+ */
+export function isCompliancePaymentPending(summary: ComplianceTripSummary): boolean {
+  if (summary.advance || summary.balance) return false;
+  if (summary.complianceVerifiedAt) return true;
+  return deriveComplianceQueueReadiness(summary).readyCategory === "compliance_advance";
+}

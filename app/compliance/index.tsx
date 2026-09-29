@@ -42,41 +42,34 @@ function StageChip({
   countColor,
   active,
   onPress,
-  compact = false,
 }: {
   label: string;
   count: number;
   countColor: string;
   active: boolean;
   onPress: () => void;
-  compact?: boolean;
 }) {
   return (
     <TouchableOpacity
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
-      style={[styles.chip, compact && styles.chipCompact, active && styles.chipActive]}
-      hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+      style={[styles.chip, active && styles.chipActive]}
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
     >
-      <Text
-        style={[styles.chipText, compact && styles.chipTextCompact, active && styles.chipTextActive]}
-        numberOfLines={1}
-      >
+      <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
         {label}
       </Text>
       {count > 0 ? (
         <View
           style={[
             styles.chipCountBadge,
-            compact && styles.chipCountBadgeCompact,
             { backgroundColor: active ? Theme.buttonDarkText : countColor },
           ]}
         >
           <Text
             style={[
               styles.chipCount,
-              compact && styles.chipCountCompact,
               { color: active ? Theme.buttonDark : Theme.buttonDarkText },
             ]}
           >
@@ -113,7 +106,7 @@ export default function ComplianceScreen() {
     isFetching,
     refetch,
   } = useComplianceTripsQuery();
-  const { stage, setStage, filtered, counts, podReceivedCount } = useComplianceStageFilter(summaries);
+  const { stage, setStage, filtered, counts, podReceivedCount, paymentPendingCount } = useComplianceStageFilter(summaries);
   const syncChange = useComplianceChangeSync();
   const markTripVerified = useCallback(
     async (tripId: string) => {
@@ -165,13 +158,13 @@ export default function ComplianceScreen() {
 
   const contentTopInset = layout.isDesktopWeb ? Layout.desktopTopNavOffset : layout.top;
   const pagePad = Layout.screenPaddingHorizontal;
-  /** Responsive breakpoints for header and toolbar. */
+  /** Responsive breakpoints for header and toolbar (Payment Pending chip). */
   const isNarrow = width < 560;
   const stackToolbar = width < 980;
   const compactActions = width < 700;
   const searchWidthStyle = stackToolbar
     ? undefined
-    : { width: Math.min(300, Math.max(180, Math.floor(width * 0.22))) };
+    : { width: Math.min(220, Math.max(160, Math.floor(width * 0.16))) };
 
   const openTrip = useCallback(
     (tripId: string) => {
@@ -240,7 +233,7 @@ export default function ComplianceScreen() {
             isNarrow && styles.searchRowNarrow,
           ]}
         >
-          <Search size={13} color={Theme.textSecondary} strokeWidth={2} />
+          <Search size={12} color={Theme.textSecondary} strokeWidth={2} />
           <TextInput
             value={search}
             onChangeText={setSearch}
@@ -254,14 +247,19 @@ export default function ComplianceScreen() {
           />
         </View>
         <View style={styles.filtersRow}>
-          <View style={[styles.chipWrap, isNarrow && styles.chipWrapNarrow]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipScroll}
+            contentContainerStyle={styles.chipWrap}
+            keyboardShouldPersistTaps="handled"
+          >
             <StageChip
               label="All"
               count={counts.all}
               countColor={COMPLIANCE_FILTER_COUNT_TONE.all}
               active={stage === "all"}
               onPress={() => setStage("all")}
-              compact={isNarrow}
             />
             {COMPLIANCE_STAGES.flatMap((s) => {
               const chip = (
@@ -272,9 +270,21 @@ export default function ComplianceScreen() {
                   countColor={COMPLIANCE_FILTER_COUNT_TONE[s]}
                   active={stage === s}
                   onPress={() => setStage(s)}
-                  compact={isNarrow}
                 />
               );
+              if (s === "advance_payment_processed") {
+                return [
+                  chip,
+                  <StageChip
+                    key="payment_pending"
+                    label="Payment Pending"
+                    count={paymentPendingCount}
+                    countColor={Theme.complianceStageBalanceFg}
+                    active={stage === "payment_pending"}
+                    onPress={() => setStage("payment_pending")}
+                  />,
+                ];
+              }
               if (s !== "hard_copy_pod_received") return [chip];
               return [
                 chip,
@@ -285,11 +295,10 @@ export default function ComplianceScreen() {
                   countColor={Theme.complianceStageSuccessFg}
                   active={stage === "pod_received"}
                   onPress={() => setStage("pod_received")}
-                  compact={isNarrow}
                 />,
               ];
             })}
-          </View>
+          </ScrollView>
         </View>
       </View>
       </View>
@@ -321,7 +330,9 @@ export default function ComplianceScreen() {
             {search.trim()
               ? "No trips match your search."
               : summaries.length
-                ? "No trips in this stage."
+                ? stage === "payment_pending"
+                  ? "No trips are waiting for advance payment."
+                  : "No trips in this stage."
                 : "No Loading→Completed trips in the Compliance queue yet."}
           </Text>
         </View>
@@ -359,6 +370,10 @@ export default function ComplianceScreen() {
           selectedTripId={cardTripId}
           stacked={isNarrow}
           onChanged={(change) => void syncChange(change)}
+          onReviewTripDocs={(tripId, documentKey, scope = "trip") => {
+            setCardTripId(tripId);
+            setReview({ tripId, documentKey, scope });
+          }}
         />
       )}
 
@@ -552,11 +567,11 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: Theme.compliancePageBg },
   searchRow: {
     flexShrink: 0,
-    height: 28,
+    height: 24,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
+    gap: 5,
+    paddingHorizontal: 8,
     borderRadius: 999,
     backgroundColor: Theme.cardWhite,
     borderWidth: 1,
@@ -567,15 +582,15 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
   },
   searchRowNarrow: {
-    height: 28,
-    paddingHorizontal: 8,
+    height: 24,
+    paddingHorizontal: 7,
   },
   searchInput: {
     flex: 1,
     minWidth: 0,
     height: "100%",
     paddingVertical: 0,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "400",
     color: Theme.textPrimary,
     ...(Platform.OS === "web" ? { outlineStyle: "none" as const } : null),
@@ -622,23 +637,22 @@ const styles = StyleSheet.create({
   filtersRow: {
     flex: 1,
     minWidth: 0,
+  },
+  chipScroll: {
+    flexGrow: 0,
     width: "100%",
   },
   chipWrap: {
-    width: "100%",
     flexDirection: "row",
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
     alignItems: "center",
-    alignContent: "flex-start",
-    gap: 6,
-  },
-  chipWrapNarrow: {
     gap: 4,
+    paddingRight: 2,
   },
   chip: {
     flexShrink: 0,
-    height: 28,
-    paddingHorizontal: 10,
+    height: 24,
+    paddingHorizontal: 8,
     borderRadius: 999,
     backgroundColor: Theme.cardWhite,
     borderWidth: 1,
@@ -646,35 +660,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-  },
-  chipCompact: {
-    height: 26,
-    paddingHorizontal: 8,
     gap: 4,
   },
   chipActive: {
     backgroundColor: Theme.buttonDark,
     borderColor: Theme.buttonDark,
   },
-  chipText: { fontSize: 12, fontWeight: "500", color: Theme.textPrimary, lineHeight: 14 },
-  chipTextCompact: { fontSize: 11, lineHeight: 13 },
+  chipText: { fontSize: 11, fontWeight: "500", color: Theme.textPrimary, lineHeight: 13 },
   chipTextActive: { color: Theme.buttonDarkText, fontWeight: "600" },
   chipCountBadge: {
-    minWidth: 16,
-    height: 16,
-    paddingHorizontal: 4,
+    minWidth: 15,
+    height: 15,
+    paddingHorizontal: 3,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
   },
-  chipCountBadgeCompact: {
-    minWidth: 14,
-    height: 14,
-    paddingHorizontal: 3,
-  },
   chipCount: { fontSize: 9, fontWeight: "600", lineHeight: 11, textAlign: "center" },
-  chipCountCompact: { fontSize: 8, lineHeight: 10 },
   viewToggle: {
     flexShrink: 0,
     height: 26,
