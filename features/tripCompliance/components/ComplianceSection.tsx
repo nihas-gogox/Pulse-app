@@ -222,6 +222,10 @@ export function ComplianceSection({
       complianceDecision: null,
       complianceExceptionReason: null,
       complianceOutstandingSummary: null,
+      // Payment-modal summary only; decline state isn't loaded here.
+      complianceDeclinedAt: null,
+      complianceDeclinedBy: null,
+      complianceDeclineReason: null,
       advance: payments.advance,
       balance: payments.balance,
       hardCopyPod: {

@@ -4,7 +4,12 @@ import { buildLedgerSyncDescriptionLine } from "@/features/finance/ledger/ledger
 import type { TripRow } from "@/features/trips/services/trips.service";
 import { evaluateCompliancePaymentGuard, type ComplianceLedgerCategory } from "@/features/tripCompliance/utils/compliancePaymentGuard.util";
 import { fetchComplianceTransactions } from "@/features/tripCompliance/services/tripComplianceRead.service";
-import type { ComplianceDocumentRow, ComplianceDocumentStatus } from "@/features/tripCompliance/tripCompliance.types";
+import {
+  COMPLIANCE_DECLINE_REASON_MAX,
+  COMPLIANCE_DECLINE_REASON_MIN,
+  type ComplianceDocumentRow,
+  type ComplianceDocumentStatus,
+} from "@/features/tripCompliance/tripCompliance.types";
 
 /**
  * Verify or reject a single trip document. Goes through the
@@ -71,6 +76,58 @@ export async function approveComplianceWithException(params: {
     p_comment: params.comment.trim(),
   });
   return { error: error ? new Error(error.message) : null };
+}
+
+function formatDeclineComplianceError(error: { message?: string; code?: string }): string {
+  const raw = (error.message ?? "").trim();
+  const lower = raw.toLowerCase();
+  if (
+    error.code === "PGRST202" ||
+    error.code === "42883" ||
+    lower.includes("could not find the function") ||
+    (lower.includes("decline_trip_compliance") && lower.includes("does not exist"))
+  ) {
+    return "Decline isn't available yet — database update pending.";
+  }
+  if (lower.includes("not authorized")) {
+    return "You don't have permission to decline compliance for this trip.";
+  }
+  if (lower.includes("already verified")) {
+    return "This trip is already verified and can't be declined.";
+  }
+  if (lower.includes("decline reason")) {
+    return `Please enter a reason between ${COMPLIANCE_DECLINE_REASON_MIN} and ${COMPLIANCE_DECLINE_REASON_MAX} characters.`;
+  }
+  return raw || "Couldn't decline compliance.";
+}
+
+/**
+ * Decline a trip's compliance with a reason. Goes through the
+ * `decline_trip_compliance` SECURITY DEFINER RPC (migration
+ * 20270929162901), which enforces the `trip_compliance.trip.mark_verified`
+ * grant, rejects already-verified trips, and audits to `trip_workflow_events`.
+ * Pass `idempotencyKey` (stable per submit) so a retried submit is a no-op.
+ * The trip stays in Compliance Pending. Throws a user-facing Error on failure.
+ */
+export async function declineTripCompliance(params: {
+  tripId: string;
+  reason: string;
+  idempotencyKey?: string;
+}): Promise<void> {
+  const reason = params.reason.trim();
+  if (reason.length < COMPLIANCE_DECLINE_REASON_MIN || reason.length > COMPLIANCE_DECLINE_REASON_MAX) {
+    throw new Error(
+      `Please enter a reason between ${COMPLIANCE_DECLINE_REASON_MIN} and ${COMPLIANCE_DECLINE_REASON_MAX} characters.`,
+    );
+  }
+  const { error } = await supabase().rpc("decline_trip_compliance", {
+    p_trip_id: params.tripId,
+    p_reason: reason,
+    p_idempotency_key: params.idempotencyKey ?? undefined,
+  });
+  if (error) {
+    throw new Error(formatDeclineComplianceError(error));
+  }
 }
 
 export type { ComplianceLedgerCategory } from "@/features/tripCompliance/utils/compliancePaymentGuard.util";
