@@ -1,0 +1,1196 @@
+Below is the execution plan I’d give Claude. The key rule is **preserve first, merge second**: every contributor’s latest work is captured before integration, conflicts are surfaced rather than guessed through, and production is only reached after the integrated state passes preprod.
+
+# Pulse V1 + Praveen + Sneha Production Merge Runbook
+
+## 0. Non-negotiable rules
+
+Claude must follow these throughout the operation:
+
+1. **Do not merge or push anything until the dry-run/inventory is reviewed.**
+2. **Do not use `git reset --hard`, `git clean -fd`, force-push, or destructive branch operations.**
+3. **Do not auto-resolve conflicts.**
+4. If Vasanth, Praveen, and Sneha changed the same code, **inspect the intent of all changes before resolving**.
+5. Never assume "latest commit" means "take the entire branch wholesale." Compare each branch against the common base and identify the actual changes.
+6. Preserve the original branches unchanged.
+7. Create a dedicated integration branch.
+8. Every migration must be identified before execution.
+9. **Prod DB is read-only during investigation/reconciliation.**
+10. No `supabase db push` to production merely because Git contains migration files. First reconcile migration history and live schema.
+11. Every phase has a hard **GO / NO-GO gate**.
+12. If anything is ambiguous, stop and report **NEEDS VERIFICATION** rather than guessing.
+
+---
+
+# Phase 1 — Local Merge / Integration
+
+## 1. Establish a clean baseline
+
+Claude should first record:
+
+```bash
+pwd
+git status --short --branch
+git branch --show-current
+git log -1 --oneline --decorate
+git remote -v
+git fetch --all --prune
+```
+
+Then verify the three source branches exist locally/remotely.
+
+Expected conceptual inputs:
+
+```text
+Vasanth → V1
+Praveen → <latest Praveen branch>
+Sneha   → <latest Sneha branch>
+```
+
+Do **not** assume branch names. Discover them.
+
+---
+
+## 2. Create immutable evidence before merging
+
+For each contributor, capture:
+
+```bash
+git log --oneline --decorate <branch>
+git log --stat <base>..<branch>
+git diff --stat <base>...<branch>
+git diff --name-status <base>...<branch>
+```
+
+Also inspect:
+
+```bash
+git log --format='%H %an <%ae> %s' <base>..<branch>
+```
+
+Purpose:
+
+* identify every commit being integrated
+* identify files touched
+* identify migrations
+* identify overlapping files
+* identify commits that may already exist in another branch
+* detect cherry-picked/duplicate work
+* distinguish contributor work from unrelated branch history
+
+### Required output
+
+Claude must produce a table similar to:
+
+| Contributor | Branch     | Base    | Commits | Files | DB migrations | Overlap |
+| ----------- | ---------- | ------- | ------: | ----: | ------------: | ------- |
+| Vasanth     | V1         | `<sha>` |       N |     N |             N | ...     |
+| Praveen     | `<branch>` | `<sha>` |       N |     N |             N | ...     |
+| Sneha       | `<branch>` | `<sha>` |       N |     N |             N | ...     |
+
+No merge yet.
+
+---
+
+# 3. Create the dedicated merge branch
+
+Use a timestamped branch describing exactly what is being integrated.
+
+Recommended convention:
+
+```text
+merge/v1-praveen-sneha-prod-YYYYMMDD-HHmm
+```
+
+For this run, for example:
+
+```text
+merge/v1-praveen-sneha-prod-20260929-1940
+```
+
+Create it from the **intended production/V1 baseline**, not from one contributor's feature branch:
+
+```bash
+git switch <production-baseline>
+git pull --ff-only
+git switch -c merge/v1-praveen-sneha-prod-20260929-1940
+```
+
+Then record:
+
+```bash
+git rev-parse HEAD
+git status --short --branch
+```
+
+### Important
+
+The three source branches remain untouched.
+
+This branch becomes the **only integration workspace**.
+
+---
+
+# 4. Dry-run conflict analysis
+
+Before executing the real merges, Claude should simulate the integration as far as possible.
+
+For each source branch:
+
+```bash
+git merge-tree <current-base> <current-base> <source-branch>
+```
+
+or the equivalent supported Git merge preview.
+
+Also calculate overlapping files:
+
+```bash
+git diff --name-only <base>...V1
+git diff --name-only <base>...<praveen>
+git diff --name-only <base>...<sneha>
+```
+
+Then identify intersections.
+
+### Explicitly flag
+
+* same file modified by multiple contributors
+* same function modified by multiple contributors
+* same DB table/function/RLS policy modified by multiple contributors
+* same migration objects
+* package/dependency changes
+* environment/configuration changes
+* routing changes
+* authentication/RBAC changes
+* finance/ledger changes
+* shared UI/design-system changes
+
+### Gate 1 — DRY-RUN GO
+
+Proceed only if Claude can state:
+
+> "I have identified the exact commits, files, migrations, and overlapping areas for Vasanth, Praveen, and Sneha. No merge has been performed."
+
+If not, **STOP**.
+
+---
+
+# 5. Merge contributors sequentially
+
+Do not perform a three-way blind merge.
+
+Recommended order:
+
+```text
+V1 baseline
+   ↓
+Vasanth/V1 integration
+   ↓
+Praveen
+   ↓
+Sneha
+```
+
+If V1 itself is the baseline rather than a feature branch, document that clearly and merge only the additional Praveen/Sneha work.
+
+After each merge:
+
+```bash
+git status
+git diff --check
+git log --oneline --decorate -10
+```
+
+Run relevant tests before moving to the next contributor.
+
+---
+
+# 6. Conflict handling protocol
+
+If Git reports:
+
+```text
+CONFLICT
+```
+
+Claude must **stop the automated merge resolution process**.
+
+For every conflict:
+
+```bash
+git status
+git diff --name-only --diff-filter=U
+git diff
+```
+
+Then inspect both sides.
+
+The resolution record should explicitly state:
+
+```text
+File:
+Conflict:
+Vasanth change:
+Praveen change:
+Sneha change:
+Why both/all changes are preserved:
+Resolution:
+Validation performed:
+```
+
+### Critical rule
+
+Do **not** use:
+
+```bash
+git checkout --ours .
+git checkout --theirs .
+```
+
+as a blanket resolution.
+
+Those commands can silently discard intentional work.
+
+If both changes are valid, combine them deliberately.
+
+If the intent cannot be established from:
+
+* commit messages
+* surrounding code
+* tests
+* documentation
+* migration intent
+
+then mark:
+
+> **NEEDS HUMAN VERIFICATION**
+
+and stop.
+
+---
+
+# 7. Preserve intentional overlapping work
+
+For overlapping code, Claude should answer:
+
+### Vasanth
+
+What behavior did Vasanth introduce?
+
+### Praveen
+
+What behavior did Praveen introduce?
+
+### Sneha
+
+What behavior did Sneha introduce?
+
+Then verify whether the behaviors are:
+
+```text
+A. complementary
+B. overlapping but compatible
+C. mutually exclusive
+D. unclear
+```
+
+Only A/B should be automatically integrated.
+
+For C/D:
+
+**STOP.**
+
+The goal is not "make Git green."
+
+The goal is:
+
+> **Integrated behavior = intentional behavior from all contributors unless a documented product decision explicitly removes something.**
+
+---
+
+# 8. Create an integration commit
+
+After the local integration is complete:
+
+```bash
+git diff --check
+git status
+git log --oneline --decorate --graph -20
+```
+
+Run the appropriate test suite.
+
+Then create a descriptive merge/integration commit.
+
+Example:
+
+```text
+merge: integrate V1, Praveen, and Sneha production work
+
+Integrated:
+- Vasanth V1: <summary>
+- Praveen: <summary>
+- Sneha: <summary>
+
+Conflict resolutions:
+- <file>: preserved X + Y because ...
+- <file>: ...
+
+Validation:
+- unit tests: PASS
+- typecheck: PASS
+- lint: PASS
+- build: PASS
+```
+
+Do **not** squash away contributor history unless explicitly requested.
+
+---
+
+# Phase 2 — Preprod Migration
+
+## 9. Freeze the integrated Git state
+
+Record:
+
+```bash
+MERGE_SHA=$(git rev-parse HEAD)
+git rev-parse HEAD
+git status --short
+```
+
+Expected:
+
+```text
+clean working tree
+```
+
+Tagging the integration point is useful:
+
+```bash
+git tag -a merge-preprod-20260929-1940 \
+  -m "Pulse V1 + Praveen + Sneha preprod integration"
+```
+
+Do not push yet until the dry-run gate passes.
+
+---
+
+# 10. Database migration inventory
+
+Before touching preprod, inspect all migration files introduced by the integrated branches.
+
+For each migration determine:
+
+```text
+Migration filename
+Object(s) changed
+Contributor
+Already applied in preprod?
+Already applied in production?
+Safe to execute?
+Duplicate/history drift?
+Destructive?
+Rollback possible?
+```
+
+Especially inspect:
+
+* tables
+* columns
+* constraints
+* indexes
+* functions/RPCs
+* triggers
+* RLS policies
+* grants
+* storage policies
+* enum changes
+* data migrations
+* backfills
+* views
+* realtime configuration
+
+### Critical rule
+
+A migration file existing in Git does **not** prove the database needs that migration.
+
+Conversely, a migration missing from Git does not prove the database is correct.
+
+Compare:
+
+```text
+Git migration history
+vs
+preprod migration history
+vs
+live preprod schema
+```
+
+---
+
+# 11. Preprod DB dry run
+
+Before applying migrations:
+
+1. Take/verify a preprod backup.
+2. Record the current migration state.
+3. Generate the proposed migration plan/diff.
+4. Inspect every proposed object change.
+5. Check for duplicate migration history.
+6. Check for destructive SQL.
+
+No blind:
+
+```bash
+supabase db push
+```
+
+If migration history is inconsistent, reconcile it first.
+
+### Gate 2 — PREPROD DB GO
+
+Only continue when Claude can state:
+
+> "The exact SQL/object changes required in preprod are known, migration history has been reconciled, and no unintended destructive change is present."
+
+---
+
+# 12. Apply preprod migration
+
+Only now execute the approved migration.
+
+Afterward verify:
+
+```text
+migration history
+tables
+columns
+indexes
+constraints
+functions
+triggers
+RLS policies
+permissions
+storage policies
+```
+
+Compare critical objects with expected schema.
+
+For important application tables, verify representative data counts and relationships.
+
+Do **not** use `SELECT *` for broad verification. Use targeted queries.
+
+---
+
+# Phase 3 — Preprod Application Testing
+
+## 13. Deploy integrated application to preprod
+
+Push/deploy the **merge branch SHA**, not an arbitrary contributor branch.
+
+Record:
+
+```text
+Git SHA
+deployment SHA
+Supabase project
+environment
+Netlify deployment ID
+timestamp
+```
+
+The deployed artifact must be traceable to the merge commit.
+
+---
+
+# 14. Functional smoke testing
+
+At minimum:
+
+### Authentication
+
+* login
+* logout
+* session persistence
+* invalid credentials
+* unauthorized route
+* refresh behavior
+
+### Core TMS/FMS
+
+* indent creation
+* bidding
+* award
+* trip creation
+* trip status progression
+* driver assignment
+* vehicle/asset behavior
+* pickup
+* loading
+* LR
+* destination
+* POD
+* completion
+
+### Contributor-specific functionality
+
+For each contributor, map:
+
+```text
+Commit → feature → test case → expected result
+```
+
+No contributor's functionality should be considered tested merely because the app loads.
+
+---
+
+# 15. RBAC / security testing
+
+Test affected personas independently:
+
+```text
+client
+supplier
+driver
+admin/org staff
+```
+
+Verify:
+
+* allowed action succeeds
+* forbidden action remains forbidden
+* direct URL access is protected
+* API/RPC access respects RLS
+* organization boundaries remain intact
+* asset-based/non-asset behavior remains correct where applicable
+
+For RLS changes, verify both:
+
+```text
+positive case
+negative case
+```
+
+---
+
+# 16. Data integrity testing
+
+Verify before/after:
+
+```text
+trip counts
+indent counts
+award relationships
+driver assignments
+document relationships
+finance records
+ledger balances
+organization membership
+```
+
+For changed financial logic, specifically test:
+
+```text
+AR
+AP
+driver salary
+shared ledger
+GST
+transaction state transitions
+```
+
+No unexplained count changes.
+
+No orphaned records.
+
+No duplicated records.
+
+No unexpected NULLs.
+
+---
+
+# 17. Environment/connectivity validation
+
+Verify:
+
+```text
+frontend → Supabase
+frontend → required APIs
+authentication → Supabase Auth
+storage → required buckets
+Realtime → required channels
+RPCs → expected responses
+Netlify environment variables
+```
+
+Confirm the deployed environment is actually pointing to **preprod**, not production.
+
+This is especially important because identical UUIDs or copied environments can make accidental cross-environment authentication/data access dangerous.
+
+---
+
+# Gate 3 — PREPROD GREEN
+
+All must be true:
+
+* [ ] Application builds
+* [ ] Deployment succeeds
+* [ ] Authentication works
+* [ ] Core flows work
+* [ ] Contributor-specific features work
+* [ ] RBAC tests pass
+* [ ] RLS tests pass
+* [ ] DB migrations verified
+* [ ] Data integrity verified
+* [ ] No unexpected errors in browser/network logs
+* [ ] No unexpected Supabase errors
+* [ ] Environment points to preprod
+* [ ] No unresolved merge conflicts
+* [ ] No known regression remains unexplained
+
+If any item is **NEEDS VERIFICATION**, production is blocked.
+
+---
+
+# Phase 4 — Netlify GX Pulse Integration
+
+## 18. Verify Netlify deployment source
+
+Confirm:
+
+```text
+Netlify site
+        ↓
+correct repository
+        ↓
+correct branch
+        ↓
+correct commit SHA
+        ↓
+correct build command
+        ↓
+correct output directory
+```
+
+For GX Pulse, verify the deployed bundle contains the expected integration SHA.
+
+Do not rely solely on the Netlify UI's "published" status.
+
+---
+
+# 19. End-to-end hosted testing
+
+From the actual `gx-pulse.netlify.app` environment:
+
+### Browser
+
+* login
+* navigation
+* protected routes
+* refresh
+* deep links
+* role restrictions
+
+### API
+
+Inspect browser Network:
+
+```text
+Auth
+Supabase REST
+RPC
+Realtime
+Storage
+```
+
+Check:
+
+```text
+HTTP status
+request payload
+response payload
+Supabase project
+authorization/session
+```
+
+### Critical principle
+
+A green local build does not equal a green Netlify deployment.
+
+The hosted environment must independently pass.
+
+---
+
+# 20. Netlify gate
+
+**GO only if:**
+
+```text
+deployed SHA == approved merge SHA
+AND
+environment == preprod
+AND
+browser smoke tests == PASS
+AND
+API/RLS behavior == PASS
+AND
+no deployment/runtime errors
+```
+
+Otherwise:
+
+**NO-GO.**
+
+---
+
+# Phase 5 — Production Approval
+
+## 21. Production readiness review
+
+Before touching production, Claude must produce one final report:
+
+```text
+MERGE SHA:
+Vasanth commits:
+Praveen commits:
+Sneha commits:
+
+Files with conflicts:
+Conflict resolutions:
+
+Preprod migration:
+Preprod schema validation:
+
+Functional tests:
+RBAC/RLS tests:
+Data integrity tests:
+
+Netlify deployment:
+Hosted SHA:
+
+Known issues:
+Open questions:
+```
+
+And explicitly state:
+
+```text
+PRODUCTION READY: YES / NO
+```
+
+"YES" is allowed only if every required gate is green.
+
+---
+
+# Production DB cutover
+
+## 22. Reconcile production again
+
+Do **not** assume preprod migration history can simply be copied to production.
+
+Read production state first:
+
+```text
+production migration history
+production schema
+production functions
+production triggers
+production RLS
+production indexes
+production constraints
+```
+
+Compare against the exact integrated release.
+
+Categorize every migration:
+
+```text
+ALREADY PRESENT
+REQUIRED
+DUPLICATE
+DRIFTED
+UNSAFE
+NEEDS VERIFICATION
+```
+
+Only `REQUIRED` changes that have been reviewed should be applied.
+
+---
+
+# 23. Production backup / rollback preparation
+
+Before production write:
+
+* verify latest production backup
+* record backup timestamp
+* record current Git SHA
+* record DB migration state
+* record current application deployment
+* verify rollback deployment is available
+* document migration rollback/forward-fix strategy
+
+Important:
+
+**Application rollback and database rollback are separate operations.**
+
+If a DB migration is irreversible, the rollback plan must be a compensating migration or restore procedure—not merely `git revert`.
+
+---
+
+# 24. Production application deployment
+
+Deploy exactly:
+
+```text
+APPROVED MERGE SHA
+```
+
+Not:
+
+```text
+Vasanth branch
+Praveen branch
+Sneha branch
+local uncommitted code
+```
+
+Verify deployment artifact SHA.
+
+Then run a minimal production smoke test.
+
+---
+
+# Gate 4 — PRODUCTION GREEN
+
+Production is considered successfully cut over only when:
+
+* [ ] approved merge SHA deployed
+* [ ] deployment healthy
+* [ ] authentication works
+* [ ] critical routes work
+* [ ] critical transaction flow works
+* [ ] contributor-specific changes work
+* [ ] RLS/security behavior passes
+* [ ] database migration state matches expected release
+* [ ] no unexpected 4xx/5xx errors
+* [ ] no unexpected Supabase errors
+* [ ] no critical frontend errors
+* [ ] data integrity checks pass
+
+---
+
+# Rollback Strategy
+
+## A. Local merge problem
+
+If conflict resolution is wrong:
+
+```text
+STOP
+```
+
+Do not reset the source branches.
+
+Discard/recreate only the disposable integration branch if necessary.
+
+Original contributor branches remain untouched.
+
+---
+
+## B. Preprod application problem
+
+Redeploy the last known-good preprod SHA.
+
+Keep the merge branch intact for investigation.
+
+Do not rewrite history.
+
+---
+
+## C. Preprod DB problem
+
+Use the documented migration rollback or restore procedure.
+
+Do not casually delete/alter production-like data to "make tests pass."
+
+---
+
+## D. Netlify problem
+
+Immediately redeploy the last known-good deployment/commit.
+
+Then investigate the merge branch separately.
+
+---
+
+## E. Production application problem
+
+If DB is compatible with the previous application version:
+
+```text
+rollback application → last known-good SHA
+```
+
+If DB has changed incompatibly:
+
+```text
+do NOT blindly roll back application
+```
+
+Instead determine whether:
+
+1. forward-fix is safer, or
+2. DB rollback/restore is required.
+
+---
+
+# Final Checklist
+
+## Phase 1 — Local
+
+* [ ] Clean working tree
+* [ ] Fetch/prune complete
+* [ ] Vasanth branch identified
+* [ ] Praveen branch identified
+* [ ] Sneha branch identified
+* [ ] Common base identified
+* [ ] Commit inventory captured
+* [ ] File inventory captured
+* [ ] Migration inventory captured
+* [ ] Overlapping files identified
+* [ ] Dedicated timestamped merge branch created
+* [ ] Dry-run completed
+* [ ] Dry-run approved
+* [ ] Vasanth integrated
+* [ ] Tests pass
+* [ ] Praveen integrated
+* [ ] Tests pass
+* [ ] Sneha integrated
+* [ ] Tests pass
+* [ ] Conflicts explicitly resolved
+* [ ] No intentional work discarded
+* [ ] `git diff --check` passes
+* [ ] Integration commit created
+
+### **GATE → PREPROD**
+
+---
+
+## Phase 2 — Preprod DB
+
+* [ ] Preprod backup/state captured
+* [ ] Migration history inspected
+* [ ] Production history not assumed
+* [ ] Duplicate migrations identified
+* [ ] Required migrations identified
+* [ ] SQL reviewed
+* [ ] Destructive operations reviewed
+* [ ] Dry-run approved
+* [ ] Migration applied
+* [ ] Schema verified
+* [ ] RLS verified
+* [ ] Functions/triggers verified
+
+### **GATE → TESTING**
+
+---
+
+## Phase 3 — Preprod App
+
+* [ ] Correct merge SHA deployed
+* [ ] Auth tested
+* [ ] Core TMS/FMS flows tested
+* [ ] Vasanth functionality tested
+* [ ] Praveen functionality tested
+* [ ] Sneha functionality tested
+* [ ] RBAC tested
+* [ ] RLS tested
+* [ ] Data integrity tested
+* [ ] Finance behavior tested where affected
+* [ ] Storage tested
+* [ ] Realtime tested where affected
+* [ ] Environment variables verified
+* [ ] Preprod endpoint confirmed
+
+### **GATE → NETLIFY**
+
+---
+
+## Phase 4 — Netlify
+
+* [ ] Correct repository
+* [ ] Correct branch
+* [ ] Correct commit
+* [ ] Build succeeds
+* [ ] Hosted app loads
+* [ ] Login works
+* [ ] Deep links work
+* [ ] Protected routes work
+* [ ] Network calls target correct environment
+* [ ] Supabase calls succeed
+* [ ] Critical flows pass
+* [ ] No critical runtime errors
+
+### **GATE → PRODUCTION**
+
+---
+
+## Phase 5 — Production
+
+* [ ] Final merge SHA frozen
+* [ ] Final test report green
+* [ ] Production migration state reconciled
+* [ ] Required production migrations identified
+* [ ] Backup verified
+* [ ] Rollback strategy confirmed
+* [ ] Production deployment approved
+* [ ] Exact approved SHA deployed
+* [ ] Production smoke tests pass
+* [ ] DB integrity checks pass
+* [ ] Monitoring clean
+
+### **FINAL STATE**
+
+```text
+PRODUCTION CUTOVER: SUCCESS
+```
+
+or, if anything remains unresolved:
+
+```text
+PRODUCTION CUTOVER: BLOCKED
+Reason: <specific unresolved item>
+```
+
+## Recommended branch/commit naming
+
+**Integration branch:**
+
+```text
+merge/v1-praveen-sneha-prod-20260929-1940
+```
+
+**Optional preprod tag:**
+
+```text
+merge-preprod-20260929-1940
+```
+
+**Integration commit:**
+
+```text
+merge: integrate V1, Praveen, and Sneha production work
+```
+
+**Follow-up conflict-fix commit, if needed:**
+
+```text
+fix: reconcile V1 Praveen Sneha integration conflicts
+```
+
+The important traceability chain should ultimately be:
+
+```text
+Vasanth commits ─┐
+                 │
+Praveen commits ─┼─→ timestamped integration branch
+                 │             │
+Sneha commits ───┘             ↓
+                         integration SHA
+                               ↓
+                           preprod DB
+                               +
+                         preprod app
+                               ↓
+                         Netlify hosted
+                               ↓
+                       production approval
+                               ↓
+                     production exact SHA
+```
+
+**The single most important PM rule:** a green Git merge is **not** approval to deploy. The release is approved only when the **combined behavior**, **database state**, **security/RLS**, **data integrity**, and **hosted Netlify deployment** have all been independently verified.
+
+---
+
+# Execution record — typecheck findings (2026-09-29, merge branch `merge/v1-praveen-sneha-prod-20260929-1948` @ `4ba5c004`)
+
+Command: `NODE_OPTIONS=--max-old-space-size=12288 npx tsc --noEmit -p tsconfig.json` (exit 2 on every tree below).
+
+| Tree | Errors |
+| ---- | -----: |
+| V1 baseline `81d744c6` | 62 |
+| Vasanth alone `vasanth/V1` `0227a414` | 92 |
+| Praveen alone `praveen/compliance-flow` `c4302ca6` | 63 |
+| Current merge `4ba5c004` | 139 |
+
+* Compared by file + message (line numbers ignored): the merge has 63 distinct error messages; 58 already exist in at least one of the three parent trees (inherited / pre-existing).
+* 5 distinct messages are merge-only, all in `features/trips/components/trip-detail/ElrCompletionForm.tsx` (StyleProp / ViewStyle typing, TS2322 / TS2769). Type-only; Babel/Metro still compile. NOT fixed in this merge (decision 2026-09-29).
+* All remaining errors are inherited branch debt (mostly Vasanth's eLR files). NOT fixed in this merge.
+* Default-heap `tsc` crashes with exit 134 (V8 heap OOM) and prints no `error TS` lines. Earlier "typecheck: 0 errors" reports in this run came from that crash and were INVALID. It must never be reported as "0 errors".
+* Rule going forward: every typecheck report states the command, the heap size and the process exit code.
+
+# Execution record — Phase 1 + preprod checkpoint (2026-09-29)
+
+## Branch state (local only, not pushed)
+
+`merge/v1-praveen-sneha-prod-20260929-1948`, cut from V1 `81d744c6`:
+
+| Commit | What |
+| ------ | ---- |
+| `0fb6da36` | merge: Vasanth `vasanth/V1` (4ed1f13a..0227a414) |
+| `dab8b947` | fix(trips): hub e-way expiry from LR/POD batch RPC + migration `20270929194800` |
+| `f3e3ed8a` | test(compliance): decline ordering pinned to release head `20270928114500` |
+| `06f3f881` | merge: Praveen `praveen/compliance-flow` (07125814..c4302ca6), no conflicts |
+| `5c046953` | fix(db): Praveen's `20270928123000` removed from this branch, reissued as `20270929203000` (same SQL + `set local lock_timeout`) |
+| `4ba5c004` | fix(trip-detail): drop duplicate `queryClient` declaration |
+
+Source branches `V1`, `vasanth/V1`, `praveen/compliance-flow`, `sneha/trip-detail-compliance` untouched. Sneha NOT merged.
+
+## `queryClient` fix — `4ba5c004`
+
+The Vasanth merge kept both `const queryClient = useQueryClient()` lines in `TripDetailScreen.tsx` (V1's at the top of the component, Vasanth's above `ewayExpiryQuery`); neither was inside a conflict block. Metro failed with `Identifier 'queryClient' has already been declared (2515:8)`. Fix: removed the second (identical, same scope) declaration; `saveEwayBillFields` uses V1's. One-line diff, no behaviour change. Babel parse of the file: 0 errors after the fix.
+
+## Metro / web runtime validation
+
+* Running dev server on :8081 (cwd = repo, branch = merge branch). Metro bundle of `TripDetailScreen` for web: HTTP 200, ~30 MB, no parser error.
+* Browser: `/trip/24fb2146-9b4c-48aa-8649-a5622cb20f56` (preprod trip) renders past the former parser error. Visible: Vasanth's Generate E-LR, "EW-Bill expiring in 7 days" tag, Manifest Pulse Revoke Last / Simulate + simulated stages; V1's Log Hard Copy POD / Hard Copy POD card; Praveen's copy-vehicle-number icon. Screenshot: `.playwright-mcp/trip-detail-4ba5c004.png`.
+
+## Preprod migration validation
+
+* Active project verified before every command: `xbisiveavvbifbzyfhgy` ("pre-prod").
+* Dry run listed exactly `20270929194800` and `20270929203000`; normal `supabase db push --linked` applied exactly those two. No `--include-all`, no `migration repair`.
+* History: 906 on preprod = 906 in branch, no remote-only / local-only; head `20270929203000`.
+* `get_trip_documents_lr_pod_batch`: filter `'lr','pod','soft_pod','pod_soft','eway_bill'`; SECURITY DEFINER, `search_path=public`; grants unchanged from before.
+* `trip_documents_document_type_check`: exactly the intended 18 types incl. `other`; the only document-type check on the table (other check: `trip_documents_status_check`).
+* `npm run db:preflight`: passed, nothing pending.
+* Decline ordering contract test: 22/22 pass.
+* Targeted migration / contract / LR-POD / hub flags / doc types / trip documents / e-way / hard-copy POD / compliance tests: 543/543 pass (54 suites).
+* Note: `SET LOCAL lock_timeout` is a no-op under `supabase db push` (Postgres warning 25P01). Applies to `20270929203000` and to the decline migration `20270929162901`. Address in the production release plan.
+
+## Production — read-only, no writes
+
+No production write of any kind occurred: no `db push`, no `migration repair`, no DDL/DML, no deploy. Production facts, recorded as information only (from the prod SQL editor, run by the user):
+
+* 894 migrations, head `20270925194500`; `'other'` not supported.
+* In V1 but not on prod (all older than prod head): `20260928122336`, `20260928125247`, `20270922163000`, `20270922174500`, `20270925110000`.
+* On prod but in no git branch: `20260929141531` (content unknown).
+* Not yet on prod (expected, unreleased): `20270925201500`..`20270925214500`, `20270928114500`, `20270929162901`, `20270929194800`, `20270929203000`.
+
+## Runtime observations (NOT merge blockers, not investigated)
+
+Seen in the browser console on the Trip Detail route:
+
+* preprod queries returning `ServiceUnavailableError 503` (`checkpoint-distance`, a trips list query);
+* `router.project-osrm.org` 400 for coordinates `0,0`;
+* one `auth/v1/token?grant_type=refresh_token` 400 on first load (retry succeeded).
+
+## Remaining known debt
+
+* 5 merge-only type errors in `ElrCompletionForm.tsx`; inherited type errors from Vasanth / Praveen (not fixed in this merge).
+* Vasanth test debt: 4 circuit-breaker tests (missing `getAccessToken` mock) and 1 Load Center test ("Load more" → scroll paging) = expected test maintenance; 5 chat bootstrap tests = NEEDS CONTRIBUTOR VERIFICATION.
+* V1 baseline jest failures (6): sign-in, logPods concurrency, mutualConnectionsPartnerDisplay.
+* Circular imports: KNOWN DEBT — 2 introduced by Vasanth `95fbde60` (`useNetworkQueries.ts`) and `0227a414` (`usePostsQuery.ts`); separate from V1's existing 109. CI `lib/` root cap already exceeded by V1 (177 files); this merge adds 1 (`lib/inAppHistory.ts`).
+* Praveen must remove `20270928123000` from `praveen/compliance-flow`, or a later merge reintroduces it.
+* Production migration drift above: prod release plan is a separate future approval gate.
