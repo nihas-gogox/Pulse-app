@@ -51,7 +51,7 @@ export type ComplianceTripsTableProps = {
   onOpenDetails?: (tripId: string) => void;
   /** Opens the review sheet; documentKey null opens straight to the document list. */
   onReview: (tripId: string, documentKey: string | null, scope?: "trip" | "vehicle" | "driver") => void;
-  /** Verify action; enabled once LR, E-way Bill and Invoice are approved. Resolves; the page shows errors. */
+  /** Verify action; runs once LR, E-way Bill and Invoice are approved, otherwise opens the trip documents. Resolves; the page shows errors. */
   onMarkComplianceVerified?: (tripId: string) => Promise<void>;
   /** Decline action; rejects with an Error whose message is user-facing (shown in the modal). */
   onDeclineCompliance?: (tripId: string, reason: string) => Promise<void>;
@@ -234,7 +234,12 @@ function TripRowContent({
   const declineReason = summary.complianceDeclineReason?.trim() || "";
 
   const handleVerify = () => {
-    if (markingRef.current || !verifyEligibility.allowed || !onMarkComplianceVerified) return;
+    if (markingRef.current || !onMarkComplianceVerified) return;
+    if (!verifyEligibility.allowed) {
+      // Not ready: open the trip documents to approve (as V1's "Verify Docs" did).
+      onReview(tripId, null, "trip");
+      return;
+    }
     markingRef.current = true;
     setMarkingTrip(true);
     void onMarkComplianceVerified(tripId).finally(() => {
@@ -249,7 +254,7 @@ function TripRowContent({
     setDeclineOpen(false);
   };
 
-  const verifyDisabled = markingTrip || !verifyEligibility.allowed;
+  const verifyDisabled = markingTrip;
 
   return (
     <View>
@@ -366,7 +371,9 @@ function TripRowContent({
               onPress={handleVerify}
               accessibilityRole="button"
               accessibilityLabel="Verify trip compliance"
-              accessibilityHint={verifyEligibility.reason ?? undefined}
+              accessibilityHint={
+                verifyEligibility.reason ? `${verifyEligibility.reason}. Opens trip documents.` : undefined
+              }
               accessibilityState={{ disabled: verifyDisabled, busy: markingTrip }}
             >
               <Text style={[styles.actionLink, !verifyEligibility.allowed && styles.disabledLink]} numberOfLines={1}>

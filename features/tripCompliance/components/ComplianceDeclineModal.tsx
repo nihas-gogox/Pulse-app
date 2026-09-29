@@ -9,6 +9,7 @@ import { COMPLIANCE_DECLINE_ACTION_LABEL } from "@/features/tripCompliance/compl
 import {
   COMPLIANCE_DECLINE_REASON_MAX,
   COMPLIANCE_DECLINE_REASON_MIN,
+  complianceDeclineReasonLength,
 } from "@/features/tripCompliance/tripCompliance.types";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -52,7 +53,7 @@ export function ComplianceDeclineModal({ visible, tripLabel, onCancel, onSubmit 
     }
   }, [visible]);
 
-  const trimmedLength = reason.trim().length;
+  const trimmedLength = complianceDeclineReasonLength(reason);
   const tooShort = trimmedLength < COMPLIANCE_DECLINE_REASON_MIN;
   const tooLong = trimmedLength > COMPLIANCE_DECLINE_REASON_MAX;
   const invalid = tooShort || tooLong;

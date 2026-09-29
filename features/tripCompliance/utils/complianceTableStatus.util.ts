@@ -70,10 +70,19 @@ export function deriveComplianceEwayBill(
     extraCount: 0,
   };
   let entries: ReturnType<typeof parseEwayFieldEntries> = [];
-  // Trip Detail loads trip_documents newest-first; the compliance fetch is unordered.
+  // Trip Detail loads trip_documents with `order by uploaded_at desc` (Postgres:
+  // nulls first); the compliance fetch is unordered, so mirror that here.
+  const uploadedMs = (doc: ComplianceDocumentRow): number => {
+    const ms = doc.uploaded_at ? Date.parse(doc.uploaded_at) : Number.NaN;
+    return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
+  };
   const ewayDocs = documents
     .filter((doc) => doc.document_type === "eway_bill")
-    .sort((a, b) => (b.uploaded_at ?? "").localeCompare(a.uploaded_at ?? ""));
+    .sort((a, b) => {
+      const ta = uploadedMs(a);
+      const tb = uploadedMs(b);
+      return ta === tb ? 0 : tb > ta ? 1 : -1;
+    });
   for (const doc of ewayDocs) {
     const parsed = parseEwayFieldEntries(doc.document_number);
     if (parsed.length > 0) {

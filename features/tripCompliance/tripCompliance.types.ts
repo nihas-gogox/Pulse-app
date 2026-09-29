@@ -200,6 +200,11 @@ export type ComplianceTripInputs = {
 export const COMPLIANCE_DECLINE_REASON_MIN = 3;
 export const COMPLIANCE_DECLINE_REASON_MAX = 500;
 
+/** Length as Postgres `char_length` counts it (code points, not UTF-16 units). */
+export function complianceDeclineReasonLength(reason: string): number {
+  return Array.from(reason.trim()).length;
+}
+
 /** Trip docs required before a trip can be marked Compliance Verified. */
 export const REQUIRED_COMPLIANCE_DOCUMENT_TYPES: readonly string[] = [
   "lr",

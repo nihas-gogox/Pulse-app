@@ -7,6 +7,7 @@ import { fetchComplianceTransactions } from "@/features/tripCompliance/services/
 import {
   COMPLIANCE_DECLINE_REASON_MAX,
   COMPLIANCE_DECLINE_REASON_MIN,
+  complianceDeclineReasonLength,
   type ComplianceDocumentRow,
   type ComplianceDocumentStatus,
 } from "@/features/tripCompliance/tripCompliance.types";
@@ -115,7 +116,8 @@ export async function declineTripCompliance(params: {
   idempotencyKey?: string;
 }): Promise<void> {
   const reason = params.reason.trim();
-  if (reason.length < COMPLIANCE_DECLINE_REASON_MIN || reason.length > COMPLIANCE_DECLINE_REASON_MAX) {
+  const length = complianceDeclineReasonLength(reason);
+  if (length < COMPLIANCE_DECLINE_REASON_MIN || length > COMPLIANCE_DECLINE_REASON_MAX) {
     throw new Error(
       `Please enter a reason between ${COMPLIANCE_DECLINE_REASON_MIN} and ${COMPLIANCE_DECLINE_REASON_MAX} characters.`,
     );

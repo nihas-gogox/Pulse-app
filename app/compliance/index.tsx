@@ -93,6 +93,9 @@ function StageChip({
   );
 }
 
+/** Window in which a retried Decline submit reuses its idempotency key. */
+const DECLINE_KEY_REUSE_MS = 2 * 60 * 1000;
+
 export default function ComplianceScreen() {
   const layout = useLayoutInsets();
   const { width, height: windowHeight } = useWindowDimensions();
@@ -140,10 +143,12 @@ export default function ComplianceScreen() {
     [canMarkVerified, syncChange, user?.uid],
   );
   /**
-   * One idempotency key per (trip, reason) submit, kept until success so a retry
-   * after a network failure is deduped server-side. A different reason gets a new key.
+   * One idempotency key per (trip, reason) submit, kept until success so a quick
+   * retry after a network failure is deduped server-side. A different reason, or a
+   * retry after DECLINE_KEY_REUSE_MS, gets a new key (so a later re-decline with the
+   * same text is never silently skipped).
    */
-  const declineKeysRef = useRef(new Map<string, { reason: string; key: string }>());
+  const declineKeysRef = useRef(new Map<string, { reason: string; key: string; at: number }>());
   const declineTrip = useCallback(
     async (tripId: string, reason: string) => {
       if (!canMarkVerified) {
@@ -154,13 +159,20 @@ export default function ComplianceScreen() {
       }
       const trimmed = reason.trim();
       const keys = declineKeysRef.current;
+      const now = Date.now();
       let entry = keys.get(tripId);
-      if (!entry || entry.reason !== trimmed) {
-        entry = { reason: trimmed, key: `${tripId}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}` };
+      if (!entry || entry.reason !== trimmed || now - entry.at > DECLINE_KEY_REUSE_MS) {
+        entry = { reason: trimmed, key: `${tripId}:${now}:${Math.random().toString(36).slice(2, 10)}`, at: now };
         keys.set(tripId, entry);
       }
-      // Throws a user-facing Error; the decline modal shows it and keeps the reason.
-      await declineTripCompliance({ tripId, reason: trimmed, idempotencyKey: entry.key });
+      try {
+        await declineTripCompliance({ tripId, reason: trimmed, idempotencyKey: entry.key });
+      } catch (error) {
+        // e.g. someone else verified it meanwhile — refresh this trip's flags so the
+        // row catches up, then let the modal show the (user-facing) error.
+        void syncChange({ type: "tripFlags", tripId }).catch(() => undefined);
+        throw error;
+      }
       keys.delete(tripId);
       await syncChange({ type: "complianceDeclined", tripId, actorId: user.uid, reason: trimmed });
       // Defer so the modal can close first (web alert blocks).
