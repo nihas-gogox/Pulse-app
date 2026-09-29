@@ -3698,11 +3698,11 @@ export default function TripDetailScreen({
 
   const showOdometerVerification =
     isDcoOperatingTrip(trip) || isAssetExecutionTrip(trip);
-  const expenseHubDensity = isDesktop ? "comfortable" : "compact";
+  const expenseHubDensity = "compact";
   const odometerPreviewEl = showOdometerVerification ? (
     <TripOdometerPreviewCard
       trip={trip}
-      compact={!isDesktop}
+      compact
       density={expenseHubDensity}
       onRecordStart={() => openOdometerVerification("start")}
       onRecordEnd={() => openOdometerVerification("end")}
@@ -4350,12 +4350,13 @@ export default function TripDetailScreen({
                               <ScrollView
                                 style={[
                                   neoStyles.financeLedgerPreviewScroll,
-                                  isDesktop && neoStyles.financeLedgerBesideHeroScroll,
+                                  isDesktop && neoStyles.financeLedgerPreviewScrollDesktop,
                                 ]}
                                 contentContainerStyle={
                                   neoStyles.financeLedgerPreviewScrollContent
                                 }
-                                nestedScrollEnabled
+                                nestedScrollEnabled={!isDesktop}
+                                scrollEnabled={!isDesktop}
                                 showsVerticalScrollIndicator={false}
                               >
                                 {ledgerEntries.length === 0 && ledgerEntriesLoading ? (
@@ -5237,46 +5238,34 @@ export default function TripDetailScreen({
                     );
                   })}
                 </View>
-                {activeTab === "finance" ? (
-                  <View style={neoStyles.financeSubTabs}>
-                    {(["summary", "transactions"] as const).map((sub) => {
-                      const active = financeSubTab === sub;
-                      return (
-                        <TouchableOpacity
-                          key={sub}
-                          style={neoStyles.financeSubTab}
-                          onPress={() => setFinanceSubTab(sub)}
-                          activeOpacity={0.86}
-                        >
-                          <Text
-                            style={[
-                              neoStyles.financeSubTabText,
-                              isDesktop && neoStyles.financeSubTabTextDesktop,
-                              active && neoStyles.financeSubTabTextActive,
-                            ]}
-                          >
-                            {sub}
-                          </Text>
-                          {active ? <View style={neoStyles.financeSubLine} /> : null}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                ) : null}
-                {activeTab !== "trip" && !(activeTab === "finance" && isDesktop) ? (
+                {activeTab !== "trip" &&
+                !(
+                  isDesktop &&
+                  (activeTab === "finance" ||
+                    activeTab === "expenses" ||
+                    activeTab === "docs")
+                ) ? (
                   routeHeroEl
                 ) : null}
 
             <View
               style={[
                 neoStyles.grid,
-                activeTab === "finance" && isDesktop && neoStyles.gridFinance,
+                isDesktop &&
+                  (activeTab === "finance" ||
+                    activeTab === "expenses" ||
+                    activeTab === "docs") &&
+                  neoStyles.gridFinance,
               ]}
             >
               <View
                 style={[
                   neoStyles.mainCol,
-                  activeTab === "finance" && isDesktop && neoStyles.mainColFinance,
+                  isDesktop &&
+                    (activeTab === "finance" ||
+                      activeTab === "expenses" ||
+                      activeTab === "docs") &&
+                    neoStyles.mainColFinance,
                 ]}
               >
                 {activeTab === "trip" ? (
@@ -5624,6 +5613,7 @@ export default function TripDetailScreen({
                           <View style={neoStyles.trackingAssetSlot}>
                             <ManifestRefAssetCard
                               desktop
+                              fill
                               roleLabel="Driver"
                               primaryText={allocatedDriverName}
                               variant="driver"
@@ -5636,12 +5626,13 @@ export default function TripDetailScreen({
                               driverId={trip.driver_id}
                               showChange={canChangeManifestAssets}
                               onChange={() => openAssignmentFlow("driver")}
-                              style={neoStyles.assetCardWrap}
+                              style={[neoStyles.assetCardWrap, neoStyles.assetCardWrapFill]}
                             />
                           </View>
                           <View style={neoStyles.trackingAssetSlot}>
                             <ManifestRefAssetCard
                               desktop
+                              fill
                               roleLabel="Vehicle"
                               primaryText={allocatedVehicleLabel}
                               variant="vehicle"
@@ -5650,7 +5641,7 @@ export default function TripDetailScreen({
                               insightsLoading={manifestRefAssetInsights.isLoading}
                               showChange={canChangeManifestAssets}
                               onChange={() => openAssignmentFlow("vehicle")}
-                              style={neoStyles.assetCardWrap}
+                              style={[neoStyles.assetCardWrap, neoStyles.assetCardWrapFill]}
                             />
                           </View>
                           <View style={neoStyles.trackingPodSlot}>
@@ -6319,6 +6310,7 @@ export default function TripDetailScreen({
                       isDesktop && neoStyles.expenseHubStackDesktop,
                     ]}
                   >
+                    {isDesktop ? routeHeroEl : null}
                     {odometerPreviewEl}
                     <Suspense fallback={<ActivityIndicator style={{ margin: 24 }} color="#818cf8" />}>
                     <TripExpensesScreen
@@ -6362,7 +6354,13 @@ export default function TripDetailScreen({
                     </Suspense>
                   </View>
                 ) : (
-                  <View>
+                  <View
+                    style={[
+                      neoStyles.vaultStack,
+                      isDesktop && neoStyles.vaultStackDesktop,
+                    ]}
+                  >
+                    {isDesktop ? routeHeroEl : null}
                     {canUploadTripDocs ? (
                       <Text style={neoStyles.vaultLimitsHint}>
                         {VAULT_DOC_LIMIT_HINT}
@@ -6382,6 +6380,8 @@ export default function TripDetailScreen({
                       canUploadEwayBill={canUploadTripDocs}
                       canEditEwayBill={canUploadTripDocs}
                       onSaveEwayBill={saveEwayBillFields}
+                      columns={isDesktop ? 2 : 3}
+                      compact={isDesktop}
                     />
                   </View>
                 )}
@@ -6391,101 +6391,159 @@ export default function TripDetailScreen({
               <View
                 style={[
                   neoStyles.sideCol,
-                  activeTab === "finance" && isDesktop && neoStyles.sideColFinance,
+                  isDesktop &&
+                    (activeTab === "finance" ||
+                      activeTab === "expenses" ||
+                      activeTab === "docs") &&
+                    neoStyles.sideColFinance,
                 ]}
               >
-                {activeTab === "finance" &&
-                financeSubTab === "summary" &&
-                isDesktop
-                  ? financeLedgerPreviewEl
-                  : null}
-                <View
-                  style={[
-                    neoStyles.sideCard,
-                    activeTab === "finance" && isDesktop && neoStyles.sideCardFinance,
-                  ]}
-                >
-                  <View
-                    style={[
-                      neoStyles.sideSection,
-                      activeTab === "finance" && isDesktop && neoStyles.sideSectionFinance,
-                    ]}
-                  >
-                    <View style={neoStyles.sideHeading}>
-                      <Feather name="activity" size={15} color={Theme.textMuted} />
-                      <Text style={neoStyles.sideHeadingText}>
-                        Manifest Assets
-                      </Text>
+                {(() => {
+                  const sideRailDesktop =
+                    isDesktop &&
+                    (activeTab === "finance" ||
+                      activeTab === "expenses" ||
+                      activeTab === "docs");
+                  const showLedgerInRail =
+                    activeTab === "finance" && financeSubTab === "summary" && isDesktop;
+                  const manifestAssetsCard = (
+                    <View
+                      style={[
+                        neoStyles.sideCard,
+                        sideRailDesktop && neoStyles.sideCardFinance,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          neoStyles.sideSection,
+                          sideRailDesktop && neoStyles.sideSectionFinance,
+                        ]}
+                      >
+                        <View style={neoStyles.sideHeading}>
+                          <Feather name="activity" size={14} color={Theme.textMuted} />
+                          <Text style={neoStyles.sideHeadingText}>
+                            Manifest Assets
+                          </Text>
+                        </View>
+                        <ManifestRefAssetCard
+                          desktop
+                          roleLabel="Driver"
+                          primaryText={allocatedDriverName}
+                          variant="driver"
+                          phone={detail.driverPhone}
+                          ratingAvg={manifestDriverInsights.ratingAvg}
+                          docsIssue={manifestDriverInsights.docsIssue}
+                          insightsLoading={manifestRefAssetInsights.isLoading}
+                          driverName={detail.driverName}
+                          driverAvatarUrl={detail.driverAvatarUri}
+                          driverId={trip.driver_id}
+                          showChange={canChangeManifestAssets}
+                          onChange={() => openAssignmentFlow("driver")}
+                          style={[
+                            neoStyles.assetCardWrap,
+                            sideRailDesktop && neoStyles.assetCardWrapFinance,
+                          ]}
+                        />
+                        <ManifestRefAssetCard
+                          desktop
+                          roleLabel="Vehicle"
+                          primaryText={allocatedVehicleLabel}
+                          variant="vehicle"
+                          vehicleType={vehicleTypeLabel}
+                          docsIssue={manifestVehicleInsights.docsIssue}
+                          insightsLoading={manifestRefAssetInsights.isLoading}
+                          showChange={canChangeManifestAssets}
+                          onChange={() => openAssignmentFlow("vehicle")}
+                          style={[
+                            neoStyles.assetCardWrap,
+                            sideRailDesktop && neoStyles.assetCardWrapFinance,
+                          ]}
+                        />
+                        <HardCopyPodStatusCard
+                          state={hardCopyPodState}
+                          canManage={canManageHardCopyPod}
+                          tripCompleted={tripCompleted}
+                          onViewDetails={() => openHardCopyPodModal("view")}
+                          onUpdatePod={() => openHardCopyPodModal("mark_received")}
+                          onLogPod={() => openHardCopyPodModal("create")}
+                          style={
+                            sideRailDesktop
+                              ? neoStyles.assetCardWrapFinance
+                              : neoStyles.assetCardWrap
+                          }
+                        />
+                      </View>
                     </View>
-                    <ManifestRefAssetCard
-                      desktop
-                      roleLabel="Driver"
-                      primaryText={allocatedDriverName}
-                      variant="driver"
-                      phone={detail.driverPhone}
-                      ratingAvg={manifestDriverInsights.ratingAvg}
-                      docsIssue={manifestDriverInsights.docsIssue}
-                      insightsLoading={manifestRefAssetInsights.isLoading}
-                      driverName={detail.driverName}
-                      driverAvatarUrl={detail.driverAvatarUri}
-                      driverId={trip.driver_id}
-                showChange={canChangeManifestAssets}
-                      onChange={() => openAssignmentFlow("driver")}
+                  );
+                  const reviewsCard = canTripRatings ? (
+                    <View
                       style={[
-                        neoStyles.assetCardWrap,
-                        activeTab === "finance" && isDesktop && neoStyles.assetCardWrapFinance,
+                        neoStyles.sideCard,
+                        neoStyles.feedbackSideCard,
+                        sideRailDesktop && neoStyles.sideCardFinance,
                       ]}
-                    />
-                    <ManifestRefAssetCard
-                      desktop
-                      roleLabel="Vehicle"
-                      primaryText={allocatedVehicleLabel}
-                      variant="vehicle"
-                      vehicleType={vehicleTypeLabel}
-                      docsIssue={manifestVehicleInsights.docsIssue}
-                      insightsLoading={manifestRefAssetInsights.isLoading}
-                      showChange={canChangeManifestAssets}
-                      onChange={() => openAssignmentFlow("vehicle")}
-                      style={[
-                        neoStyles.assetCardWrap,
-                        activeTab === "finance" && isDesktop && neoStyles.assetCardWrapFinance,
-                      ]}
-                    />
-                    <HardCopyPodStatusCard
-                      state={hardCopyPodState}
-                      canManage={canManageHardCopyPod}
-                      tripCompleted={tripCompleted}
-                      onViewDetails={() => openHardCopyPodModal("view")}
-                      onUpdatePod={() => openHardCopyPodModal("mark_received")}
-                      onLogPod={() => openHardCopyPodModal("create")}
-                    />
-                  </View>
-                </View>
-
-                {canTripRatings ? (
-                <View style={[neoStyles.sideCard, neoStyles.feedbackSideCard]}>
-                  <TripRatingsBlock
-                    trip={trip}
-                    organizationId={currentOrganization?.id ?? null}
-                    partnerName={detail.partnerName}
-                    driverName={detail.driverName}
-                    driverAvatarUri={detail.driverAvatarUri}
-                    clientName={
-                      detail.displayClientName ?? trip.client_name ?? null
-                    }
-                    clientPartyAvatarFields={detail.clientPartyAvatarFields}
-                    supplierPartyAvatarFields={detail.supplierPartyAvatarFields}
-                    paymentCaptured={detail.tripLedgerEntries.some(
-                      (row) =>
-                        row.contact_type === "client" &&
-                        Number(row.amount_in ?? 0) > 0,
-                    )}
-                    layoutVariant="registry"
-                    embeddedSidebar
-                    skipHistoricalPartyRatings={tripCompleted}
-                  />
-                </View>
-                ) : null}
+                    >
+                      <View style={neoStyles.sideHeading}>
+                        <Feather name="star" size={14} color={Theme.textMuted} />
+                        <Text style={neoStyles.sideHeadingText}>Reviews</Text>
+                      </View>
+                      <TripRatingsBlock
+                        trip={trip}
+                        organizationId={currentOrganization?.id ?? null}
+                        partnerName={detail.partnerName}
+                        driverName={detail.driverName}
+                        driverAvatarUri={detail.driverAvatarUri}
+                        clientName={
+                          detail.displayClientName ?? trip.client_name ?? null
+                        }
+                        clientPartyAvatarFields={detail.clientPartyAvatarFields}
+                        supplierPartyAvatarFields={detail.supplierPartyAvatarFields}
+                        paymentCaptured={detail.tripLedgerEntries.some(
+                          (row) =>
+                            row.contact_type === "client" &&
+                            Number(row.amount_in ?? 0) > 0,
+                        )}
+                        layoutVariant="registry"
+                        embeddedSidebar
+                        skipHistoricalPartyRatings={tripCompleted}
+                      />
+                    </View>
+                  ) : null;
+                  const sideStack = (
+                    <>
+                      {manifestAssetsCard}
+                      {reviewsCard}
+                      {showLedgerInRail ? financeLedgerPreviewEl : null}
+                    </>
+                  );
+                  if (!sideRailDesktop) return sideStack;
+                  // Web: native overflow panel so Manifest / Reviews / Ledger
+                  // scroll together inside the viewport rail (no nested page fight).
+                  if (Platform.OS === "web") {
+                    return (
+                      <View style={neoStyles.sideColFinancePanel}>
+                        <View style={neoStyles.sideColFinanceScrollWeb}>
+                          <View style={neoStyles.sideColFinanceScrollContent}>
+                            {sideStack}
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  }
+                  return (
+                    <View style={neoStyles.sideColFinancePanel}>
+                      <ScrollView
+                        style={neoStyles.sideColFinanceScroll}
+                        contentContainerStyle={neoStyles.sideColFinanceScrollContent}
+                        nestedScrollEnabled
+                        showsVerticalScrollIndicator
+                        bounces
+                      >
+                        {sideStack}
+                      </ScrollView>
+                    </View>
+                  );
+                })()}
               </View>
               ) : null}
             </View>

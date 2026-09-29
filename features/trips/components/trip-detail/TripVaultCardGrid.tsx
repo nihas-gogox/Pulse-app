@@ -39,6 +39,8 @@ type Props = {
   onSaveEwayBill: (values: EwayFieldValues[]) => Promise<boolean>;
   /** Desktop Asset Vault is three cards across. Narrow screens use two. */
   columns?: 2 | 3;
+  /** Tighter cards for left-half desktop rail. */
+  compact?: boolean;
 };
 
 function opensVaultDialog(doc: TripDocItem): boolean {
@@ -80,11 +82,12 @@ export function TripVaultCardGrid({
   canEditEwayBill,
   onSaveEwayBill,
   columns = 3,
+  compact = false,
 }: Props) {
   const cards = docs.filter((doc) => !isEwayBillVaultDoc(doc));
 
   return (
-    <View style={neoStyles.vaultGrid}>
+    <View style={[neoStyles.vaultGrid, compact && neoStyles.vaultGridCompact]}>
       {cards.map((doc) => {
         const isUploadingThis = uploadingDocId === doc.id;
         const dialog = opensVaultDialog(doc);
@@ -97,6 +100,7 @@ export function TripVaultCardGrid({
             style={[
               neoStyles.vaultCard,
               columns === 2 && neoStyles.vaultCardHalf,
+              compact && neoStyles.vaultCardCompact,
             ]}
           >
             <TouchableOpacity
@@ -109,22 +113,31 @@ export function TripVaultCardGrid({
             >
               <Feather
                 name={!previewReady ? "upload-cloud" : "file-text"}
-                size={34}
+                size={compact ? 22 : 34}
                 color={!previewReady ? Theme.textMuted : Theme.textSecondary}
               />
-              <Text style={neoStyles.vaultTitle} numberOfLines={2}>
+              <Text
+                style={[neoStyles.vaultTitle, compact && neoStyles.vaultTitleCompact]}
+                numberOfLines={2}
+              >
                 {doc.label}
               </Text>
-              <Text style={neoStyles.vaultSub} numberOfLines={2}>
+              <Text
+                style={[neoStyles.vaultSub, compact && neoStyles.vaultSubCompact]}
+                numberOfLines={2}
+              >
                 {statusLabel}
               </Text>
             </TouchableOpacity>
-            <View style={neoStyles.vaultBtnRow}>
+            <View
+              style={[neoStyles.vaultBtnRow, compact && neoStyles.vaultBtnRowCompact]}
+            >
               <TouchableOpacity
                 onPress={() => onOpen(doc)}
                 style={[
                   neoStyles.vaultBtn,
                   neoStyles.vaultBtnFlex,
+                  compact && neoStyles.vaultBtnCompact,
                   !previewReady && neoStyles.vaultBtnPreviewIdle,
                 ]}
                 activeOpacity={0.85}
@@ -149,12 +162,13 @@ export function TripVaultCardGrid({
                   <>
                     <Feather
                       name="eye"
-                      size={12}
+                      size={compact ? 11 : 12}
                       color={previewReady ? Theme.buttonDarkText : Theme.textMuted}
                     />
                     <Text
                       style={[
                         neoStyles.vaultBtnText,
+                        compact && neoStyles.vaultBtnTextCompact,
                         !previewReady && neoStyles.vaultBtnTextDisabled,
                       ]}
                     >
@@ -170,13 +184,24 @@ export function TripVaultCardGrid({
                     neoStyles.vaultBtn,
                     neoStyles.vaultBtnUpload,
                     neoStyles.vaultBtnFlex,
+                    compact && neoStyles.vaultBtnCompact,
                   ]}
                   activeOpacity={0.85}
                   disabled={isUploadingThis}
                   accessibilityLabel={`Add ${doc.label}`}
                 >
-                  <Feather name="plus" size={12} color={Theme.buttonPrimaryText} />
-                  <Text style={[neoStyles.vaultBtnText, neoStyles.vaultBtnTextUpload]}>
+                  <Feather
+                    name="plus"
+                    size={compact ? 11 : 12}
+                    color={Theme.buttonPrimaryText}
+                  />
+                  <Text
+                    style={[
+                      neoStyles.vaultBtnText,
+                      neoStyles.vaultBtnTextUpload,
+                      compact && neoStyles.vaultBtnTextCompact,
+                    ]}
+                  >
                     Add
                   </Text>
                 </TouchableOpacity>

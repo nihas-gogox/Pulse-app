@@ -39,6 +39,8 @@ type Props = {
   onChange?: () => void;
   style?: StyleProp<ViewStyle>;
   desktop?: boolean;
+  /** Stretch to fill a flex parent (Journey Log equal-height slots). */
+  fill?: boolean;
 };
 
 function formatDriverDisplayName(value: string): string {
@@ -191,6 +193,7 @@ export function ManifestRefAssetCard({
   onChange,
   style,
   desktop = false,
+  fill = false,
 }: Props) {
   const displayPrimary =
     variant === "driver"
@@ -221,8 +224,14 @@ export function ManifestRefAssetCard({
   const avatarSize = desktop ? AVATAR_SIZE_DESKTOP : AVATAR_SIZE;
 
   return (
-    <View style={[styles.card, desktop && styles.cardDesktop, style]}>
-      <View style={styles.headerRow}>
+    <View
+      style={[
+        styles.card,
+        desktop && styles.cardDesktop,
+        fill && styles.cardFill,
+        style,
+      ]}
+    >      <View style={styles.headerRow}>
         <Text
           style={[styles.roleLabel, desktop && styles.roleLabelDesktop]}
           numberOfLines={1}
@@ -324,8 +333,12 @@ export function ManifestRefAssetCard({
 
 const styles = StyleSheet.create({
   card: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "auto",
     minWidth: 0,
+    width: "100%",
+    alignSelf: "stretch",
     borderRadius: 14,
     backgroundColor: Theme.cardWhite,
     borderWidth: StyleSheet.hairlineWidth,
@@ -348,17 +361,19 @@ const styles = StyleSheet.create({
     }),
   },
   cardDesktop: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "auto",
     width: "100%",
+    alignSelf: "stretch",
     paddingHorizontal: 8,
-    paddingTop: 6,
-    paddingBottom: 6,
+    paddingTop: 8,
+    paddingBottom: 8,
     borderRadius: 8,
-    gap: 4,
+    gap: 6,
     backgroundColor: Theme.surfaceGray,
     borderWidth: 1,
     borderColor: Theme.borderLight,
-    justifyContent: "center",
     ...Platform.select({
       web: {
         boxShadow: "none",
@@ -368,6 +383,13 @@ const styles = StyleSheet.create({
         elevation: 0,
       },
     }),
+  },
+  cardFill: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minHeight: 0,
+    justifyContent: "center",
   },
   headerRow: {
     flexDirection: "row",

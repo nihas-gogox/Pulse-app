@@ -192,6 +192,9 @@ export function LogHardCopyPodModal({
       if (!courierName.trim()) next.courierName = "Courier name is required.";
       if (!awbNumber.trim()) next.awbNumber = "Tracking / AWB number is required.";
       if (!dispatchDate.trim()) next.dispatchDate = "Dispatch date is required.";
+      if (!expectedDeliveryDate.trim()) {
+        next.expectedDeliveryDate = "Received delivery date is required.";
+      }
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -199,6 +202,7 @@ export function LogHardCopyPodModal({
     awbNumber,
     courierName,
     dispatchDate,
+    expectedDeliveryDate,
     method,
     receivedBy,
     receivedDate,
@@ -218,7 +222,7 @@ export function LogHardCopyPodModal({
       Alert.alert(
         "Hard Copy POD",
         method === "courier"
-          ? "Enter the courier name, tracking number, and dispatch date."
+          ? "Enter courier name, tracking number, dispatch date, and received delivery date."
           : "Enter who received the POD and the received date.",
       );
       return;
@@ -691,8 +695,17 @@ export function LogHardCopyPodModal({
                       <View style={styles.dateTimeCol}>
                         <HardCopyPodDateField
                           label="Received Delivery Date"
+                          required
                           value={expectedDeliveryDate}
-                          onChange={setExpectedDeliveryDate}
+                          onChange={(iso) => {
+                            setExpectedDeliveryDate(iso);
+                            setErrors((current) => {
+                              if (!current.expectedDeliveryDate) return current;
+                              const { expectedDeliveryDate: _removed, ...rest } = current;
+                              return rest;
+                            });
+                          }}
+                          error={errors.expectedDeliveryDate}
                         />
                       </View>
                     </View>
