@@ -737,37 +737,36 @@ export function ComplianceDocumentWorkspace({
   const entityUnassigned =
     (tab === "vehicle" && !summary?.trip.vehicle_id) ||
     (tab === "driver" && !summary?.trip.driver_id);
-  const showVaultChecklist =
-    !entityUnassigned &&
-    rows.length > 0 &&
-    (tab !== "trip" || isPendingDocsTrip) &&
-    (missingUploadRows.length > 0 || rows.some(hasFile));
+  /** Same dual-pane shell (tabs + upload pill + list | preview) on every tab and stage. */
+  const showDocumentShell = Boolean(summary);
   const showEntityUnassigned = Boolean(summary && entityUnassigned);
-  const checklistRows = showVaultChecklist ? rows : [];
+  /** Trip/Vehicle/Driver list always uses vault rows inside the shared shell. */
+  const checklistRows = useMemo(() => {
+    if (!showDocumentShell || showEntityUnassigned) return [];
+    return rows;
+  }, [showDocumentShell, showEntityUnassigned, rows]);
   const financeRows = useMemo(
     () => (summary ? deriveFinanceDocumentRows(summary.documents) : []),
     [summary],
   );
   const checklistSelectedRow = useMemo(() => {
-    if (!showVaultChecklist) return null;
+    if (!showDocumentShell || showEntityUnassigned) return null;
     return (
       checklistRows.find((row) => row.key === checklistKey) ??
       financeRows.find((row) => row.key === checklistKey) ??
       null
     );
-  }, [showVaultChecklist, checklistRows, financeRows, checklistKey]);
+  }, [showDocumentShell, showEntityUnassigned, checklistRows, financeRows, checklistKey]);
   const previewable = useMemo(() => {
-    if (showEntityUnassigned) return [];
-    if (showVaultChecklist) return checklistRows.filter(hasFile);
-    return rows.filter(hasFile);
-  }, [rows, showVaultChecklist, showEntityUnassigned, checklistRows]);
-  const activeRow = showEntityUnassigned
+    if (!showDocumentShell || showEntityUnassigned) return [];
+    if (checklistPreviewMode === "finance") return financeRows.filter(hasFile);
+    return checklistRows.filter(hasFile);
+  }, [showDocumentShell, showEntityUnassigned, checklistPreviewMode, financeRows, checklistRows]);
+  const activeRow = !showDocumentShell || showEntityUnassigned
     ? null
-    : showVaultChecklist
-      ? checklistSelectedRow && hasFile(checklistSelectedRow)
-        ? checklistSelectedRow
-        : null
-      : previewable[docIndex] ?? rows[docIndex] ?? null;
+    : checklistSelectedRow && hasFile(checklistSelectedRow)
+      ? checklistSelectedRow
+      : null;
   const effectiveActiveRow = useMemo(() => {
     if (!activeRow) return null;
     return applyOptimisticDecision(activeRow, localDecisionByKey[activeRow.key]);
@@ -803,17 +802,18 @@ export function ComplianceDocumentWorkspace({
   }, [summary?.trip.id, tab]);
 
   useEffect(() => {
-    if (!showVaultChecklist) {
+    if (!showDocumentShell || showEntityUnassigned) {
       setChecklistKey(null);
       return;
     }
     setChecklistKey((prev) => {
       if (prev && checklistRows.some((row) => row.key === prev)) return prev;
+      if (prev && financeRows.some((row) => row.key === prev)) return prev;
       const firstWithFile = checklistRows.find(hasFile);
       const firstMissing = checklistRows.find((row) => row.status === "missing");
       return firstWithFile?.key ?? firstMissing?.key ?? checklistRows[0]?.key ?? null;
     });
-  }, [showVaultChecklist, checklistRows, summary?.trip.id, tab]);
+  }, [showDocumentShell, showEntityUnassigned, checklistRows, financeRows, summary?.trip.id, tab]);
 
   const activePreviewPath =
     activeRow?.doc?.storage_path ?? activeRow?.entityDoc?.storage_path ?? null;
@@ -915,11 +915,37 @@ export function ComplianceDocumentWorkspace({
 
   const goNext = () => {
     if (previewable.length === 0) return;
+    if (showDocumentShell) {
+      const current = Math.max(
+        0,
+        previewable.findIndex((row) => row.key === checklistKey),
+      );
+      const next = previewable[(current + 1) % previewable.length];
+      if (next) {
+        setChecklistKey(next.key);
+        setChecklistPreviewMode("document");
+      }
+      setZoom(1);
+      return;
+    }
     setDocIndex((index) => (index + 1) % previewable.length);
     setZoom(1);
   };
   const goPrev = () => {
     if (previewable.length === 0) return;
+    if (showDocumentShell) {
+      const current = Math.max(
+        0,
+        previewable.findIndex((row) => row.key === checklistKey),
+      );
+      const prev = previewable[(current - 1 + previewable.length) % previewable.length];
+      if (prev) {
+        setChecklistKey(prev.key);
+        setChecklistPreviewMode("document");
+      }
+      setZoom(1);
+      return;
+    }
     setDocIndex((index) => (index - 1 + previewable.length) % previewable.length);
     setZoom(1);
   };
@@ -931,11 +957,23 @@ export function ComplianceDocumentWorkspace({
       setDeclineOpen(false);
       setBusy(false);
       if (previewable.length > 1) {
-        setDocIndex((index) => (index + 1) % previewable.length);
+        if (showDocumentShell) {
+          const current = Math.max(
+            0,
+            previewable.findIndex((item) => item.key === row.key),
+          );
+          const next = previewable[(current + 1) % previewable.length];
+          if (next) {
+            setChecklistKey(next.key);
+            setChecklistPreviewMode("document");
+          }
+        } else {
+          setDocIndex((index) => (index + 1) % previewable.length);
+        }
         setZoom(1);
       }
     },
-    [previewable.length],
+    [previewable, showDocumentShell],
   );
 
   const promptExpiryDate = useCallback((docType: string) => {
@@ -1248,93 +1286,8 @@ export function ComplianceDocumentWorkspace({
       </View>
 
       <View style={styles.previewPane}>
-        {!showVaultChecklist ? (
-        <View style={styles.tabRow}>
-          <View style={styles.tabGroup}>
-            {TABS.map((item) => {
-              const active = tab === item.key;
-              const missingCount = tabMissingCounts[item.key];
-              const showTabBadge =
-                missingCount > 0 &&
-                (item.key !== "trip" || isPendingDocsTrip);
-              return (
-                <Pressable
-                  key={item.key}
-                  onPress={() => setTab(item.key)}
-                  style={[styles.tab, active && styles.tabActive]}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: active }}
-                >
-                  <Text style={[styles.tabText, active && styles.tabTextActive]}>{item.label}</Text>
-                  {showTabBadge ? (
-                    <View style={[styles.tabBadge, active && styles.tabBadgeActive]}>
-                      <Text style={[styles.tabBadgeText, active && styles.tabBadgeTextActive]}>
-                        {missingCount}
-                      </Text>
-                    </View>
-                  ) : null}
-                </Pressable>
-              );
-            })}
-          </View>
-          <View style={styles.previewTools}>
-            {canManagePod && !isPendingDocsTrip ? (
-              <Pressable
-                style={[styles.podBtn, !summary && styles.btnDisabled]}
-                disabled={!summary}
-                onPress={() => setPodOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Log hardcopy POD"
-              >
-                <Text style={styles.podBtnText} numberOfLines={1}>
-                  Log hardcopy POD
-                </Text>
-              </Pressable>
-            ) : null}
-            {showEntityUnassigned ? (
-              <View style={styles.missingNavPill}>
-                <Text style={styles.missingNavLabel} numberOfLines={1}>
-                  Unassigned
-                </Text>
-              </View>
-            ) : (
-              <>
-                <View style={styles.navPill}>
-                  <Pressable onPress={goPrev} hitSlop={8} accessibilityLabel="Previous document" disabled={previewable.length < 2}>
-                    <ChevronLeft size={12} color={Theme.textPrimaryDark} />
-                  </Pressable>
-                  <Text style={styles.navLabel} numberOfLines={1}>{docTitle}</Text>
-                  <Pressable onPress={goNext} hitSlop={8} accessibilityLabel="Next document" disabled={previewable.length < 2}>
-                    <ChevronRight size={12} color={Theme.textPrimaryDark} />
-                  </Pressable>
-                </View>
-                <View style={styles.zoomBar}>
-                  <Pressable style={styles.zoomBtn} onPress={() => setZoom((value) => Math.max(0.6, Number((value - 0.2).toFixed(2))))} accessibilityLabel="Zoom out">
-                    <Minus size={12} color={Theme.textPrimaryDark} />
-                  </Pressable>
-                  <Text style={styles.zoomLabel}>{Math.round(zoom * 100)}%</Text>
-                  <Pressable style={styles.zoomBtn} onPress={() => setZoom((value) => Math.min(2.4, Number((value + 0.2).toFixed(2))))} accessibilityLabel="Zoom in">
-                    <Plus size={12} color={Theme.textPrimaryDark} />
-                  </Pressable>
-                  <Pressable style={styles.zoomBtn} onPress={() => setZoom(1)} accessibilityLabel="Reset zoom">
-                    <RotateCcw size={12} color={Theme.textPrimaryDark} />
-                  </Pressable>
-                </View>
-              </>
-            )}
-          </View>
-        </View>
-        ) : null}
-
         <View style={styles.stage}>
-          {showEntityUnassigned ? (
-            <View style={styles.emptyStage}>
-              <View style={styles.missingHeader}>
-                <Text style={styles.missingTitle}>{vaultCopy.unassignedTitle}</Text>
-                <Text style={styles.missingHint}>{vaultCopy.unassignedHint}</Text>
-              </View>
-            </View>
-          ) : showVaultChecklist ? (
+          {showDocumentShell ? (
             <View style={[styles.checklistStage, stacked && styles.checklistStageStacked]}>
               <View style={[styles.checklistListPane, stacked && styles.checklistListPaneStacked]}>
                 <View style={styles.checklistPanelToolbar}>
@@ -1383,15 +1336,14 @@ export function ComplianceDocumentWorkspace({
                     {TABS.map((item) => {
                       const active = tab === item.key && checklistPreviewMode !== "finance";
                       const missingCount = tabMissingCounts[item.key];
-                      const showTabBadge =
-                        missingCount > 0 &&
-                        (item.key !== "trip" || isPendingDocsTrip);
                       return (
                         <Pressable
                           key={item.key}
                           onPress={() => {
                             setTab(item.key);
                             setChecklistPreviewMode("document");
+                            setZoom(1);
+                            setScreenOpen(false);
                           }}
                           style={[
                             styles.tab,
@@ -1411,7 +1363,7 @@ export function ComplianceDocumentWorkspace({
                           >
                             {item.label}
                           </Text>
-                          {showTabBadge ? (
+                          {missingCount > 0 ? (
                             <View
                               style={[
                                 styles.tabBadge,
@@ -1436,172 +1388,220 @@ export function ComplianceDocumentWorkspace({
                   </View>
                   <View style={[styles.missingNavPill, styles.checklistUploadPill]}>
                     <Text style={[styles.missingNavLabel, styles.checklistUploadPillText]} numberOfLines={1}>
-                      {missingUploadRows.length > 0
-                        ? `${missingUploadRows.length} to upload`
-                        : `${uploadedCount} on file`}
+                      {showEntityUnassigned
+                        ? "Unassigned"
+                        : missingUploadRows.length > 0
+                          ? `${missingUploadRows.length} to upload`
+                          : `${uploadedCount} on file`}
                     </Text>
                   </View>
                 </View>
-                <View style={styles.missingHeader}>
-                  <Text style={styles.missingTitle}>DOCUMENTS TO UPLOAD</Text>
-                  <Text style={styles.missingSubtitle} numberOfLines={1}>
-                    {missingHeadline}
-                  </Text>
-                  <Text style={styles.missingHint} numberOfLines={2}>
-                    {missingSubline}
-                  </Text>
-                </View>
-                <ScrollView
-                  style={styles.checklistListScroll}
-                  contentContainerStyle={styles.checklistListContent}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {checklistRows.map((row, index) => {
-                    const rowHasFile = hasFile(row);
-                    const statusMeta = COMPLIANCE_STATUS_META[row.status];
-                    const selected = checklistKey === row.key;
-                    const uploadLabel = row.status === "missing" ? "Upload" : "Replace";
-                    const statusLabel =
-                      row.status === "missing"
-                        ? "Not uploaded yet"
-                        : rowHasFile
-                          ? `${statusMeta.label} · ready to preview`
-                          : statusMeta.label;
-                    return (
-                      <View
-                        key={row.key}
-                        style={[
-                          styles.missingRow,
-                          index > 0 && styles.missingRowBorder,
-                          selected && styles.missingRowSelected,
-                        ]}
-                      >
-                        <Pressable
-                          style={styles.missingRowCopy}
-                          onPress={() => previewChecklistRow(row)}
-                          accessibilityRole="button"
-                          accessibilityLabel={`${labelForDocType(row.type)} details`}
-                        >
-                          <View style={styles.missingTitleRow}>
-                            <Text style={styles.missingDocName} numberOfLines={1}>
-                              {labelForDocType(row.type).toUpperCase()}
-                            </Text>
-                            <View
-                              style={[
-                                styles.missingScopeTag,
-                                row.required ? styles.missingScopeRequired : styles.missingScopeOptional,
-                              ]}
+                {showEntityUnassigned ? (
+                  <View style={styles.missingHeader}>
+                    <Text style={styles.missingTitle}>{vaultCopy.unassignedTitle}</Text>
+                    <Text style={styles.missingHint}>{vaultCopy.unassignedHint}</Text>
+                  </View>
+                ) : (
+                  <>
+                    <View style={styles.missingHeader}>
+                      <Text style={styles.missingTitle}>DOCUMENTS TO UPLOAD</Text>
+                      <Text style={styles.missingSubtitle} numberOfLines={1}>
+                        {missingHeadline}
+                      </Text>
+                      <Text style={styles.missingHint} numberOfLines={2}>
+                        {missingSubline}
+                      </Text>
+                    </View>
+                    <ScrollView
+                      style={styles.checklistListScroll}
+                      contentContainerStyle={styles.checklistListContent}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      {checklistRows.map((row, index) => {
+                        const rowHasFile = hasFile(row);
+                        const statusMeta = COMPLIANCE_STATUS_META[row.status];
+                        const selected =
+                          checklistPreviewMode === "document" && checklistKey === row.key;
+                        const uploadLabel = row.status === "missing" ? "Upload" : "Replace";
+                        const statusLabel =
+                          row.status === "missing"
+                            ? "Not uploaded yet"
+                            : rowHasFile
+                              ? `${statusMeta.label} · ready to preview`
+                              : statusMeta.label;
+                        return (
+                          <View
+                            key={row.key}
+                            style={[
+                              styles.missingRow,
+                              index > 0 && styles.missingRowBorder,
+                              selected && styles.missingRowSelected,
+                            ]}
+                          >
+                            <Pressable
+                              style={styles.missingRowCopy}
+                              onPress={() => previewChecklistRow(row)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`${labelForDocType(row.type)} details`}
                             >
+                              <View style={styles.missingTitleRow}>
+                                <Text style={styles.missingDocName} numberOfLines={1}>
+                                  {labelForDocType(row.type).toUpperCase()}
+                                </Text>
+                                <View
+                                  style={[
+                                    styles.missingScopeTag,
+                                    row.required ? styles.missingScopeRequired : styles.missingScopeOptional,
+                                  ]}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.missingScopeText,
+                                      row.required
+                                        ? styles.missingScopeTextRequired
+                                        : styles.missingScopeTextOptional,
+                                    ]}
+                                  >
+                                    {requirementScopeLabel(row.required)}
+                                  </Text>
+                                </View>
+                              </View>
                               <Text
                                 style={[
-                                  styles.missingScopeText,
-                                  row.required
-                                    ? styles.missingScopeTextRequired
-                                    : styles.missingScopeTextOptional,
+                                  styles.missingStatus,
+                                  row.status === "missing" ? null : { color: statusMeta.color },
                                 ]}
+                                numberOfLines={1}
                               >
-                                {requirementScopeLabel(row.required)}
+                                {statusLabel}
                               </Text>
+                            </Pressable>
+                            <View style={styles.missingRowActions}>
+                              <TouchableOpacity
+                                style={[styles.missingEyeBtn, !rowHasFile && styles.missingEyeBtnDisabled]}
+                                activeOpacity={0.75}
+                                disabled={!canViewDocuments || !rowHasFile}
+                                onPress={() => previewChecklistRow(row)}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Preview ${labelForDocType(row.type)}`}
+                                accessibilityState={{ disabled: !rowHasFile }}
+                              >
+                                <Eye
+                                  size={12}
+                                  color={rowHasFile ? Theme.textPrimaryDark : Theme.textMuted}
+                                  strokeWidth={2.2}
+                                />
+                              </TouchableOpacity>
+                              {onReviewTripDocs ? (
+                                <TouchableOpacity
+                                  style={styles.missingUploadBtn}
+                                  activeOpacity={0.8}
+                                  onPress={() => openVaultUpload(row.key)}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`${uploadLabel} ${labelForDocType(row.type)}`}
+                                >
+                                  <Upload size={11} color={Theme.cardWhite} strokeWidth={2.4} />
+                                  <Text style={styles.missingUploadBtnText}>{uploadLabel}</Text>
+                                </TouchableOpacity>
+                              ) : null}
                             </View>
                           </View>
+                        );
+                      })}
+                    </ScrollView>
+                    <View style={styles.checklistPreviewActionsSection}>
+                      <Text style={styles.checklistPreviewActionsLabel}>PREVIEW</Text>
+                      <View style={styles.checklistPreviewActionsRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.checklistModeBtn,
+                            checklistPreviewMode === "trip" && styles.checklistModeBtnActive,
+                          ]}
+                          activeOpacity={0.8}
+                          onPress={() => setChecklistPreviewMode("trip")}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: checklistPreviewMode === "trip" }}
+                          accessibilityLabel="Show trip details"
+                        >
                           <Text
                             style={[
-                              styles.missingStatus,
-                              row.status === "missing" ? null : { color: statusMeta.color },
+                              styles.checklistModeBtnText,
+                              checklistPreviewMode === "trip" && styles.checklistModeBtnTextActive,
                             ]}
                             numberOfLines={1}
                           >
-                            {statusLabel}
+                            Trip Detail
                           </Text>
-                        </Pressable>
-                        <View style={styles.missingRowActions}>
-                          <TouchableOpacity
-                            style={[styles.missingEyeBtn, !rowHasFile && styles.missingEyeBtnDisabled]}
-                            activeOpacity={0.75}
-                            disabled={!canViewDocuments || !rowHasFile}
-                            onPress={() => previewChecklistRow(row)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Preview ${labelForDocType(row.type)}`}
-                            accessibilityState={{ disabled: !rowHasFile }}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.checklistModeBtn,
+                            checklistPreviewMode === "advance" && styles.checklistModeBtnActive,
+                          ]}
+                          activeOpacity={0.8}
+                          onPress={() => setChecklistPreviewMode("advance")}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: checklistPreviewMode === "advance" }}
+                          accessibilityLabel="Show advance payment details"
+                        >
+                          <Text
+                            style={[
+                              styles.checklistModeBtnText,
+                              checklistPreviewMode === "advance" && styles.checklistModeBtnTextActive,
+                            ]}
+                            numberOfLines={1}
                           >
-                            <Eye
-                              size={12}
-                              color={rowHasFile ? Theme.textPrimaryDark : Theme.textMuted}
-                              strokeWidth={2.2}
-                            />
+                            Advance Payment
+                          </Text>
+                        </TouchableOpacity>
+                        {canManagePod && !isPendingDocsTrip ? (
+                          <TouchableOpacity
+                            style={styles.checklistModeBtn}
+                            activeOpacity={0.8}
+                            disabled={!summary}
+                            onPress={() => setPodOpen(true)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Log hardcopy POD"
+                          >
+                            <Text style={styles.checklistModeBtnText} numberOfLines={1}>
+                              Hardcopy POD
+                            </Text>
                           </TouchableOpacity>
-                          {onReviewTripDocs ? (
-                            <TouchableOpacity
-                              style={styles.missingUploadBtn}
-                              activeOpacity={0.8}
-                              onPress={() => openVaultUpload(row.key)}
-                              accessibilityRole="button"
-                              accessibilityLabel={`${uploadLabel} ${labelForDocType(row.type)}`}
+                        ) : null}
+                        {showMarkVerified && summary ? (
+                          <TouchableOpacity
+                            style={[styles.checklistModeBtn, styles.checklistModeBtnActive]}
+                            activeOpacity={0.8}
+                            disabled={markingVerified}
+                            onPress={() => {
+                              setMarkingVerified(true);
+                              void onMarkComplianceVerified?.(summary.trip.id).finally(() =>
+                                setMarkingVerified(false),
+                              );
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Mark compliance verified"
+                          >
+                            <Text
+                              style={[styles.checklistModeBtnText, styles.checklistModeBtnTextActive]}
+                              numberOfLines={1}
                             >
-                              <Upload size={11} color={Theme.cardWhite} strokeWidth={2.4} />
-                              <Text style={styles.missingUploadBtnText}>{uploadLabel}</Text>
-                            </TouchableOpacity>
-                          ) : null}
-                        </View>
+                              {markingVerified ? "Verifying…" : "Mark verified"}
+                            </Text>
+                          </TouchableOpacity>
+                        ) : null}
                       </View>
-                    );
-                  })}
-                </ScrollView>
-                <View style={styles.checklistPreviewActionsSection}>
-                  <Text style={styles.checklistPreviewActionsLabel}>PREVIEW</Text>
-                  <View style={styles.checklistPreviewActionsRow}>
-                    <TouchableOpacity
-                      style={[
-                        styles.checklistModeBtn,
-                        checklistPreviewMode === "trip" && styles.checklistModeBtnActive,
-                      ]}
-                      activeOpacity={0.8}
-                      onPress={() => setChecklistPreviewMode("trip")}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: checklistPreviewMode === "trip" }}
-                      accessibilityLabel="Show trip details"
-                    >
-                      <Text
-                        style={[
-                          styles.checklistModeBtnText,
-                          checklistPreviewMode === "trip" && styles.checklistModeBtnTextActive,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        Trip Detail
+                    </View>
+                    <View style={styles.checklistListFooter}>
+                      <Text style={styles.checklistFooterVaultText} numberOfLines={1}>
+                        {vaultCopy.vaultLabel} ·{" "}
+                        {missingUploadRows.length > 0
+                          ? `${missingUploadRows.length} remaining`
+                          : `${uploadedCount} on file`}
                       </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.checklistModeBtn,
-                        checklistPreviewMode === "advance" && styles.checklistModeBtnActive,
-                      ]}
-                      activeOpacity={0.8}
-                      onPress={() => setChecklistPreviewMode("advance")}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: checklistPreviewMode === "advance" }}
-                      accessibilityLabel="Show advance payment details"
-                    >
-                      <Text
-                        style={[
-                          styles.checklistModeBtnText,
-                          checklistPreviewMode === "advance" && styles.checklistModeBtnTextActive,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        Advance Payment
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                <View style={styles.checklistListFooter}>
-                  <Text style={styles.checklistFooterVaultText} numberOfLines={1}>
-                    {vaultCopy.vaultLabel} ·{" "}
-                    {missingUploadRows.length > 0
-                      ? `${missingUploadRows.length} remaining`
-                      : `${uploadedCount} on file`}
-                  </Text>
-                </View>
+                    </View>
+                  </>
+                )}
               </View>
 
               <View style={[styles.checklistPreviewPane, stacked && styles.checklistPreviewPaneStacked]}>
@@ -1628,6 +1628,11 @@ export function ComplianceDocumentWorkspace({
                       rows={financeRows}
                       onPreview={previewChecklistRow}
                     />
+                  ) : showEntityUnassigned ? (
+                    <View style={styles.checklistPreviewEmpty}>
+                      <Text style={styles.checklistPreviewEmptyTitle}>{vaultCopy.unassignedTitle}</Text>
+                      <Text style={styles.checklistPreviewEmptyHint}>{vaultCopy.unassignedHint}</Text>
+                    </View>
                   ) : loadingPreview ? (
                     <View style={styles.checklistPreviewEmpty}>
                       <ActivityIndicator color={Theme.textPrimaryDark} />
@@ -1668,46 +1673,94 @@ export function ComplianceDocumentWorkspace({
                     </View>
                   )}
                 </View>
-              </View>
-            </View>
-          ) : loadingPreview ? (
-            <View style={styles.stageBody}>
-              <ActivityIndicator color={Theme.textPrimaryDark} />
-            </View>
-          ) : typedLines && canViewDocuments ? (
-            <View style={styles.emptyStage}>
-              <View style={styles.typedCard}>
-                <Text style={styles.typedTitle}>{docTitle} · entered details (no file)</Text>
-                {typedLines.map((line, index) => (
-                  <View key={`${line.label}-${index}`} style={styles.typedRow}>
-                    <Text style={styles.typedLabel}>{line.label}</Text>
-                    <Text style={styles.typedValue}>{line.value}</Text>
+                {activeRow && (decisions.canApprove || decisions.canDecline || showMarkVerified || showPay) ? (
+                  <View style={styles.checklistDecisionBar}>
+                    <TouchableOpacity
+                      style={[
+                        styles.checklistDecisionDecline,
+                        (!decisions.canDecline || !canAct) && styles.btnDisabled,
+                      ]}
+                      disabled={busy}
+                      onPress={() => {
+                        if (!canVerify) {
+                          alertMessage(
+                            "Can't decline",
+                            "You don't have permission to verify compliance documents.",
+                          );
+                          return;
+                        }
+                        if (!actorId) {
+                          alertMessage("Can't decline", "Sign in again, then try Decline.");
+                          return;
+                        }
+                        if (!decisions.canDecline || !canModerateComplianceRow(activeRow, tab)) {
+                          alertMessage("Can't decline", "This document isn't ready to decline yet.");
+                          return;
+                        }
+                        setDeclineOpen(true);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Decline document"
+                    >
+                      <Text style={styles.checklistDecisionDeclineText}>Decline</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.checklistDecisionApprove,
+                        (!decisions.canApprove || !canAct) && styles.btnDisabled,
+                      ]}
+                      disabled={busy}
+                      onPress={() => void approve()}
+                      accessibilityRole="button"
+                      accessibilityLabel="Approve document"
+                    >
+                      <Text style={styles.checklistDecisionApproveText}>Approve</Text>
+                    </TouchableOpacity>
+                    <View style={styles.checklistDecisionSpacer} />
+                    {showPay && summary ? (
+                      <TouchableOpacity
+                        style={styles.checklistDecisionPay}
+                        onPress={() => onPay?.(summary)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Pay"
+                      >
+                        <Text style={styles.checklistDecisionPayText}>Pay</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    <TouchableOpacity
+                      style={[styles.checklistDecisionNav, previewable.length < 2 && styles.btnDisabled]}
+                      onPress={goPrev}
+                      disabled={previewable.length < 2}
+                      accessibilityRole="button"
+                      accessibilityLabel="Previous document"
+                    >
+                      <ChevronLeft size={12} color={Theme.textPrimaryDark} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.checklistDecisionNav, previewable.length < 2 && styles.btnDisabled]}
+                      onPress={goNext}
+                      disabled={previewable.length < 2}
+                      accessibilityRole="button"
+                      accessibilityLabel="Next document"
+                    >
+                      <ChevronRight size={12} color={Theme.textPrimaryDark} />
+                    </TouchableOpacity>
                   </View>
-                ))}
+                ) : null}
               </View>
             </View>
-          ) : previewUrl ? (
-            <>
-              <OriginalDocumentPreview uri={previewUrl} isPdf={isPdf} zoom={zoom} label={docTitle} />
-              <Pressable
-                style={styles.openLayer}
-                onPress={() => setScreenOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`Open ${docTitle}`}
-              />
-            </>
           ) : (
             <View style={styles.emptyStage}>
               <NoDocumentPreviewEmpty
                 compact={stacked}
-                title={activeRow ? `${docTitle} has no file to preview.` : "No document to preview"}
-                hint={activeRow ? undefined : "Select a document from the list to view its details here."}
+                title="No document to preview"
+                hint="Select a trip to view its compliance documents here."
               />
             </View>
           )}
         </View>
 
-        {showVaultChecklist ? null : showEntityUnassigned ? (
+        {showEntityUnassigned ? (
           <View style={styles.decisionRow}>
             <View style={styles.missingFooterMeta}>
               <Text style={styles.missingFooterText} numberOfLines={1}>
@@ -1715,92 +1768,7 @@ export function ComplianceDocumentWorkspace({
               </Text>
             </View>
           </View>
-        ) : (
-        <View style={styles.decisionRow}>
-          <Pressable
-            style={[styles.declineBtn, (!decisions.canDecline || !canAct) && styles.btnDisabled]}
-            // Keep pressable when gated — `disabled` swallows onPress so permission
-            // / readiness alerts never fire and the buttons look "broken".
-            disabled={busy}
-            hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-            onPress={() => {
-              if (!canVerify) {
-                alertMessage("Can't decline", "You don't have permission to verify compliance documents.");
-                return;
-              }
-              if (!actorId) {
-                alertMessage("Can't decline", "Sign in again, then try Decline.");
-                return;
-              }
-              if (!decisions.canDecline || !activeRow || !canModerateComplianceRow(activeRow, tab)) {
-                alertMessage("Can't decline", "This document isn't ready to decline yet.");
-                return;
-              }
-              setDeclineOpen(true);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Decline document"
-          >
-            <Text style={styles.declineText}>Decline</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.approveBtn, (!decisions.canApprove || !canAct) && styles.btnDisabled]}
-            disabled={busy}
-            hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-            onPress={() => void approve()}
-            accessibilityRole="button"
-            accessibilityLabel="Approve document"
-          >
-            <Text style={styles.approveText}>Approve</Text>
-          </Pressable>
-          <View style={styles.actionEnd}>
-            {showMarkVerified && summary ? (
-              <Pressable
-                style={[styles.payBtn, markingVerified && styles.btnDisabled]}
-                disabled={markingVerified}
-                onPress={() => {
-                  setMarkingVerified(true);
-                  void onMarkComplianceVerified?.(summary.trip.id).finally(() => setMarkingVerified(false));
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Mark compliance verified"
-              >
-                <Text style={styles.payText}>{markingVerified ? "Verifying…" : "Mark verified"}</Text>
-              </Pressable>
-            ) : null}
-            {showPay && summary ? (
-              <Pressable
-                style={styles.payBtn}
-                onPress={() => onPay?.(summary)}
-                accessibilityRole="button"
-                accessibilityLabel="Pay"
-              >
-                <Text style={styles.payText}>Pay</Text>
-              </Pressable>
-            ) : null}
-            <Pressable
-              style={[styles.navBtn, previewable.length < 2 && styles.btnDisabled]}
-              onPress={goPrev}
-              disabled={previewable.length < 2}
-              accessibilityRole="button"
-              accessibilityLabel="Previous"
-            >
-              <ChevronLeft size={12} color={Theme.textPrimaryDark} />
-              <Text style={styles.navBtnText}>Previous</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.navBtn, previewable.length < 2 && styles.btnDisabled]}
-              onPress={goNext}
-              disabled={previewable.length < 2}
-              accessibilityRole="button"
-              accessibilityLabel="Next"
-            >
-              <Text style={styles.navBtnText}>Next</Text>
-              <ChevronRight size={12} color={Theme.textPrimaryDark} />
-            </Pressable>
-          </View>
-        </View>
-        )}
+        ) : null}
       </View>
       {previewUrl ? (
         <DocumentScreen
@@ -2904,6 +2872,72 @@ const styles = StyleSheet.create({
     minHeight: 0,
     overflow: "hidden",
     backgroundColor: Theme.compliancePageBg,
+  },
+  checklistDecisionBar: {
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.complianceTripCardBg,
+  },
+  checklistDecisionDecline: {
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Theme.complianceStageDocsFg,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checklistDecisionDeclineText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Theme.complianceStageDocsFg,
+  },
+  checklistDecisionApprove: {
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: Theme.positive,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checklistDecisionApproveText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Theme.cardWhite,
+  },
+  checklistDecisionSpacer: {
+    flex: 1,
+    minWidth: 8,
+  },
+  checklistDecisionPay: {
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: Theme.brandBlueSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checklistDecisionPayText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: Theme.textPrimaryDark,
+  },
+  checklistDecisionNav: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
   },
   checklistPreviewEmpty: {
     flex: 1,
