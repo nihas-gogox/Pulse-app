@@ -52,20 +52,29 @@ export async function recordTrackingCheckpoint(params: {
  * not by fetching raw checkpoint rows, which could number in the thousands
  * for a multi-day long-haul trip.
  */
+const CHECKPOINT_DISTANCE_CHUNK = 24;
+
 export async function getCheckpointDistanceSumsForTrips(
   tripIds: string[],
   signal?: AbortSignal,
 ): Promise<{ error: Error | null; distanceMByTripId: Map<string, number> }> {
-  if (tripIds.length === 0) return { error: null, distanceMByTripId: new Map() };
-  const query = supabase().rpc('get_trip_checkpoint_distance_sums', {
-    p_trip_ids: tripIds,
-  });
-  const { data, error } = await (signal ? query.abortSignal(signal) : query);
-  if (error) return { error: new Error(error.message), distanceMByTripId: new Map() };
+  const uniqueIds = [...new Set(tripIds.map((id) => id.trim()).filter(Boolean))];
+  if (uniqueIds.length === 0) return { error: null, distanceMByTripId: new Map() };
 
   const distanceMByTripId = new Map<string, number>();
-  for (const row of (data ?? []) as { trip_id: string; total_distance_m: number | null }[]) {
-    if (row.total_distance_m != null) distanceMByTripId.set(row.trip_id, row.total_distance_m);
+  for (let i = 0; i < uniqueIds.length; i += CHECKPOINT_DISTANCE_CHUNK) {
+    if (signal?.aborted) {
+      return { error: new Error('Aborted'), distanceMByTripId };
+    }
+    const chunk = uniqueIds.slice(i, i + CHECKPOINT_DISTANCE_CHUNK);
+    const query = supabase().rpc('get_trip_checkpoint_distance_sums', {
+      p_trip_ids: chunk,
+    });
+    const { data, error } = await (signal ? query.abortSignal(signal) : query);
+    if (error) return { error: new Error(error.message), distanceMByTripId };
+    for (const row of (data ?? []) as { trip_id: string; total_distance_m: number | null }[]) {
+      if (row.total_distance_m != null) distanceMByTripId.set(row.trip_id, row.total_distance_m);
+    }
   }
   return { error: null, distanceMByTripId };
 }

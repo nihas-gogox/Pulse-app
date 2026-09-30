@@ -35,6 +35,7 @@ import {
   noteSupabaseHealthy,
   noteSupabaseOriginDown,
   noteSupabaseOriginDownIfClientTimeout,
+  noteSupabaseOriginDownIfTransportFailure,
   recordSupabaseHttp5xx,
   recordSupabaseHttpTimeout,
   retryDelayMs,
@@ -285,6 +286,8 @@ async function fetchWithTimeoutAndRetryRaw(
         }
         if (!isAuthToken && noteSupabaseOriginDownIfClientTimeout(lastError)) {
           recordSupabaseHttpTimeout();
+        } else if (!isAuthToken && noteSupabaseOriginDownIfTransportFailure(lastError)) {
+          recordSupabaseHttp5xx();
         }
         if (
           !canRetryFetchAttempt({

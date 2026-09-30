@@ -11,6 +11,7 @@ import {
   isSupabaseCircuitOpen,
   noteSupabaseOriginDown,
   noteSupabaseOriginDownIfClientTimeout,
+  noteSupabaseOriginDownIfTransportFailure,
   resetSupabaseCircuit,
   shouldQueueDataFetch,
   SUPABASE_CIRCUIT_COOLDOWN_MS,
@@ -59,6 +60,7 @@ describe("supabaseHttp origin-down vs transient", () => {
 
   it("classifies origin-down messages including 57P03", () => {
     expect(isOriginDownErrorMessage("57P03 the database system is not accepting connections")).toBe(true);
+    expect(isOriginDownErrorMessage("JSON could not be generated (544)")).toBe(true);
     expect(isOriginDownErrorMessage("JWT expired")).toBe(false);
   });
 
@@ -171,6 +173,24 @@ describe("isClientTimeoutError", () => {
     abort.name = "AbortError";
     expect(noteSupabaseOriginDownIfClientTimeout(abort)).toBe(false);
     expect(isSupabaseCircuitOpen()).toBe(false);
+  });
+
+  it("opens the circuit on Safari Load failed and does not retry it", () => {
+    const loadFailed = new Error("Load failed");
+    expect(noteSupabaseOriginDownIfTransportFailure(loadFailed)).toBe(true);
+    expect(isSupabaseCircuitOpen()).toBe(true);
+    expect(
+      canRetryFetchAttempt({
+        attempt: 0,
+        maxRetries: 2,
+        timeoutMaxRetries: TIMEOUT_MAX_RETRIES,
+        error: loadFailed,
+      }),
+    ).toBe(false);
+    expect(noteSupabaseOriginDownIfTransportFailure(new Error("permission denied for table posts"))).toBe(
+      false,
+    );
+    resetSupabaseCircuit();
   });
 });
 

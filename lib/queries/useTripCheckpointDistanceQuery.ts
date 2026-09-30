@@ -31,6 +31,7 @@ export function useTripCheckpointDistanceQuery(tripId: string | null): {
     enabled: !!tripId,
     staleTime: POLL_MS,
     refetchInterval: POLL_MS,
+    retry: false,
   });
 
   return {

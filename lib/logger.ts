@@ -15,11 +15,22 @@ function shouldLog(level: LogLevel) {
   return LOG_LEVEL_ORDER[level] >= LOG_LEVEL_ORDER[CURRENT_LEVEL];
 }
 
+function jsonSafe(value: unknown): unknown {
+  if (value instanceof Error) {
+    return { name: value.name, message: value.message };
+  }
+  return value;
+}
+
 function format(message: string, context?: Record<string, unknown>) {
   const timestamp = new Date().toISOString();
 
   if (context && Object.keys(context).length > 0) {
-    return `[${timestamp}] ${message} | ${JSON.stringify(context)}`;
+    const safe: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(context)) {
+      safe[key] = jsonSafe(value);
+    }
+    return `[${timestamp}] ${message} | ${JSON.stringify(safe)}`;
   }
 
   return `[${timestamp}] ${message}`;

@@ -13,7 +13,11 @@ const TRANSIENT_RETRY_STATUSES = new Set([408, 425, 429, 520, 522, 524]);
 const SERVICE_UNAVAILABLE_CODES = new Set(['PGRST002', 'PGRST003']);
 
 const ORIGIN_DOWN_MESSAGE =
-  /503|521|57P03|PGRST00[23]|not accepting connections|database system is shutting down|web server is down|origin is unreachable/i;
+  /503|521|\b544\b|57P03|PGRST00[23]|not accepting connections|database system is shutting down|web server is down|origin is unreachable|JSON could not be generated/i;
+
+/** Browser transport failures. Safari says "Load failed"; Chrome says "Failed to fetch". */
+const BROWSER_TRANSPORT_FAILURE =
+  /Failed to fetch|Load failed|NetworkError when attempting to fetch resource|Network request failed|network connection was lost|Internet connection appears to be offline/i;
 
 /** Normalize Cloudflare / HTML error bodies from Supabase into short retryable messages. */
 export function normalizeInfrastructureErrorMessage(message: string): string {
@@ -69,9 +73,21 @@ export function isRetryableHttpResponse(res: Response): boolean {
 }
 
 export function isInfrastructureErrorMessage(message: string): boolean {
-  return /522|521|520|500|502|503|504|429|timeout|timed out|network|fetch failed|gateway|connection|json parse|unexpected character|57P03/i.test(
+  return /522|521|520|500|502|503|504|\b544\b|429|timeout|timed out|network|fetch failed|load failed|could not be generated|gateway|connection|json parse|unexpected character|57P03/i.test(
     message,
   );
+}
+
+export function isBrowserTransportFailure(error: unknown): boolean {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : typeof (error as { message?: unknown } | null)?.message === 'string'
+          ? (error as { message: string }).message
+          : '';
+  return BROWSER_TRANSPORT_FAILURE.test(message);
 }
 
 /**
@@ -271,6 +287,18 @@ export function noteSupabaseOriginDownIfClientTimeout(
   error: { name?: string } | null | undefined,
 ): boolean {
   if (!isClientTimeoutError(error)) return false;
+  noteSupabaseOriginDown();
+  return true;
+}
+
+/**
+ * Safari "Load failed" and Chrome "Failed to fetch" never reach the HTTP
+ * status check, so they used to retry (up to 3 attempts) on every query at
+ * once. That stampede is what turns a slow origin into 544s. Open the same
+ * circuit a 544 status would open, and let later callers fail fast.
+ */
+export function noteSupabaseOriginDownIfTransportFailure(error: unknown): boolean {
+  if (!isBrowserTransportFailure(error)) return false;
   noteSupabaseOriginDown();
   return true;
 }
