@@ -27,7 +27,7 @@ export const BUILD_ID: string = (() => {
  * unsafe to read, independent of the deploy (e.g. a merge-semantics fix that
  * must invalidate caches even on an unchanged build id).
  */
-const CACHE_CONTRACT_VERSION = '2';
+const CACHE_CONTRACT_VERSION = '3';
 
 /** Persister `buster`. A mismatch makes TanStack drop the whole persisted cache. */
 export const QUERY_CACHE_BUSTER = `${CACHE_CONTRACT_VERSION}:${BUILD_ID}`;

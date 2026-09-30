@@ -329,6 +329,21 @@ export function supabaseCircuitOpenError(): Error {
   return err;
 }
 
+/** Client admission overflow — not an origin 503. Queries may retry once. */
+export function supabaseQueueRejectedError(): Error {
+  const err = new Error("Supabase request queue is full");
+  err.name = "SupabaseQueueRejectedError";
+  return err;
+}
+
+export function isSupabaseQueueRejectedError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    (error as { name?: string }).name === "SupabaseQueueRejectedError"
+  );
+}
+
 /** Cap parallel PostgREST/Storage GETs so a hub screen cannot open 20+ 12s holds at once.
  *  PostgREST pool max is 10 — leave headroom for Auth/Realtime/schema-cache. */
 export const MAX_CONCURRENT_DATA_FETCHES = 8;
@@ -352,6 +367,14 @@ const HUB_LATENCY_RPC_RE =
 
 export function isHubLatencySensitiveRpc(input: RequestInfo | URL): boolean {
   return HUB_LATENCY_RPC_RE.test(requestUrlString(input));
+}
+
+const LOAD_CENTER_CATALOG_RPC_RE =
+  /\/rest\/v1\/rpc\/(market_indents_for_org|quoted_indents_for_org)\b/i;
+
+/** Get Load catalog — must not sit behind chat bootstrap in the client queue. */
+export function isLoadCenterCatalogRpc(input: RequestInfo | URL): boolean {
+  return LOAD_CENTER_CATALOG_RPC_RE.test(requestUrlString(input));
 }
 
 export function isStorageObjectRequest(input: RequestInfo | URL): boolean {
@@ -384,6 +407,7 @@ export function shouldQueueDataFetch(
 ): boolean {
   const url = requestUrlString(input);
   if (url.includes("/auth/v1/")) return false;
+  if (isLoadCenterCatalogRpc(input)) return false;
   const method = String(init?.method ?? "GET").toUpperCase();
   if (method === "GET" || method === "HEAD") return true;
   // PostgREST RPCs are POST. Leaving them ungated let Get Load / Network
@@ -423,10 +447,7 @@ export function createConcurrencyGate(max: number, maxQueue = MAX_QUEUED_DATA_FE
       }
       if (waiters.length >= maxQueue) {
         metrics.queueRejects += 1;
-        const err = new Error("Service Unavailable 503");
-        err.name = "ServiceUnavailableError";
-        (err as { status?: number }).status = 503;
-        throw err;
+        throw supabaseQueueRejectedError();
       }
       await new Promise<void>((resolve, reject) => {
         const entry: (typeof waiters)[number] = { resolve, reject, signal };

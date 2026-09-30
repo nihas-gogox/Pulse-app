@@ -447,14 +447,33 @@ export async function getMarketIndentsForOrganization(
 
   // Param must be p_org_id — renamed from org_id in market_indents_via_reach.
   // Named-arg mismatch 404s the RPC and drops Claimed/Find Work for suppliers.
-  const [marketRes, quotedRes] = await Promise.all([
-    supabase().rpc("market_indents_for_org", {
+  const quotedPromise = supabase().rpc("quoted_indents_for_org", {
+    org_id: orgId,
+  });
+  let marketRes = await supabase().rpc("market_indents_for_org", {
+    p_org_id: orgId,
+  });
+  if (marketRes.error || !Array.isArray(marketRes.data)) {
+    marketRes = await supabase().rpc("market_indents_for_org", {
       p_org_id: orgId,
-    }),
-    supabase().rpc("quoted_indents_for_org", { org_id: orgId }),
-  ]);
+    });
+  }
+  const quotedRes = await quotedPromise;
+
+  const quotedExtras =
+    !quotedRes.error && Array.isArray(quotedRes.data)
+      ? (quotedRes.data as Record<string, unknown>[]).map(mapMarketIndentRpcRow)
+      : [];
 
   if (marketRes.error || !Array.isArray(marketRes.data)) {
+    if (quotedExtras.length > 0) {
+      return {
+        error: null,
+        indents: quotedExtras.map((row) =>
+          maskIndentRowForSupplierList(row, orgId),
+        ),
+      };
+    }
     return {
       error: new Error(
         marketRes.error?.message ?? "Could not load network loads",
@@ -466,10 +485,6 @@ export async function getMarketIndentsForOrganization(
   const indents = (marketRes.data as Record<string, unknown>[]).map(
     mapMarketIndentRpcRow,
   );
-  const quotedExtras =
-    !quotedRes.error && Array.isArray(quotedRes.data)
-      ? (quotedRes.data as Record<string, unknown>[]).map(mapMarketIndentRpcRow)
-      : [];
 
   return {
     error: null,

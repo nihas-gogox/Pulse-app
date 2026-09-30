@@ -91,6 +91,21 @@ describe("data fetch concurrency gate", () => {
     ).toBe(false);
   });
 
+  it("does not queue Get Load catalog RPCs behind chat bootstrap", () => {
+    expect(
+      shouldQueueDataFetch(
+        "https://x.supabase.co/rest/v1/rpc/market_indents_for_org",
+        { method: "POST" },
+      ),
+    ).toBe(false);
+    expect(
+      shouldQueueDataFetch(
+        "https://x.supabase.co/rest/v1/rpc/quoted_indents_for_org",
+        { method: "POST" },
+      ),
+    ).toBe(false);
+  });
+
   it("queues PostgREST RPC POSTs so hub screens cannot stampede the pool", () => {
     expect(
       shouldQueueDataFetch(
@@ -104,6 +119,15 @@ describe("data fetch concurrency gate", () => {
         { method: "POST" },
       ),
     ).toBe(true);
+  });
+
+  it("queue overflow is a retryable client reject, not origin 503", async () => {
+    const gate = createConcurrencyGate(1, 0);
+    await gate.acquire();
+    await expect(gate.acquire()).rejects.toMatchObject({
+      name: "SupabaseQueueRejectedError",
+    });
+    gate.release();
   });
 
   it("never runs more than max acquires at once", async () => {

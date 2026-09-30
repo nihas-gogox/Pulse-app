@@ -32,6 +32,13 @@ describe("shouldRetryQuery", () => {
     resetSupabaseCircuit();
   });
 
+  it("retries a client queue reject once (not an origin 503)", () => {
+    const err = new Error("Supabase request queue is full");
+    err.name = "SupabaseQueueRejectedError";
+    expect(shouldRetryQuery(0, err)).toBe(true);
+    expect(shouldRetryQuery(1, err)).toBe(false);
+  });
+
   it("retries a plain transient error once", () => {
     expect(shouldRetryQuery(0, new Error("network blip"))).toBe(true);
   });
