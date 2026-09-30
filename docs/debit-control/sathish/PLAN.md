@@ -1,7 +1,7 @@
 # Debit Control — Sathish's POD Management & Validation Workflow
 
 Source: [Debit Control - Sathish.docx](./Debit%20Control%20-%20Sathish.docx)
-Branch: `debit-control-sathish` (baseline: V1 @ f6cb238a) · local only, not pushed
+Branch: `debit-control-sathish` (baseline: V1 @ f6cb238a) · pushed to origin at be042f6c from outside this session; later commits local · Technical contract: [CONTRACT.md](./CONTRACT.md) (draft for review)
 
 ## Progress
 
@@ -28,7 +28,7 @@ No individual assignments are documented; these are roles or workstreams, not pe
 
 | Workstream | Owner | Status | Can start now? |
 |---|---|---|---|
-| Sathish business decisions (D1, D3–D10) | Sathish / feature owner | Waiting — request in [SATHISH_DECISIONS.md](./SATHISH_DECISIONS.md) | No implementation |
+| Sathish business decisions (D1, D3–D10) | Sathish / feature owner | Answered 2026-09-30; follow-ups BDR-1..12 open ([CONTRACT.md §9](./CONTRACT.md#9-classification-of-every-open-item)) | No implementation |
 | Debit Control implementation | Sathish feature branch (`debit-control-sathish`) | Blocked — documentation only | No |
 | POD RPC security finding (A) | DB/security owner | Confirmed by team-lead read-only re-check (2026-09-29). Needs owner's independent verification | Yes, investigation only |
 | Audit/logging finding (B) | Audit/platform owner | Confirmed by team-lead read-only re-check (2026-09-29). Needs owner's independent verification | Yes, investigation only |
@@ -42,19 +42,19 @@ Findings A and B are **not** Debit Control requirements. They are existing V1 de
 
 Debit Control implementation can begin only when **all** of these are true:
 
-- [ ] D1 answered
-- [ ] D3 answered
-- [ ] D4 answered
-- [ ] D5 answered
-- [ ] D6 answered
-- [ ] D7 answered
-- [ ] D8 answered
-- [ ] D9 answered
-- [ ] D10 answered
-- [ ] Resulting state machine reviewed
-- [ ] Amount / ledger semantics reviewed
-- [ ] Authorization model reviewed
-- [ ] Audit strategy reviewed
+- [ ] D1 answered — top level yes; BDR-7, BDR-8 open
+- [ ] D3 answered — top level yes; BDR-1, BDR-2 open
+- [ ] D4 answered — top level yes; BDR-4 open
+- [ ] D5 answered — top level yes; BDR-5, BDR-6 open (+ EXT-4)
+- [x] D6 answered — out of scope
+- [ ] D7 answered — top level yes; BDR-10 open (low)
+- [x] D8 answered — own fleet out of scope
+- [ ] D9 answered — top level yes; BDR-11 open (owner/admin auto-grant)
+- [ ] D10 answered — top level yes; BDR-3 open
+- [ ] Resulting state machine reviewed — draft in CONTRACT.md §1
+- [ ] Amount / ledger semantics reviewed — draft in CONTRACT.md §3 (blocked on BDR-5/6, EXT-2/3/4)
+- [ ] Authorization model reviewed — draft in CONTRACT.md §4
+- [ ] Audit strategy reviewed — draft in CONTRACT.md §5 (blocked on EXT-6 / Finding B owner)
 
 (D2 stays on its safe default unless Sathish changes it.)
 
