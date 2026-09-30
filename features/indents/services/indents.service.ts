@@ -233,6 +233,47 @@ async function ensurePublicUserRecord(userId?: string | null): Promise<void> {
   }
 }
 
+const TRIP_REF_IN_CHUNK = 80;
+
+function chunkIndentIds(ids: string[], size = TRIP_REF_IN_CHUNK): string[][] {
+  const out: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Nested `indents → trips` embeds run full trips RLS per row (2026-09-30 log:
+ * 13–14s for 500 indents). Fetch trip display codes in a separate IN() query.
+ */
+async function attachActiveTripRefs(indents: IndentRow[]): Promise<IndentRow[]> {
+  const ids = indents.map((row) => row.id).filter(Boolean);
+  if (ids.length === 0) return indents.map((row) => normalizeIndentRow(row));
+  const byIndent = new Map<string, IndentTripJoin>();
+  for (const chunk of chunkIndentIds(ids)) {
+    const { data, error } = await supabase()
+      .from("trips")
+      .select("indent_id, trip_operational_code, trip_number, trip_code")
+      .in("indent_id", chunk);
+    if (error) break;
+    for (const raw of data ?? []) {
+      const trip = raw as IndentTripJoin & { indent_id?: string };
+      const indentId = String(trip.indent_id ?? "").trim();
+      if (!indentId || byIndent.has(indentId)) continue;
+      byIndent.set(indentId, {
+        trip_operational_code: trip.trip_operational_code ?? null,
+        trip_number: trip.trip_number ?? null,
+        trip_code: trip.trip_code ?? null,
+      });
+    }
+  }
+  return indents.map((row) =>
+    normalizeIndentRow({
+      ...row,
+      active_trip: byIndent.has(row.id) ? [byIndent.get(row.id)!] : [],
+    }),
+  );
+}
+
 export async function getIndentsByOrganization(
   orgId: string,
   opts?: PageOpts,
@@ -246,9 +287,7 @@ export async function getIndentsByOrganization(
   const base = () =>
     supabase()
       .from("indents")
-      .select(
-        "*, active_trip:trips!trips_indent_id_fkey(trip_operational_code, trip_number, trip_code)",
-      )
+      .select("*")
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });
   if (opts != null) {
@@ -256,9 +295,7 @@ export async function getIndentsByOrganization(
     const offset = opts.offset ?? 0;
     const { data, error } = await base().range(offset, offset + limit);
     if (error) return { error: new Error(error.message), indents: [] };
-    const indents = (data ?? []).map((row) =>
-      normalizeIndentRow(row as IndentRow & { trips?: IndentTripJoin[] | null }),
-    ) as IndentRow[];
+    const indents = await attachActiveTripRefs((data ?? []) as IndentRow[]);
     const hasMore = indents.length > limit;
     return {
       error: null,
@@ -268,9 +305,7 @@ export async function getIndentsByOrganization(
   }
   const { data, error } = await base().limit(FINITE_LIST_CAP);
   if (error) return { error: new Error(error.message), indents: [] };
-  const indents = (data ?? []).map((row) =>
-    normalizeIndentRow(row as IndentRow & { trips?: IndentTripJoin[] | null }),
-  ) as IndentRow[];
+  const indents = await attachActiveTripRefs((data ?? []) as IndentRow[]);
   // Hitting the cap means older indents were cut off. The delta cursor is derived
   // from max(updated_at) of whatever came back, so a truncated page would advance
   // the cursor past rows that were never merged — making them permanently

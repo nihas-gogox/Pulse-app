@@ -43,12 +43,18 @@ function clientTimeout(): Error {
   return timeout;
 }
 
-describe("complete chain: TimeoutError → circuit OPEN → no PostgREST", () => {
-  it("opens the circuit from the fetch-wrapper helper, then every batch producer fails fast", async () => {
+describe("TimeoutError does not latch the origin circuit", () => {
+  it("does not fail-fast the rest of the app after one slow GET", () => {
     expect(isSupabaseCircuitOpen()).toBe(false);
+    expect(noteSupabaseOriginDownIfClientTimeout(clientTimeout())).toBe(false);
+    expect(isSupabaseCircuitOpen()).toBe(false);
+  });
+});
 
-    // Same helper fetchWithTimeoutAndRetry calls after a client TimeoutError.
-    expect(noteSupabaseOriginDownIfClientTimeout(clientTimeout())).toBe(true);
+describe("complete chain: origin-down → circuit OPEN → no PostgREST", () => {
+  it("opens the circuit from a received 503/504, then every batch producer fails fast", async () => {
+    expect(isSupabaseCircuitOpen()).toBe(false);
+    noteSupabaseOriginDown();
     expect(isSupabaseCircuitOpen()).toBe(true);
 
     const [stories, offers, byIds, byNames, adjustments] = await Promise.all([
@@ -71,7 +77,7 @@ describe("complete chain: TimeoutError → circuit OPEN → no PostgREST", () =>
     jest.useFakeTimers();
     const t0 = Date.now();
     try {
-      noteSupabaseOriginDownIfClientTimeout(clientTimeout());
+      noteSupabaseOriginDown();
 
       for (const offset of [13_000, 17_000, SUPABASE_CIRCUIT_COOLDOWN_MS - 1]) {
         expect(isSupabaseCircuitOpen(t0 + offset)).toBe(true);

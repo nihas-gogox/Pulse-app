@@ -278,17 +278,16 @@ export function isClientTimeoutError(error: { name?: string } | null | undefined
 }
 
 /**
- * Origin-level signal for a client-side TimeoutError. Request-level policy
- * (TIMEOUT_MAX_RETRIES = 0, no HTTP retry) stays separate — this only opens
- * the 45s circuit so later callers fail fast instead of hitting PostgREST.
- * Returns true when the circuit was opened by this error.
+ * Client TimeoutError is one slow query, not a downed origin.
+ * Opening the shared circuit on a 12s GET (2026-09-30 merge deploy) failed
+ * every hub query as ServiceUnavailableError 503. Real HTTP 503 / PGRST003
+ * still open the circuit via noteSupabaseOriginDown.
  */
 export function noteSupabaseOriginDownIfClientTimeout(
   error: { name?: string } | null | undefined,
 ): boolean {
   if (!isClientTimeoutError(error)) return false;
-  noteSupabaseOriginDown();
-  return true;
+  return false;
 }
 
 /**
@@ -315,15 +314,52 @@ export function supabaseCircuitOpenError(): Error {
   return err;
 }
 
-/** Cap parallel PostgREST/Storage GETs so a hub screen cannot open 20+ 12s holds at once. */
-export const MAX_CONCURRENT_DATA_FETCHES = 6;
-/** Extra waiters beyond in-flight. Overflow fails fast instead of stacking 12s holds. */
-export const MAX_QUEUED_DATA_FETCHES = 12;
+/** Cap parallel PostgREST/Storage GETs so a hub screen cannot open 20+ 12s holds at once.
+ *  PostgREST pool max is 10 — leave headroom for Auth/Realtime/schema-cache. */
+export const MAX_CONCURRENT_DATA_FETCHES = 8;
+/** Extra waiters beyond in-flight. Hub screens fire many RPCs at once; 12 overflowed
+ *  into client 503s while the origin was only slow (2026-09-30). */
+export const MAX_QUEUED_DATA_FETCHES = 32;
 
 export function requestUrlString(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
   if (input instanceof URL) return input.href;
   return input.url;
+}
+
+export const REQUEST_TIMEOUT_MS = 12_000;
+export const WRITE_REQUEST_TIMEOUT_MS = 20_000;
+export const STORAGE_UPLOAD_TIMEOUT_MS = 90_000;
+export const HUB_RPC_TIMEOUT_MS = 45_000;
+
+const HUB_LATENCY_RPC_RE =
+  /\/rest\/v1\/rpc\/(get_multi_lane_bootstrap|get_unified_b2b_bootstrap|get_network_feed|market_indents_for_org|quoted_indents_for_org|get_trips_for_org|get_trips_where_org_is_supplier|get_customer_ledger_inputs|get_driver_ledger_aggregation|get_connection_partner_display_batch|get_suppliers_with_profiles|get_drivers_with_profiles|get_my_team_invites)\b/i;
+
+export function isHubLatencySensitiveRpc(input: RequestInfo | URL): boolean {
+  return HUB_LATENCY_RPC_RE.test(requestUrlString(input));
+}
+
+export function isStorageObjectRequest(input: RequestInfo | URL): boolean {
+  return requestUrlString(input).includes("/storage/v1/object/");
+}
+
+export function supabaseRequestTimeoutMs(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): number {
+  if (isHubLatencySensitiveRpc(input)) return HUB_RPC_TIMEOUT_MS;
+  const method = String(init?.method ?? "GET").toUpperCase();
+  if (
+    method === "POST" ||
+    method === "PATCH" ||
+    method === "PUT" ||
+    method === "DELETE"
+  ) {
+    return isStorageObjectRequest(input)
+      ? STORAGE_UPLOAD_TIMEOUT_MS
+      : WRITE_REQUEST_TIMEOUT_MS;
+  }
+  return REQUEST_TIMEOUT_MS;
 }
 
 /** Auth + table writes skip the gate so session refresh / indent create are not queued. */

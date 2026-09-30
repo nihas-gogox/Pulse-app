@@ -34,13 +34,14 @@ import {
   isRetryableHttpResponse,
   noteSupabaseHealthy,
   noteSupabaseOriginDown,
-  noteSupabaseOriginDownIfClientTimeout,
+  isClientTimeoutError,
   noteSupabaseOriginDownIfTransportFailure,
   recordSupabaseHttp5xx,
   recordSupabaseHttpTimeout,
   retryDelayMs,
   shouldQueueDataFetch,
   supabaseCircuitOpenError,
+  supabaseRequestTimeoutMs,
 } from '@/lib/supabaseHttp.util';
 import {
   classifyRequest,
@@ -59,33 +60,6 @@ try {
   SecureStore = null;
 }
 
-const REQUEST_TIMEOUT_MS = 12_000;
-/** Writes (indent/trip insert) can wait on triggers; aborting them mid-commit looks like a failed create. */
-const WRITE_REQUEST_TIMEOUT_MS = 20_000;
-
-function requestTimeoutMs(init?: RequestInit): number {
-  const method = String(init?.method ?? "GET").toUpperCase();
-  if (
-    method === "POST" ||
-    method === "PATCH" ||
-    method === "PUT" ||
-    method === "DELETE"
-  ) {
-    return WRITE_REQUEST_TIMEOUT_MS;
-  }
-  return REQUEST_TIMEOUT_MS;
-}
-// /auth/v1/token (session refresh) gets its own retry policy with jitter.
-// During a sustained DB/auth outage (see 2026-07-05 incident: clients retried
-// refresh_token every 15-20s with no effective backoff, adding load while the
-// backend was degraded), the default policy had no jitter, so many devices
-// recovering together retried in lockstep.
-//
-// IMPORTANT: every caller of authService.refreshSession() wraps it in
-// withTimeout(..., AUTH_TIMEOUT_MS) or withTimeout(..., AUTH_RESTORE_REFRESH_TIMEOUT_MS)
-// (lib/authEngine.ts — 15s / 25s). withTimeout() aborts the scoped fetch
-// when the deadline fires so abandoned HTTPS work does not keep holding
-// PostgREST. Prefer the factory form so the request starts inside that scope.
 function isAuthTokenRequest(input: RequestInfo | URL): boolean {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   return url.includes('/auth/v1/token');
@@ -209,7 +183,7 @@ async function fetchWithTimeoutAndRetryRaw(
     const timeoutId = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, requestTimeoutMs(init));
+    }, supabaseRequestTimeoutMs(input, init));
     const combinedSignal = signal
       ? abortSignalAny(controller.signal, signal)
       : controller.signal;
@@ -284,7 +258,7 @@ async function fetchWithTimeoutAndRetryRaw(
         if (requestSignal?.aborted || lastError.name === 'AbortError') {
           throw lastError.name === 'AbortError' ? lastError : toCancelError();
         }
-        if (!isAuthToken && noteSupabaseOriginDownIfClientTimeout(lastError)) {
+        if (!isAuthToken && isClientTimeoutError(lastError)) {
           recordSupabaseHttpTimeout();
         } else if (!isAuthToken && noteSupabaseOriginDownIfTransportFailure(lastError)) {
           recordSupabaseHttp5xx();

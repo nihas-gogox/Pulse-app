@@ -21,6 +21,7 @@ import {
 import {
   isBrowserTransportFailure,
   isOriginDownError,
+  isServiceUnavailableError,
   isSupabaseCircuitOpen,
 } from '@/lib/supabaseHttp.util';
 
@@ -255,6 +256,12 @@ export function shouldRetryQuery(failureCount: number, error: unknown): boolean 
   return true;
 }
 
+/** Circuit fail-fast 503s, or origin-down noise after the circuit is already open. */
+export function shouldSkipOriginUnavailableLog(error: unknown): boolean {
+  if (error instanceof Error && error.name === "ServiceUnavailableError") return true;
+  return isSupabaseCircuitOpen() && isServiceUnavailableError(error);
+}
+
 export function makeQueryClient() {
   const client = new QueryClient({
     queryCache: new QueryCache({
@@ -262,6 +269,7 @@ export function makeQueryClient() {
         if (isAbortError(error)) return;
         if (isMissingQueryFnError(error)) return;
         if (isNetworkFailure(error)) return;
+        if (shouldSkipOriginUnavailableLog(error)) return;
         logger.error('[query] fetch failed', {
           error: toReportableError(error),
           queryKey: JSON.stringify(query.queryKey),
@@ -272,6 +280,7 @@ export function makeQueryClient() {
       onError: (error) => {
         if (isAbortError(error)) return;
         if (isNetworkFailure(error)) return;
+        if (shouldSkipOriginUnavailableLog(error)) return;
         logger.error('[mutation] failed', {
           error: toReportableError(error),
         });

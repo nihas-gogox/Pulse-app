@@ -16,7 +16,11 @@ jest.mock("@/lib/hooks/appQueryGateState", () => ({
   isWithinAppQueryBootQuietPeriod: () => false,
 }));
 
-import { makeQueryClient, shouldRetryQuery } from "@/lib/queryClient";
+import {
+  makeQueryClient,
+  shouldRetryQuery,
+  shouldSkipOriginUnavailableLog,
+} from "@/lib/queryClient";
 import {
   noteSupabaseOriginDown,
   noteSupabaseOriginDownIfTransportFailure,
@@ -116,5 +120,30 @@ describe("shouldRetryQuery", () => {
     await Promise.resolve();
     expect(queryFn).toHaveBeenCalledTimes(1);
     client.clear();
+  });
+});
+
+describe("shouldSkipOriginUnavailableLog", () => {
+  afterEach(() => {
+    resetSupabaseCircuit();
+  });
+
+  it("skips the client circuit ServiceUnavailableError", () => {
+    const err = new Error("Service Unavailable 503");
+    err.name = "ServiceUnavailableError";
+    expect(shouldSkipOriginUnavailableLog(err)).toBe(true);
+  });
+
+  it("still allows a first genuine origin 504 to be logged", () => {
+    expect(
+      shouldSkipOriginUnavailableLog({ message: "Gateway Timeout", status: 504 }),
+    ).toBe(false);
+  });
+
+  it("skips origin-down noise once the circuit is already open", () => {
+    noteSupabaseOriginDown();
+    expect(
+      shouldSkipOriginUnavailableLog({ message: "Service Unavailable", status: 503 }),
+    ).toBe(true);
   });
 });
