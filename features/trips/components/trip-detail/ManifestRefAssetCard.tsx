@@ -22,8 +22,8 @@ import {
 } from "react-native";
 
 const AVATAR_SIZE = 32;
-const AVATAR_SIZE_DESKTOP = 28;
-const VEHICLE_ICON_SIZE_DESKTOP = 28;
+const AVATAR_SIZE_DESKTOP = 44;
+const VEHICLE_ICON_SIZE_DESKTOP = 44;
 
 type Props = {
   roleLabel: string;
@@ -313,7 +313,7 @@ export function ManifestRefAssetCard({
           >
             <Feather
               name="truck"
-              size={14}
+              size={desktop ? 18 : 14}
               color={Theme.textOnPrimary}
             />
           </View>
@@ -396,23 +396,22 @@ export function ManifestRefAssetCard({
 
 const styles = StyleSheet.create({
   card: {
-    position: "relative",
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: "auto",
+    flex: 1,
     minWidth: 0,
-    width: "100%",
-    alignSelf: "stretch",
     borderRadius: 14,
     backgroundColor: Theme.cardWhite,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Theme.borderLight,
+    paddingHorizontal: 10,
+    paddingTop: 9,
+    paddingBottom: 10,
+    gap: 8,
     ...Platform.select({
       web: {
         boxShadow: "0 1px 8px rgba(15, 23, 42, 0.06)",
       } as ViewStyle,
       default: {
-        shadowColor: "#0f172a",
+        shadowColor: Theme.textPrimaryDark,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.06,
         shadowRadius: 6,
@@ -421,24 +420,15 @@ const styles = StyleSheet.create({
     }),
   },
   cardDesktop: {
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: "auto",
+    flex: undefined,
     width: "100%",
-    alignSelf: "stretch",
-    borderRadius: 8,
-    backgroundColor: Theme.surfaceGray,
-    borderWidth: 1,
-    borderColor: Theme.borderLight,
-    ...Platform.select({
-      web: {
-        boxShadow: "none",
-      } as ViewStyle,
-      default: {
-        shadowOpacity: 0,
-        elevation: 0,
-      },
-    }),
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 16,
+    borderRadius: 22,
+    gap: 12,
+    backgroundColor: Theme.tripDetailAssetCardBackgroundColor,
+    borderColor: Theme.surfaceBorder,
   },
   cardBody: {
     flex: 1,
@@ -499,11 +489,9 @@ const styles = StyleSheet.create({
     lineHeight: 11,
   },
   roleLabelDesktop: {
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 0.9,
-    lineHeight: 12,
-    textTransform: "uppercase",
+    fontSize: 10,
+    letterSpacing: 0.55,
+    lineHeight: 13,
   },
   changeBtn: {
     flexShrink: 0,
@@ -513,13 +501,13 @@ const styles = StyleSheet.create({
   changeBtnText: {
     fontSize: 8,
     fontWeight: "700",
-    color: Theme.analyticsHeroBg,
+    color: Theme.pulseIndigo,
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
   changeBtnTextDesktop: {
     fontSize: 10,
-    letterSpacing: 0.4,
+    letterSpacing: 0.55,
   },
   contentRow: {
     flexDirection: "row",
@@ -541,9 +529,9 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   primaryTextDesktop: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: "700",
-    lineHeight: 16,
+    lineHeight: 21,
     letterSpacing: -0.2,
   },
   phoneText: {
@@ -604,7 +592,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.15,
     lineHeight: 9,
     marginTop: 1,
-    paddingRight: 18,
   },
   ratingValueDesktop: {
     fontSize: 13,
