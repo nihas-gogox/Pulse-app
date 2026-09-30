@@ -184,6 +184,16 @@ describe("ComplianceTripsTable — actions (AC-16..AC-22)", () => {
     expect(onReview).toHaveBeenCalledWith("t1", null, "trip");
   });
 
+  it("Verify not ready with onVerifyDocs: hands off to the Cards workspace instead of the review sheet", () => {
+    const onVerify = jest.fn().mockResolvedValue(undefined);
+    const onVerifyDocs = jest.fn();
+    const { onReview } = renderTable(makeSummary(), { onMarkComplianceVerified: onVerify, onVerifyDocs });
+    fireEvent.press(screen.getByTestId("compliance-verify-t1"));
+    expect(onVerifyDocs).toHaveBeenCalledWith("t1");
+    expect(onReview).not.toHaveBeenCalled();
+    expect(onVerify).not.toHaveBeenCalled();
+  });
+
   it("Verify ready: no hint, disabled only while marking", async () => {
     let resolve!: () => void;
     const onVerify = jest.fn(() => new Promise<void>((r) => (resolve = r)));

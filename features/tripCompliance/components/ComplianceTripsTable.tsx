@@ -53,6 +53,8 @@ export type ComplianceTripsTableProps = {
   onReview: (tripId: string, documentKey: string | null, scope?: "trip" | "vehicle" | "driver") => void;
   /** Verify action; runs once LR, E-way Bill and Invoice are approved, otherwise opens the trip documents. Resolves; the page shows errors. */
   onMarkComplianceVerified?: (tripId: string) => Promise<void>;
+  /** Verify on a not-ready trip: open its documents in the Cards workspace. Falls back to the review sheet when absent. */
+  onVerifyDocs?: (tripId: string) => void;
   /** Decline action; rejects with an Error whose message is user-facing (shown in the modal). */
   onDeclineCompliance?: (tripId: string, reason: string) => Promise<void>;
   onPay?: (tripId: string) => void;
@@ -192,6 +194,7 @@ function TripRowContent({
   onOpenDetails,
   onReview,
   onMarkComplianceVerified,
+  onVerifyDocs,
   onDeclineCompliance,
   onPay,
   canManageFinance = false,
@@ -201,6 +204,7 @@ function TripRowContent({
   onOpenDetails?: (tripId: string) => void;
   onReview: (tripId: string, documentKey: string | null, scope?: "trip" | "vehicle" | "driver") => void;
   onMarkComplianceVerified?: (tripId: string) => Promise<void>;
+  onVerifyDocs?: (tripId: string) => void;
   onDeclineCompliance?: (tripId: string, reason: string) => Promise<void>;
   onPay?: (tripId: string) => void;
   canManageFinance?: boolean;
@@ -237,7 +241,8 @@ function TripRowContent({
     if (markingRef.current || !onMarkComplianceVerified) return;
     if (!verifyEligibility.allowed) {
       // Not ready: open the trip documents to approve (as V1's "Verify Docs" did).
-      onReview(tripId, null, "trip");
+      if (onVerifyDocs) onVerifyDocs(tripId);
+      else onReview(tripId, null, "trip");
       return;
     }
     markingRef.current = true;
@@ -456,6 +461,7 @@ export function ComplianceTripsTable({
   onOpenDetails,
   onReview,
   onMarkComplianceVerified,
+  onVerifyDocs,
   onDeclineCompliance,
   onPay,
   canManageFinance,
@@ -507,6 +513,7 @@ export function ComplianceTripsTable({
             onOpenDetails={onOpenDetails}
             onReview={onReview}
             onMarkComplianceVerified={onMarkComplianceVerified}
+            onVerifyDocs={onVerifyDocs}
             onDeclineCompliance={onDeclineCompliance}
             onPay={onPay}
             canManageFinance={canManageFinance}

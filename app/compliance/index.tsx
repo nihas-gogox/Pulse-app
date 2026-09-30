@@ -174,8 +174,7 @@ export default function ComplianceScreen() {
     [canMarkVerified, syncChange, user?.uid],
   );
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
-  // Table → Cards hand-off ("Verify Docs") was removed; only the Cards workspace
-  // itself (onReviewTripDocs) moves this selection.
+  // Selected trip in the Cards workspace; Table Verify (not ready) hands off here.
   const [cardTripId, setCardTripId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [pay, setPay] = useState<{ summary: ComplianceTripSummary; category: ComplianceLedgerCategory } | null>(null);
@@ -392,6 +391,10 @@ export default function ComplianceScreen() {
             onOpenDetails={openDetails}
             onReview={(tripId, documentKey, scope = "trip") => setReview({ tripId, documentKey, scope })}
             onMarkComplianceVerified={canMarkVerified ? markTripVerified : undefined}
+            onVerifyDocs={(tripId) => {
+              setCardTripId(tripId);
+              setViewMode("card");
+            }}
             onDeclineCompliance={canMarkVerified ? declineTrip : undefined}
             onPay={(tripId) => {
               const summary = visible.find((s) => s.trip.id === tripId) ?? summaries.find((s) => s.trip.id === tripId);
