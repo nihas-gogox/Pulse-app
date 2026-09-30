@@ -118,10 +118,15 @@ function invalidateVehicleDocUrl(storagePath: string, extraPrefix?: string): voi
  * Validate file before attempting an upload. Returns null if valid, or an error message.
  * O(1) — two constant-time checks.
  */
-export function validateDocumentFile(file: { arrayBuffer: ArrayBuffer; mimeType: string }): string | null {
-  if (!file.arrayBuffer?.byteLength) return 'File is empty';
-  if (file.arrayBuffer.byteLength > MAX_FILE_SIZE_BYTES)
-    return `File too large (${(file.arrayBuffer.byteLength / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`;
+export function validateDocumentFile(file: {
+  arrayBuffer?: ArrayBuffer;
+  blob?: Blob;
+  mimeType: string;
+}): string | null {
+  const byteLength = file.blob?.size ?? file.arrayBuffer?.byteLength ?? 0;
+  if (!byteLength) return 'File is empty';
+  if (byteLength > MAX_FILE_SIZE_BYTES)
+    return `File too large (${(byteLength / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`;
   const mime = (file.mimeType ?? '').toLowerCase();
   if (mime && !ALLOWED_MIME_TYPES.has(mime))
     return `Unsupported file type (${mime}). Use JPEG, PNG, WebP, or PDF.`;
@@ -159,7 +164,7 @@ export async function uploadVehicleDocument(
   orgId: string,
   vehicleId: string,
   docType: VehicleComplianceDocType,
-  file: { arrayBuffer: ArrayBuffer; fileName: string; mimeType: string; blob?: Blob },
+  file: { arrayBuffer?: ArrayBuffer; fileName: string; mimeType: string; blob?: Blob },
 ): Promise<UploadVehicleDocumentResult> {
   const validationError = validateDocumentFile(file);
   if (validationError) return { storagePath: null, error: new Error(validationError) };
@@ -213,7 +218,7 @@ export async function uploadAndSaveVehicleDocument(
   orgId: string,
   vehicleId: string,
   docType: VehicleComplianceDocType,
-  file: { arrayBuffer: ArrayBuffer; fileName: string; mimeType: string; blob?: Blob },
+  file: { arrayBuffer?: ArrayBuffer; fileName: string; mimeType: string; blob?: Blob },
   expiryDate: string,
   existingDocuments: VehicleDocuments | null,
 ): Promise<{ documents: VehicleDocuments | null; error: Error | null }> {
@@ -261,7 +266,7 @@ export async function uploadAndSaveVehicleDocument(
 export async function uploadAndSaveVehicleExtraDocuments(
   orgId: string,
   vehicleId: string,
-  files: { arrayBuffer: ArrayBuffer; fileName: string; mimeType: string }[],
+  files: { arrayBuffer?: ArrayBuffer; blob?: Blob; fileName: string; mimeType: string }[],
   existingDocuments: VehicleDocuments | null,
 ): Promise<{ documents: VehicleDocuments | null; error: Error | null }> {
   if (files.length === 0) {
@@ -283,7 +288,7 @@ export async function uploadAndSaveVehicleExtraDocuments(
         supabase()
           .storage
           .from(BUCKET)
-          .upload(path, file.arrayBuffer, {
+          .upload(path, file.blob ?? file.arrayBuffer!, {
             contentType: file.mimeType || 'image/jpeg',
             upsert: false,
           }),

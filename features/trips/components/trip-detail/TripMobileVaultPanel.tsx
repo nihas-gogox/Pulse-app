@@ -298,21 +298,16 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
               tripCompleted,
             });
             const previewDisabled =
-              isVehicleDoc && !vaultDocHasPreviewableFile(doc);
+              !canUploadThis && isVehicleDoc && !vaultDocHasPreviewableFile(doc);
             const actionLocked = previewDisabled;
             const actionLabel = isPending
-              ? isVehicleDoc
-                ? "Preview"
-                : canUploadThis
-                  ? "Upload"
-                  : "Pending"
+              ? canUploadThis
+                ? "Upload"
+                : "Pending"
               : "View";
 
             const showAddMore =
-              canUploadThis &&
-              !!onAddMore &&
-              canAddMoreTripDocs(doc) &&
-              (doc.id !== "vehicle-documents" || !!vehicleId);
+              canUploadThis && !!onAddMore && canAddMoreTripDocs(doc);
             const lrNumber = isLrVaultDoc(doc)
               ? formatLrVaultNumberLabel(doc.documentNumber)
               : null;

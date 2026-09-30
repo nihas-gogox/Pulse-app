@@ -6,6 +6,10 @@ import { getClientById } from "@/features/clients/services/clients.service";
 import { findIndentInMarketList } from "@/features/indents/utils/findIndentInList.util";
 import { createSharedIndentCopiesWithOps } from "@/features/indents/utils/indentShareCopies.util";
 import {
+  indentAwardBlockedBecauseInactive,
+  type IndentCancelReason,
+} from "@/features/indents/utils/indentCancelReason.util";
+import {
   deactivatePostsForIndent,
   ensureIndentStory,
   isIndentTerminalForStory,
@@ -137,6 +141,8 @@ export interface IndentRow {
   assigned_supplier_rate?: number | null;
   /** Set when a shipper revokes an award; cleared on the next award. */
   award_revoked_at?: string | null;
+  /** Why the shipper cancelled. Null until status is cancelled. */
+  cancel_reason?: string | null;
   [key: string]: unknown;
 }
 
@@ -1084,6 +1090,17 @@ export async function updateIndent(
     return { error: null, indent: null };
   }
 
+  if (updates.status === "awarded") {
+    const { data: current, error: readError } = await supabase()
+      .from("indents")
+      .select("status")
+      .eq("id", indentId)
+      .maybeSingle();
+    if (readError) return { error: new Error(readError.message), indent: null };
+    const blocked = indentAwardBlockedBecauseInactive(current?.status);
+    if (blocked) return { error: new Error(blocked), indent: null };
+  }
+
   const { data, error } = await supabase()
     .from("indents")
     .update(payload)
@@ -1262,13 +1279,20 @@ export async function shareDraftIndent(
 /**
  * Soft-cancel an indent by setting status to 'cancelled'.
  * Caller must have permission via RLS (indent owner org).
+ * `reason` is required from the review hub; rollback of a failed multi-copy
+ * share may cancel without one.
  */
 export async function cancelIndent(
   indentId: string,
+  reason?: IndentCancelReason | null,
 ): Promise<{ error: Error | null }> {
+  const patch: { status: "cancelled"; cancel_reason?: IndentCancelReason } = {
+    status: "cancelled",
+  };
+  if (reason) patch.cancel_reason = reason;
   const { error } = await supabase()
     .from("indents")
-    .update({ status: "cancelled" })
+    .update(patch)
     .eq("id", indentId);
 
   if (error) return { error: new Error(error.message) };

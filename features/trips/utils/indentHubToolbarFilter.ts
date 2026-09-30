@@ -2,6 +2,7 @@ import {
   getIndentDisplayNumber,
   type IndentRow,
 } from "@/features/indents/services/indents.service";
+import { indentCancelReasonLabel } from "@/features/indents/utils/indentCancelReason.util";
 import {
   tripDayMatchesHubDateFilter,
   type TripHubDateFilter,
@@ -28,6 +29,7 @@ export function indentMatchesHubSearch(
     indent.material,
     indent.vehicle_type,
     indent.creator_organization_name,
+    indentCancelReasonLabel(indent.cancel_reason),
   ]
     .map((v) => String(v ?? "").toLowerCase())
     .join(" ");

@@ -520,10 +520,10 @@ export const IndentMobileLoadDetail = memo(function IndentMobileLoadDetail({
 
   const resolvedSecondary =
     secondaryActionLabel ??
-    (isOwner && canCancelLoad && resolvedPrimary !== "Cancel load"
+    (isOwner && canCancelLoad && resolvedPrimary !== "Cancel indent"
       ? cancelling
         ? "Cancelling…"
-        : "Cancel load"
+        : "Cancel indent"
       : !isOwner && hasQuote && quoteNorm === "pending" && counter && onQuotePress
         ? "Update bid"
         : null);

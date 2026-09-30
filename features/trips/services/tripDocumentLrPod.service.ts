@@ -12,7 +12,16 @@ import {
 
 /** After trip_documents SELECT uses can_read_trip_document, larger IN-lists
  *  are cheap. Keep a cap so PostgREST URLs stay bounded. */
-const TRIP_ID_CHUNK = 40;
+const TRIP_ID_CHUNK_REST = 40;
+/** Batch RPC accepts a larger id list per round trip than a REST IN filter. */
+const TRIP_ID_CHUNK_RPC = 80;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isTripUuid(id: string): boolean {
+  return UUID_RE.test(id);
+}
 
 export type TripDocumentLrPodRow = {
   trip_id: string;
@@ -251,11 +260,11 @@ export function receivedLrNumbersForTrip(
   return [];
 }
 
-function chunkIds(ids: string[]): string[][] {
+function chunkIds(ids: string[], size = TRIP_ID_CHUNK_REST): string[][] {
   const unique = Array.from(new Set(ids.filter(Boolean)));
   const chunks: string[][] = [];
-  for (let i = 0; i < unique.length; i += TRIP_ID_CHUNK) {
-    chunks.push(unique.slice(i, i + TRIP_ID_CHUNK));
+  for (let i = 0; i < unique.length; i += size) {
+    chunks.push(unique.slice(i, i + size));
   }
   return chunks;
 }
@@ -289,27 +298,70 @@ export async function runWithConcurrencyLimit<T, R>(
   return results;
 }
 
-/** One bulk read of LR + POD metadata for many trips. */
-export async function loadLrPodIndexByTripIds(
+async function fetchLrPodRowsViaRpc(
   tripIds: string[],
-): Promise<Map<string, TripLrPodIndex>> {
-  const chunks = chunkIds(tripIds);
-  if (chunks.length === 0) return new Map();
+): Promise<TripDocumentLrPodRow[] | null> {
+  const uuidIds = tripIds.filter(isTripUuid);
+  if (uuidIds.length === 0) return null;
+  const chunks = chunkIds(uuidIds, TRIP_ID_CHUNK_RPC);
+  try {
+    const parts = await runWithConcurrencyLimit(chunks, CHUNK_CONCURRENCY, async (chunk) => {
+      const { data, error } = await supabase().rpc(
+        "get_trip_documents_lr_pod_batch",
+        { p_trip_ids: chunk },
+      );
+      if (error) throw error;
+      return (data ?? []) as TripDocumentLrPodRow[];
+    });
+    const rows: TripDocumentLrPodRow[] = [];
+    for (const part of parts) rows.push(...part);
+    return rows;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[tripDocumentLrPod] lr/pod RPC batch unavailable:", msg);
+    return null;
+  }
+}
 
-  const rows: TripDocumentLrPodRow[] = [];
-  const results = await runWithConcurrencyLimit(chunks, CHUNK_CONCURRENCY, async (chunk) => {
+async function fetchLrPodRowsViaRest(
+  tripIds: string[],
+  documentTypes: string[],
+  concurrency: number,
+): Promise<TripDocumentLrPodRow[]> {
+  const chunks = chunkIds(tripIds, TRIP_ID_CHUNK_REST);
+  if (chunks.length === 0) return [];
+  const results = await runWithConcurrencyLimit(chunks, concurrency, async (chunk) => {
     const { data, error } = await supabase()
       .from("trip_documents")
       .select("trip_id, document_type, document_number")
       .in("trip_id", chunk)
-      .in("document_type", ["lr", "pod", "soft_pod", "pod_soft"]);
+      .in("document_type", documentTypes);
     if (error) {
       console.warn("[tripDocumentLrPod] trip_documents fetch:", error.message);
       return [] as TripDocumentLrPodRow[];
     }
     return (data ?? []) as TripDocumentLrPodRow[];
   });
+  const rows: TripDocumentLrPodRow[] = [];
   for (const part of results) rows.push(...part);
+  return rows;
+}
+
+/** One bulk read of LR + POD metadata for many trips. */
+export async function loadLrPodIndexByTripIds(
+  tripIds: string[],
+): Promise<Map<string, TripLrPodIndex>> {
+  const unique = Array.from(new Set(tripIds.filter(Boolean)));
+  if (unique.length === 0) return new Map();
+
+  const viaRpc = await fetchLrPodRowsViaRpc(unique);
+  const rows =
+    viaRpc?.filter(
+      (row) =>
+        String(row.document_type ?? "").trim().toLowerCase() === "lr" ||
+        isSoftPodDocumentType(row.document_type),
+    ) ??
+    (await fetchLrPodRowsViaRest(unique, ["lr", "pod", "soft_pod", "pod_soft"], CHUNK_CONCURRENCY));
   return indexLrPodDocuments(rows);
 }
 
@@ -335,24 +387,18 @@ export async function loadHubPodReceiptFlags(
     return { softTripIds: [], hardTripIds: [], ewayExpiryByTripId: {} };
   }
 
-  const chunks = chunkIds(wanted);
   const soft = new Set<string>();
   const ewayTillsByTrip = new Map<string, string[]>();
+  const viaRpc = await fetchLrPodRowsViaRpc(wanted);
+  const docParts =
+    viaRpc ??
+    (await fetchLrPodRowsViaRest(
+      wanted,
+      ["pod", "soft_pod", "pod_soft", "eway_bill"],
+      1,
+    ));
 
-  const docParts = await runWithConcurrencyLimit(chunks, 1, async (chunk) => {
-    const { data, error } = await supabase()
-      .from("trip_documents")
-      .select("trip_id, document_type, document_number")
-      .in("trip_id", chunk)
-      .in("document_type", ["pod", "soft_pod", "pod_soft", "eway_bill"]);
-    if (error) {
-      console.warn("[tripDocumentLrPod] hub soft POD fetch:", error.message);
-      return [] as TripDocumentLrPodRow[];
-    }
-    return (data ?? []) as TripDocumentLrPodRow[];
-  });
-  for (const part of docParts) {
-    for (const row of part) {
+  for (const row of docParts) {
       const id = normalizeTripPodId(row.trip_id);
       if (!id) continue;
       if (isSoftPodDocumentType(row.document_type)) {
@@ -369,7 +415,6 @@ export async function loadHubPodReceiptFlags(
       const existing = ewayTillsByTrip.get(id) ?? [];
       existing.push(...tills);
       ewayTillsByTrip.set(id, existing);
-    }
   }
 
   const ewayExpiryByTripId: Record<string, string> = {};

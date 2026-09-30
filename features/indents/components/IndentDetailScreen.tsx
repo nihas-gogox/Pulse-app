@@ -4,6 +4,7 @@
  */
 import { CenteredLoadingView } from "@/components/CenteredLoadingView";
 import { LoadingIndicator } from "@/components/LoadingIndicator";
+import { ThemedAlertModal } from "@/components/ThemedAlertModal";
 import { ThemedConfirmModal } from "@/components/ThemedConfirmModal";
 import Layout from "@/constants/Layout";
 import Theme from "@/constants/Theme";
@@ -35,6 +36,12 @@ import {
     updateIndent,
     type IndentRow,
 } from "@/features/indents/services/indents.service";
+import {
+    INDENT_CANCEL_REASONS,
+    indentAwardBlockedBecauseInactive,
+    indentCancelReasonLabel,
+    type IndentCancelReason,
+} from "@/features/indents/utils/indentCancelReason.util";
 import {
   clearInitialIndentForDetail,
   getInitialIndentForDetail,
@@ -262,6 +269,10 @@ export function IndentDetailScreen({
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelReasonOpen, setCancelReasonOpen] = useState(false);
+  const [cancelConfirmedMessage, setCancelConfirmedMessage] = useState<string | null>(
+    null,
+  );
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [confirmShareVisible, setConfirmShareVisible] = useState(false);
   const [sharingDraft, setSharingDraft] = useState(false);
@@ -512,6 +523,11 @@ export function IndentDetailScreen({
         return;
       }
       const indentStatus = normalizeStatus(indent.status);
+      const inactiveAwardBlock = indentAwardBlockedBecauseInactive(indentStatus);
+      if (inactiveAwardBlock) {
+        showAppAlert("Cannot award", inactiveAwardBlock);
+        return;
+      }
       if (indentStatus === "awarded" || indentStatus === "completed") {
         Alert.alert("Already awarded", "This load has already been awarded.");
         return;
@@ -631,6 +647,11 @@ export function IndentDetailScreen({
         return;
       }
       const indentStatus = normalizeStatus(indent.status);
+      const inactiveAwardBlock = indentAwardBlockedBecauseInactive(indentStatus);
+      if (inactiveAwardBlock) {
+        showAppAlert("Cannot award", inactiveAwardBlock);
+        return;
+      }
       if (indentStatus === "awarded" || indentStatus === "completed") {
         Alert.alert("Already awarded", "This load has already been awarded.");
         return;
@@ -750,34 +771,38 @@ export function IndentDetailScreen({
   );
   const handleCancelLoad = useCallback(() => {
     if (!indent || cancelling) return;
-    Alert.alert(
-      "Cancel load",
-      "Are you sure you want to cancel this load? Connected suppliers will no longer see it under Find Work.",
-      [
-        { text: "Keep load", style: "cancel" },
-        {
-          text: "Cancel load",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setCancelling(true);
-              const { error: cancelError } = await cancelIndent(indent.id);
-              setCancelling(false);
-              if (cancelError) {
-                Alert.alert("Could not cancel", cancelError.message);
-                return;
-              }
-              await load();
-            } catch (e) {
-              setCancelling(false);
-              const msg = e instanceof Error ? e.message : "Unknown error";
-              Alert.alert("Could not cancel", msg);
-            }
-          },
-        },
-      ],
-    );
-  }, [cancelling, indent, load]);
+    setCancelReasonOpen(true);
+  }, [cancelling, indent]);
+
+  const confirmCancelIndent = useCallback(
+    async (reason: IndentCancelReason) => {
+      if (!indent || cancelling) return;
+      try {
+        setCancelling(true);
+        const { error: cancelError } = await cancelIndent(indent.id, reason);
+        if (cancelError) {
+          showAppAlert("Could not cancel", cancelError.message);
+          return;
+        }
+        const reasonLabel = indentCancelReasonLabel(reason) ?? "Cancelled";
+        setCancelReasonOpen(false);
+        setCancelConfirmedMessage(
+          `This indent is cancelled.\n\nReason: ${reasonLabel}.\n\nReactivate it before awarding a bid.`,
+        );
+        setIndent({ ...indent, status: "cancelled", cancel_reason: reason });
+        if (indent.organization_id) {
+          invalidateIndents(indent.organization_id);
+        }
+        await load();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Unknown error";
+        showAppAlert("Could not cancel", msg);
+      } finally {
+        setCancelling(false);
+      }
+    },
+    [cancelling, indent, invalidateIndents, load],
+  );
 
   useEffect(() => {
     load();
@@ -1057,7 +1082,9 @@ export function IndentDetailScreen({
   const canCancelLoad =
     canUseSuppliers &&
     isOwner &&
-    !isLockedStatus &&
+    !["awarded", "assigned", "deployed", "completed", "cancelled", "closed", "expired"].includes(
+      statusLower,
+    ) &&
     canSurface("tripops.indents.cancel");
   const canEditLoad =
     canUseSuppliers &&
@@ -1073,6 +1100,7 @@ export function IndentDetailScreen({
     statusLower !== "awarded" &&
     statusLower !== "completed" &&
     statusLower !== "deployed" &&
+    !indentAwardBlockedBecauseInactive(statusLower) &&
     canSurface("tripops.indents.award");
   const canSupplierBid =
     !isOwner &&
@@ -1250,7 +1278,7 @@ export function IndentDetailScreen({
       return { label: "Edit load", onPress: handleEditAll };
     }
     if (isOwner && canCancelLoad) {
-      return { label: "Cancel load", onPress: handleCancelLoad };
+      return { label: "Cancel indent", onPress: handleCancelLoad };
     }
     return null;
   })();
@@ -1676,6 +1704,29 @@ export function IndentDetailScreen({
                   color={canEditLoad ? Theme.textSecondary : Theme.textMuted}
                 />
               </TouchableOpacity>
+              {canCancelLoad ? (
+                <TouchableOpacity
+                  style={[
+                    styles.footerCancelIndentBtn,
+                    stackedHub && styles.footerCancelIndentBtnMobile,
+                    cancelling && styles.footerAwardBtnDisabled,
+                  ]}
+                  onPress={handleCancelLoad}
+                  disabled={cancelling}
+                  activeOpacity={0.85}
+                  accessibilityLabel="Cancel indent"
+                  hitSlop={Layout.touchTargetHitSlop}
+                >
+                  <Text
+                    style={[
+                      styles.footerCancelIndentText,
+                      stackedHub && styles.footerCancelIndentTextMobile,
+                    ]}
+                  >
+                    {cancelling ? "Cancelling…" : "Cancel indent"}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
               {statusLower === "awarded" ? (
                 <TouchableOpacity
                   style={[
@@ -2015,6 +2066,65 @@ export function IndentDetailScreen({
           setCounterQuoteId(null);
         }}
         onSubmitAmount={handleSubmitCounter}
+      />
+
+      <Modal
+        visible={cancelReasonOpen}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {
+          if (!cancelling) setCancelReasonOpen(false);
+        }}
+      >
+        <View
+          style={[
+            styles.cancelReasonBackdrop,
+            { paddingTop: insets.top, paddingBottom: insets.bottom },
+          ]}
+        >
+          <View style={styles.cancelReasonCard}>
+            <Text style={styles.cancelReasonTitle}>Cancel indent</Text>
+            <Text style={styles.cancelReasonMessage}>
+              Connected suppliers will no longer see this load. Choose a reason.
+            </Text>
+            {INDENT_CANCEL_REASONS.map((reason) => (
+              <TouchableOpacity
+                key={reason.id}
+                style={styles.cancelReasonOption}
+                onPress={() => {
+                  void confirmCancelIndent(reason.id);
+                }}
+                disabled={cancelling}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={reason.label}
+              >
+                <Text style={styles.cancelReasonOptionText}>{reason.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={styles.cancelReasonKeep}
+              onPress={() => setCancelReasonOpen(false)}
+              disabled={cancelling}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Keep indent"
+            >
+              <Text style={styles.cancelReasonKeepText}>Keep indent</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <ThemedAlertModal
+        visible={cancelConfirmedMessage != null}
+        title="Indent cancelled"
+        message={cancelConfirmedMessage ?? ""}
+        okText="OK"
+        variant="warning"
+        onOk={() => setCancelConfirmedMessage(null)}
+        onRequestClose={() => setCancelConfirmedMessage(null)}
       />
 
       <ThemedConfirmModal
@@ -2659,6 +2769,82 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 8,
     marginRight: 8,
+  },
+  footerCancelIndentBtn: {
+    minHeight: 44,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Theme.negative,
+    backgroundColor: Theme.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  footerCancelIndentBtnMobile: {
+    minHeight: 36,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  footerCancelIndentText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Theme.negative,
+  },
+  footerCancelIndentTextMobile: {
+    fontSize: 12,
+  },
+  cancelReasonBackdrop: {
+    flex: 1,
+    backgroundColor: Theme.overlayBackdrop,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  cancelReasonCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: Theme.cardWhite,
+    borderRadius: 16,
+    padding: 20,
+    gap: 10,
+  },
+  cancelReasonTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Theme.text,
+  },
+  cancelReasonMessage: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: Theme.textSecondary,
+    marginBottom: 4,
+  },
+  cancelReasonOption: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Theme.border,
+    backgroundColor: Theme.screenBackground,
+    alignItems: "flex-start",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+  },
+  cancelReasonOptionText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Theme.text,
+  },
+  cancelReasonKeep: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelReasonKeepText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Theme.textSecondary,
   },
   footerSelectionMeta: {
     flex: 1,

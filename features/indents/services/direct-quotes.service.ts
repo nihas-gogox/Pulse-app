@@ -3,6 +3,7 @@
  * (circulation_target offline / integrated_supplier). Backed by public.direct_quotes.
  */
 import { shouldFallbackDirectQuotesToTable } from '@/features/indents/utils/bidding/indentReviewHubOffers.util';
+import { indentAwardBlockedBecauseInactive } from '@/features/indents/utils/indentCancelReason.util';
 import { FINITE_LIST_CAP } from '@/lib/pagination';
 import { supabase } from '@/lib/supabase';
 
@@ -161,6 +162,25 @@ export async function updateDirectQuoteStatus(
   quoteId: string,
   status: 'accepted' | 'rejected'
 ): Promise<{ error: Error | null }> {
+  if (status === "accepted") {
+    const { data: quote, error: quoteError } = await supabase()
+      .from("direct_quotes")
+      .select("indent_id")
+      .eq("id", quoteId)
+      .maybeSingle();
+    if (quoteError) return { error: new Error(quoteError.message) };
+    if (quote?.indent_id) {
+      const { data: indent, error: indentError } = await supabase()
+        .from("indents")
+        .select("status")
+        .eq("id", quote.indent_id)
+        .maybeSingle();
+      if (indentError) return { error: new Error(indentError.message) };
+      const blocked = indentAwardBlockedBecauseInactive(indent?.status);
+      if (blocked) return { error: new Error(blocked) };
+    }
+  }
+
   const { error } = await supabase()
     .from('direct_quotes')
     .update({
