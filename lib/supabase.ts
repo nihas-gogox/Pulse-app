@@ -62,8 +62,18 @@ try {
 const REQUEST_TIMEOUT_MS = 12_000;
 /** Writes (indent/trip insert) can wait on triggers; aborting them mid-commit looks like a failed create. */
 const WRITE_REQUEST_TIMEOUT_MS = 20_000;
+/** Storage object POST/PUT transfers a full file body (up to 10MB, see MAX_TRIP_DOC_BYTES)
+ * through this same global fetch wrapper. The 20s write budget was tuned for small
+ * PostgREST/RPC mutations and was cutting off real document uploads mid-transfer on
+ * ordinary networks (observed: gogopulse.com trip vault document upload). */
+const STORAGE_UPLOAD_TIMEOUT_MS = 90_000;
 
-function requestTimeoutMs(init?: RequestInit): number {
+function isStorageObjectRequest(input: RequestInfo | URL): boolean {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  return url.includes('/storage/v1/object/');
+}
+
+function requestTimeoutMs(input: RequestInfo | URL, init?: RequestInit): number {
   const method = String(init?.method ?? "GET").toUpperCase();
   if (
     method === "POST" ||
@@ -71,7 +81,7 @@ function requestTimeoutMs(init?: RequestInit): number {
     method === "PUT" ||
     method === "DELETE"
   ) {
-    return WRITE_REQUEST_TIMEOUT_MS;
+    return isStorageObjectRequest(input) ? STORAGE_UPLOAD_TIMEOUT_MS : WRITE_REQUEST_TIMEOUT_MS;
   }
   return REQUEST_TIMEOUT_MS;
 }
@@ -201,7 +211,17 @@ async function fetchWithTimeoutAndRetryRaw(
   init?: RequestInit
 ): Promise<Response> {
   const isAuthToken = isAuthTokenRequest(input);
-  const maxRetries = isAuthToken ? AUTH_TOKEN_MAX_RETRIES : FETCH_MAX_RETRIES;
+  const method = String(init?.method ?? "GET").toUpperCase();
+  const isStorageWrite =
+    isStorageObjectRequest(input) &&
+    (method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE");
+  // Re-POSTing a file body on 503 can run for minutes (90s timeout × retries)
+  // and still leave the Confirm-upload spinner stuck.
+  const maxRetries = isAuthToken
+    ? AUTH_TOKEN_MAX_RETRIES
+    : isStorageWrite
+      ? 0
+      : FETCH_MAX_RETRIES;
   const delayForAttempt = isAuthToken ? authTokenRetryDelayMs : retryDelayMs;
   const doFetch = (signal?: AbortSignal): Promise<Response> => {
     const controller = new AbortController();
@@ -209,7 +229,7 @@ async function fetchWithTimeoutAndRetryRaw(
     const timeoutId = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, requestTimeoutMs(init));
+    }, requestTimeoutMs(input, init));
     const combinedSignal = signal
       ? abortSignalAny(controller.signal, signal)
       : controller.signal;
@@ -325,9 +345,12 @@ async function fetchWithTimeoutAndRetry(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
-  const { lane, coalesceKey, violations, isAuth } = classifyRequest(input, init);
+  const { lane, coalesceKey, violations, isAuth, bypassModerator } = classifyRequest(
+    input,
+    init,
+  );
 
-  if (isAuth) {
+  if (isAuth || bypassModerator) {
     return fetchWithTimeoutAndRetryRaw(input, init);
   }
 
