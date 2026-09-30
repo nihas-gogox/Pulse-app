@@ -447,10 +447,21 @@ export async function getDocumentsByTripId(
  * own `${tripId}:pod.uploaded` key) — this is the only place that milestone is recorded, so
  * `deriveWorkflowState().docComplete` stays accurate.
  */
-function publishPodUploadedEvent(tripId: string, doc: TripDocumentRow): void {
-  void Promise.resolve(
-    supabase().from("trips").select("organization_id").eq("id", tripId).maybeSingle(),
-  )
+function publishPodUploadedEvent(
+  tripId: string,
+  doc: TripDocumentRow,
+  organizationId?: string | null,
+): void {
+  const knownOrgId = organizationId?.trim() || null;
+  const workspace = knownOrgId
+    ? Promise.resolve({
+        data: { organization_id: knownOrgId },
+        error: null,
+      })
+    : Promise.resolve(
+        supabase().from("trips").select("organization_id").eq("id", tripId).maybeSingle(),
+      );
+  void workspace
     .then(({ data, error }) => {
       const workspaceId = !error && data ? (data as { organization_id?: string | null }).organization_id : null;
       if (!workspaceId) return;
@@ -507,15 +518,21 @@ async function recordTripDocumentReplacedAudit(params: {
   newStoragePath: string;
   newFileName: string;
   actorId: string;
+  organizationId?: string | null;
 }): Promise<void> {
   const { tripId, existing, newStoragePath, newFileName, actorId } = params;
   try {
-    const { data: trip, error: tripError } = await supabase()
-      .from("trips")
-      .select("organization_id")
-      .eq("id", tripId)
-      .maybeSingle();
-    const organizationId = !tripError ? (trip as { organization_id?: string | null } | null)?.organization_id : null;
+    let organizationId = params.organizationId?.trim() || null;
+    if (!organizationId) {
+      const { data: trip, error: tripError } = await supabase()
+        .from("trips")
+        .select("organization_id")
+        .eq("id", tripId)
+        .maybeSingle();
+      organizationId = !tripError
+        ? (trip as { organization_id?: string | null } | null)?.organization_id ?? null
+        : null;
+    }
     if (!organizationId) return;
 
     await supabase()
@@ -558,7 +575,11 @@ export async function uploadTripDocument(
   file: { arrayBuffer: ArrayBuffer; fileName: string; mimeType: string },
   documentType: TripDocumentType = 'pod',
   documentNumber?: string,
-  options?: { stopId?: string | null; replaceExistingOfType?: boolean },
+  options?: {
+    stopId?: string | null;
+    replaceExistingOfType?: boolean;
+    organizationId?: string | null;
+  },
 ): Promise<UploadTripDocumentResult> {
   if (!file.arrayBuffer?.byteLength) {
     return { doc: null, error: new Error("File is empty") };
@@ -663,12 +684,15 @@ export async function uploadTripDocument(
         newStoragePath: path,
         newFileName: file.fileName,
         actorId: uploadedBy,
+        organizationId: options?.organizationId,
       });
       const replacedDoc = {
         ...(updated as TripDocumentRow),
         document_type: ((updated as TripDocumentRow).document_type ?? documentType) as TripDocumentType,
       };
-      if (documentType === "pod") publishPodUploadedEvent(tripId, replacedDoc);
+      if (documentType === "pod") {
+        publishPodUploadedEvent(tripId, replacedDoc, options?.organizationId);
+      }
       return { doc: replacedDoc, error: null };
     }
   }
@@ -695,7 +719,9 @@ export async function uploadTripDocument(
         document_type: documentType,
         document_number: trimmedDocumentNumber,
       };
-      if (documentType === "pod") publishPodUploadedEvent(tripId, fallbackDoc);
+      if (documentType === "pod") {
+        publishPodUploadedEvent(tripId, fallbackDoc, options?.organizationId);
+      }
       return { doc: fallbackDoc, error: null };
     }
     if (isTripDocumentsStoragePathConflict(insertError)) {
@@ -730,7 +756,9 @@ export async function uploadTripDocument(
     ...(row as TripDocumentRow),
     document_type: ((row as TripDocumentRow).document_type ?? documentType) as TripDocumentType,
   } as TripDocumentRow;
-  if (documentType === "pod") publishPodUploadedEvent(tripId, insertedDoc);
+  if (documentType === "pod") {
+    publishPodUploadedEvent(tripId, insertedDoc, options?.organizationId);
+  }
   return { doc: insertedDoc, error: null };
 }
 

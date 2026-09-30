@@ -17,6 +17,7 @@ type Props = {
   canUploadTripDocs: boolean;
   tripCompleted?: boolean;
   uploadingDocId: string | null;
+  uploadError?: { slotId: string; message: string } | null;
   vehicleId: string | null;
   onCardPress: (doc: TripDocItem) => void;
   onAddMore?: (doc: TripDocItem) => void;
@@ -43,6 +44,7 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
   canUploadTripDocs,
   tripCompleted = false,
   uploadingDocId,
+  uploadError = null,
   onCardPress,
   onAddMore,
   ewayStripRows = [],
@@ -65,6 +67,7 @@ export const TripMobileVaultPanel = memo(function TripMobileVaultPanel({
       <TripVaultCardGrid
         docs={docs}
         uploadingDocId={uploadingDocId}
+        uploadError={uploadError}
         canUpload={(doc) =>
           canMutateTripVaultDoc({ doc, canUploadTripDocs, tripCompleted }) &&
           Boolean(onAddMore)

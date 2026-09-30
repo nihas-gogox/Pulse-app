@@ -26,6 +26,7 @@ import { Text, TouchableOpacity, View } from "react-native";
 type Props = {
   docs: TripDocItem[];
   uploadingDocId: string | null;
+  uploadError?: { slotId: string; message: string } | null;
   canUpload: (doc: TripDocItem) => boolean;
   vehicleSummary?: string;
   driverSummary?: string;
@@ -70,6 +71,7 @@ function cardStatus(
 export function TripVaultCardGrid({
   docs,
   uploadingDocId,
+  uploadError = null,
   canUpload,
   vehicleSummary = "",
   driverSummary = "",
@@ -94,6 +96,8 @@ export function TripVaultCardGrid({
         const previewReady = vaultDocHasPreviewableFile(doc);
         const showAdd = canUpload(doc);
         const statusLabel = cardStatus(doc, vehicleSummary, driverSummary);
+        const failure =
+          uploadError?.slotId === doc.id ? uploadError.message : null;
         return (
           <View
             key={doc.id}
@@ -123,10 +127,14 @@ export function TripVaultCardGrid({
                 {doc.label}
               </Text>
               <Text
-                style={[neoStyles.vaultSub, compact && neoStyles.vaultSubCompact]}
-                numberOfLines={2}
+                style={[
+                  neoStyles.vaultSub,
+                  compact && neoStyles.vaultSubCompact,
+                  failure ? { color: Theme.negative } : null,
+                ]}
+                numberOfLines={3}
               >
-                {statusLabel}
+                {isUploadingThis ? "Uploading…" : failure ?? statusLabel}
               </Text>
             </TouchableOpacity>
             <View

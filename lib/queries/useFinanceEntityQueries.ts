@@ -15,7 +15,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { STALE } from '@/lib/queryClient';
 
 export function useTripsWhereOrgIsClientQuery(orgId: string | null, active = true) {
-  const bootReady = useQueryBootDefer(orgId, 1100);
+  const bootReady = useQueryBootDefer(orgId, 200);
   return useQuery({
     queryKey: queryKeys.trips.whereOrgIsClient(orgId ?? ''),
     queryFn: async () => {

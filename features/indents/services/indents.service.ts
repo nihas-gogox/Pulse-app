@@ -406,81 +406,6 @@ export async function syncIndentsWithCache(orgId: string, currentRows: IndentRow
   }
 }
 
-/**
- * Partner shipper org → earliest ISO time the link became active (matches market_indents_for_org).
- * Precedence per shipper: organization_relations; else suppliers (caller = linked_organization_id);
- * else clients.linked_organization_id on caller's org.
- */
-async function fetchPartnerShipperLinkSinceMap(
-  orgId: string,
-): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-
-  const mergeMin = (shipperId: string, iso: string | null | undefined) => {
-    if (!shipperId || !iso) return;
-    const prev = map.get(shipperId);
-    if (!prev || iso < prev) map.set(shipperId, iso);
-  };
-
-  const [
-    { data: clientSupplier },
-    { data: supplierClient },
-    { data: suppliers },
-    { data: linkedClients },
-  ] = await Promise.all([
-    supabase()
-      .from("organization_relations")
-      .select("from_organization_id, created_at")
-      .eq("to_organization_id", orgId)
-      .eq("relation_type", "client_supplier")
-      .eq("status", "active"),
-    supabase()
-      .from("organization_relations")
-      .select("to_organization_id, created_at")
-      .eq("from_organization_id", orgId)
-      .eq("relation_type", "supplier_client")
-      .eq("status", "active"),
-    supabase()
-      .from("suppliers")
-      .select("organization_id, updated_at")
-      .eq("linked_organization_id", orgId),
-    supabase()
-      .from("clients")
-      .select("linked_organization_id, created_at")
-      .eq("organization_id", orgId)
-      .eq("status", "active"),
-  ]);
-
-  for (const r of clientSupplier ?? []) {
-    mergeMin(String(r.from_organization_id), r.created_at as string);
-  }
-  for (const r of supplierClient ?? []) {
-    mergeMin(String(r.to_organization_id), r.created_at as string);
-  }
-
-  for (const s of suppliers ?? []) {
-    const oid = s.organization_id as string | null;
-    const ts = s.updated_at as string | null | undefined;
-    if (!oid || oid === orgId || !ts) continue;
-    if (map.has(oid)) continue;
-    mergeMin(oid, ts);
-  }
-
-  for (const c of linkedClients ?? []) {
-    const lid = c.linked_organization_id as string | null;
-    if (!lid || lid === orgId) continue;
-    if (map.has(lid)) continue;
-    mergeMin(lid, c.created_at as string);
-  }
-
-  return map;
-}
-
-/**
- * Ensure integrated suppliers can see currently active loads from linked shippers,
- * including rows created before the connection timestamp.
- * This is a read-merge only safety net layered above RPC/fallback paths.
- */
 function mergeIndentRowsById(...lists: IndentRow[][]): IndentRow[] {
   const existing = new Map<string, IndentRow>();
   const merged: IndentRow[] = [];
@@ -494,48 +419,27 @@ function mergeIndentRowsById(...lists: IndentRow[][]): IndentRow[] {
   return merged;
 }
 
-async function mergeLinkedShipperActiveIndents(
-  orgId: string,
-  baseIndents: IndentRow[],
-): Promise<IndentRow[]> {
-  const existing = new Map(baseIndents.map((i) => [i.id, i]));
-  const linkMap = await fetchPartnerShipperLinkSinceMap(orgId);
-  if (linkMap.size === 0) return baseIndents;
-
-  const shipperIds = [...linkMap.keys()];
-  const { data: rows, error } = await supabase()
-    // indents has two FKs to organizations (organization_id, assigned_supplier_id),
-    // so the embed must name the constraint or PostgREST returns PGRST201.
-    .from("indents")
-    .select("*, organizations!indents_organization_id_fkey(name)")
-    .in("organization_id", shipperIds)
-    // NULL fails an IN check — treat it as the createIndent default so a
-    // missing circulation_target fails open instead of hiding the load.
-    .or(
-      "circulation_target.is.null,circulation_target.in.(integrated_supplier,both)",
-    )
-    .not("status", "in", '("completed","cancelled","closed","expired")')
-    .neq("status", "draft")
-    .order("created_at", { ascending: false });
-  if (error || !rows?.length) return baseIndents;
-
-  const merged = [...baseIndents];
-  for (const row of rows as Array<
-    IndentRow & { organizations?: { name: string | null } | null }
-  >) {
-    if (existing.has(row.id)) continue;
-    const { organizations, ...rest } = row;
-    const normalized: IndentRow = {
-      ...rest,
-      creator_organization_name: organizations?.name ?? null,
-    } as IndentRow;
-    existing.set(normalized.id, normalized);
-    merged.push(normalized);
-  }
-  return merged;
+function mapMarketIndentRpcRow(row: Record<string, unknown>): IndentRow {
+  const { organizations, ...rest } = row;
+  const name =
+    (organizations as { name?: string | null } | null)?.name ??
+    (row.creator_organization_name as string | null) ??
+    null;
+  return normalizeIndentRow({
+    ...rest,
+    creator_organization_name: name,
+  } as IndentRow & { trips?: IndentTripJoin[] | null });
 }
 
-/** Market-facing indents visible to the current organization (as integrated supplier). Uses RPC (SECURITY DEFINER) then direct table fallback. */
+/**
+ * Market-facing indents for Get Load. `market_indents_for_org` is the only
+ * source of Network Loads (open partner rows). A table fallback cannot see
+ * them under indent RLS, and publishing that partial list is what left
+ * Network Loads empty while My Bids still rendered.
+ *
+ * Quoted rows are fetched in parallel and only fill gaps (story bids the
+ * market RPC missed). They never replace the open-load set.
+ */
 export async function getMarketIndentsForOrganization(
   orgId: string,
 ): Promise<{ error: Error | null; indents: IndentRow[] }> {
@@ -543,128 +447,36 @@ export async function getMarketIndentsForOrganization(
 
   // Param must be p_org_id — renamed from org_id in market_indents_via_reach.
   // Named-arg mismatch 404s the RPC and drops Claimed/Find Work for suppliers.
-  const { data: rpcData, error: rpcError } = await supabase().rpc(
-    "market_indents_for_org",
-    {
+  const [marketRes, quotedRes] = await Promise.all([
+    supabase().rpc("market_indents_for_org", {
       p_org_id: orgId,
-    },
-  );
-  if (!rpcError && Array.isArray(rpcData)) {
-    const indents = (rpcData as Record<string, unknown>[]).map((row) => {
-      const { organizations, ...rest } = row;
-      const name =
-        (organizations as { name?: string | null } | null)?.name ??
-        (row.creator_organization_name as string | null) ??
-        null;
-      return normalizeIndentRow({
-        ...rest,
-        creator_organization_name: name,
-      } as IndentRow & { trips?: IndentTripJoin[] | null });
-    });
-    const [withActiveLinked, withQuoted] = await Promise.all([
-      mergeLinkedShipperActiveIndents(orgId, indents),
-      mergeQuotedIndentsForSupplier(orgId, indents),
-    ]);
+    }),
+    supabase().rpc("quoted_indents_for_org", { org_id: orgId }),
+  ]);
+
+  if (marketRes.error || !Array.isArray(marketRes.data)) {
     return {
-      error: null,
-      indents: mergeIndentRowsById(indents, withActiveLinked, withQuoted).map((i) =>
-        maskIndentRowForSupplierList(normalizeIndentRow(i), orgId),
+      error: new Error(
+        marketRes.error?.message ?? "Could not load network loads",
       ),
+      indents: [],
     };
   }
 
-  // Fallback when RPC is unavailable: partner-link indents (RLS-limited) plus
-  // quoted/awarded indents via SECURITY DEFINER quoted_indents_for_org. Always
-  // run the quoted merge — do not early-return on an empty link map, or an
-  // awardee with only an accepted quote never sees Claimed.
-  const linkMap = await fetchPartnerShipperLinkSinceMap(orgId);
-  let indents: IndentRow[] = [];
+  const indents = (marketRes.data as Record<string, unknown>[]).map(
+    mapMarketIndentRpcRow,
+  );
+  const quotedExtras =
+    !quotedRes.error && Array.isArray(quotedRes.data)
+      ? (quotedRes.data as Record<string, unknown>[]).map(mapMarketIndentRpcRow)
+      : [];
 
-  if (linkMap.size > 0) {
-    const shipperIds = [...linkMap.keys()];
-    const { data, error } = await supabase()
-      .from("indents")
-      .select("*, organizations!indents_organization_id_fkey(name)")
-      .in("organization_id", shipperIds)
-      // NULL fails an IN check — see fail-open note above.
-      .or(
-        "circulation_target.is.null,circulation_target.in.(integrated_supplier,both)",
-      )
-      .neq("status", "draft")
-      .order("created_at", { ascending: false });
-
-    if (error) return { error: new Error(error.message), indents: [] };
-
-    const rows = (data ?? []).filter((row) => {
-      const since = linkMap.get(String(row.organization_id ?? ""));
-      if (!since) return false;
-      const status = String(row.status ?? "").toLowerCase();
-      const isActive =
-        status !== "completed" &&
-        status !== "cancelled" &&
-        status !== "closed" &&
-        status !== "expired";
-      if (isActive) return true;
-      return String(row.created_at ?? "") >= since;
-    }) as (IndentRow & {
-      organizations?: { name: string | null } | null;
-    })[];
-    indents = rows.map((row) => {
-      const { organizations, ...rest } = row;
-      return normalizeIndentRow({
-        ...rest,
-        creator_organization_name: organizations?.name ?? null,
-      } as IndentRow & { trips?: IndentTripJoin[] | null });
-    });
-  }
-
-  const merged = await mergeQuotedIndentsForSupplier(orgId, indents);
   return {
     error: null,
-    indents: merged.map((i) =>
-      maskIndentRowForSupplierList(normalizeIndentRow(i), orgId),
+    indents: mergeIndentRowsById(indents, quotedExtras).map((row) =>
+      maskIndentRowForSupplierList(row, orgId),
     ),
   };
-}
-
-/**
- * Safety net for supplier load pages:
- * if supplier has already quoted/bid on an indent (incl. story bid -> direct_quote),
- * ensure that indent appears in market loads even when partner-link/date filters exclude it.
- *
- * Uses the `quoted_indents_for_org` RPC (SECURITY DEFINER) rather than a plain
- * `.from("indents").select()` — indents RLS only allows SELECT by members of the
- * indent's own org, so a non-partner supplier's direct_quote-only access would
- * otherwise be silently filtered to zero rows here.
- */
-async function mergeQuotedIndentsForSupplier(
-  orgId: string,
-  baseIndents: IndentRow[],
-): Promise<IndentRow[]> {
-  const existing = new Map(baseIndents.map((i) => [i.id, i]));
-
-  const { data: extraRows, error: extraErr } = await supabase().rpc(
-    "quoted_indents_for_org",
-    { org_id: orgId },
-  );
-  if (extraErr || !extraRows?.length) return baseIndents;
-
-  const extras = (extraRows as Array<IndentRow & { creator_organization_name?: string | null }>)
-    .filter((row) => !existing.has(row.id))
-    .map((row) =>
-      normalizeIndentRow({
-        ...row,
-      } as IndentRow & { trips?: IndentTripJoin[] | null }),
-    );
-
-  const merged = [...baseIndents];
-  for (const row of extras) {
-    if (!existing.has(row.id)) {
-      existing.set(row.id, row);
-      merged.push(row);
-    }
-  }
-  return merged;
 }
 
 async function resolveShipperOrganizationName(

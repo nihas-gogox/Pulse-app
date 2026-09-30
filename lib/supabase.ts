@@ -32,6 +32,7 @@ import {
   finishSupabaseCircuitProbe,
   isOriginDownHttpStatus,
   isRetryableHttpResponse,
+  shouldOpenOriginCircuitForHttpFailure,
   noteSupabaseHealthy,
   noteSupabaseOriginDown,
   isClientTimeoutError,
@@ -227,9 +228,17 @@ async function fetchWithTimeoutAndRetryRaw(
           if (admission === 'probe') finishSupabaseCircuitProbe(true);
           else noteSupabaseHealthy();
         } else if (isOriginDownHttpStatus(res.status)) {
+          const statementTimeout = await isStatementTimeoutResponse(res);
           recordSupabaseHttp5xx(res.status);
-          if (admission === 'probe') finishSupabaseCircuitProbe(false);
-          else noteSupabaseOriginDown();
+          if (shouldOpenOriginCircuitForHttpFailure(res.status, statementTimeout)) {
+            if (admission === 'probe') finishSupabaseCircuitProbe(false);
+            else noteSupabaseOriginDown();
+          } else if (statementTimeout) {
+            recordSupabaseHttpTimeout();
+            if (admission === 'probe') finishSupabaseCircuitProbe(true);
+          } else if (admission === 'probe') {
+            finishSupabaseCircuitProbe(true);
+          }
         } else if (admission === 'probe') {
           finishSupabaseCircuitProbe(true);
         }

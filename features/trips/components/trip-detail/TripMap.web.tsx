@@ -14,6 +14,10 @@ import {
   MAP_SOURCE_PIN_HTML,
 } from '@/lib/mapMarkerIcons.util';
 import { LeafletLiveTruckLayer } from '@/features/tracking/map/LeafletLiveTruckLayer';
+import {
+  liveTrailSignature,
+  tripMapStructureKey,
+} from '@/features/trips/utils/tripMapLiveTrail.util';
 import type { Map as LeafletMap, LatLngTuple } from 'leaflet';
 import React, { useEffect, useRef, useState } from 'react';
 
@@ -201,6 +205,16 @@ export function TripMap({
   const unmountedRef = useRef(false);
   const initRunIdRef = useRef(0);
   const liveLayerRef = useRef<LeafletLiveTruckLayer | null>(null);
+  const trailPointsRef = useRef(dbLocationTrail);
+  trailPointsRef.current = dbLocationTrail;
+  const paintTrailRef = useRef<
+    | ((
+        points: { latitude: number; longitude: number; recorded_at?: string }[],
+      ) => void)
+    | null
+  >(null);
+  const trailLayerRef = useRef<import('leaflet').LayerGroup | null>(null);
+  const trailEtaElRef = useRef<HTMLElement | null>(null);
   // Side-channel map lifecycle refs — avoids tagging the map instance with custom props.
   const mapRafIdRef = useRef<number | null>(null);
   const mapTimeoutIdsRef = useRef<number[]>([]);
@@ -221,44 +235,29 @@ export function TripMap({
       const L = (await import('leaflet')).default;
       await ensureLeafletStylesheet();
       if (!isRunActive()) return;
-      // ── Resolve source coordinates ───────────────────────────────────────
-      const locationsToGeocode = [source, destination, ...intermediateStops].filter(Boolean);
-      setGeocodingProgress({ current: 0, total: locationsToGeocode.length });
+      // Resolve every missing pin at once. Sequential Nominatim calls made the
+      // map sit on a spinner for several seconds before the first tile.
+      const stopLabels = intermediateStops.filter((stop) => stop?.trim());
+      setGeocodingProgress({ current: 0, total: 2 + stopLabels.length });
 
-      let srcCoords: [number, number];
-      if (isLatLngObject(sourceCoords)) {
-        srcCoords = toLatLngTuple(sourceCoords);
-      } else if (source) {
-        setGeocodingProgress((p) => ({ ...p, current: 1 }));
-        srcCoords = await getCoordinates(source);
-        if (!isRunActive()) return;
-      } else {
-        throw new Error('Source location required');
-      }
-
-      // ── Resolve destination coordinates ──────────────────────────────────
-      let dstCoords: [number, number];
-      if (isLatLngObject(destCoords)) {
-        dstCoords = toLatLngTuple(destCoords);
-      } else if (destination) {
-        setGeocodingProgress((p) => ({ ...p, current: 2 }));
-        dstCoords = await getCoordinates(destination);
-        if (!isRunActive()) return;
-      } else {
-        throw new Error('Destination location required');
-      }
-
-      // ── Resolve intermediate stop coordinates ────────────────────────────
-      const stopCoords: { location: string; coords: [number, number] }[] = [];
-      for (let i = 0; i < intermediateStops.length; i++) {
-        const stop = intermediateStops[i];
-        if (stop?.trim()) {
-          setGeocodingProgress((p) => ({ ...p, current: 3 + i }));
-          const coords = await getCoordinates(stop);
-          if (!isRunActive()) return;
-          stopCoords.push({ location: stop, coords });
-        }
-      }
+      const [srcCoords, dstCoords, ...resolvedStops] = await Promise.all([
+        isLatLngObject(sourceCoords)
+          ? Promise.resolve(toLatLngTuple(sourceCoords))
+          : source
+            ? getCoordinates(source)
+            : Promise.reject(new Error('Source location required')),
+        isLatLngObject(destCoords)
+          ? Promise.resolve(toLatLngTuple(destCoords))
+          : destination
+            ? getCoordinates(destination)
+            : Promise.reject(new Error('Destination location required')),
+        ...stopLabels.map((stop) => getCoordinates(stop)),
+      ]);
+      if (!isRunActive()) return;
+      const stopCoords = stopLabels.map((location, idx) => ({
+        location,
+        coords: resolvedStops[idx],
+      }));
 
       // ── Center ───────────────────────────────────────────────────────────
       const allCoords = [srcCoords, dstCoords, ...stopCoords.map((s) => s.coords)];
@@ -295,6 +294,7 @@ export function TripMap({
         errorTileUrl:
           'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk1hcCBub3QgYXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg==',
       }).addTo(map);
+      if (isRunActive()) setIsLoading(false);
 
       // ── Markers (identical SVG icons as reference) ───────────────────────
       const sourceIcon = L.divIcon({
@@ -391,12 +391,22 @@ export function TripMap({
         truckMarker.addTo(map);
       }
 
-      // ── DB GPS trail (driver_locations) — path + dots + arrows ─────────────
-      let dbTrailLeafletLayer: import('leaflet').LayerGroup | null = null;
-      const validTrailPoints = (Array.isArray(dbLocationTrail) ? dbLocationTrail : []).filter((p) =>
-        isValidCoordinatePair(p),
-      );
-      if (validTrailPoints.length > 0) {
+      // ── DB GPS trail — only this layer is replaced when points change ─────
+      const paintGpsTrail = (
+        points: { latitude: number; longitude: number; recorded_at?: string }[],
+      ) => {
+        if (trailLayerRef.current) {
+          try { map.removeLayer(trailLayerRef.current); } catch { /* map may be gone */ }
+          trailLayerRef.current = null;
+        }
+        if (trailEtaElRef.current) {
+          trailEtaElRef.current.remove();
+          trailEtaElRef.current = null;
+        }
+        const validTrailPoints = (Array.isArray(points) ? points : []).filter((p) =>
+          isValidCoordinatePair(p),
+        );
+        if (validTrailPoints.length === 0) return;
         const total = validTrailPoints.length;
         const trailGroup = L.layerGroup();
 
@@ -467,7 +477,7 @@ export function TripMap({
         });
 
         trailGroup.addTo(map);
-        dbTrailLeafletLayer = trailGroup;
+        trailLayerRef.current = trailGroup;
 
         // ETA panel — from last trail point to destination (straight-line estimate)
         if (validTrailPoints.length > 0 && isValidCoordinatePair({ latitude: dstCoords[0], longitude: dstCoords[1] })) {
@@ -487,13 +497,16 @@ export function TripMap({
             `<span style="color:#94a3b8;margin-left:6px;">(${eta.distanceKm.toFixed(0)} km)</span>` +
             `</div>`;
           map.getContainer().appendChild(etaPanelEl);
+          trailEtaElRef.current = etaPanelEl;
         }
-      }
+      };
+      paintTrailRef.current = paintGpsTrail;
+      paintGpsTrail(trailPointsRef.current);
 
       const bringDbTrailToFront = () => {
-        if (!dbTrailLeafletLayer) return;
+        if (!trailLayerRef.current) return;
         try {
-          const trailLayer = dbTrailLeafletLayer as { bringToFront?: () => void };
+          const trailLayer = trailLayerRef.current as { bringToFront?: () => void };
           if (typeof trailLayer.bringToFront === 'function') {
             trailLayer.bringToFront();
           }
@@ -527,7 +540,9 @@ export function TripMap({
         if (isLatLngObject(truckLocation)) {
           coords.push(toLatLngTuple(truckLocation));
         }
-        for (const p of validTrailPoints) {
+        for (const p of (Array.isArray(trailPointsRef.current) ? trailPointsRef.current : []).filter(
+          (point) => isValidCoordinatePair(point),
+        )) {
           coords.push([p.latitude, p.longitude]);
         }
         return coords;
@@ -663,17 +678,8 @@ export function TripMap({
         const rafId = requestAnimationFrame(kickLayout);
         const t1 = window.setTimeout(kickLayout, 100);
         const t2 = window.setTimeout(kickLayout, 400);
-        const t3 = window.setTimeout(() => {
-          if (
-            !unmountedRef.current &&
-            runId === initRunIdRef.current &&
-            mapInstanceRef.current === map
-          ) {
-            setIsLoading(false);
-          }
-        }, 800);
         mapRafIdRef.current = rafId;
-        mapTimeoutIdsRef.current = [t1, t2, t3];
+        mapTimeoutIdsRef.current = [t1, t2];
         if (typeof ResizeObserver !== 'undefined' && mapRef.current) {
           const ro = new ResizeObserver(() => kickLayout());
           ro.observe(mapRef.current);
@@ -688,6 +694,18 @@ export function TripMap({
       }
     }
   };
+
+  const mapStructureKey = tripMapStructureKey({
+    source,
+    destination,
+    sourceLat: sourceCoords?.latitude,
+    sourceLng: sourceCoords?.longitude,
+    destLat: destCoords?.latitude,
+    destLng: destCoords?.longitude,
+    tripId,
+    trackingEnabled,
+    stops: intermediateStops,
+  });
 
   useEffect(() => {
     const hasSource = sourceCoords ?? source;
@@ -713,6 +731,12 @@ export function TripMap({
         try { mapResizeObserverRef.current.disconnect(); } catch { /* ignore */ }
         mapResizeObserverRef.current = null;
       }
+      paintTrailRef.current = null;
+      if (trailEtaElRef.current) {
+        trailEtaElRef.current.remove();
+        trailEtaElRef.current = null;
+      }
+      trailLayerRef.current = null;
       const m = mapInstanceRef.current;
       if (m) {
         // Order matters. `off()` with no args strips Leaflet's OWN internal
@@ -728,19 +752,16 @@ export function TripMap({
         mapInstanceRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    sourceCoords?.latitude, sourceCoords?.longitude,
-    destCoords?.latitude, destCoords?.longitude,
-    source, destination,
-    tripId, trackingEnabled,
-    truckLocation?.latitude,
-    truckLocation?.longitude,
-    driverAvatarUri,
-    driverAvatarSeed,
-    driverOnline,
-    dbLocationTrail.map((p) => p.recorded_at ?? '').join(','),
-  ]);
+    // Route, trip, and stops rebuild the map. GPS pings and trail points do not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapStructureKey]);
+
+  const trailSignature = liveTrailSignature(dbLocationTrail);
+  useEffect(() => {
+    // Appended GPS points replace only the trail layer. The map, tiles, and
+    // route stay mounted. LeafletLiveTruckLayer moves the truck on its own.
+    paintTrailRef.current?.(trailPointsRef.current);
+  }, [trailSignature]);
 
   const containerHeightStyle =
     typeof resolvedHeight === 'string'

@@ -1,11 +1,11 @@
 /**
- * Urgent hubs may skip the post-ready quiet window, but must not overlap
- * `get_global_app_bootstrap` (15–20s). Only punch the network if bootstrap
- * is hung this long.
+ * Urgent hubs may skip the post-ready quiet window. They wait at most a
+ * short cap so a slow bootstrap does not leave the tab blank. Parallel
+ * PostgREST calls stay limited by the fetch concurrency gate.
  */
-export const APP_QUERY_GATE_URGENT_MAX_WAIT_MS = 12_000;
+export const APP_QUERY_GATE_URGENT_MAX_WAIT_MS = 1_500;
 /** Non-urgent lists still yield to bootstrap, then unblock. */
-export const APP_QUERY_GATE_DEFAULT_MAX_WAIT_MS = 8_000;
+export const APP_QUERY_GATE_DEFAULT_MAX_WAIT_MS = 1_500;
 /** Show cached Load cards instead of an endless spinner. */
 export const APP_QUERY_GATE_UI_MAX_WAIT_MS = 1_500;
 

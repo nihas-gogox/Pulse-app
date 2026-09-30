@@ -315,7 +315,7 @@ function NetworkScreenInner() {
   useRealtimeNetworkInvalidation(orgId);
   const queryClient = useQueryClient();
   // Connection books are first-paint. Keep boot defer for stories / Discover only.
-  const secondaryNetworkReady = useQueryBootDefer(orgId, 900);
+  const secondaryNetworkReady = useQueryBootDefer(orgId, 200);
   const receivedQ = useConnectionRequestsReceivedQuery(orgId);
   const sentQ = useConnectionRequestsSentQuery(orgId);
   const driverInvitesSentQ = useDriverInvitesSentQuery(orgId, {

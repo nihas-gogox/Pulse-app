@@ -7,6 +7,7 @@ import {
   isOriginDownError,
   isOriginDownErrorMessage,
   isOriginDownHttpStatus,
+  shouldOpenOriginCircuitForHttpFailure,
   isRetryableHttpResponse,
   isSupabaseCircuitOpen,
   noteSupabaseOriginDown,
@@ -43,6 +44,9 @@ describe("supabaseHttp origin-down vs transient", () => {
     expect(isOriginDownHttpStatus(544)).toBe(true);
     expect(isOriginDownHttpStatus(522)).toBe(false);
     expect(isOriginDownHttpStatus(500)).toBe(true);
+    expect(shouldOpenOriginCircuitForHttpFailure(500, false)).toBe(true);
+    expect(shouldOpenOriginCircuitForHttpFailure(500, true)).toBe(false);
+    expect(shouldOpenOriginCircuitForHttpFailure(503, true)).toBe(true);
   });
 
   it("does not retry origin-down HTTP responses", () => {

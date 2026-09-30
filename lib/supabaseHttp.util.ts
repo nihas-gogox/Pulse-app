@@ -34,6 +34,21 @@ export function isOriginDownHttpStatus(status: number): boolean {
   return ORIGIN_DOWN_STATUSES.has(status);
 }
 
+/**
+ * A Postgres statement timeout is HTTP 500 (57014). That is one slow
+ * statement, the same class as a client TimeoutError. Opening the shared
+ * circuit on it blanks every later query — including Network Loads — as a
+ * local ServiceUnavailableError 503.
+ */
+export function shouldOpenOriginCircuitForHttpFailure(
+  status: number,
+  statementTimeout: boolean,
+): boolean {
+  if (!isOriginDownHttpStatus(status)) return false;
+  if (statementTimeout && status === 500) return false;
+  return true;
+}
+
 export function isOriginDownErrorMessage(message: string): boolean {
   return ORIGIN_DOWN_MESSAGE.test(message);
 }
