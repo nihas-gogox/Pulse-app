@@ -18,7 +18,11 @@ import {
   recordRefetchQueries,
   recordSetQueryData,
 } from '@/lib/platform/scalability/queryCacheMetrics';
-import { isOriginDownError, isSupabaseCircuitOpen } from '@/lib/supabaseHttp.util';
+import {
+  isBrowserTransportFailure,
+  isOriginDownError,
+  isSupabaseCircuitOpen,
+} from '@/lib/supabaseHttp.util';
 
 /** Shared stale-time constants — import in query hooks to apply per-query tiers. */
 export const STALE = {
@@ -177,7 +181,8 @@ function isMissingQueryFnError(error: unknown): boolean {
 function isNetworkFailure(error: unknown): boolean {
   const name = (error as { name?: unknown } | null)?.name;
   if (name === 'TimeoutError') return true;
-  return /Failed to fetch|Request timed out|Could not query the database for the schema cache/i.test(
+  if (isBrowserTransportFailure(error)) return true;
+  return /Request timed out|Could not query the database for the schema cache/i.test(
     extractErrorMessage(error),
   );
 }

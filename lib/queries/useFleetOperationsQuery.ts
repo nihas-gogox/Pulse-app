@@ -128,6 +128,7 @@ export function useFleetOperationsQuery(orgId: string | null): {
     enabled: !!orgId && tripsQuery.isSuccess,
     staleTime: POLL_MS,
     refetchInterval: POLL_MS,
+    retry: false,
     placeholderData: (previousData) => previousData,
   });
 

@@ -138,11 +138,10 @@ export async function getIndentStoryStates(
   if (!orgId || ids.length === 0) {
     return { error: null, byIndentId: {} };
   }
-  if (!(await getAccessToken())) {
+  if (isSupabaseCircuitOpen()) {
     return { error: null, byIndentId: {} };
   }
-
-  if (isSupabaseCircuitOpen()) {
+  if (!(await getAccessToken())) {
     return { error: null, byIndentId: {} };
   }
 

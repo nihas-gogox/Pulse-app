@@ -17,7 +17,11 @@ jest.mock("@/lib/hooks/appQueryGateState", () => ({
 }));
 
 import { makeQueryClient, shouldRetryQuery } from "@/lib/queryClient";
-import { noteSupabaseOriginDown, resetSupabaseCircuit } from "@/lib/supabaseHttp.util";
+import {
+  noteSupabaseOriginDown,
+  noteSupabaseOriginDownIfTransportFailure,
+  resetSupabaseCircuit,
+} from "@/lib/supabaseHttp.util";
 
 describe("shouldRetryQuery", () => {
   afterEach(() => {
@@ -84,6 +88,15 @@ describe("shouldRetryQuery", () => {
     expect(
       shouldRetryQuery(0, { message: "Connection timed out", status: 503 }),
     ).toBe(false);
+  });
+
+  it("does not retry after Safari Load failed opens the circuit", () => {
+    expect(noteSupabaseOriginDownIfTransportFailure(new Error("Load failed"))).toBe(true);
+    expect(shouldRetryQuery(0, new Error("Load failed"))).toBe(false);
+  });
+
+  it("does not retry a PostgREST 544 body", () => {
+    expect(shouldRetryQuery(0, new Error("JSON could not be generated (544)"))).toBe(false);
   });
 
   it("does not retry any error while the origin-down circuit is open", () => {
