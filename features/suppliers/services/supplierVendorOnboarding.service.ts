@@ -35,6 +35,7 @@ export type SupplierBankAccount = {
   bank_name: string | null;
   account_number: string | null;
   ifsc_code: string | null;
+  cancelled_cheque_url?: string | null;
 };
 
 const PROFILE_COLUMNS =
@@ -245,7 +246,7 @@ export async function getSupplierBankAccount(
 ): Promise<{ error: Error | null; account: SupplierBankAccount | null }> {
   const { data, error } = await supabase()
     .from("entity_bank_accounts")
-    .select("id, bank_name, account_number, ifsc_code")
+    .select("id, bank_name, account_number, ifsc_code, cancelled_cheque_url")
     .eq("organization_id", orgId)
     .eq("entity_type", "supplier")
     .eq("entity_id", supplierId)
@@ -253,7 +254,22 @@ export async function getSupplierBankAccount(
     .order("is_primary", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(1);
-  if (error) return { error: new Error(error.message), account: null };
+  if (error) {
+    // Older schemas may lack cancelled_cheque_url — retry without it.
+    const fallback = await supabase()
+      .from("entity_bank_accounts")
+      .select("id, bank_name, account_number, ifsc_code")
+      .eq("organization_id", orgId)
+      .eq("entity_type", "supplier")
+      .eq("entity_id", supplierId)
+      .is("deleted_at", null)
+      .order("is_primary", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (fallback.error) return { error: new Error(fallback.error.message), account: null };
+    const row = ((fallback.data ?? [])[0] as SupplierBankAccount | undefined) ?? null;
+    return { error: null, account: row };
+  }
   return { error: null, account: ((data ?? [])[0] as SupplierBankAccount | undefined) ?? null };
 }
 

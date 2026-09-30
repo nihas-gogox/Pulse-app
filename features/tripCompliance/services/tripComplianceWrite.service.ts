@@ -132,6 +132,60 @@ export async function declineTripCompliance(params: {
   }
 }
 
+function formatRejectComplianceError(error: { message?: string; code?: string } | null): string {
+  const raw = (error?.message ?? "").trim();
+  const lower = raw.toLowerCase();
+  if (
+    error?.code === "PGRST202" ||
+    error?.code === "42883" ||
+    lower.includes("could not find the function") ||
+    lower.includes("function does not exist")
+  ) {
+    return "Reject isn't available yet — database update pending.";
+  }
+  if (lower.includes("not authorized to reject")) {
+    return "You don't have permission to reject compliance for this trip.";
+  }
+  if (lower.includes("not verified") || lower.includes("use decline instead")) {
+    return "This trip isn't verified yet. Use Decline instead.";
+  }
+  if (lower.includes("reject reason between") || lower.includes("decline reason between")) {
+    return `Please enter a reason between ${COMPLIANCE_DECLINE_REASON_MIN} and ${COMPLIANCE_DECLINE_REASON_MAX} characters.`;
+  }
+  if (lower.includes("compliance decline fields can only be changed")) {
+    return raw;
+  }
+  return raw || "Couldn't reject compliance.";
+}
+
+/**
+ * Reject a *verified* Compliance trip with a remark. Keeps
+ * `compliance_verified_at` so the trip stays under Verified with a red
+ * Rejected visual. Writes via `reject_trip_compliance` (migration
+ * 20270930124500).
+ */
+export async function rejectTripCompliance(params: {
+  tripId: string;
+  reason: string;
+  idempotencyKey?: string;
+}): Promise<void> {
+  const reason = params.reason.trim();
+  const length = complianceDeclineReasonLength(reason);
+  if (length < COMPLIANCE_DECLINE_REASON_MIN || length > COMPLIANCE_DECLINE_REASON_MAX) {
+    throw new Error(
+      `Please enter a reason between ${COMPLIANCE_DECLINE_REASON_MIN} and ${COMPLIANCE_DECLINE_REASON_MAX} characters.`,
+    );
+  }
+  const { error } = await supabase().rpc("reject_trip_compliance", {
+    p_trip_id: params.tripId,
+    p_reason: reason,
+    p_idempotency_key: params.idempotencyKey ?? undefined,
+  });
+  if (error) {
+    throw new Error(formatRejectComplianceError(error));
+  }
+}
+
 export type { ComplianceLedgerCategory } from "@/features/tripCompliance/utils/compliancePaymentGuard.util";
 export { evaluateCompliancePaymentGuard } from "@/features/tripCompliance/utils/compliancePaymentGuard.util";
 

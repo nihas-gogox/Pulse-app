@@ -1319,6 +1319,10 @@ export function useTripDetail({
           tripDocuments.filter((d) => d.document_type === "other"),
           { id: "other", label: "Other Documents", pendingType: "PDF", category: "trip" },
         );
+        const bankSlot = buildSlotCard(
+          tripDocuments.filter((d) => d.document_type === "bank_docs"),
+          { id: "bank_docs", label: "Bank Docs", pendingType: "PDF", category: "trip" },
+        );
         const tag = (card: TripDocItem, slotType: TripDetailsSlot): TripDocFile[] =>
           (card.files ?? []).map((file) => ({ ...file, slotType }));
         const files = [
@@ -1326,12 +1330,14 @@ export function useTripDetail({
           ...tag(invoiceSlot, "invoice"),
           ...tag(memoSlot, "memo"),
           ...tag(otherSlot, "other"),
+          ...tag(bankSlot, "bank_docs"),
         ];
         const onFile = [
           lrSlot.status !== "Pending" ? "LR" : null,
           invoiceSlot.status !== "Pending" ? "INVOICE" : null,
           memoSlot.status !== "Pending" ? "MEMO" : null,
           otherSlot.status !== "Pending" ? "OTHER" : null,
+          bankSlot.status !== "Pending" ? "BANK" : null,
         ].filter((label): label is string => !!label);
         return {
           id: "trip-details",
@@ -1353,6 +1359,7 @@ export function useTripDetail({
             invoiceSlot.uploadedAt ??
             memoSlot.uploadedAt ??
             otherSlot.uploadedAt ??
+            bankSlot.uploadedAt ??
             null,
         };
       })(),

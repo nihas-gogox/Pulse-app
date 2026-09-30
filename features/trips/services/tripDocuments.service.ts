@@ -113,6 +113,7 @@ export type TripDocumentType =
   | 'invoice'
   | 'memo'
   | 'other'
+  | 'bank_docs'
   | 'eway_bill'
   | 'loading_slip'
   | 'odometer_start_photo'
@@ -365,6 +366,7 @@ export async function getDocumentsByTripId(
     'invoice',
     'memo',
     'other',
+    'bank_docs',
     'eway_bill',
     'loading_slip',
     'odometer_start_photo',

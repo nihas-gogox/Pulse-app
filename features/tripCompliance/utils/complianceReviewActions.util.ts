@@ -3,20 +3,63 @@ import type { ComplianceDocRow } from "@/features/tripCompliance/utils/complianc
 export function canModerateComplianceRow(row: ComplianceDocRow, scope: "trip" | "vehicle" | "driver"): boolean {
   if (row.status === "missing") return false;
   if (scope === "trip") return Boolean(row.doc);
-  // Driver KYC is moderated elsewhere; vehicle vault can Approve (set expiry) but not Decline.
-  if (row.entityDoc?.source === "driver-kyc") return false;
+  // Driver KYC / supplier bank proof is moderated elsewhere; vehicle vault can Approve (set expiry) but not Decline.
+  if (row.entityDoc?.source === "driver-kyc" || row.entityDoc?.source === "supplier-kyc") return false;
   return Boolean(row.entityDoc);
 }
 
-/** Approve/Decline on uploaded docs. Missing files must be uploaded first. Verified docs stay verified-only (no Decline). */
+/**
+ * Approve/Decline on uploaded docs.
+ * Missing files must be uploaded first.
+ * After a decision the footer reflects it: verified → Approve locked as “Approved”
+ * (Decline still reverses); rejected → Decline locked as “Declined” (Approve reopens).
+ */
 export function complianceReviewDecisionActions(row: ComplianceDocRow): { canApprove: boolean; canDecline: boolean } {
-  if (row.status === "missing" || row.status === "verified") {
+  if (row.status === "missing") {
     return { canApprove: false, canDecline: false };
   }
   const vaultOnly = row.entityDoc?.source === "vehicle-vault";
+  if (row.status === "verified") {
+    return { canApprove: false, canDecline: !vaultOnly };
+  }
+  if (row.status === "rejected") {
+    return { canApprove: true, canDecline: false };
+  }
   return {
     canApprove: true,
-    canDecline: !vaultOnly && row.status !== "rejected",
+    canDecline: !vaultOnly,
+  };
+}
+
+/** Footer labels/styles for the active preview doc (includes optimistic overlay). */
+export function complianceDecisionButtonState(row: ComplianceDocRow | null | undefined): {
+  approveLabel: "Approve" | "Approved";
+  declineLabel: "Decline" | "Declined";
+  approveActive: boolean;
+  declineActive: boolean;
+} {
+  const status = row?.status;
+  if (status === "verified") {
+    return {
+      approveLabel: "Approved",
+      declineLabel: "Decline",
+      approveActive: true,
+      declineActive: false,
+    };
+  }
+  if (status === "rejected") {
+    return {
+      approveLabel: "Approve",
+      declineLabel: "Declined",
+      approveActive: false,
+      declineActive: true,
+    };
+  }
+  return {
+    approveLabel: "Approve",
+    declineLabel: "Decline",
+    approveActive: false,
+    declineActive: false,
   };
 }
 
@@ -35,7 +78,10 @@ export function complianceGroupDecisionActions(
   if (!allUploaded) {
     return { ready: false, canApprove: false, canDecline: false, actionable: [] };
   }
+  // Bulk group actions are first-pass only — already-verified docs are re-reviewed
+  // from the per-document preview footer instead.
   const actionable = groupRows.filter((row) => {
+    if (row.status === "verified") return false;
     if (!canModerateComplianceRow(row, scope)) return false;
     const decisions = complianceReviewDecisionActions(row);
     return decisions.canApprove || decisions.canDecline;

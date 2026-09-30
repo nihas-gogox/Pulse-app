@@ -97,6 +97,15 @@ describe("percentages", () => {
     expect(parsePercentage("abc")).toBeNull();
     expect(parsePercentage("1.234")).toBeNull();
   });
+
+  it("accepts an optional trailing %", () => {
+    expect(parsePercentage("2%")).toBe(2);
+    expect(parsePercentage("1%")).toBe(1);
+    expect(parsePercentage(" 1.5 % ")).toBe(1.5);
+    expect(parsePercentage("100%")).toBe(100);
+    expect(parsePercentage("%")).toBeNull();
+    expect(parsePercentage("abc%")).toBeNull();
+  });
 });
 
 describe("vendor status", () => {

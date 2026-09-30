@@ -2,6 +2,8 @@ import {
   deriveComplianceDocumentRows,
   deriveEntityComplianceRows,
   deriveFinanceDocumentRows,
+  financeVaultDetailLine,
+  mergeFinanceBankDocsFromSupplier,
   complianceProgress,
   labelForDocType,
   requirementScopeLabel,
@@ -92,32 +94,113 @@ describe("deriveComplianceDocumentRows", () => {
 });
 
 describe("deriveFinanceDocumentRows", () => {
-  it("always includes POD and Memo slots", () => {
+  it("always includes Memo, Other Documents, and Bank Docs slots", () => {
     const rows = deriveFinanceDocumentRows([]);
-    expect(rows.map((r) => r.type)).toEqual(["pod", "memo"]);
+    expect(rows.map((r) => r.type)).toEqual(["memo", "other", "bank_docs"]);
     expect(rows.every((r) => !r.required)).toBe(true);
     expect(rows.every((r) => r.status === "missing")).toBe(true);
   });
 
-  it("merges other present trip-vault types after the fixed slots", () => {
+  it("merges uploaded memo, other, and bank_docs vault files into the fixed slots", () => {
     const rows = deriveFinanceDocumentRows([
-      doc({ id: "memo-1", document_type: "memo", status: "pending" }),
+      doc({ id: "memo-1", document_type: "memo", status: "pending", file_name: "memo.pdf" }),
+      doc({ id: "other-1", document_type: "other", status: "verified", file_name: "extra.pdf" }),
+      doc({ id: "bank-1", document_type: "bank_docs", status: "pending", file_name: "bank.pdf" }),
       doc({ id: "slip-1", document_type: "loading_slip", status: "verified", file_name: "slip.pdf" }),
       doc({ id: "man-1", document_type: "manifest", status: "pending", file_name: "manifest.pdf" }),
-      doc({ id: "lr-1", document_type: "lr", status: "pending" }),
+      doc({ id: "lr-1", document_type: "lr", status: "pending", file_name: "lr.pdf" }),
+      doc({ id: "inv-1", document_type: "invoice", status: "pending", file_name: "inv.pdf" }),
     ]);
-    expect(rows.map((r) => r.type)).toEqual(["pod", "memo", "loading_slip", "manifest"]);
+    expect(rows.map((r) => r.type)).toEqual(["memo", "other", "bank_docs"]);
     expect(rows.find((r) => r.type === "memo")?.status).toBe("pending");
-    expect(rows.find((r) => r.type === "loading_slip")?.status).toBe("verified");
+    expect(rows.find((r) => r.type === "other")?.status).toBe("verified");
+    expect(rows.find((r) => r.type === "bank_docs")?.status).toBe("pending");
     expect(rows.find((r) => r.type === "lr")).toBeUndefined();
+    expect(rows.find((r) => r.type === "invoice")).toBeUndefined();
+    expect(rows.find((r) => r.type === "manifest")).toBeUndefined();
   });
 
-  it("does not surface vehicle or driver KYC types as finance extras", () => {
+  it("does not surface vehicle or driver KYC types as finance rows", () => {
     const rows = deriveFinanceDocumentRows([
       doc({ id: "rc-1", document_type: "rc", status: "pending" }),
       doc({ id: "lic-1", document_type: "license", status: "pending" }),
     ]);
-    expect(rows.map((r) => r.type)).toEqual(["pod", "memo"]);
+    expect(rows.map((r) => r.type)).toEqual(["memo", "other", "bank_docs"]);
+  });
+});
+
+describe("mergeFinanceBankDocsFromSupplier", () => {
+  it("fills bank_docs from supplier KYC when trip slot is empty", () => {
+    const rows = deriveFinanceDocumentRows([]);
+    const merged = mergeFinanceBankDocsFromSupplier(rows, {
+      previewPath: "org/supplier/s1/cancelled_cheque_x.pdf",
+      detailLine: "HDFC · XXXX1234 · HDFC0001234",
+      kycDocId: "kyc-1",
+      supplierId: "s1",
+      status: "verified",
+      fileName: "cheque.pdf",
+      createdAt: "2026-09-01T00:00:00Z",
+    });
+    const bank = merged.find((r) => r.type === "bank_docs")!;
+    expect(bank.status).toBe("verified");
+    expect(bank.entityDoc?.storage_path).toBe("org/supplier/s1/cancelled_cheque_x.pdf");
+    expect(bank.entityDoc?.source).toBe("supplier-kyc");
+    expect(financeVaultDetailLine(bank)).toBe("HDFC · XXXX1234 · HDFC0001234");
+  });
+
+  it("keeps trip bank_docs upload ahead of supplier KYC file", () => {
+    const rows = deriveFinanceDocumentRows([
+      doc({
+        id: "bank-trip",
+        document_type: "bank_docs",
+        status: "pending",
+        file_name: "trip-bank.pdf",
+        storage_path: "trip/bank_docs/a.pdf",
+      }),
+    ]);
+    const merged = mergeFinanceBankDocsFromSupplier(rows, {
+      previewPath: "org/supplier/s1/cheque.pdf",
+      detailLine: "HDFC · XXXX9999",
+      supplierId: "s1",
+    });
+    const bank = merged.find((r) => r.type === "bank_docs")!;
+    expect(bank.doc?.id).toBe("bank-trip");
+    expect(financeVaultDetailLine(bank)).toContain("trip-bank.pdf");
+    expect(financeVaultDetailLine(bank)).toContain("HDFC");
+  });
+});
+
+describe("financeVaultDetailLine", () => {
+  it("prefers file names for memo, other, and bank_docs", () => {
+    const rows = deriveFinanceDocumentRows([
+      doc({
+        id: "memo-1",
+        document_type: "memo",
+        status: "pending",
+        file_name: "memo-scan.pdf",
+      }),
+      doc({
+        id: "other-1",
+        document_type: "other",
+        status: "verified",
+        file_name: "extra.pdf",
+      }),
+      doc({
+        id: "bank-1",
+        document_type: "bank_docs",
+        status: "pending",
+        file_name: "neft-slip.pdf",
+      }),
+    ]);
+    expect(financeVaultDetailLine(rows.find((r) => r.type === "memo")!)).toBe("memo-scan.pdf");
+    expect(financeVaultDetailLine(rows.find((r) => r.type === "other")!)).toBe("extra.pdf");
+    expect(financeVaultDetailLine(rows.find((r) => r.type === "bank_docs")!)).toBe("neft-slip.pdf");
+  });
+
+  it("returns null when the slot has no file", () => {
+    const rows = deriveFinanceDocumentRows([]);
+    expect(financeVaultDetailLine(rows.find((r) => r.type === "memo")!)).toBeNull();
+    expect(financeVaultDetailLine(rows.find((r) => r.type === "bank_docs")!)).toBeNull();
   });
 });
 

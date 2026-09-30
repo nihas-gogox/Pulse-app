@@ -44,6 +44,11 @@ import { TripPodStatusSection } from "@/features/trips/components/trip-detail/Tr
 import { LogHardCopyPodModal } from "@/features/trips/components/trip-detail/LogHardCopyPodModal";
 import { HardCopyPodStatusCard } from "@/features/trips/components/trip-detail/HardCopyPodStatusCard";
 import { ComplianceSection } from "@/features/tripCompliance/components/ComplianceSection";
+import {
+  fetchSupplierBankProofBundle,
+  type SupplierBankProofBundle,
+} from "@/features/tripCompliance/utils/supplierBankProof.util";
+import { signCompliancePreviewUrl } from "@/features/tripCompliance/services/complianceDocumentView.service";
 import { useWorkspaceProductsQuery } from "@/lib/queries/useWorkspaceProductsQuery";
 import { queryKeys } from "@/lib/queryKeys";
 import type { LedgerRow } from "@/features/finance/services/finance.service";
@@ -1375,9 +1380,38 @@ export default function TripDetailScreen({
   const lrOcrAttemptedRef = useRef<string | null>(null);
   const [addDocChooserVisible, setAddDocChooserVisible] = useState(false);
   const [tripDetailsVisible, setTripDetailsVisible] = useState(false);
+  const [supplierBankProof, setSupplierBankProof] =
+    useState<SupplierBankProofBundle | null>(null);
   const [driverPodVisible, setDriverPodVisible] = useState(false);
   const [vehicleDocChooserVisible, setVehicleDocChooserVisible] = useState(false);
   const [driverDocChooserVisible, setDriverDocChooserVisible] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const orgId = (
+      detail.trip?.organization_id ??
+      currentOrganization?.id ??
+      ""
+    ).trim();
+    const supplierId = (detail.trip?.supplier_id ?? "").trim();
+    if (!orgId || !supplierId) {
+      setSupplierBankProof(null);
+      return;
+    }
+    void fetchSupplierBankProofBundle(orgId, supplierId).then((bundle) => {
+      if (cancelled) return;
+      setSupplierBankProof(bundle);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    detail.trip?.id,
+    detail.trip?.organization_id,
+    detail.trip?.supplier_id,
+    currentOrganization?.id,
+  ]);
+
   const [vaultDeleteTarget, setVaultDeleteTarget] = useState<{
     cardId: string;
     label: string;
@@ -2100,7 +2134,9 @@ export default function TripDetailScreen({
               ? "memo"
               : doc.id === "other"
                 ? "other"
-                : CATEGORY_TO_DOC_TYPE[doc.category ?? ""] ?? "manifest";
+                : doc.id === "bank_docs"
+                  ? "bank_docs"
+                  : CATEGORY_TO_DOC_TYPE[doc.category ?? ""] ?? "manifest";
         if (nextDocType === "lr") {
           fillPendingLrFields(doc.documentNumber, doc.documentDate);
           setPendingInvoiceNumbers([]);
@@ -2364,14 +2400,11 @@ export default function TripDetailScreen({
         void handleLRUpload();
         return;
       }
+      const label =
+        TRIP_DETAILS_SLOTS.find((item) => item.id === slot)?.label ?? slot;
       void handleVaultUpload({
         id: slot,
-        label:
-          slot === "invoice"
-            ? "Invoice"
-            : slot === "other"
-              ? "Other Documents"
-              : "Memo",
+        label,
         type: "PDF",
         status: "Pending",
         category: slot === "invoice" ? "invoice" : "trip_details",
@@ -2640,25 +2673,67 @@ export default function TripDetailScreen({
       const files = (card?.files ?? []).filter(
         (file) => file.slotType === slot && !!file.storagePath?.trim(),
       );
-      if (files.length === 0) return;
       const label =
         TRIP_DETAILS_SLOTS.find((item) => item.id === slot)?.label ?? slot;
-      detail.setVehiclePreviewIndex(0);
-      detail.setSelectedDoc({
-        id: `trip-details-${slot}`,
-        label,
-        type: files.length > 1 ? "FILES" : files[0].type,
-        status: "Uploaded",
-        category: slot === "invoice" ? "invoice" : slot === "lr" ? "lr" : "trip_details",
-        files,
-        storagePath: files[0].storagePath,
-        documentId: files[0].documentId,
-        documentNumber: slot === "lr" ? card?.documentNumber : null,
-        documentDate: slot === "lr" ? card?.documentDate : null,
-        invoiceNumber: slot === "invoice" ? card?.invoiceNumber : null,
-      });
+
+      if (files.length > 0) {
+        detail.setVehiclePreviewIndex(0);
+        detail.setSelectedDoc({
+          id: `trip-details-${slot}`,
+          label,
+          type: files.length > 1 ? "FILES" : files[0].type,
+          status: "Uploaded",
+          category: slot === "invoice" ? "invoice" : slot === "lr" ? "lr" : "trip_details",
+          files,
+          storagePath: files[0].storagePath,
+          documentId: files[0].documentId,
+          documentNumber: slot === "lr" ? card?.documentNumber : null,
+          documentDate: slot === "lr" ? card?.documentDate : null,
+          invoiceNumber: slot === "invoice" ? card?.invoiceNumber : null,
+        });
+        return;
+      }
+
+      // Bank Docs: fall back to supplier Banking proof when the trip slot is empty.
+      if (slot === "bank_docs") {
+        const path = supplierBankProof?.previewPath?.trim() ?? "";
+        if (!path) return;
+        const ext = path.split("?")[0].split(".").pop()?.toLowerCase() ?? "";
+        const type = ext === "pdf" ? "PDF" : ext === "png" ? "PNG" : "JPG";
+        if (/^https?:\/\//i.test(path)) {
+          void openVaultChatPreview(path, type === "PDF" ? "application/pdf" : `image/${ext || "jpeg"}`, label);
+          return;
+        }
+        void (async () => {
+          const url = await signCompliancePreviewUrl({
+            storagePath: path,
+            source: "supplier-kyc",
+            organizationId:
+              detail.trip?.organization_id ?? currentOrganization?.id ?? null,
+            entityId: (detail.trip?.supplier_id ?? "").trim() || null,
+            docType: "bank_docs",
+          });
+          if (!url) {
+            Alert.alert(
+              "Preview unavailable",
+              "We could not open this file. Try again in a moment.",
+            );
+            return;
+          }
+          await openVaultChatPreview(
+            url,
+            type === "PDF" ? "application/pdf" : `image/${ext || "jpeg"}`,
+            label,
+          );
+        })();
+      }
     },
-    [detail],
+    [
+      detail,
+      supplierBankProof?.previewPath,
+      openVaultChatPreview,
+      currentOrganization?.id,
+    ],
   );
 
   const previewDriverPodFile = useCallback(
@@ -3848,7 +3923,11 @@ export default function TripDetailScreen({
         const files = (tripDetailsCard?.files ?? []).filter(
           (file) => file.slotType === slot.id && !!file.storagePath?.trim(),
         );
-        const onFile = files.length > 0;
+        const supplierBankOnFile =
+          slot.id === "bank_docs" &&
+          files.length === 0 &&
+          Boolean(supplierBankProof?.previewPath?.trim() || supplierBankProof?.detailLine?.trim());
+        const onFile = files.length > 0 || Boolean(supplierBankProof?.previewPath?.trim() && slot.id === "bank_docs");
         const canUpload = canUploadTripDocs && !uploadingDocId;
         const invoiceLabel = formatInvoiceVaultNumberLabel(
           tripDetailsCard?.invoiceNumber,
@@ -3861,22 +3940,37 @@ export default function TripDetailScreen({
               ].filter((line): line is string => !!line)
             : [];
         const invoiceMeta = slot.id === "invoice" ? invoiceLabel : null;
+        const bankMeta =
+          slot.id === "bank_docs"
+            ? [
+                files[0]?.fileName?.trim() || null,
+                supplierBankProof?.detailLine?.trim() || null,
+                files.length > 1 ? `${files.length} files` : null,
+              ].filter((line): line is string => !!line)
+            : [];
         const metaParts = [
           lrMeta.length > 0 ? lrMeta.join(" · ") : null,
           invoiceMeta,
-          files.length > 1 && !invoiceMeta ? `${files.length} files` : null,
+          bankMeta.length > 0 ? bankMeta.join(" · ") : null,
+          files.length > 1 && !invoiceMeta && slot.id !== "bank_docs"
+            ? `${files.length} files`
+            : null,
         ].filter((line): line is string => !!line);
         const meta =
           metaParts.length > 0
             ? metaParts.join(" · ")
             : onFile
               ? "On file"
-              : "Not uploaded";
+              : supplierBankOnFile
+                ? "From supplier banking"
+                : "Not uploaded";
         return (
           <View key={slot.id} style={styles.tripDetailsRow}>
             <View style={styles.tripDetailsCopy}>
               <Text style={styles.addDocTypeBtnText}>{slot.label}</Text>
-              <Text style={styles.addDocTypeBtnMeta}>{meta}</Text>
+              <Text style={styles.addDocTypeBtnMeta} numberOfLines={2}>
+                {meta}
+              </Text>
             </View>
             <TouchableOpacity
               style={styles.tripDetailsIconBtn}
@@ -3885,7 +3979,9 @@ export default function TripDetailScreen({
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={
-                onFile ? `Add another ${slot.label}` : `Upload ${slot.label}`
+                onFile || supplierBankOnFile
+                  ? `Add another ${slot.label}`
+                  : `Upload ${slot.label}`
               }
             >
               <Feather
@@ -7738,7 +7834,7 @@ export default function TripDetailScreen({
               <View style={styles.docModalTitleBlock}>
                 <Text style={styles.docModalTitle}>Trip Details</Text>
                 <Text style={styles.docModalSubtitle}>
-                  LR Document, Invoice, Memo, and Other Documents
+                  LR, Invoice, Memo, Other Documents, and Bank Docs
                 </Text>
               </View>
               <TouchableOpacity

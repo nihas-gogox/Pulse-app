@@ -55,7 +55,6 @@ import {
   latestDocOfType,
   latestDocOfTypes,
   maskAadhaar,
-  maskAccountNumber,
   parsePercentage,
   validateVendorNumber,
   validateVendorStatusChange,
@@ -128,6 +127,11 @@ export function SupplierVendorOnboardingVault({ organizationId, supplierId, canE
   const currentFy = useMemo(() => financialYearOf(new Date()), []);
   const [tdsYear, setTdsYear] = useState(currentFy);
   const [tdsInput, setTdsInput] = useState("");
+
+  useEffect(() => {
+    const existing = tdsRates.find((r) => r.financial_year === tdsYear);
+    setTdsInput(existing != null ? String(existing.rate_percent) : "");
+  }, [tdsYear, tdsRates]);
 
   const reload = useCallback(async () => {
     const [kyc, prof, tds, acct] = await Promise.all([
@@ -424,7 +428,7 @@ export function SupplierVendorOnboardingVault({ organizationId, supplierId, canE
           <Field
             label="Advance % (of partner rate)"
             value={advanceInput}
-            onChangeText={setAdvanceInput}
+            onChangeText={(text) => setAdvanceInput(text.replace(/%/g, ""))}
             placeholder="e.g. 30"
             keyboardType="decimal-pad"
             editable={canEdit}
@@ -441,7 +445,7 @@ export function SupplierVendorOnboardingVault({ organizationId, supplierId, canE
               onPress={() => {
                 const pct = advanceTrimmed ? parsePercentage(advanceTrimmed) : null;
                 if (advanceTrimmed && pct == null) {
-                  setError("Advance % must be a number from 0 to 100.");
+                  fail("Check the advance %", "Advance % must be a number from 0 to 100 (do not include letters).");
                   return;
                 }
                 void run("advance", () => updateVendorAdvancePercentage(organizationId, supplierId, pct));
@@ -459,8 +463,17 @@ export function SupplierVendorOnboardingVault({ organizationId, supplierId, canE
               <Choice items={fyOptions.map((fy) => ({ key: fy, label: `FY ${fy}` }))} value={tdsYear} onChange={setTdsYear} />
             </ScrollView>
             <FieldRow>
-              <Field label="TDS rate %" value={tdsInput} onChangeText={setTdsInput} placeholder="e.g. 1 or 2" keyboardType="decimal-pad" />
+              <Field
+                label="TDS rate %"
+                value={tdsInput}
+                onChangeText={(text) => setTdsInput(text.replace(/%/g, ""))}
+                placeholder="e.g. 1 or 2"
+                keyboardType="decimal-pad"
+              />
             </FieldRow>
+            {!tdsInput.trim() ? (
+              <Text style={styles.empty}>Enter a TDS rate % to enable Save for FY {tdsYear}.</Text>
+            ) : null}
             <FormActions>
               <PulsePillButton
                 label={tdsRates.some((r) => r.financial_year === tdsYear) ? `Update FY ${tdsYear}` : `Save FY ${tdsYear}`}
@@ -471,12 +484,12 @@ export function SupplierVendorOnboardingVault({ organizationId, supplierId, canE
                 onPress={() => {
                   const pct = parsePercentage(tdsInput);
                   if (pct == null) {
-                    setError("TDS rate must be a number from 0 to 100.");
+                    fail("Check the TDS rate", "TDS rate must be a number from 0 to 100 (do not include letters).");
                     return;
                   }
                   void run("tds", async () => {
                     const res = await upsertSupplierTdsRate(organizationId, supplierId, tdsYear, pct);
-                    if (!res.error) setTdsInput("");
+                    // Keep the saved rate visible for this FY (do not clear the field).
                     return res;
                   });
                 }}
@@ -645,8 +658,8 @@ export function SupplierVendorOnboardingVault({ organizationId, supplierId, canE
           title="Bank account"
           trailing={
             bank?.account_number ? (
-              <Text style={styles.cardMeta}>
-                On file · {maskAccountNumber(bank.account_number)} · {bank.ifsc_code ?? "—"}
+              <Text style={[styles.cardMeta, styles.bankOnFileMeta]} numberOfLines={2}>
+                On file · {bank.account_number} · {bank.ifsc_code ?? "—"}
               </Text>
             ) : null
           }
@@ -989,6 +1002,11 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 12, fontWeight: "800", color: Theme.textPrimaryDark },
   cardMeta: { fontSize: 10, fontWeight: "600", color: Theme.textMuted },
+  bankOnFileMeta: {
+    maxWidth: 280,
+    textAlign: "right",
+    lineHeight: 14,
+  },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: Theme.borderInput, marginVertical: space[3] },
 
   // Fields (fieldLabel + fieldInputLarge)
