@@ -201,9 +201,11 @@ export function isValidFinancialYear(value: string): boolean {
   return (Number(m[1]) + 1) % 100 === Number(m[2]);
 }
 
-/** Parses a 0–100 percentage with up to 2 decimals; returns null when invalid. */
+/** Parses a 0–100 percentage with up to 2 decimals; returns null when invalid.
+ *  Accepts an optional trailing `%` (e.g. `"2%"`, `" 1.5 % "`) so label-driven
+ *  inputs like "TDS rate %" don't reject a natural entry. */
 export function parsePercentage(raw: string): number | null {
-  const v = raw.trim();
+  const v = raw.trim().replace(/%/g, "").trim();
   if (!/^[0-9]{1,3}(\.[0-9]{1,2})?$/.test(v)) return null;
   const n = Number(v);
   return n >= 0 && n <= 100 ? n : null;

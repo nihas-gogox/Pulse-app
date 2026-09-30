@@ -5,9 +5,8 @@
  * Missing/Pending/Verified/Rejected/Expired classification from one place.
  */
 import {
-  COMPLIANCE_DRIVER_DOCUMENT_TYPES,
+  COMPLIANCE_FINANCE_DOCUMENT_TYPES,
   COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES,
-  COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
   REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
   documentRequiresExpiry,
   isRequiredDriverDocumentType,
@@ -26,6 +25,8 @@ export const DOC_TYPE_LABEL: Record<string, string> = {
   pod: "POD",
   manifest: "Trip Manifest",
   memo: "Memo",
+  other: "Other Documents",
+  bank_docs: "Bank Docs",
   loading_slip: "Loading Slip",
   insurance: "Insurance",
   rc: "RC",
@@ -37,8 +38,19 @@ export const DOC_TYPE_LABEL: Record<string, string> = {
   aadhaar: "Aadhaar",
 };
 
+/** Labels matching Asset Vault → Trip Details finance rows. */
+export const FINANCE_DOC_TYPE_LABEL: Record<string, string> = {
+  memo: "Memo",
+  other: "Other Documents",
+  bank_docs: "Bank Docs",
+};
+
 export function labelForDocType(type: string): string {
   return DOC_TYPE_LABEL[type] ?? type.replace(/_/g, " ");
+}
+
+export function labelForFinanceDocType(type: string): string {
+  return FINANCE_DOC_TYPE_LABEL[type] ?? labelForDocType(type);
 }
 
 export type ComplianceDocRowStatus = ComplianceDocumentStatus | "missing" | "expired";
@@ -51,6 +63,108 @@ export type ComplianceDocRow = {
   doc: ComplianceDocumentRow | null;
   entityDoc: ComplianceEntityDocument | null;
 };
+
+/**
+ * Vault-style detail line for Finance rows (memo / other / bank file or account).
+ * Returns null when there is nothing richer than status to show.
+ */
+export function financeVaultDetailLine(row: ComplianceDocRow): string | null {
+  const fromNotes = row.entityDoc?.notes?.trim() || null;
+  if (fromNotes) return fromNotes;
+  const doc = row.doc;
+  if (!doc) return null;
+  const fileName = doc.file_name?.trim() ?? "";
+  if (fileName && !/fields\.json$/i.test(fileName)) return fileName;
+  return null;
+}
+
+export type FinanceBankProofMerge = {
+  previewPath: string | null;
+  detailLine: string | null;
+  kycDocId?: string | null;
+  supplierId?: string | null;
+  status?: string | null;
+  fileName?: string | null;
+  createdAt?: string | null;
+};
+
+/**
+ * Merge supplier bank KYC / cancelled-cheque into the Finance Bank Docs slot when
+ * the trip has no dedicated `bank_docs` upload yet.
+ */
+export function mergeFinanceBankDocsFromSupplier(
+  rows: ComplianceDocRow[],
+  proof: FinanceBankProofMerge | null | undefined,
+): ComplianceDocRow[] {
+  if (!proof?.previewPath?.trim()) {
+    if (!proof?.detailLine?.trim()) return rows;
+    return rows.map((row) => {
+      if (row.type !== "bank_docs" || row.doc || row.entityDoc) return row;
+      return {
+        ...row,
+        status: "pending" as const,
+        entityDoc: {
+          id: `bank-details:${proof.supplierId ?? "unknown"}`,
+          entity_type: "supplier" as const,
+          entity_id: proof.supplierId ?? "",
+          doc_type: "bank_docs",
+          status: "pending",
+          storage_path: null,
+          expiry_date: null,
+          verified_at: null,
+          notes: proof.detailLine,
+          created_at: new Date().toISOString(),
+          source: "supplier-kyc" as const,
+        },
+      };
+    });
+  }
+  const path = proof.previewPath.trim();
+  return rows.map((row) => {
+    if (row.type !== "bank_docs") return row;
+    // Trip upload wins over supplier vault merge.
+    if (row.doc && classifyTripDocument(row.doc).present) {
+      const fileName = row.doc.file_name?.trim() || null;
+      const combined = [fileName, proof.detailLine].filter(Boolean).join(" · ") || null;
+      if (!combined) return row;
+      return {
+        ...row,
+        entityDoc: {
+          id: `bank-meta:${proof.supplierId ?? row.doc.id}`,
+          entity_type: "supplier" as const,
+          entity_id: proof.supplierId ?? "",
+          doc_type: "bank_docs",
+          status: "pending",
+          storage_path: null,
+          expiry_date: null,
+          verified_at: null,
+          notes: combined,
+          created_at: row.doc.uploaded_at || new Date().toISOString(),
+          source: "supplier-kyc" as const,
+        },
+      };
+    }
+    const verified = (proof.status ?? "").toLowerCase() === "verified";
+    return {
+      ...row,
+      status: verified ? ("verified" as const) : ("pending" as const),
+      doc: null,
+      entityDoc: {
+        id: proof.kycDocId?.trim() || `bank-proof:${proof.supplierId ?? path}`,
+        entity_type: "supplier",
+        entity_id: proof.supplierId ?? "",
+        doc_type: "bank_docs",
+        status: verified ? "verified" : "pending",
+        storage_path: path,
+        expiry_date: null,
+        verified_at: verified ? proof.createdAt ?? null : null,
+        notes: proof.detailLine ?? proof.fileName ?? null,
+        created_at: proof.createdAt ?? new Date().toISOString(),
+        source: "supplier-kyc",
+      },
+    };
+  });
+}
 
 /**
  * Latest present doc per type (per `classifyTripDocument`). Anything openable
@@ -150,32 +264,12 @@ export function deriveComplianceDocumentRows(documents: ComplianceDocumentRow[])
 }
 
 /**
- * Finance preview: fixed optional slots (POD / Memo) plus any other present
- * trip-vault documents that are not required trip types or vehicle/driver KYC.
+ * Finance list: Memo, Other Documents, and Bank Docs from the trip Asset Vault.
+ * LR / Invoice / Trip Manifest stay on the Trip tab — not duplicated here.
  */
 export function deriveFinanceDocumentRows(documents: ComplianceDocumentRow[]): ComplianceDocRow[] {
   const byType = latestDocByType(documents);
-  const baseRows = COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES.map((type) => rowForType(type, false, byType));
-  const reserved = new Set<string>([
-    ...REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
-    ...COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES,
-    ...COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
-    ...COMPLIANCE_DRIVER_DOCUMENT_TYPES,
-  ]);
-  const vaultExtras: ComplianceDocRow[] = [];
-  for (const [type, doc] of byType) {
-    if (!type || reserved.has(type)) continue;
-    vaultExtras.push({
-      key: type,
-      type,
-      required: false,
-      status: doc.status,
-      doc,
-      entityDoc: null,
-    });
-  }
-  vaultExtras.sort((a, b) => labelForDocType(a.type).localeCompare(labelForDocType(b.type)));
-  return [...baseRows, ...vaultExtras];
+  return COMPLIANCE_FINANCE_DOCUMENT_TYPES.map((type) => rowForType(type, false, byType));
 }
 
 /** Progress is always measured against required documents only. */

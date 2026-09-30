@@ -28,6 +28,9 @@ function summary(overrides: Partial<ComplianceTripSummary> = {}): ComplianceTrip
     advance: null,
     balance: null,
     hardCopyPod: { received: false, receivedAt: null, courier: null, awbNumber: null, receivedBy: null },
+    complianceDeclinedAt: null,
+    complianceDeclinedBy: null,
+    complianceDeclineReason: null,
     ...overrides,
   };
 }
@@ -41,6 +44,19 @@ describe("complianceCardVisual", () => {
     expect(paymentStatusVisual(summary()).label).toBe("Pending");
     expect(paymentStatusVisual(summary({ stage: "advance_payment_processed" })).label).toBe("Advance Processed");
     expect(paymentStatusVisual(summary({ stage: "balance_pending" })).label).toBe("Balance Pending");
+  });
+
+  it("shows Rejected when a verified trip has a decline remark", () => {
+    const visual = verificationStatusVisual(
+      summary({
+        complianceVerifiedAt: "2026-09-01",
+        complianceDeclinedAt: "2026-09-30",
+        complianceDeclineReason: "Memo missing",
+        stage: "compliance_verified",
+      }),
+    );
+    expect(visual.label).toBe("Rejected");
+    expect(visual.kind).toBe("verified");
   });
 
   it("prefers derived stage over missing-docs for header pill (payment progress wins)", () => {
@@ -127,8 +143,8 @@ describe("complianceCardVisual", () => {
     expect(complianceTripDisplayId({ id: "uuid-long", display_trip_id: "ggxtn001", trip_number: "TRP001", booking_ref: "BK" })).toBe("ggxtn001");
   });
 
-  it("formats timestamps as 14 Oct, 03:20 PM", () => {
-    expect(formatComplianceTimestamp("2026-10-14T15:20:00")).toBe("14 Oct, 03:20 PM");
+  it("formats timestamps as 14 Oct 2026, 03:20 PM", () => {
+    expect(formatComplianceTimestamp("2026-10-14T15:20:00")).toBe("14 Oct 2026, 03:20 PM");
   });
 });
 
@@ -141,11 +157,52 @@ describe("matchesComplianceTripSearch", () => {
         vehicle_display_number: "TN 16 YO 25800",
         driver_display_name: "Raviri",
         client_name: "Sunflag",
+        supplier_name: "AEROTRO Logistics",
       } as TripRow,
     });
     expect(matchesComplianceTripSearch(row, "trp151")).toBe(true);
     expect(matchesComplianceTripSearch(row, "TN16YO")).toBe(true);
     expect(matchesComplianceTripSearch(row, "raviri")).toBe(true);
+    expect(matchesComplianceTripSearch(row, "aero")).toBe(true);
     expect(matchesComplianceTripSearch(row, "missing")).toBe(false);
+  });
+
+  it("matches resolved supplier labels passed as extras", () => {
+    const row = summary({
+      trip: {
+        id: "uuid-2",
+        display_trip_id: "TRP200",
+        supplier_name: null,
+        supplier_id: "sup-1",
+      } as TripRow,
+    });
+    expect(matchesComplianceTripSearch(row, "nihas")).toBe(false);
+    expect(matchesComplianceTripSearch(row, "nihas", ["Nihas Fleet"])).toBe(true);
+  });
+
+  it("matches full supplier names via extras even when trip.supplier_name is empty", () => {
+    const row = summary({
+      trip: {
+        id: "uuid-3",
+        display_trip_id: "TRP300",
+        supplier_name: null,
+        supplier_id: "sup-venkat",
+      } as TripRow,
+    });
+    expect(
+      matchesComplianceTripSearch(row, "SRI VENKATESWARAA TRANSPORT", [
+        "SRI VENKATESWARAA TRANSPORT",
+      ]),
+    ).toBe(true);
+    expect(
+      matchesComplianceTripSearch(row, "venkateswaraa", [
+        "SRI VENKATESWARAA TRANSPORT",
+      ]),
+    ).toBe(true);
+    expect(
+      matchesComplianceTripSearch(row, "venkateswara transport", [
+        "SRI VENKATESWARAA TRANSPORT",
+      ]),
+    ).toBe(true);
   });
 });

@@ -4,7 +4,6 @@
 set local lock_timeout = '5s';
 
 alter table public.trip_documents drop constraint if exists trip_documents_type_check;
-
 alter table public.trip_documents drop constraint if exists trip_documents_document_type_check;
 
 alter table public.trip_documents add constraint trip_documents_document_type_check

@@ -3,6 +3,7 @@ import {
   canModerateComplianceRow,
   complianceGroupDecisionActions,
   complianceReviewDecisionActions,
+  complianceDecisionButtonState,
   recordOptimisticDecision,
 } from "@/features/tripCompliance/utils/complianceReviewActions.util";
 import type { ComplianceDocRow } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
@@ -44,9 +45,30 @@ describe("complianceReviewDecisionActions", () => {
     expect(complianceReviewDecisionActions(row({ status: "pending" }))).toEqual({ canApprove: true, canDecline: true });
   });
 
-  it("hides Approve and Decline once a file is verified, and shows Approve on a rejected file", () => {
-    expect(complianceReviewDecisionActions(row({ status: "verified" }))).toEqual({ canApprove: false, canDecline: false });
+  it("locks Approve as done once verified (Decline still reverses), and Approve on rejected", () => {
+    expect(complianceReviewDecisionActions(row({ status: "verified" }))).toEqual({ canApprove: false, canDecline: true });
     expect(complianceReviewDecisionActions(row({ status: "rejected" }))).toEqual({ canApprove: true, canDecline: false });
+  });
+
+  it("maps footer button labels from the active doc status", () => {
+    expect(complianceDecisionButtonState(row({ status: "pending" }))).toEqual({
+      approveLabel: "Approve",
+      declineLabel: "Decline",
+      approveActive: false,
+      declineActive: false,
+    });
+    expect(complianceDecisionButtonState(row({ status: "verified" }))).toEqual({
+      approveLabel: "Approved",
+      declineLabel: "Decline",
+      approveActive: true,
+      declineActive: false,
+    });
+    expect(complianceDecisionButtonState(row({ status: "rejected" }))).toEqual({
+      approveLabel: "Approve",
+      declineLabel: "Declined",
+      approveActive: false,
+      declineActive: true,
+    });
   });
 });
 

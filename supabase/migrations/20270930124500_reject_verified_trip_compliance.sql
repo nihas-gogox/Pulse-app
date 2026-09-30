@@ -86,9 +86,7 @@ comment on function public.reject_trip_compliance(uuid, text, text) is
   'Reject a verified Compliance trip with a reason. Keeps compliance_verified_at so the trip remains in the Verified stage with a Rejected visual.';
 
 grant execute on function public.reject_trip_compliance(uuid, text, text) to authenticated;
-
 revoke all on function public.reject_trip_compliance(uuid, text, text) from public;
-
 revoke all on function public.reject_trip_compliance(uuid, text, text) from anon;
 
 -- Allow both decline and reject RPCs to write the decline columns.

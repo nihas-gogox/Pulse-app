@@ -98,6 +98,14 @@ export type ComplianceVerificationStatusVisual = {
 export function verificationStatusVisual(
   summary: ComplianceTripSummary,
 ): ComplianceVerificationStatusVisual {
+  // Verified + rejected remark: stay in Verified stage, show Rejected (red).
+  if (summary.complianceVerifiedAt && summary.complianceDeclinedAt) {
+    return {
+      label: "Rejected",
+      tone: COMPLIANCE_STAGE_TONE.pending_for_docs,
+      kind: "verified",
+    };
+  }
   if (summary.complianceVerifiedAt) {
     if (summary.complianceDecision === "approved_with_exception") {
       return {
@@ -185,10 +193,15 @@ export function pendingDocumentsCopy(pendingCount: number, verified: number, tot
   return `${pendingCount} document${pendingCount === 1 ? "" : "s"} pending`;
 }
 
-export function matchesComplianceTripSearch(summary: ComplianceTripSummary, query: string): boolean {
+export function matchesComplianceTripSearch(
+  summary: ComplianceTripSummary,
+  query: string,
+  extraHaystacks: Array<string | null | undefined> = [],
+): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
-  const compact = needle.replace(/[\s-]/g, "");
+  const compactNeedle = needle.replace(/[\s-]/g, "");
+  const looseNeedle = collapseRepeatedLetters(compactNeedle);
   const trip = summary.trip;
   const haystacks = [
     complianceTripDisplayId(trip),
@@ -196,17 +209,60 @@ export function matchesComplianceTripSearch(summary: ComplianceTripSummary, quer
     trip.trip_number,
     trip.booking_ref,
     trip.client_name,
+    trip.supplier_name,
     trip.vehicle_display_number,
     trip.driver_display_name,
     trip.pickup_area,
     trip.drop_location,
     trip.id,
-  ];
-  return haystacks.some((value) => {
-    const raw = (value ?? "").toLowerCase();
-    if (!raw) return false;
-    return raw.includes(needle) || raw.replace(/[\s-]/g, "").includes(compact);
+    ...extraHaystacks,
+  ]
+    .map((value) => (value ?? "").trim().toLowerCase())
+    .filter((value) => value.length > 0);
+  if (haystacks.length === 0) return false;
+
+  const joined = haystacks.join(" ");
+  const joinedCompact = joined.replace(/[\s-]/g, "");
+  const joinedLoose = collapseRepeatedLetters(joinedCompact);
+
+  if (
+    joined.includes(needle) ||
+    joinedCompact.includes(compactNeedle) ||
+    (looseNeedle.length >= 4 && joinedLoose.includes(looseNeedle))
+  ) {
+    return true;
+  }
+
+  // Multi-word queries: every token must appear somewhere (order-independent).
+  const tokens = needle.split(/\s+/).filter((token) => token.length >= 2);
+  if (tokens.length <= 1) return false;
+  return tokens.every((token) => {
+    const compactToken = token.replace(/[\s-]/g, "");
+    const looseToken = collapseRepeatedLetters(compactToken);
+    return (
+      joined.includes(token) ||
+      joinedCompact.includes(compactToken) ||
+      (looseToken.length >= 4 && joinedLoose.includes(looseToken))
+    );
   });
+}
+
+/** Collapse aa→a so slight spelling variants still match (e.g. Venkateswaraa / Venkateswara). */
+function collapseRepeatedLetters(value: string): string {
+  return value.replace(/(.)\1+/g, "$1");
+}
+
+/** Searchable supplier labels for Compliance queue (name + company + contact). */
+export function supplierComplianceSearchLabels(supplier: {
+  name?: string | null;
+  company_name?: string | null;
+  contact_person?: string | null;
+} | null | undefined): string {
+  if (!supplier) return "";
+  return [supplier.name, supplier.company_name, supplier.contact_person]
+    .map((part) => (part ?? "").trim())
+    .filter((part) => part.length > 0)
+    .join(" ");
 }
 
 export function complianceTripDisplayId(trip: {
@@ -225,11 +281,12 @@ export function formatComplianceTimestamp(iso: string | null | undefined): strin
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const day = date.getDate();
   const month = months[date.getMonth()];
+  const year = date.getFullYear();
   let hours = date.getHours();
   const minutes = String(date.getMinutes()).padStart(2, "0");
   const suffix = hours >= 12 ? "PM" : "AM";
   hours = hours % 12 || 12;
-  return `${day} ${month}, ${String(hours).padStart(2, "0")}:${minutes} ${suffix}`;
+  return `${day} ${month} ${year}, ${String(hours).padStart(2, "0")}:${minutes} ${suffix}`;
 }
 
 export function complianceEventAt(trip: {

@@ -122,6 +122,14 @@ export function deriveComplianceQueueReadiness(summary: ComplianceTripSummary): 
       "blocked",
       `Expired vehicle document${expiredVehicleDocs.length === 1 ? "" : "s"}: ${expiredVehicleDocs.join(", ")}.`,
     );
+  } else if (summary.complianceDeclinedAt && summary.complianceVerifiedAt) {
+    advance = lane(
+      "compliance_advance",
+      "blocked",
+      summary.complianceDeclineReason?.trim()
+        ? `Rejected: ${summary.complianceDeclineReason.trim()}`
+        : "Compliance was rejected. Resolve the remark before paying.",
+    );
   } else if (complianceVerificationIncomplete) {
     advance = lane("compliance_advance", "blocked", "Compliance verification not completed.");
   } else {

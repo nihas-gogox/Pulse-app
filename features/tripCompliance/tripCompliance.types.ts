@@ -100,12 +100,12 @@ export type ComplianceDocumentRow = {
   source_entity_document_id?: string | null;
 };
 
-/** Vehicle/driver docs shown on Compliance — vault JSONB, KYC, or entity_documents. */
-export type ComplianceEntityDocumentSource = "vehicle-vault" | "driver-kyc" | "entity";
+/** Vehicle/driver/supplier docs shown on Compliance — vault JSONB, KYC, or entity_documents. */
+export type ComplianceEntityDocumentSource = "vehicle-vault" | "driver-kyc" | "entity" | "supplier-kyc";
 
 export type ComplianceEntityDocument = {
   id: string;
-  entity_type: "vehicle" | "driver";
+  entity_type: "vehicle" | "driver" | "supplier";
   entity_id: string;
   doc_type: string;
   status: string;
@@ -216,6 +216,16 @@ export const REQUIRED_COMPLIANCE_DOCUMENT_TYPES: readonly string[] = [
 export const COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES: readonly string[] = [
   "pod",
   "memo",
+];
+
+/**
+ * Asset Vault finance slots: Memo, Other Documents, Bank Docs.
+ * LR / Invoice stay on the Trip tab.
+ */
+export const COMPLIANCE_FINANCE_DOCUMENT_TYPES: readonly string[] = [
+  "memo",
+  "other",
+  "bank_docs",
 ];
 
 /** Vehicle checklist — RC, insurance, FC, permit, pollution, tax. */

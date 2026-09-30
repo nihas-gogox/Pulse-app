@@ -9,10 +9,12 @@ import Theme from "@/constants/Theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOptionalOrganization } from "@/contexts/OrganizationContext";
 import { ComplianceDocumentReviewSheet } from "@/features/tripCompliance/components/ComplianceDocumentReviewSheet";
+import { ComplianceExportConfirmModal } from "@/features/tripCompliance/components/ComplianceExportConfirmModal";
 import { CompliancePaymentConfirmModal } from "@/features/tripCompliance/components/CompliancePaymentConfirmModal";
 import { ComplianceDocumentWorkspace } from "@/features/tripCompliance/components/ComplianceDocumentWorkspace";
 import { ComplianceTripsTable } from "@/features/tripCompliance/components/ComplianceTripsTable";
 import { useComplianceProductEnabled } from "@/features/tripCompliance/hooks/useComplianceProductEnabled";
+import { useComplianceListTripFacts } from "@/features/tripCompliance/hooks/useComplianceListTripFacts";
 import {
   COMPLIANCE_QUEUE_PAGE_SIZE,
   useComplianceListPagination,
@@ -23,17 +25,27 @@ import {
 } from "@/features/tripCompliance/hooks/useComplianceTripsQuery";
 import {
   declineTripCompliance,
+  rejectTripCompliance,
   postCompliancePayment,
   markTripComplianceVerified,
   type ComplianceLedgerCategory,
 } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import { COMPLIANCE_STAGE_FILTER_LABEL, COMPLIANCE_STAGES, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
-import { COMPLIANCE_FILTER_COUNT_TONE, matchesComplianceTripSearch } from "@/features/tripCompliance/utils/complianceCardVisual.util";
+import {
+  COMPLIANCE_FILTER_COUNT_TONE,
+  matchesComplianceTripSearch,
+  supplierComplianceSearchLabels,
+} from "@/features/tripCompliance/utils/complianceCardVisual.util";
+import {
+  countVerifiedStageDocuments,
+} from "@/features/tripCompliance/utils/complianceExportReport.util";
+import { exportVerifiedStageComplianceReport } from "@/features/tripCompliance/services/complianceExportReport.service";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { formatMarkComplianceVerifiedError } from "@/features/tripCompliance/utils/complianceMarkVerifiedError.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { EMPTY_STATE_LOTTIE } from "@/lib/emptyStateLottieAssets";
 import { useLayoutInsets } from "@/lib/layoutInsets";
+import { useSuppliersQuery } from "@/lib/queries/useSuppliersQuery";
 import { ROUTES } from "@/lib/routes";
 import { useMemberAccess } from "@/lib/useMemberAccess";
 import { useRouter } from "expo-router";
@@ -115,6 +127,20 @@ export default function ComplianceScreen() {
     refetch,
   } = useComplianceTripsQuery();
   const { stage, setStage, filtered, counts, podReceivedCount, paymentPendingCount } = useComplianceStageFilter(summaries);
+  const suppliersQuery = useSuppliersQuery(currentOrganization?.id ?? null);
+  const supplierSearchById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const supplier of suppliersQuery.data ?? []) {
+      const labels = supplierComplianceSearchLabels(supplier);
+      if (labels) map[supplier.id] = labels;
+    }
+    return map;
+  }, [suppliersQuery.data]);
+  // Resolve labels for the full queue so supplier search works across stage chips.
+  const { supplierNameByTripId } = useComplianceListTripFacts(
+    summaries,
+    currentOrganization?.id ?? "",
+  );
   const syncChange = useComplianceChangeSync();
   const markTripVerified = useCallback(
     async (tripId: string) => {
@@ -173,22 +199,71 @@ export default function ComplianceScreen() {
     },
     [canMarkVerified, syncChange, user?.uid],
   );
+
+  const rejectKeysRef = useRef(new Map<string, { reason: string; key: string; at: number }>());
+  const rejectTrip = useCallback(
+    async (tripId: string, reason: string) => {
+      if (!canMarkVerified) {
+        throw new Error("You don't have permission to reject compliance for this trip.");
+      }
+      if (!user?.uid) {
+        throw new Error("Sign in again, then try Reject.");
+      }
+      const trimmed = reason.trim();
+      const keys = rejectKeysRef.current;
+      const now = Date.now();
+      let entry = keys.get(tripId);
+      if (!entry || entry.reason !== trimmed || now - entry.at > DECLINE_KEY_REUSE_MS) {
+        entry = { reason: trimmed, key: `${tripId}:rej:${now}:${Math.random().toString(36).slice(2, 10)}`, at: now };
+        keys.set(tripId, entry);
+      }
+      try {
+        await rejectTripCompliance({ tripId, reason: trimmed, idempotencyKey: entry.key });
+      } catch (error) {
+        void syncChange({ type: "tripFlags", tripId }).catch(() => undefined);
+        throw error;
+      }
+      keys.delete(tripId);
+      await syncChange({ type: "complianceDeclined", tripId, actorId: user.uid, reason: trimmed });
+      setTimeout(
+        () =>
+          alertMessage(
+            "Trip rejected",
+            "The trip stays under Verified with a Rejected status. Advance payment is blocked until resolved.",
+          ),
+        0,
+      );
+    },
+    [canMarkVerified, syncChange, user?.uid],
+  );
+
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   // Selected trip in the Cards workspace; Table Verify (not ready) hands off here.
   const [cardTripId, setCardTripId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [pay, setPay] = useState<{ summary: ComplianceTripSummary; category: ComplianceLedgerCategory } | null>(null);
   const [paying, setPaying] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [review, setReview] = useState<{
     tripId: string;
     documentKey: string | null;
     scope: "trip" | "vehicle" | "driver";
   } | null>(null);
 
-  const searched = useMemo(
-    () => filtered.filter((summary) => matchesComplianceTripSearch(summary, search)),
-    [filtered, search],
-  );
+  const searched = useMemo(() => {
+    // With an active query, search the full Compliance queue (not only the
+    // selected stage chip) so supplier / trip matches aren't hidden by filter.
+    const pool = search.trim() ? summaries : filtered;
+    return pool.filter((summary) => {
+      const supplierId = (summary.trip.supplier_id ?? "").trim();
+      const resolved = supplierNameByTripId[summary.trip.id];
+      return matchesComplianceTripSearch(summary, search, [
+        supplierId ? supplierSearchById[supplierId] : null,
+        resolved && resolved !== "—" ? resolved : null,
+      ]);
+    });
+  }, [filtered, summaries, search, supplierSearchById, supplierNameByTripId]);
   const {
     page,
     setPage,
@@ -228,6 +303,27 @@ export default function ComplianceScreen() {
     }
     setPay({ summary, category: readiness.readyCategory });
   }, []);
+
+  const verifiedExportDocumentCount = useMemo(
+    () => countVerifiedStageDocuments(summaries),
+    [summaries],
+  );
+
+  const confirmExportReport = useCallback(async () => {
+    if (!currentOrganization?.id || exporting) return;
+    setExporting(true);
+    try {
+      const exported = await exportVerifiedStageComplianceReport(currentOrganization.id);
+      setExportOpen(false);
+      if (exported === 0) {
+        alertMessage("Nothing to export", "No verified-stage trips are ready to download yet.");
+      }
+    } catch (error) {
+      alertMessage("Couldn't export report", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }, [currentOrganization?.id, exporting]);
 
   const openDetails = useCallback(
     (tripId: string) => {
@@ -284,7 +380,7 @@ export default function ComplianceScreen() {
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder={isNarrow ? "Search trips…" : "Search trip ID, vehicle, driver, or client"}
+            placeholder={isNarrow ? "Search trips…" : "Search trip ID, vehicle, driver, client, or supplier"}
             placeholderTextColor={Theme.textSecondary}
             style={styles.searchInput as TextStyle}
             autoCorrect={false}
@@ -413,6 +509,32 @@ export default function ComplianceScreen() {
           canViewDocuments={canViewDocuments}
           canManageFinance={canManageFinance}
           onPay={openPay}
+          paymentSubmitting={paying}
+          onConfirmPayment={
+            canManageFinance
+              ? async (summary, category, values) => {
+                  if (!currentOrganization?.id) return;
+                  setPaying(true);
+                  const { error: payError } = await postCompliancePayment({
+                    organizationId: currentOrganization.id,
+                    trip: summary.trip,
+                    category,
+                    amount: values.amount,
+                    paymentModeId: values.paymentModeId,
+                    paymentModeLabel: values.paymentModeLabel,
+                    utr: values.utr,
+                    notes: values.remark,
+                  });
+                  setPaying(false);
+                  if (payError) {
+                    alertMessage("Couldn't post payment", payError.message);
+                    return;
+                  }
+                  void syncChange({ type: "payment", tripId: summary.trip.id });
+                }
+              : undefined
+          }
+          onRejectCompliance={canMarkVerified ? rejectTrip : undefined}
           onMarkComplianceVerified={canMarkVerified ? markTripVerified : undefined}
           canManagePod={canManagePod}
           selectedTripId={cardTripId}
@@ -507,7 +629,7 @@ export default function ComplianceScreen() {
           {canViewFinance ? (
             <TouchableOpacity
               style={[styles.reportBtn, compactActions && styles.actionBtnCompact]}
-              onPress={() => router.push(ROUTES.COMPLIANCE_REPORT as Parameters<typeof router.push>[0])}
+              onPress={() => setExportOpen(true)}
               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
               accessibilityRole="button"
               accessibilityLabel="Export Report"
@@ -570,6 +692,18 @@ export default function ComplianceScreen() {
           driverLabel={reviewingSummary.trip.driver_display_name?.trim() || "Unassigned"}
         />
       ) : null}
+
+      <ComplianceExportConfirmModal
+        visible={exportOpen}
+        documentCount={verifiedExportDocumentCount}
+        exporting={exporting}
+        onCancel={() => {
+          if (!exporting) setExportOpen(false);
+        }}
+        onConfirm={() => {
+          void confirmExportReport();
+        }}
+      />
 
       <CompliancePaymentConfirmModal
         visible={pay != null}
