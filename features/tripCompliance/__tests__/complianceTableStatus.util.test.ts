@@ -9,6 +9,7 @@ import {
   deriveComplianceEwayBill,
   deriveComplianceGroupStatus,
   isComplianceDeclineActive,
+  isFinanceDeclinedTrip,
 } from "@/features/tripCompliance/utils/complianceTableStatus.util";
 
 // Local-date noon so "today"/"yesterday" are unambiguous in any TZ.
@@ -303,5 +304,19 @@ describe("isComplianceDeclineActive (AC-26, AC-28)", () => {
         summary({ complianceDeclinedAt: "2026-09-02T00:00:00Z", complianceVerifiedAt: "2026-09-03T00:00:00Z" }),
       ),
     ).toBe(false);
+  });
+});
+
+describe("isFinanceDeclinedTrip", () => {
+  it("true only when a verified trip was declined", () => {
+    expect(isFinanceDeclinedTrip(summary({}))).toBe(false);
+    expect(
+      isFinanceDeclinedTrip(summary({ complianceDeclinedAt: "2026-09-02T00:00:00Z" })),
+    ).toBe(false);
+    expect(
+      isFinanceDeclinedTrip(
+        summary({ complianceDeclinedAt: "2026-09-02T00:00:00Z", complianceVerifiedAt: "2026-09-01T00:00:00Z" }),
+      ),
+    ).toBe(true);
   });
 });

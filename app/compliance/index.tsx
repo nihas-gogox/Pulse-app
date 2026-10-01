@@ -39,6 +39,10 @@ import {
 } from "@/features/tripCompliance/utils/complianceExportReport.util";
 import { exportVerifiedStageComplianceReport } from "@/features/tripCompliance/services/complianceExportReport.service";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
+import {
+  isComplianceDeclineActive,
+  isFinanceDeclinedTrip,
+} from "@/features/tripCompliance/utils/complianceTableStatus.util";
 import { formatMarkComplianceVerifiedError } from "@/features/tripCompliance/utils/complianceMarkVerifiedError.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import { EMPTY_STATE_LOTTIE } from "@/lib/emptyStateLottieAssets";
@@ -125,6 +129,10 @@ export default function ComplianceScreen() {
     refetch,
   } = useComplianceTripsQuery();
   const { stage, setStage, filtered, counts, podReceivedCount, paymentPendingCount } = useComplianceStageFilter(summaries);
+  const [pendingSlice, setPendingSlice] = useState<"all" | "hold" | "finance_declined">("all");
+  useEffect(() => {
+    setPendingSlice("all");
+  }, [stage]);
   const suppliersQuery = useSuppliersQuery(currentOrganization?.id ?? null);
   const supplierSearchById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -250,10 +258,24 @@ export default function ComplianceScreen() {
   const [exporting, setExporting] = useState(false);
   const routeFocus = useLocalSearchParams<{ trip?: string; tab?: string }>();
 
+  const complianceHoldCount = useMemo(
+    () => (summaries ?? []).filter((summary) => summary.stage === "compliance_pending" && isComplianceDeclineActive(summary)).length,
+    [summaries],
+  );
+  const financeDeclinedCount = useMemo(
+    () => (summaries ?? []).filter(isFinanceDeclinedTrip).length,
+    [summaries],
+  );
+  const stagePool = useMemo(() => {
+    if (stage !== "compliance_pending" || pendingSlice === "all") return filtered;
+    if (pendingSlice === "hold") return filtered.filter(isComplianceDeclineActive);
+    return (summaries ?? []).filter(isFinanceDeclinedTrip);
+  }, [filtered, pendingSlice, stage, summaries]);
+
   const searched = useMemo(() => {
     // With an active query, search the full Compliance queue (not only the
     // selected stage chip) so supplier / trip matches aren't hidden by filter.
-    const pool = search.trim() ? summaries : filtered;
+    const pool = search.trim() ? summaries : stagePool;
     return pool.filter((summary) => {
       const supplierId = (summary.trip.supplier_id ?? "").trim();
       const resolved = supplierNameByTripId[summary.trip.id];
@@ -262,7 +284,7 @@ export default function ComplianceScreen() {
         resolved && resolved !== "—" ? resolved : null,
       ]);
     });
-  }, [filtered, summaries, search, supplierSearchById, supplierNameByTripId]);
+  }, [stagePool, summaries, search, supplierSearchById, supplierNameByTripId]);
   const {
     page,
     setPage,
@@ -274,7 +296,7 @@ export default function ComplianceScreen() {
     pageSize,
   } = useComplianceListPagination(searched, {
     pageSize: COMPLIANCE_QUEUE_PAGE_SIZE,
-    resetKey: `${stage}|${search.trim()}`,
+    resetKey: `${stage}|${pendingSlice}|${search.trim()}`,
   });
 
   useEffect(() => {
@@ -466,6 +488,37 @@ export default function ComplianceScreen() {
               ];
             })}
           </ScrollView>
+          {stage === "compliance_pending" ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.subChipScroll}
+              contentContainerStyle={styles.chipWrap}
+              keyboardShouldPersistTaps="handled"
+            >
+              <StageChip
+                label="All"
+                count={counts.compliance_pending}
+                countColor={COMPLIANCE_FILTER_COUNT_TONE.compliance_pending}
+                active={pendingSlice === "all"}
+                onPress={() => setPendingSlice("all")}
+              />
+              <StageChip
+                label="Compliance Hold"
+                count={complianceHoldCount}
+                countColor={Theme.complianceStageDocsFg}
+                active={pendingSlice === "hold"}
+                onPress={() => setPendingSlice("hold")}
+              />
+              <StageChip
+                label="Declined by finance"
+                count={financeDeclinedCount}
+                countColor={Theme.complianceStageDocsFg}
+                active={pendingSlice === "finance_declined"}
+                onPress={() => setPendingSlice("finance_declined")}
+              />
+            </ScrollView>
+          ) : null}
         </View>
       </View>
       </View>
@@ -499,7 +552,11 @@ export default function ComplianceScreen() {
               : summaries.length
                 ? stage === "payment_pending"
                   ? "No trips are waiting for advance payment."
-                  : "No trips in this stage."
+                  : pendingSlice === "finance_declined"
+                    ? "No trips declined by finance."
+                    : pendingSlice === "hold"
+                      ? "No trips on compliance hold."
+                      : "No trips in this stage."
                 : "No Loading→Completed trips in the Compliance queue yet."}
           </Text>
         </View>
@@ -798,7 +855,7 @@ const styles = StyleSheet.create({
   toolbarRow: {
     width: "100%",
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 6,
   },
   toolbarStack: {
@@ -813,6 +870,11 @@ const styles = StyleSheet.create({
   chipScroll: {
     flexGrow: 0,
     width: "100%",
+  },
+  subChipScroll: {
+    flexGrow: 0,
+    width: "100%",
+    marginTop: 6,
   },
   chipWrap: {
     flexDirection: "row",

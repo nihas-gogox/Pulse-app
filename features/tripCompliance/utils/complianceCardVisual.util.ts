@@ -120,6 +120,16 @@ export function verificationStatusVisual(
       kind: "verified",
     };
   }
+  // Decline before verify: same kind of status tag as finance Rejected.
+  if (summary.complianceDeclinedAt) {
+    const stillPendingDocs =
+      summary.stage === "pending_for_docs" || summary.documentCounts.total === 0;
+    return {
+      label: "Compliance Hold",
+      tone: COMPLIANCE_STAGE_TONE.pending_for_docs,
+      kind: stillPendingDocs ? "pending_docs" : "compliance_pending",
+    };
+  }
   if (summary.stage === "hard_copy_pod_received") {
     return {
       label: "Awaiting POD",

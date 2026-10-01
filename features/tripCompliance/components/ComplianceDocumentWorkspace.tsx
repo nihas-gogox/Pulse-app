@@ -2881,6 +2881,7 @@ function TripListRow({
   const trip = summary.trip;
   const verification = verificationStatusVisual(summary);
   const isRejected = Boolean(summary.complianceVerifiedAt && summary.complianceDeclinedAt);
+  const declineRemark = summary.complianceDeclineReason?.trim() || "";
   const customerName = trip.client_name?.trim() || "—";
   const supplierLabel = (supplierName ?? trip.supplier_name)?.trim() || "—";
   const origin = splitHubRouteLocationDisplay(trip.pickup_area ?? "");
@@ -3006,9 +3007,9 @@ function TripListRow({
         </View>
       </View>
 
-      {isRejected && summary.complianceDeclineReason?.trim() ? (
+      {declineRemark ? (
         <Text style={styles.rejectReasonLine} numberOfLines={2}>
-          {summary.complianceDeclineReason.trim()}
+          {declineRemark}
         </Text>
       ) : null}
 

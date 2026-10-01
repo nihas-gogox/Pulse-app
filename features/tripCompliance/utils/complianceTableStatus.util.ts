@@ -160,3 +160,8 @@ export function canVerifyTrip(summary: ComplianceTripSummary): ComplianceVerifyE
 export function isComplianceDeclineActive(summary: ComplianceTripSummary): boolean {
   return Boolean(summary.complianceDeclinedAt) && !summary.complianceVerifiedAt;
 }
+
+/** Finance reject of a verified trip: stays verified, with a decline remark. */
+export function isFinanceDeclinedTrip(summary: ComplianceTripSummary): boolean {
+  return Boolean(summary.complianceVerifiedAt && summary.complianceDeclinedAt);
+}

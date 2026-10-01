@@ -46,6 +46,19 @@ describe("complianceCardVisual", () => {
     expect(paymentStatusVisual(summary({ stage: "balance_pending" })).label).toBe("Balance Pending");
   });
 
+  it("shows Compliance Hold when compliance declines before verify", () => {
+    const visual = verificationStatusVisual(
+      summary({
+        complianceDeclinedAt: "2026-09-30",
+        complianceDeclineReason: "LR unreadable",
+        stage: "compliance_pending",
+        documentCounts: { total: 3, verified: 0, rejected: 0, pending: 3 },
+      }),
+    );
+    expect(visual.label).toBe("Compliance Hold");
+    expect(visual.kind).toBe("compliance_pending");
+  });
+
   it("shows Rejected when a verified trip has a decline remark", () => {
     const visual = verificationStatusVisual(
       summary({

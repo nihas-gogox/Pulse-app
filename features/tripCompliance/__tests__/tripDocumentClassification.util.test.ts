@@ -231,7 +231,7 @@ describe("rows / checklist / stage agree on the classification", () => {
     return summary;
   }
 
-  it("typed E-way details: row present (not missing), on checklist, stage not Pending Docs", async () => {
+  it("typed E-way details: row present (not missing), on checklist; stage stays Pending Docs without vehicle and driver files", async () => {
     const docs = [lrFile, invoiceFile, fixtures.ewayDetails];
     const ewayRow = deriveComplianceDocumentRows(docs).find((r) => r.type === "eway_bill");
     expect(ewayRow?.status).toBe("pending");
@@ -239,7 +239,7 @@ describe("rows / checklist / stage agree on the classification", () => {
     expect(classifyTripDocument(ewayRow?.doc).hasBinary).toBe(false);
     expect(isTripVaultDocumentOnFile(fixtures.ewayDetails)).toBe(true);
     const summary = await stageFor(docs);
-    expect(summary.stage).toBe("compliance_pending");
+    expect(summary.stage).toBe("pending_for_docs");
     expect(summary.documentCounts.total).toBe(3);
   });
 
