@@ -259,7 +259,7 @@ export default function ComplianceScreen() {
   const routeFocus = useLocalSearchParams<{ trip?: string; tab?: string }>();
 
   const complianceHoldCount = useMemo(
-    () => (summaries ?? []).filter((summary) => summary.stage === "compliance_pending" && isComplianceDeclineActive(summary)).length,
+    () => (summaries ?? []).filter(isComplianceDeclineActive).length,
     [summaries],
   );
   const financeDeclinedCount = useMemo(
@@ -268,7 +268,7 @@ export default function ComplianceScreen() {
   );
   const stagePool = useMemo(() => {
     if (stage !== "compliance_pending" || pendingSlice === "all") return filtered;
-    if (pendingSlice === "hold") return filtered.filter(isComplianceDeclineActive);
+    if (pendingSlice === "hold") return (summaries ?? []).filter(isComplianceDeclineActive);
     return (summaries ?? []).filter(isFinanceDeclinedTrip);
   }, [filtered, pendingSlice, stage, summaries]);
 
