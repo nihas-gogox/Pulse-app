@@ -28,6 +28,7 @@ import {
 } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import {
   deriveComplianceDocumentRows,
+  deriveTripVaultReviewRows,
   deriveEntityComplianceRows,
   deriveFinanceDocumentRows,
   financeVaultDetailLine,
@@ -174,7 +175,7 @@ const TAB_VAULT_COPY: Record<
 function rowsForTab(summary: ComplianceTripSummary, tab: DocTab): ComplianceDocRow[] {
   if (tab === "vehicle") return deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, summary.vehicleDocuments);
   if (tab === "driver") return deriveEntityComplianceRows(COMPLIANCE_DRIVER_DOCUMENT_TYPES, summary.driverDocuments);
-  return deriveComplianceDocumentRows(summary.documents);
+  return deriveTripVaultReviewRows(summary.documents);
 }
 
 /** Entity doc approve/decline changes that vehicle's or driver's docs — shared by every trip using it. */
@@ -1663,7 +1664,7 @@ export function ComplianceDocumentWorkspace({
     if (!summary) return { trip: 0, vehicle: 0, driver: 0, finance: 0 };
     const finance = deriveFinanceDocumentRows(summary.documents);
     return {
-      trip: deriveComplianceDocumentRows(summary.documents).filter((row) => row.status === "missing").length,
+      trip: deriveTripVaultReviewRows(summary.documents).filter((row) => row.status === "missing").length,
       vehicle: summary.trip.vehicle_id
         ? deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, summary.vehicleDocuments).filter(
             (row) => row.status === "missing",
@@ -1729,25 +1730,27 @@ export function ComplianceDocumentWorkspace({
             <Text style={styles.missingDocName} numberOfLines={1}>
               {rowLabel.toUpperCase()}
             </Text>
-            <View
-              style={[
-                styles.missingScopeTag,
-                displayRow.required
-                  ? styles.missingScopeRequired
-                  : styles.missingScopeOptional,
-              ]}
-            >
-              <Text
+            {!showGroupedReview ? (
+              <View
                 style={[
-                  styles.missingScopeText,
+                  styles.missingScopeTag,
                   displayRow.required
-                    ? styles.missingScopeTextRequired
-                    : styles.missingScopeTextOptional,
+                    ? styles.missingScopeRequired
+                    : styles.missingScopeOptional,
                 ]}
               >
-                {requirementScopeLabel(displayRow.required)}
-              </Text>
-            </View>
+                <Text
+                  style={[
+                    styles.missingScopeText,
+                    displayRow.required
+                      ? styles.missingScopeTextRequired
+                      : styles.missingScopeTextOptional,
+                  ]}
+                >
+                  {requirementScopeLabel(displayRow.required)}
+                </Text>
+              </View>
+            ) : null}
             {bankVerified ? (
               <View style={styles.bankVerifiedChip}>
                 <Text style={styles.bankVerifiedChipText}>Verified</Text>

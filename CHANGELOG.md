@@ -1,6 +1,13 @@
 # Changelog — V1 (v0.0.01)
 
 ## sneha/V1.0.1 — 2026-10-01
+- **What:** Compliance Trip tab lists only LR, E-way Bill and Invoice. POD and Memo are removed from it (Memo stays under Finance, POD under Hardcopy POD). Rows under a Required / Optional group header no longer repeat a "Required" / "Optional" pill.
+- **Why:** POD and Memo cluttered the Trip vault and showed an "Optional documents · 0 of 2 uploaded" block that wasn't actionable there.
+- **Files/areas:** `features/tripCompliance/utils/complianceDocumentRows.util.ts` (new `deriveTripVaultReviewRows`), `ComplianceDocumentWorkspace.tsx` (Trip list + Trip tab badge), `ComplianceDocumentReviewSheet.tsx` (Trip scope)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.1 — 2026-10-01
 - **What:** Compliance workspace: Upload / Replace on the Trip, Vehicle and Driver tabs now opens the file picker and uploads in place, with a spinner on the row. It no longer pops up the full "Compliance Review" sheet.
 - **Why:** Clicking Upload opened the cramped review sheet instead of letting the user pick a file.
 - **Files/areas:** new `features/tripCompliance/services/complianceVaultUpload.service.ts` (pick + validate + trip / vehicle-vault / entity-doc write, moved out of the review sheet), `ComplianceDocumentWorkspace.tsx` (inline upload), `ComplianceDocumentReviewSheet.tsx` (uses the shared service)

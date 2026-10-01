@@ -264,6 +264,14 @@ export function deriveComplianceDocumentRows(documents: ComplianceDocumentRow[])
 }
 
 /**
+ * Trip vault tab in Compliance review: LR / E-way Bill / Invoice only.
+ * Memo is reviewed under Finance and POD through the hardcopy POD flow.
+ */
+export function deriveTripVaultReviewRows(documents: ComplianceDocumentRow[]): ComplianceDocRow[] {
+  return deriveComplianceDocumentRows(documents).filter((row) => row.required);
+}
+
+/**
  * Finance list: Memo, Other Documents, and Bank Docs from the trip Asset Vault.
  * LR / Invoice / Trip Manifest stay on the Trip tab — not duplicated here.
  */

@@ -36,8 +36,8 @@ import {
 } from "@/features/tripCompliance/tripCompliance.types";
 import { buildComplianceDocumentActivity, type ComplianceActorDetail, type ComplianceDocumentActivityEntry } from "@/features/tripCompliance/utils/complianceDocumentActivity.util";
 import {
-    deriveComplianceDocumentRows,
     deriveEntityComplianceRows,
+    deriveTripVaultReviewRows,
     groupComplianceReviewRows,
     labelForDocType,
     requirementScopeLabel,
@@ -200,7 +200,7 @@ export function ComplianceDocumentReviewSheet({
   const rows = useMemo(() => {
     if (scope === "vehicle") return deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, vehicleDocuments);
     if (scope === "driver") return deriveEntityComplianceRows(COMPLIANCE_DRIVER_DOCUMENT_TYPES, driverDocuments);
-    return deriveComplianceDocumentRows(documents);
+    return deriveTripVaultReviewRows(documents);
   }, [scope, documents, vehicleDocuments, driverDocuments]);
   const [selectedKey, setSelectedKey] = useState<string | null>(initialSelectedKey);
   const [busy, setBusy] = useState(false);
