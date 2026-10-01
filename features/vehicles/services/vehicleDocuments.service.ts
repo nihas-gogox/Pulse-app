@@ -305,6 +305,9 @@ export async function uploadVehicleDocument(
   const validationError = validateDocumentFile(file);
   if (validationError) return { storagePath: null, error: new Error(validationError) };
 
+  const body = file.blob ?? file.arrayBuffer;
+  if (!body) return { storagePath: null, error: new Error('No file data to upload.') };
+
   const ext = file.fileName.split('.').pop()?.toLowerCase() || 'jpg';
   const path = `${orgId}/${vehicleId}/${docType}.${ext}`;
 
@@ -313,7 +316,7 @@ export async function uploadVehicleDocument(
       supabase()
         .storage
         .from(BUCKET)
-        .upload(path, file.blob ?? file.arrayBuffer, {
+        .upload(path, body, {
           contentType: file.mimeType || 'image/jpeg',
           upsert: true,
         }),

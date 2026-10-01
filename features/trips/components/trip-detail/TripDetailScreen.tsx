@@ -2297,7 +2297,9 @@ export default function TripDetailScreen({
         displayVehicleFromInput: detail.displayVehicleFromInput,
         vehicleLabel: detail.vehicleLabel,
         vehicleDisplayNumber: detail.trip?.vehicle_display_number,
-        vehicleNumber: tripExtraVehicleNumber(detail.trip),
+        vehicleNumber: tripExtraVehicleNumber(
+        detail.trip as { vehicle_number?: string | null } | null,
+      ),
       });
       const vehicleReady = Boolean(
         detail.trip?.vehicle_id?.trim() ||
@@ -2373,7 +2375,9 @@ export default function TripDetailScreen({
       displayVehicleFromInput: detail.displayVehicleFromInput,
       vehicleLabel: detail.vehicleLabel,
       vehicleDisplayNumber: detail.trip?.vehicle_display_number,
-      vehicleNumber: tripExtraVehicleNumber(detail.trip),
+      vehicleNumber: tripExtraVehicleNumber(
+        detail.trip as { vehicle_number?: string | null } | null,
+      ),
     });
     if (
       !detail.trip?.vehicle_id?.trim() &&
