@@ -1,6 +1,13 @@
 # Changelog — V1 (v0.0.01)
 
 ## sneha/V1.0.2 — 2026-10-01
+- **What:** Compliance footer: Export Report shows only when the Verified stage chip is selected and is hidden on every other stage. Bulk Payment stays right-aligned. If the stage changes while the export popup is open, the popup closes (unless an export is already running). The popup, its count and the CSV export are unchanged.
+- **Why:** The report exports Verified-stage trips only, so offering it on other stages was misleading.
+- **Files/areas:** `app/compliance/index.tsx` (footer Export Report button, `ComplianceExportConfirmModal` visibility)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
 - **What:** Advance Payment panel: Reject and Confirm payment are centered under the cards (below the divider) and smaller: Reject 96×36, Confirm payment 168×36, radius 10, 10pt gap. Touch targets stay 44pt through `hitSlop`.
 - **Why:** The full-width, right-heavy buttons looked oversized and off-center against the cards.
 - **Files/areas:** `features/tripCompliance/components/CompliancePaymentConfirmModal.tsx` (inline action row)

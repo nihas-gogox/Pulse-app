@@ -271,6 +271,11 @@ export default function ComplianceScreen() {
     if (pendingSlice === "hold") return filtered.filter(isComplianceDeclineActive);
     return (summaries ?? []).filter(isFinanceDeclinedTrip);
   }, [filtered, pendingSlice, stage, summaries]);
+  /** Export Report covers the Verified stage only, so it is offered only on that chip. */
+  const isVerifiedStage = stage === "compliance_verified";
+  useEffect(() => {
+    if (!isVerifiedStage && !exporting) setExportOpen(false);
+  }, [isVerifiedStage, exporting]);
 
   const searched = useMemo(() => {
     // With an active query, search the full Compliance queue (not only the
@@ -708,7 +713,7 @@ export default function ComplianceScreen() {
           <View style={styles.footerCenter} />
         )}
         <View style={[styles.footerSide, styles.footerSideEnd]}>
-          {canViewFinance ? (
+          {canViewFinance && isVerifiedStage ? (
             <TouchableOpacity
               style={[styles.reportBtn, compactActions && styles.actionBtnCompact]}
               onPress={() => setExportOpen(true)}
@@ -741,7 +746,7 @@ export default function ComplianceScreen() {
       </View>
 
       <ComplianceExportConfirmModal
-        visible={exportOpen}
+        visible={exportOpen && isVerifiedStage}
         documentCount={verifiedExportDocumentCount}
         exporting={exporting}
         onCancel={() => {
