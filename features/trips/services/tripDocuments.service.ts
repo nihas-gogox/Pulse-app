@@ -523,15 +523,21 @@ async function recordTripDocumentReplacedAudit(params: {
   newStoragePath: string;
   newFileName: string;
   actorId: string;
+  organizationId?: string | null;
 }): Promise<void> {
   const { tripId, existing, newStoragePath, newFileName, actorId } = params;
   try {
-    const { data: trip, error: tripError } = await supabase()
-      .from("trips")
-      .select("organization_id")
-      .eq("id", tripId)
-      .maybeSingle();
-    const organizationId = !tripError ? (trip as { organization_id?: string | null } | null)?.organization_id : null;
+    let organizationId = params.organizationId?.trim() || null;
+    if (!organizationId) {
+      const { data: trip, error: tripError } = await supabase()
+        .from("trips")
+        .select("organization_id")
+        .eq("id", tripId)
+        .maybeSingle();
+      organizationId = !tripError
+        ? (trip as { organization_id?: string | null } | null)?.organization_id ?? null
+        : null;
+    }
     if (!organizationId) return;
 
     await supabase()
@@ -574,7 +580,11 @@ export async function uploadTripDocument(
   file: { arrayBuffer?: ArrayBuffer; blob?: Blob; fileName: string; mimeType: string },
   documentType: TripDocumentType = 'pod',
   documentNumber?: string,
-  options?: { stopId?: string | null; replaceExistingOfType?: boolean; organizationId?: string | null },
+  options?: {
+    stopId?: string | null;
+    replaceExistingOfType?: boolean;
+    organizationId?: string | null;
+  },
 ): Promise<UploadTripDocumentResult> {
   const byteLength = file.blob?.size ?? file.arrayBuffer?.byteLength ?? 0;
   const body = file.blob ?? file.arrayBuffer;
@@ -681,12 +691,15 @@ export async function uploadTripDocument(
         newStoragePath: path,
         newFileName: file.fileName,
         actorId: uploadedBy,
+        organizationId: options?.organizationId,
       });
       const replacedDoc = {
         ...(updated as TripDocumentRow),
         document_type: ((updated as TripDocumentRow).document_type ?? documentType) as TripDocumentType,
       };
-      if (documentType === "pod") publishPodUploadedEvent(tripId, replacedDoc, options?.organizationId);
+      if (documentType === "pod") {
+        publishPodUploadedEvent(tripId, replacedDoc, options?.organizationId);
+      }
       return { doc: replacedDoc, error: null };
     }
   }
@@ -713,7 +726,9 @@ export async function uploadTripDocument(
         document_type: documentType,
         document_number: trimmedDocumentNumber,
       };
-      if (documentType === "pod") publishPodUploadedEvent(tripId, fallbackDoc, options?.organizationId);
+      if (documentType === "pod") {
+        publishPodUploadedEvent(tripId, fallbackDoc, options?.organizationId);
+      }
       return { doc: fallbackDoc, error: null };
     }
     if (isTripDocumentsStoragePathConflict(insertError)) {
@@ -748,7 +763,9 @@ export async function uploadTripDocument(
     ...(row as TripDocumentRow),
     document_type: ((row as TripDocumentRow).document_type ?? documentType) as TripDocumentType,
   } as TripDocumentRow;
-  if (documentType === "pod") publishPodUploadedEvent(tripId, insertedDoc, options?.organizationId);
+  if (documentType === "pod") {
+    publishPodUploadedEvent(tripId, insertedDoc, options?.organizationId);
+  }
   return { doc: insertedDoc, error: null };
 }
 

@@ -298,6 +298,7 @@ export function LoadCenterView({
     isFetched: marketFetched,
   } = useMarketIndentsQuery(orgId, {
     urgent: !isTripsPresentation,
+    immediate: !isTripsPresentation,
     enabled: !isTripsPresentation,
   });
   const marketPending = isEnabledListQueryPending({

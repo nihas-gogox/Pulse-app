@@ -72,6 +72,10 @@ import { throwIfCancelled } from "@/lib/supabaseAbort.util";
 import { notifyTripChatMessagesChanged } from "@/lib/tripChatInvalidate";
 import { getOptimalRoute } from "@/lib/routingService";
 import * as tripDocumentsService from "@/features/trips/services/tripDocuments.service";
+import {
+  acceptVaultFileConfirmation,
+  vaultUploadOutcome,
+} from "@/features/trips/utils/vaultUploadSession.util";
 import { extractLrFieldsFromUploadedDocument } from "@/features/trips/services/lrDocumentOcr.service";
 import {
   parseLrFieldValues,
@@ -1345,6 +1349,11 @@ export default function TripDetailScreen({
 
   // Vault upload hooks — must run before loading/error early returns (Rules of Hooks).
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
+  const [vaultUploadError, setVaultUploadError] = useState<{
+    slotId: string;
+    message: string;
+  } | null>(null);
+  const vaultUploadInFlightRef = useRef(false);
   const [pendingVaultUpload, setPendingVaultUpload] = useState<{
     slotId: string;
     label: string;
@@ -1409,7 +1418,6 @@ export default function TripDetailScreen({
 
   const [lrOcrReading, setLrOcrReading] = useState(false);
   const lrOcrAttemptedRef = useRef<string | null>(null);
-  const vaultUploadInFlightRef = useRef(false);
   const [addDocChooserVisible, setAddDocChooserVisible] = useState(false);
   const [tripDetailsVisible, setTripDetailsVisible] = useState(false);
   const [supplierBankProof, setSupplierBankProof] =
@@ -1553,21 +1561,40 @@ export default function TripDetailScreen({
       return;
     }
 
-    if (pending.docType === "lr" && normalizeOrgLrNumber(pendingLrNumber)) {
-      const duplicate = await findOrgDuplicateLrNumberForTrip({
-        tripId: tripIdForUpload,
-        lrNumber: pendingLrNumber,
-      });
-      if (duplicate) {
-        setPendingLrIsDuplicate(true);
-        setLrDuplicateAlertVisible(true);
-        return;
-      }
-    }
+    const notifyVaultFailure = (title: string, message: string) => {
+      setVaultUploadError(
+        vaultUploadOutcome({
+          ok: false,
+          message,
+          slotId: pending.slotId,
+        }).error,
+      );
+      showAppAlert(title, message);
+    };
 
     vaultUploadInFlightRef.current = true;
-    setUploadingDocId(pending.slotId);
     try {
+      if (pending.docType === "lr" && normalizeOrgLrNumber(pendingLrNumber)) {
+        const duplicate = await findOrgDuplicateLrNumberForTrip({
+          tripId: tripIdForUpload,
+          lrNumber: pendingLrNumber,
+        });
+        if (duplicate) {
+          setPendingLrIsDuplicate(true);
+          setLrDuplicateAlertVisible(true);
+          return;
+        }
+      }
+
+      const accepted = acceptVaultFileConfirmation({
+        inFlight: false,
+        slotId: pending.slotId,
+      });
+      if (!accepted.accepted) return;
+      setPendingVaultUpload(null);
+      resetPendingLrFields();
+      setUploadingDocId(accepted.uploadingSlotId);
+      setVaultUploadError(null);
       const files = [
         {
           uri: pending.uri,
@@ -1591,7 +1618,7 @@ export default function TripDetailScreen({
         // Trips linked by owner vehicle or plate only have no vehicle_id.
         const target = await detail.resolveVaultVehicle();
         if (!target) {
-          showAppAlert(
+          notifyVaultFailure(
             "Assign a vehicle",
             "Assign a vehicle on this trip before uploading RC, Fitness, Insurance, or PUC.",
           );
@@ -1606,7 +1633,7 @@ export default function TripDetailScreen({
         for (const file of files) {
           const arrayBuffer = await readFileAsArrayBuffer(file.uri);
           if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-            showAppAlert(
+            notifyVaultFailure(
               "Upload failed",
               `Could not read ${file.fileName || "the selected file"}.`,
             );
@@ -1617,7 +1644,7 @@ export default function TripDetailScreen({
             arrayBuffer.byteLength,
           );
           if (tooLarge) {
-            showAppAlert("File not accepted", tooLarge);
+            notifyVaultFailure("File not accepted", tooLarge);
             return;
           }
           buffers.push({
@@ -1633,7 +1660,7 @@ export default function TripDetailScreen({
         if (complianceKind) {
           const first = buffers[0];
           if (!first) {
-            showAppAlert("Upload failed", "No file selected.");
+            notifyVaultFailure("Upload failed", "No file selected.");
             return;
           }
           // Trip vault must use the trip-aware path (cross-org truck / RLS
@@ -1650,7 +1677,7 @@ export default function TripDetailScreen({
             [detail.trip?.organization_id, currentOrganization?.id],
           );
           if (error) {
-            showAppAlert("Upload failed", error.message);
+            notifyVaultFailure("Upload failed", error.message);
             return;
           }
           uploadedCount = 1;
@@ -1664,7 +1691,7 @@ export default function TripDetailScreen({
             detail.vehicleDocs,
           );
           if (error) {
-            showAppAlert("Upload failed", error.message);
+            notifyVaultFailure("Upload failed", error.message);
             return;
           }
           uploadedCount = buffers.length;
@@ -1680,7 +1707,7 @@ export default function TripDetailScreen({
         const driverId = detail.trip?.driver_id ?? null;
         const driverKind = pending.driverKind;
         if (!orgId || !driverId || !driverKind) {
-          showAppAlert(
+          notifyVaultFailure(
             "Assign a driver",
             "Assign a driver to this trip before adding driver documents.",
           );
@@ -1688,12 +1715,12 @@ export default function TripDetailScreen({
         }
         const first = files[0];
         if (!first) {
-          showAppAlert("Upload failed", "No file selected.");
+          notifyVaultFailure("Upload failed", "No file selected.");
           return;
         }
         const arrayBuffer = await readFileAsArrayBuffer(first.uri);
         if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-          showAppAlert(
+          notifyVaultFailure(
             "Upload failed",
             `Could not read ${first.fileName || "the selected file"}.`,
           );
@@ -1704,7 +1731,7 @@ export default function TripDetailScreen({
           arrayBuffer.byteLength,
         );
         if (tooLarge) {
-          showAppAlert("File not accepted", tooLarge);
+          notifyVaultFailure("File not accepted", tooLarge);
           return;
         }
         const uploadPayload = {
@@ -1728,7 +1755,7 @@ export default function TripDetailScreen({
             })
           : await uploadComplianceDocument(uploadPayload);
         if (error || !document?.storage_path) {
-          showAppAlert(
+          notifyVaultFailure(
             "Upload failed",
             error?.message ?? "Could not save driver document.",
           );
@@ -1749,7 +1776,7 @@ export default function TripDetailScreen({
         for (const [index, file] of files.entries()) {
           const arrayBuffer = await readFileAsArrayBuffer(file.uri);
           if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-            showAppAlert(
+            notifyVaultFailure(
               "Upload failed",
               `Could not read ${file.fileName || "the selected file"}.`,
             );
@@ -1760,7 +1787,7 @@ export default function TripDetailScreen({
             arrayBuffer.byteLength,
           );
           if (tooLarge) {
-            showAppAlert("File not accepted", tooLarge);
+            notifyVaultFailure("File not accepted", tooLarge);
             return;
           }
           const lrPayload =
@@ -1791,19 +1818,15 @@ export default function TripDetailScreen({
             },
             pending.docType,
             storedNumber,
+            { organizationId: detail.trip?.organization_id ?? currentOrganization?.id ?? null },
           );
           if (error) {
-            showAppAlert(
+            notifyVaultFailure(
               uploadedCount > 0 ? "Partial upload" : "Upload failed",
               uploadedCount > 0
                 ? `${uploadedCount} file${uploadedCount === 1 ? "" : "s"} saved, then ${error.message}`
                 : error.message,
             );
-            if (uploadedCount > 0) {
-              setPendingVaultUpload(null);
-              resetPendingLrFields();
-              detail.handleRefresh();
-            }
             return;
           }
           uploadedCount += 1;
@@ -1836,10 +1859,20 @@ export default function TripDetailScreen({
           }
         }
       }
-      setPendingVaultUpload(null);
-      resetPendingLrFields();
-      detail.handleRefresh();
-      refreshComplianceForTrip();
+      const saved = vaultUploadOutcome({
+        ok: uploadedCount > 0,
+        documentId: uploadedCount > 0 ? pending.slotId : null,
+        slotId: pending.slotId,
+        message: "Nothing was saved.",
+      });
+      if (!saved.saved) {
+        notifyVaultFailure(
+          "Upload failed",
+          saved.error?.message ?? "Nothing was saved.",
+        );
+        return;
+      }
+      setVaultUploadError(null);
       showAppAlert(
         "Uploaded",
         uploadedCount > 1
@@ -1869,11 +1902,10 @@ export default function TripDetailScreen({
           .catch(() => undefined)
           .finally(() => {
             setLrOcrReading(false);
-            detail.handleRefresh();
           });
       }
     } catch (e) {
-      showAppAlert(
+      notifyVaultFailure(
         "Upload failed",
         e instanceof Error ? e.message : "Something went wrong.",
       );
@@ -1897,9 +1929,7 @@ export default function TripDetailScreen({
     detail.resolveVaultVehicle,
     detail.driverIdentityDocs,
     detail.setDriverIdentityDocs,
-    detail.handleRefresh,
     detail.upsertTripDocument,
-    refreshComplianceForTrip,
     currentOrganization?.id,
     uploadingDocId,
     readFileAsArrayBuffer,
@@ -5326,6 +5356,7 @@ export default function TripDetailScreen({
                 canUploadTripDocs={canUploadTripDocs}
                 tripCompleted={tripCompleted}
                 uploadingDocId={uploadingDocId}
+                uploadError={vaultUploadError}
                 vehicleId={trip.vehicle_id ?? null}
                 onCardPress={handleVaultCardPress}
                 onAddMore={(doc) => startAddMoreForDoc(doc)}
@@ -6404,6 +6435,7 @@ export default function TripDetailScreen({
                     <TripVaultCardGrid
                       docs={vaultCardDocs}
                       uploadingDocId={uploadingDocId}
+                      uploadError={vaultUploadError}
                       canUpload={canUploadThisVaultDoc}
                       vehicleSummary={vehicleComplianceOnFileSummary(detail.vehicleDocs)}
                       driverSummary={driverIdentityOnFileSummary(detail.driverIdentityDocs)}

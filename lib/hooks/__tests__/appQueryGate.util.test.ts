@@ -5,8 +5,9 @@ import {
 } from "@/lib/hooks/appQueryGate.util";
 
 describe("Load gate wait vs bootstrap", () => {
-  it("does not open urgent market RPCs during the first seconds of bootstrap", () => {
-    expect(APP_QUERY_GATE_URGENT_MAX_WAIT_MS).toBeGreaterThanOrEqual(12_000);
+  it("unblocks urgent hubs quickly so a slow bootstrap does not blank the tab", () => {
+    expect(APP_QUERY_GATE_URGENT_MAX_WAIT_MS).toBeLessThanOrEqual(1_500);
+    expect(APP_QUERY_GATE_URGENT_MAX_WAIT_MS).toBeGreaterThan(0);
   });
 });
 

@@ -11,11 +11,11 @@ describe("market_indents_for_org client args", () => {
       join(__dirname, "../indents.service.ts"),
       "utf8",
     );
-    const rpcBlock = source.slice(
-      source.indexOf('rpc(\n    "market_indents_for_org"'),
-      source.indexOf("quoted_indents_for_org"),
+    const fn = source.slice(
+      source.indexOf("export async function getMarketIndentsForOrganization"),
+      source.indexOf("async function resolveShipperOrganizationName"),
     );
-    expect(rpcBlock).toContain("p_org_id:");
-    expect(rpcBlock).not.toMatch(/\{\s*org_id:/);
+    expect(fn).toMatch(/rpc\("market_indents_for_org", \{\s*p_org_id:/);
+    expect(fn).not.toMatch(/rpc\("market_indents_for_org", \{\s*org_id:/);
   });
 });

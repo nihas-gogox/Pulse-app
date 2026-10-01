@@ -96,9 +96,12 @@ export function useIndentsQuery(orgId: string | null) {
 /** Market-facing indents for GET LOAD / Find Work (visible to current org as integrated supplier). */
 export function useMarketIndentsQuery(
   orgId: string | null,
-  options?: { enabled?: boolean; urgent?: boolean },
+  options?: { enabled?: boolean; urgent?: boolean; immediate?: boolean },
 ) {
-  const gateOpen = useAppQueryGate(orgId, { urgent: options?.urgent });
+  const gateOpen = useAppQueryGate(orgId, {
+    urgent: options?.urgent,
+    immediate: options?.immediate,
+  });
   const enabled = gateOpen && options?.enabled !== false;
 
   return useQuery({
@@ -112,6 +115,7 @@ export function useMarketIndentsQuery(
     // Cross-org feed: partner shippers mutate indents outside this org's invalidation path.
     staleTime: STALE.frequent,
     refetchOnMount: refetchOnMountIfEntityListEmpty<IndentRow[]>(),
+    refetchOnWindowFocus: true,
     retry: shouldRetryQuery,
     placeholderData: (previousData) => previousData,
   });

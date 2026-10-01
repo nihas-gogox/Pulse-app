@@ -19,7 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 type DriverInvitesOptions = {
   enabled?: boolean;
-  /** Delay network fetch after org mount (default 1500ms). Set 0 to fetch immediately. */
+  /** Delay network fetch after org mount (default 200ms). Set 0 to fetch immediately. */
   bootDeferMs?: number;
 };
 
@@ -28,7 +28,7 @@ export function useDriverInvitesSentQuery(
   options?: DriverInvitesOptions,
 ) {
   const { status } = useAuth();
-  const deferMs = options?.bootDeferMs ?? 1500;
+  const deferMs = options?.bootDeferMs ?? 200;
   const deferReady = useQueryBootDefer(orgId, deferMs);
   const enabled =
     !!orgId &&

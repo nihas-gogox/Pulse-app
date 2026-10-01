@@ -7,6 +7,7 @@ import {
   isOriginDownError,
   isOriginDownErrorMessage,
   isOriginDownHttpStatus,
+  shouldOpenOriginCircuitForHttpFailure,
   isRetryableHttpResponse,
   isSupabaseCircuitOpen,
   noteSupabaseOriginDown,
@@ -14,6 +15,10 @@ import {
   noteSupabaseOriginDownIfTransportFailure,
   resetSupabaseCircuit,
   shouldQueueDataFetch,
+  HUB_RPC_TIMEOUT_MS,
+  isHubLatencySensitiveRpc,
+  supabaseRequestTimeoutMs,
+  REQUEST_TIMEOUT_MS,
   SUPABASE_CIRCUIT_COOLDOWN_MS,
   TIMEOUT_MAX_RETRIES,
 } from "@/lib/supabaseHttp.util";
@@ -39,6 +44,9 @@ describe("supabaseHttp origin-down vs transient", () => {
     expect(isOriginDownHttpStatus(544)).toBe(true);
     expect(isOriginDownHttpStatus(522)).toBe(false);
     expect(isOriginDownHttpStatus(500)).toBe(true);
+    expect(shouldOpenOriginCircuitForHttpFailure(500, false)).toBe(true);
+    expect(shouldOpenOriginCircuitForHttpFailure(500, true)).toBe(false);
+    expect(shouldOpenOriginCircuitForHttpFailure(503, true)).toBe(true);
   });
 
   it("does not retry origin-down HTTP responses", () => {
@@ -83,6 +91,21 @@ describe("data fetch concurrency gate", () => {
     ).toBe(false);
   });
 
+  it("does not queue Get Load catalog RPCs behind chat bootstrap", () => {
+    expect(
+      shouldQueueDataFetch(
+        "https://x.supabase.co/rest/v1/rpc/market_indents_for_org",
+        { method: "POST" },
+      ),
+    ).toBe(false);
+    expect(
+      shouldQueueDataFetch(
+        "https://x.supabase.co/rest/v1/rpc/quoted_indents_for_org",
+        { method: "POST" },
+      ),
+    ).toBe(false);
+  });
+
   it("queues PostgREST RPC POSTs so hub screens cannot stampede the pool", () => {
     expect(
       shouldQueueDataFetch(
@@ -96,6 +119,15 @@ describe("data fetch concurrency gate", () => {
         { method: "POST" },
       ),
     ).toBe(true);
+  });
+
+  it("queue overflow is a retryable client reject, not origin 503", async () => {
+    const gate = createConcurrencyGate(1, 0);
+    await gate.acquire();
+    await expect(gate.acquire()).rejects.toMatchObject({
+      name: "SupabaseQueueRejectedError",
+    });
+    gate.release();
   });
 
   it("never runs more than max acquires at once", async () => {
@@ -159,13 +191,12 @@ describe("isClientTimeoutError", () => {
     expect(isClientTimeoutError(undefined)).toBe(false);
   });
 
-  it("a timed-out request opens the circuit for subsequent origin-down checks", () => {
+  it("a timed-out request does not latch the origin circuit", () => {
     const timeout = new Error("Request timed out");
     timeout.name = "TimeoutError";
     expect(isSupabaseCircuitOpen()).toBe(false);
-    expect(noteSupabaseOriginDownIfClientTimeout(timeout)).toBe(true);
-    expect(isSupabaseCircuitOpen()).toBe(true);
-    resetSupabaseCircuit();
+    expect(noteSupabaseOriginDownIfClientTimeout(timeout)).toBe(false);
+    expect(isSupabaseCircuitOpen()).toBe(false);
   });
 
   it("does not open the circuit for AbortError (request-level cancel ≠ origin-down)", () => {
@@ -214,7 +245,7 @@ describe("request-level vs origin-level protections stay separate", () => {
     expect(isSupabaseCircuitOpen()).toBe(false);
   });
 
-  it("keeps the circuit closed until an origin-down signal (503/504/timeout) is recorded", () => {
+  it("keeps the circuit closed until an origin-down signal (503/504) is recorded", () => {
     expect(isSupabaseCircuitOpen()).toBe(false);
     expect(isRetryableHttpResponse(makeResponse(504))).toBe(false);
     expect(isSupabaseCircuitOpen()).toBe(false);
@@ -224,9 +255,7 @@ describe("request-level vs origin-level protections stay separate", () => {
     jest.useFakeTimers();
     try {
       const t0 = Date.now();
-      const timeout = new Error("Request timed out");
-      timeout.name = "TimeoutError";
-      noteSupabaseOriginDownIfClientTimeout(timeout);
+      noteSupabaseOriginDown();
       expect(isSupabaseCircuitOpen(t0)).toBe(true);
       expect(isSupabaseCircuitOpen(t0 + 13_000)).toBe(true);
       expect(isSupabaseCircuitOpen(t0 + 17_000)).toBe(true);
@@ -239,12 +268,11 @@ describe("request-level vs origin-level protections stay separate", () => {
 });
 
 describe("shared origin circuit admissions", () => {
-  it("opens on TimeoutError, 503, 504, and PGRST003", () => {
+  it("opens on 503, 504, and PGRST003, not on TimeoutError", () => {
     const timeout = new Error("Request timed out");
     timeout.name = "TimeoutError";
-    expect(noteSupabaseOriginDownIfClientTimeout(timeout)).toBe(true);
-    expect(isSupabaseCircuitOpen()).toBe(true);
-    resetSupabaseCircuit();
+    expect(noteSupabaseOriginDownIfClientTimeout(timeout)).toBe(false);
+    expect(isSupabaseCircuitOpen()).toBe(false);
 
     noteSupabaseOriginDown();
     expect(isOriginDownHttpStatus(503)).toBe(true);
@@ -293,6 +321,45 @@ describe("shared origin circuit admissions", () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe("hub RPC timeout (temporary stabilization, max 45s)", () => {
+  it("uses 45s for get_multi_lane_bootstrap and other hub RPCs", () => {
+    expect(HUB_RPC_TIMEOUT_MS).toBe(45_000);
+    expect(
+      isHubLatencySensitiveRpc(
+        "https://nafxpivddesgsrthmosv.supabase.co/rest/v1/rpc/get_multi_lane_bootstrap",
+      ),
+    ).toBe(true);
+    expect(
+      supabaseRequestTimeoutMs(
+        "https://nafxpivddesgsrthmosv.supabase.co/rest/v1/rpc/get_multi_lane_bootstrap",
+      ),
+    ).toBe(HUB_RPC_TIMEOUT_MS);
+    expect(
+      supabaseRequestTimeoutMs(
+        "https://nafxpivddesgsrthmosv.supabase.co/rest/v1/rpc/get_network_feed",
+      ),
+    ).toBe(45_000);
+  });
+
+  it("does not raise hub timeout above 45s", () => {
+    expect(HUB_RPC_TIMEOUT_MS).toBeLessThanOrEqual(45_000);
+  });
+
+  it("keeps ordinary GETs at the 12s request timeout", () => {
+    expect(
+      supabaseRequestTimeoutMs("https://nafxpivddesgsrthmosv.supabase.co/rest/v1/indents"),
+    ).toBe(REQUEST_TIMEOUT_MS);
+    expect(REQUEST_TIMEOUT_MS).toBe(12_000);
+  });
+
+  it("a hub TimeoutError still does not open the origin circuit", () => {
+    const timeout = new Error("Request timed out");
+    timeout.name = "TimeoutError";
+    expect(noteSupabaseOriginDownIfClientTimeout(timeout)).toBe(false);
+    expect(isSupabaseCircuitOpen()).toBe(false);
   });
 });
 
