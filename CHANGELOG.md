@@ -1,5 +1,12 @@
 # Changelog — V1 (v0.0.01)
 
+## sneha/V1.0.2 — 2026-10-01
+- **What:** Compliance workspace: moved the trip Reject button from under the document preview into the Advance Payment panel. It sits in the same row as Confirm payment: Reject (108pt) then Confirm payment, both 44pt tall. When the payment form isn't shown (advance already paid or not ready), Reject sits on its own right-aligned row in the panel. The preview footer now keeps only Pay and the previous / next arrows.
+- **Why:** Rejecting a verified trip is a payment-stage decision, so it belongs next to Confirm payment, not under the document viewer.
+- **Files/areas:** `features/tripCompliance/components/CompliancePaymentConfirmModal.tsx` (inline `onReject` slot), `features/tripCompliance/components/ComplianceDocumentWorkspace.tsx` (Advance Payment panel actions, preview footer)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
 ## nihas/V1.0.5 — 2026-10-01
 
 ### What

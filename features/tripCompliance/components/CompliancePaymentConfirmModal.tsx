@@ -143,6 +143,7 @@ export function CompliancePaymentConfirmModal({
   submitting,
   onCancel,
   onConfirm,
+  onReject,
   presentation = "modal",
 }: {
   visible: boolean;
@@ -151,6 +152,8 @@ export function CompliancePaymentConfirmModal({
   submitting: boolean;
   onCancel?: () => void;
   onConfirm: (values: CompliancePaymentConfirmValues) => void;
+  /** Inline only: trip-level Reject shown beside Confirm payment. */
+  onReject?: () => void;
   /** `inline` embeds the form in the Advance Payment panel (no popup). */
   presentation?: "modal" | "inline";
 }) {
@@ -565,7 +568,13 @@ export function CompliancePaymentConfirmModal({
   );
 
   const actionsRow = (
-    <View style={[styles.actions, isInline && styles.actionsInline]}>
+    <View
+      style={[
+        styles.actions,
+        isInline && styles.actionsInline,
+        isInline && onReject && styles.actionsInlineWithReject,
+      ]}
+    >
       {!isInline && onCancel ? (
         <Pressable
           style={styles.cancelBtn}
@@ -575,6 +584,21 @@ export function CompliancePaymentConfirmModal({
           accessibilityLabel="Cancel"
         >
           <Text style={styles.cancelText}>Cancel</Text>
+        </Pressable>
+      ) : null}
+      {isInline && onReject ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.rejectBtnInline,
+            pressed && styles.rejectBtnInlinePressed,
+            submitting && styles.confirmBtnDisabled,
+          ]}
+          onPress={onReject}
+          disabled={submitting}
+          accessibilityRole="button"
+          accessibilityLabel="Reject trip compliance"
+        >
+          <Text style={styles.rejectTextInline}>Reject</Text>
         </Pressable>
       ) : null}
       <Pressable
@@ -959,6 +983,24 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     marginTop: 0,
     minWidth: 180,
+  },
+  actionsInlineWithReject: { minWidth: 300, gap: 10 },
+  rejectBtnInline: {
+    width: 108,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Theme.complianceStageDocsFg,
+    backgroundColor: Theme.complianceStageDocsBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rejectBtnInlinePressed: { opacity: 0.8 },
+  rejectTextInline: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    color: Theme.complianceStageDocsFg,
   },
   cancelBtn: {
     minWidth: 96,
