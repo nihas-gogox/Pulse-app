@@ -639,14 +639,18 @@ export function CompliancePaymentConfirmModal({
       style={[
         styles.actions,
         isInline && styles.actionsInline,
-        isInline && onReject && styles.actionsInlineWithReject,
+        isInline && (onReject || onCancel) && styles.actionsInlineWithReject,
       ]}
     >
-      {!isInline && onCancel ? (
+      {onCancel && !(isInline && onReject) ? (
         <Pressable
-          style={styles.cancelBtn}
+          style={[
+            styles.cancelBtn,
+            isInline && submitting && styles.confirmBtnDisabled,
+          ]}
           onPress={onCancel}
           disabled={submitting}
+          hitSlop={isInline ? INLINE_ACTION_HIT_SLOP : undefined}
           accessibilityRole="button"
           accessibilityLabel="Cancel"
         >

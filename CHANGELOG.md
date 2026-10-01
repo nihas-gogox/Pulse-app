@@ -1,6 +1,13 @@
 # Changelog — V1 (v0.0.01)
 
 ## sneha/V1.0.2 — 2026-10-01
+- **What:** Advance Payment panel, Verified-stage **Rejected** trips: the status still shows Blocked with the reasons, and below the reasons box there is now a compact row: a muted hint "Trip is rejected. You can still post the advance." on the left and a small dark **Confirm payment** button (32pt high) on the right. Pressing it opens the usual inline payment form (supplier facts, amount calculation with slab doc charges and TDS, payment mode) with **Cancel** and **Confirm payment** centered below. Cancel closes the form; switching trips resets it. Shown only when no advance is posted yet and the user can manage finance. The existing posting path is used, so duplicate-advance and amount checks still apply. Non-rejected trips and the normal Ready-to-pay form are unchanged.
+- **Why:** Finance needs to be able to pay the advance on a trip even after compliance has rejected it.
+- **Files/areas:** `features/tripCompliance/components/ComplianceDocumentWorkspace.tsx` (`ChecklistAdvancePaymentPanel`), `features/tripCompliance/components/CompliancePaymentConfirmModal.tsx` (inline Cancel, only when `onCancel` is passed)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (450 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
 - **What:** Export Report "Driver No." now always comes from the trip driver's Driver Profile phone (Contact Registry → Phone Registry, `drivers.phone`). The bulk lookup by `trips.driver_id` still runs first. Any driver it returns without a phone (RLS-hidden or failed read) is filled from `get_driver_detail_bundle`, the same source the Driver Profile page uses. Numbers are written in the profile's format, `+91XXXXXXXXXX`, whether stored as 10 digits, `91…` or `0…`; non-Indian numbers are kept as stored. In the .xlsx they are text cells, so Excel never shows `9.19877E+11`. Account No is still written as a text cell with the exact stored value: no masking, no exponential form, leading zeros kept.
 - **Why:** Driver No. was missing or garbled in the downloaded report. Driver No. and Account No must open in Excel exactly as they are on file.
 - **Files/areas:** `features/tripCompliance/services/complianceExportReport.service.ts` (driver phone fallback), `features/tripCompliance/utils/complianceVerifiedExport.util.ts` (`formatExportPhone`)

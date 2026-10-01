@@ -25,6 +25,7 @@ import {
 } from "@/features/tripCompliance/tripCompliance.types";
 import {
   formatComplianceTimestamp,
+  isComplianceVerifiedRejected,
   verificationStatusVisual,
 } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import {
@@ -2202,6 +2203,11 @@ export function ComplianceDocumentWorkspace({
                       onConfirmPayment={onConfirmPayment}
                       onOpenPayModal={onConfirmPayment ? undefined : onPay}
                       onReject={showReject ? () => setRejectOpen(true) : undefined}
+                      canPayRejected={Boolean(
+                        canManageFinance &&
+                          onConfirmPayment &&
+                          isComplianceVerifiedRejected(summary),
+                      )}
                     />
                   ) : showEntityUnassigned ? (
                     <View style={styles.checklistPreviewEmpty}>
@@ -2698,8 +2704,11 @@ function ChecklistAdvancePaymentPanel({
   onConfirmPayment,
   onOpenPayModal,
   onReject,
+  canPayRejected = false,
 }: {
   summary: ComplianceTripSummary;
+  /** Verified + Rejected trip: offer Confirm payment under the blockers anyway. */
+  canPayRejected?: boolean;
   readiness: ReturnType<typeof deriveComplianceQueueReadiness> | null;
   canPay: boolean;
   paymentCategory: ComplianceLedgerCategory | null;
@@ -2743,6 +2752,11 @@ function ChecklistAdvancePaymentPanel({
     paymentCategory === "compliance_advance" &&
     Boolean(onConfirmPayment);
   const showPayFallback = !advance && canPay && !showInlineForm && Boolean(onOpenPayModal);
+  const rejectedPayAvailable = !advance && !showInlineForm && canPayRejected;
+  const [rejectedPayOpen, setRejectedPayOpen] = useState(false);
+  useEffect(() => {
+    setRejectedPayOpen(false);
+  }, [summary.trip.id]);
 
   return (
     <ScrollView
@@ -2857,6 +2871,40 @@ function ChecklistAdvancePaymentPanel({
               {line}
             </Text>
           ))}
+        </View>
+      ) : null}
+
+      {rejectedPayAvailable && !rejectedPayOpen ? (
+        <View style={styles.checklistRejectedPayRow}>
+          <Text style={styles.checklistRejectedPayHint} numberOfLines={2}>
+            Trip is rejected. You can still post the advance.
+          </Text>
+          <TouchableOpacity
+            style={styles.checklistRejectedPayBtn}
+            activeOpacity={0.85}
+            onPress={() => setRejectedPayOpen(true)}
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+            accessibilityRole="button"
+            accessibilityLabel="Confirm payment for rejected trip"
+          >
+            <Text style={styles.checklistRejectedPayBtnText}>Confirm payment</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {rejectedPayAvailable && rejectedPayOpen ? (
+        <View style={styles.checklistAdvanceFormCard}>
+          <CompliancePaymentConfirmModal
+            presentation="inline"
+            visible
+            summary={summary}
+            category="compliance_advance"
+            submitting={paymentSubmitting}
+            onConfirm={(values) => {
+              void onConfirmPayment?.(summary, "compliance_advance", values);
+            }}
+            onCancel={() => setRejectedPayOpen(false)}
+          />
         </View>
       ) : null}
     </ScrollView>
@@ -3756,6 +3804,36 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: Theme.complianceStageDocsFg,
     lineHeight: 12,
+  },
+  checklistRejectedPayRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingHorizontal: 2,
+  },
+  checklistRejectedPayHint: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 10,
+    fontWeight: "500",
+    lineHeight: 14,
+    color: Theme.textMuted,
+  },
+  checklistRejectedPayBtn: {
+    flexShrink: 0,
+    height: 32,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: Theme.buttonDark,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checklistRejectedPayBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Theme.buttonDarkText,
+    letterSpacing: 0.2,
   },
   checklistBankPreviewWrap: {
     flex: 1,
