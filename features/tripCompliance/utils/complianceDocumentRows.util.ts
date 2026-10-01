@@ -9,7 +9,6 @@ import {
   REQUIRED_COMPLIANCE_FINANCE_DOCUMENT_TYPES,
   COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES,
   REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
-  documentRequiresExpiry,
   isRequiredDriverDocumentType,
   isRequiredVehicleDocumentType,
   type ComplianceDocumentRow,
@@ -220,14 +219,12 @@ function isEntityDocRequired(type: string): boolean {
 function entityRowStatus(
   doc: ComplianceEntityDocument | null,
   now = new Date(),
-  docType?: string,
 ): ComplianceDocRowStatus {
   if (!doc) return "missing";
   if (doc.status === "rejected" || doc.status === "replaced") return "rejected";
   if (doc.status === "expired" || isEntityDocumentExpired(doc, now)) return "expired";
   // On file is not approval. Only an explicit verify action sets status to verified.
   if (doc.status !== "verified") return "pending";
-  if (docType && documentRequiresExpiry(docType) && !doc.expiry_date?.trim()) return "pending";
   return "verified";
 }
 
@@ -249,7 +246,7 @@ export function deriveEntityComplianceRows(
       key: type,
       type,
       required: isEntityDocRequired(type),
-      status: entityRowStatus(entityDoc, now, type),
+      status: entityRowStatus(entityDoc, now),
       doc: null,
       entityDoc,
     };
@@ -310,12 +307,7 @@ export function requirementScopeLabel(required: boolean): string {
 export function requiredRowNextAction(row: ComplianceDocRow): string {
   if (row.status === "missing") return "Upload a file before Approve / Decline.";
   if (row.status === "expired") return "Replace the expired file, then Approve.";
-  if (row.status === "pending") {
-    if (documentRequiresExpiry(row.type) && !row.entityDoc?.expiry_date?.trim()) {
-      return "Add expiry date, then Approve.";
-    }
-    return "Preview then Approve or Decline.";
-  }
+  if (row.status === "pending") return "Preview then Approve or Decline.";
   if (row.status === "rejected") return "Replace the file, then Approve.";
   return "Verified — preview or replace if needed.";
 }

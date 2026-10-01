@@ -1,5 +1,12 @@
 # Changelog — V1 (v0.0.01)
 
+## nihas/V1.0.3 — 2026-10-01
+- **What:** Approving a vehicle or driver document no longer asks for an expiry date. A verified insurance, fitness, or licence stays verified when no date is stored.
+- **Why:** Compliance was blocked on an expiry prompt before Approve could finish.
+- **Files/areas:** `ComplianceDocumentWorkspace.tsx`, `complianceDocumentRows.util.ts`
+- **Migrations:** none
+- **Tested:** Jest `complianceDocumentRows.util.test.ts`, `complianceReviewActions.util.test.ts`
+
 ## nihas/V1.0.2 — 2026-10-01
 - **What:** The Compliance Review modal is removed. Pending, document review, and the trip details screen all open the card view on the Trip, Vehicle, or Driver tab. The Compliance Pending preview row keeps Trip Detail and always shows Verify and Decline. Verify moves the trip only after required documents on those three tabs are approved.
 - **Why:** Approving the trip documents was sending the trip to Verified on its own, before the other tabs were done.
