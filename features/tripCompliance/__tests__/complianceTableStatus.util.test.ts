@@ -318,5 +318,10 @@ describe("isFinanceDeclinedTrip", () => {
         summary({ complianceDeclinedAt: "2026-09-02T00:00:00Z", complianceVerifiedAt: "2026-09-01T00:00:00Z" }),
       ),
     ).toBe(true);
+    expect(
+      isFinanceDeclinedTrip(
+        summary({ complianceDeclinedAt: "2026-10-01T10:07:50Z", complianceVerifiedAt: "2026-10-01T10:26:36Z" }),
+      ),
+    ).toBe(false);
   });
 });

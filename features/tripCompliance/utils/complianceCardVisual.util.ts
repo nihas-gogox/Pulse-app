@@ -4,6 +4,7 @@ import type {
     ComplianceStage,
     ComplianceTripSummary,
 } from "@/features/tripCompliance/tripCompliance.types";
+import { isFinanceDeclinedTrip } from "@/features/tripCompliance/utils/complianceTableStatus.util";
 
 export type ComplianceTone = {
   fg: string;
@@ -98,8 +99,9 @@ export type ComplianceVerificationStatusVisual = {
 export function verificationStatusVisual(
   summary: ComplianceTripSummary,
 ): ComplianceVerificationStatusVisual {
-  // Verified + rejected remark: stay in Verified stage, show Rejected (red).
-  if (summary.complianceVerifiedAt && summary.complianceDeclinedAt) {
+  // Finance reject after verify: stay in Verified stage, show Rejected (red).
+  // A compliance decline that was later verified is history, not a reject.
+  if (isFinanceDeclinedTrip(summary)) {
     return {
       label: "Rejected",
       tone: COMPLIANCE_STAGE_TONE.pending_for_docs,

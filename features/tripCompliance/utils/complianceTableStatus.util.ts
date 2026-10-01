@@ -161,7 +161,15 @@ export function isComplianceDeclineActive(summary: ComplianceTripSummary): boole
   return Boolean(summary.complianceDeclinedAt) && !summary.complianceVerifiedAt;
 }
 
-/** Finance reject of a verified trip: stays verified, with a decline remark. */
+/**
+ * Finance reject of an already-verified trip. A compliance decline that was
+ * later cleared by Verify keeps the old declined_at as history (it is earlier
+ * than verified_at) and must not count.
+ */
 export function isFinanceDeclinedTrip(summary: ComplianceTripSummary): boolean {
-  return Boolean(summary.complianceVerifiedAt && summary.complianceDeclinedAt);
+  if (!summary.complianceVerifiedAt || !summary.complianceDeclinedAt) return false;
+  const verified = Date.parse(summary.complianceVerifiedAt);
+  const declined = Date.parse(summary.complianceDeclinedAt);
+  if (Number.isNaN(verified) || Number.isNaN(declined)) return false;
+  return declined >= verified;
 }

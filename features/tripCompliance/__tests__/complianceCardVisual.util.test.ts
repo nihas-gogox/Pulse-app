@@ -72,6 +72,19 @@ describe("complianceCardVisual", () => {
     expect(visual.kind).toBe("verified");
   });
 
+  it("shows Verified when a compliance decline was later verified", () => {
+    const visual = verificationStatusVisual(
+      summary({
+        complianceDeclinedAt: "2026-10-01T10:07:50Z",
+        complianceDeclineReason: "test",
+        complianceVerifiedAt: "2026-10-01T10:26:36Z",
+        complianceDecision: "approved",
+        stage: "compliance_verified",
+      }),
+    );
+    expect(visual.label).toBe("Verified");
+  });
+
   it("prefers derived stage over missing-docs for header pill (payment progress wins)", () => {
     expect(verificationStatusVisual(summary({ documentCounts: { total: 0, verified: 0, rejected: 0, pending: 0 } })).label).toBe(
       "Pending Docs",
