@@ -6,6 +6,7 @@
  */
 import {
   COMPLIANCE_FINANCE_DOCUMENT_TYPES,
+  REQUIRED_COMPLIANCE_FINANCE_DOCUMENT_TYPES,
   COMPLIANCE_TRIP_OTHER_DOCUMENT_TYPES,
   REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
   documentRequiresExpiry,
@@ -264,12 +265,22 @@ export function deriveComplianceDocumentRows(documents: ComplianceDocumentRow[])
 }
 
 /**
+ * Trip vault tab in Compliance review: LR / E-way Bill / Invoice only.
+ * Memo is reviewed under Finance and POD through the hardcopy POD flow.
+ */
+export function deriveTripVaultReviewRows(documents: ComplianceDocumentRow[]): ComplianceDocRow[] {
+  return deriveComplianceDocumentRows(documents).filter((row) => row.required);
+}
+
+/**
  * Finance list: Memo, Other Documents, and Bank Docs from the trip Asset Vault.
  * LR / Invoice / Trip Manifest stay on the Trip tab — not duplicated here.
  */
 export function deriveFinanceDocumentRows(documents: ComplianceDocumentRow[]): ComplianceDocRow[] {
   const byType = latestDocByType(documents);
-  return COMPLIANCE_FINANCE_DOCUMENT_TYPES.map((type) => rowForType(type, false, byType));
+  return COMPLIANCE_FINANCE_DOCUMENT_TYPES.map((type) =>
+    rowForType(type, REQUIRED_COMPLIANCE_FINANCE_DOCUMENT_TYPES.includes(type), byType),
+  );
 }
 
 /** Progress is always measured against required documents only. */

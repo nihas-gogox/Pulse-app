@@ -2,6 +2,7 @@ import {
   deriveComplianceDocumentRows,
   deriveEntityComplianceRows,
   deriveFinanceDocumentRows,
+  deriveTripVaultReviewRows,
   financeVaultDetailLine,
   mergeFinanceBankDocsFromSupplier,
   complianceProgress,
@@ -30,6 +31,17 @@ function doc(overrides: Partial<ComplianceDocumentRow>): ComplianceDocumentRow {
     ...overrides,
   };
 }
+
+describe("deriveTripVaultReviewRows", () => {
+  it("lists only LR / E-way Bill / Invoice, even when POD or Memo are on file", () => {
+    const rows = deriveTripVaultReviewRows([
+      doc({ id: "pod-1", document_type: "pod" }),
+      doc({ id: "memo-1", document_type: "memo" }),
+    ]);
+    expect(rows.map((r) => r.type)).toEqual(["lr", "eway_bill", "invoice"]);
+    expect(rows.every((r) => r.required)).toBe(true);
+  });
+});
 
 describe("deriveComplianceDocumentRows", () => {
   it("synthesizes required trip types plus other options", () => {
@@ -97,7 +109,7 @@ describe("deriveFinanceDocumentRows", () => {
   it("always includes Memo, Other Documents, and Bank Docs slots", () => {
     const rows = deriveFinanceDocumentRows([]);
     expect(rows.map((r) => r.type)).toEqual(["memo", "other", "bank_docs"]);
-    expect(rows.every((r) => !r.required)).toBe(true);
+    expect(rows.filter((r) => r.required).map((r) => r.type)).toEqual(["memo"]);
     expect(rows.every((r) => r.status === "missing")).toBe(true);
   });
 

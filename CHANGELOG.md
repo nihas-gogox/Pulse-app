@@ -1,5 +1,40 @@
 # Changelog — V1 (v0.0.01)
 
+## sneha/V1.0.1 — 2026-10-01
+- **What:** Compliance workspace: removed the per-document Approve / Decline buttons from the preview footer in every stage. Review now happens only through the Required / Optional group buttons in the document list. The footer keeps trip Reject / Pay and the previous / next arrows, right-aligned, and is hidden when none of them apply.
+- **Why:** Two sets of Approve / Decline on one screen was confusing. One place to decide keeps the flow clean.
+- **Files/areas:** `features/tripCompliance/components/ComplianceDocumentWorkspace.tsx` (footer, plus removal of the single-document approve / decline / auto-advance code and its styles)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.1 — 2026-10-01
+- **What:** Compliance Finance tab: Memo is marked Required (red pill). Other Documents and Bank Docs stay Optional. The headline reads "1 required document not uploaded" while Memo is missing.
+- **Why:** Memo is mandatory paperwork for the advance payment.
+- **Files/areas:** `features/tripCompliance/tripCompliance.types.ts` (`REQUIRED_COMPLIANCE_FINANCE_DOCUMENT_TYPES`), `features/tripCompliance/utils/complianceDocumentRows.util.ts` (`deriveFinanceDocumentRows`)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.1 — 2026-10-01
+- **What:** Compliance Trip tab lists only LR, E-way Bill and Invoice. POD and Memo are removed from it (Memo stays under Finance, POD under Hardcopy POD). Rows under a Required / Optional group header no longer repeat a "Required" / "Optional" pill.
+- **Why:** POD and Memo cluttered the Trip vault and showed an "Optional documents · 0 of 2 uploaded" block that wasn't actionable there.
+- **Files/areas:** `features/tripCompliance/utils/complianceDocumentRows.util.ts` (new `deriveTripVaultReviewRows`), `ComplianceDocumentWorkspace.tsx` (Trip list + Trip tab badge), `ComplianceDocumentReviewSheet.tsx` (Trip scope)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.1 — 2026-10-01
+- **What:** Compliance workspace: Upload / Replace on the Trip, Vehicle and Driver tabs now opens the file picker and uploads in place, with a spinner on the row. It no longer pops up the full "Compliance Review" sheet.
+- **Why:** Clicking Upload opened the cramped review sheet instead of letting the user pick a file.
+- **Files/areas:** new `features/tripCompliance/services/complianceVaultUpload.service.ts` (pick + validate + trip / vehicle-vault / entity-doc write, moved out of the review sheet), `ComplianceDocumentWorkspace.tsx` (inline upload), `ComplianceDocumentReviewSheet.tsx` (uses the shared service)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (438 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web upload not yet clicked through.
+
+## sneha/V1.0.1 — 2026-10-01
+- **What:** Compliance workspace: one Approve / Decline pair per Required and Optional group under the Trip, Vehicle and Driver tabs. It appears once every doc in that group is uploaded. When the last required trip doc is approved, the trip moves to Verified automatically, with an inline "moving to Verified" notice.
+- **Why:** Ops had to approve each doc separately from the preview footer and then press Mark verified by hand.
+- **Files/areas:** `features/tripCompliance/components/ComplianceDocumentWorkspace.tsx` (grouped list, shared approve/decline writers, auto-verify), `features/tripCompliance/utils/complianceReviewActions.util.ts` (`complianceGroupReviewState`), `app/compliance/index.tsx` (`markTripVerified` returns success), `ComplianceTripsTable.tsx` (prop type)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (438 pass, incl. new group-state tests); `tsc` adds no new errors (141 already in V1); ESLint clean on touched files. Web UI not yet clicked through.
+
 How `V1` was built, step by step, from Vasanth sir's baseline. Newest step at the bottom.
 Team workflow and environments: [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md).
 

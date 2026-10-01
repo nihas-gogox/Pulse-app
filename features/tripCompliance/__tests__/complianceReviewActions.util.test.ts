@@ -2,6 +2,7 @@ import {
   applyOptimisticDecision,
   canModerateComplianceRow,
   complianceGroupDecisionActions,
+  complianceGroupReviewState,
   complianceReviewDecisionActions,
   complianceDecisionButtonState,
   recordOptimisticDecision,
@@ -95,6 +96,51 @@ describe("complianceGroupDecisionActions", () => {
     expect(result.canApprove).toBe(true);
     expect(result.canDecline).toBe(true);
     expect(result.actionable).toHaveLength(3);
+  });
+});
+
+describe("complianceGroupReviewState", () => {
+  it("returns null for an empty group", () => {
+    expect(complianceGroupReviewState([], "trip")).toBeNull();
+  });
+
+  it("waits for uploads while any doc in the group is missing", () => {
+    const state = complianceGroupReviewState(
+      [row({ status: "pending" }), row({ status: "missing", key: "invoice", type: "invoice" })],
+      "trip",
+    );
+    expect(state?.phase).toBe("awaiting_uploads");
+    expect(state?.missing).toBe(1);
+    expect(state?.canApprove).toBe(false);
+  });
+
+  it("offers one Approve/Decline once every doc is uploaded", () => {
+    const state = complianceGroupReviewState(
+      [row({ status: "pending" }), row({ status: "verified", key: "invoice", type: "invoice" })],
+      "trip",
+    );
+    expect(state?.phase).toBe("review");
+    expect(state?.canApprove).toBe(true);
+    expect(state?.canDecline).toBe(true);
+    expect(state?.actionable.map((item) => item.key)).toEqual(["lr"]);
+  });
+
+  it("reports approved when every doc is verified", () => {
+    const state = complianceGroupReviewState(
+      [row({ status: "verified" }), row({ status: "verified", key: "invoice", type: "invoice" })],
+      "trip",
+    );
+    expect(state?.phase).toBe("approved");
+  });
+
+  it("reports declined when every undecided doc was rejected, keeping Approve available", () => {
+    const state = complianceGroupReviewState(
+      [row({ status: "rejected" }), row({ status: "verified", key: "invoice", type: "invoice" })],
+      "trip",
+    );
+    expect(state?.phase).toBe("declined");
+    expect(state?.canApprove).toBe(true);
+    expect(state?.canDecline).toBe(false);
   });
 });
 

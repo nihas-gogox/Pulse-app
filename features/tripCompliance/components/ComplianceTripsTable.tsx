@@ -52,7 +52,7 @@ export type ComplianceTripsTableProps = {
   /** Opens the review sheet; documentKey null opens straight to the document list. */
   onReview: (tripId: string, documentKey: string | null, scope?: "trip" | "vehicle" | "driver") => void;
   /** Verify action; runs once LR, E-way Bill and Invoice are approved, otherwise opens the trip documents. Resolves; the page shows errors. */
-  onMarkComplianceVerified?: (tripId: string) => Promise<void>;
+  onMarkComplianceVerified?: (tripId: string) => Promise<boolean | void>;
   /** Verify on a not-ready trip: open its documents in the Cards workspace. Falls back to the review sheet when absent. */
   onVerifyDocs?: (tripId: string) => void;
   /** Decline action; rejects with an Error whose message is user-facing (shown in the modal). */
@@ -203,7 +203,7 @@ function TripRowContent({
   onOpenTrip: (tripId: string) => void;
   onOpenDetails?: (tripId: string) => void;
   onReview: (tripId: string, documentKey: string | null, scope?: "trip" | "vehicle" | "driver") => void;
-  onMarkComplianceVerified?: (tripId: string) => Promise<void>;
+  onMarkComplianceVerified?: (tripId: string) => Promise<boolean | void>;
   onVerifyDocs?: (tripId: string) => void;
   onDeclineCompliance?: (tripId: string, reason: string) => Promise<void>;
   onPay?: (tripId: string) => void;
