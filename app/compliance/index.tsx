@@ -146,18 +146,19 @@ export default function ComplianceScreen() {
     async (tripId: string) => {
       if (!canMarkVerified) {
         alertMessage("Can't verify", "You don't have permission to mark this trip compliance verified.");
-        return;
+        return false;
       }
       if (!user?.uid) {
         alertMessage("Can't verify", "Sign in again, then try Verify Docs.");
-        return;
+        return false;
       }
       const { error } = await markTripComplianceVerified({ tripId, actorId: user.uid });
       if (error) {
         alertMessage("Couldn't verify compliance", formatMarkComplianceVerifiedError(error.message));
-        return;
+        return false;
       }
       await syncChange({ type: "complianceVerified", tripId, actorId: user.uid });
+      return true;
     },
     [canMarkVerified, syncChange, user?.uid],
   );

@@ -1,5 +1,12 @@
 # Changelog — V1 (v0.0.01)
 
+## sneha/V1.0.1 — 2026-10-01
+- **What:** Compliance workspace: one Approve / Decline pair per Required and Optional group under the Trip, Vehicle and Driver tabs. It appears once every doc in that group is uploaded. When the last required trip doc is approved, the trip moves to Verified automatically, with an inline "moving to Verified" notice.
+- **Why:** Ops had to approve each doc separately from the preview footer and then press Mark verified by hand.
+- **Files/areas:** `features/tripCompliance/components/ComplianceDocumentWorkspace.tsx` (grouped list, shared approve/decline writers, auto-verify), `features/tripCompliance/utils/complianceReviewActions.util.ts` (`complianceGroupReviewState`), `app/compliance/index.tsx` (`markTripVerified` returns success), `ComplianceTripsTable.tsx` (prop type)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (438 pass, incl. new group-state tests); `tsc` adds no new errors (141 already in V1); ESLint clean on touched files. Web UI not yet clicked through.
+
 How `V1` was built, step by step, from Vasanth sir's baseline. Newest step at the bottom.
 Team workflow and environments: [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md).
 

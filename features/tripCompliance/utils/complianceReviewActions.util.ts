@@ -97,6 +97,49 @@ export function complianceGroupDecisionActions(
   };
 }
 
+export type ComplianceGroupReviewPhase = "awaiting_uploads" | "review" | "approved" | "declined";
+
+export type ComplianceGroupReviewState = {
+  phase: ComplianceGroupReviewPhase;
+  total: number;
+  missing: number;
+  canApprove: boolean;
+  canDecline: boolean;
+  actionable: ComplianceDocRow[];
+};
+
+/**
+ * One Approve/Decline pair per Required / Optional group in the vault list.
+ * `null` when the group is empty or none of its docs can be moderated here
+ * (e.g. driver KYC, which is reviewed elsewhere).
+ */
+export function complianceGroupReviewState(
+  groupRows: ComplianceDocRow[],
+  scope: "trip" | "vehicle" | "driver",
+): ComplianceGroupReviewState | null {
+  if (groupRows.length === 0) return null;
+  const total = groupRows.length;
+  const missing = groupRows.filter((row) => row.status === "missing").length;
+  const idle = { total, missing, canApprove: false, canDecline: false, actionable: [] };
+  if (!groupRows.some((row) => row.status === "missing" || canModerateComplianceRow(row, scope))) {
+    return null;
+  }
+  if (missing > 0) return { phase: "awaiting_uploads", ...idle };
+  if (groupRows.every((row) => row.status === "verified")) return { phase: "approved", ...idle };
+
+  const actions = complianceGroupDecisionActions(groupRows, scope);
+  if (!actions.ready) return null;
+  const allDeclined = actions.actionable.every((row) => row.status === "rejected");
+  return {
+    phase: allDeclined ? "declined" : "review",
+    total,
+    missing,
+    canApprove: actions.canApprove,
+    canDecline: actions.canDecline,
+    actionable: actions.actionable,
+  };
+}
+
 /** Optimistic Approve/Decline recorded against the exact row version it was made on. */
 export type OptimisticComplianceDecision = {
   decision: "verified" | "rejected";

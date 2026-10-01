@@ -42,8 +42,10 @@ import {
   applyOptimisticDecision,
   canModerateComplianceRow,
   complianceDecisionButtonState,
+  complianceGroupReviewState,
   complianceReviewDecisionActions,
   recordOptimisticDecision,
+  type ComplianceGroupReviewState,
   type OptimisticComplianceDecision,
 } from "@/features/tripCompliance/utils/complianceReviewActions.util";
 import type { ComplianceChange } from "@/features/tripCompliance/services/compliancePipelineSync.service";
@@ -136,6 +138,8 @@ function writePreviewCache(cache: Map<string, PreviewCacheEntry>, path: string, 
 
 type DocTab = "trip" | "vehicle" | "driver";
 type ChecklistPreviewMode = "document" | "trip" | "advance" | "finance";
+type ComplianceReviewGroup = "required" | "optional";
+type DeclineTarget = "active" | ComplianceReviewGroup;
 
 const TABS: { key: DocTab; label: string }[] = [
   { key: "trip", label: "Trip" },
@@ -727,7 +731,8 @@ export function ComplianceDocumentWorkspace({
   /** Reject a verified trip with a remark (keeps Verified stage, red card). */
   onRejectCompliance?: (tripId: string, reason: string) => Promise<void>;
   /** Marks the trip Compliance Verified once all required docs are approved. */
-  onMarkComplianceVerified?: (tripId: string) => Promise<void>;
+  /** Resolves `false` when verification failed (the handler already alerted). */
+  onMarkComplianceVerified?: (tripId: string) => Promise<boolean | void>;
   /** Trip to show when opening the card view from the table. */
   selectedTripId?: string | null;
   /** Open document review for upload — trip / vehicle / driver vault. */
@@ -768,6 +773,16 @@ export function ComplianceDocumentWorkspace({
   >({});
   const previewCacheRef = useRef<Map<string, PreviewCacheEntry>>(new Map());
   const decisionAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [declineTarget, setDeclineTarget] = useState<DeclineTarget>("active");
+  /** Group Approve/Decline in flight — drives the spinner on that group's button only. */
+  const [groupBusy, setGroupBusy] = useState<{
+    group: ComplianceReviewGroup;
+    decision: OptimisticComplianceDecision["decision"];
+  } | null>(null);
+  const [markingVerified, setMarkingVerified] = useState(false);
+  const [verifyNotice, setVerifyNotice] = useState<{ tone: "progress" | "success"; text: string } | null>(
+    null,
+  );
 
   const summary = summaries.find((item) => item.trip.id === selectedId) ?? summaries[0] ?? null;
   const isPendingDocsTrip = Boolean(summary && verificationStatusVisual(summary).kind === "pending_docs");
@@ -848,6 +863,32 @@ export function ComplianceDocumentWorkspace({
   const isFinanceMode = checklistPreviewMode === "finance";
   const listRows = isFinanceMode ? financeRows : checklistRows;
   const reviewScope: DocTab = isFinanceMode ? "trip" : tab;
+  const displayListRows = useMemo(
+    () => listRows.map((row) => applyOptimisticDecision(row, localDecisionByKey[row.key])),
+    [listRows, localDecisionByKey],
+  );
+  /** Trip / Vehicle / Driver vaults review in two groups; Finance stays per-document. */
+  const showGroupedReview = !isFinanceMode && !showEntityUnassigned;
+  const requiredGroupState = useMemo<ComplianceGroupReviewState | null>(
+    () =>
+      showGroupedReview
+        ? complianceGroupReviewState(
+            displayListRows.filter((row) => row.required),
+            reviewScope,
+          )
+        : null,
+    [showGroupedReview, displayListRows, reviewScope],
+  );
+  const optionalGroupState = useMemo<ComplianceGroupReviewState | null>(
+    () =>
+      showGroupedReview
+        ? complianceGroupReviewState(
+            displayListRows.filter((row) => !row.required),
+            reviewScope,
+          )
+        : null,
+    [showGroupedReview, displayListRows, reviewScope],
+  );
   const checklistSelectedRow = useMemo(() => {
     if (!showDocumentShell || showEntityUnassigned) return null;
     if (isFinanceMode) {
@@ -922,6 +963,12 @@ export function ComplianceDocumentWorkspace({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (verifyNotice?.tone !== "success") return;
+    const timer = setTimeout(() => setVerifyNotice(null), 3200);
+    return () => clearTimeout(timer);
+  }, [verifyNotice]);
 
   useEffect(() => {
     if (!showDocumentShell || showEntityUnassigned) {
@@ -1140,192 +1187,316 @@ export function ComplianceDocumentWorkspace({
     });
   }, []);
 
-  const approve = async () => {
-    if (!summary || !activeRow || busy) return;
-    if (!canVerify) {
-      alertMessage("Can't approve", "You don't have permission to verify compliance documents.");
-      return;
-    }
-    if (!actorId) {
-      alertMessage("Can't approve", "Sign in again, then try Approve.");
-      return;
-    }
-    if (!decisions.canApprove || !canModerateComplianceRow(activeRow, reviewScope)) {
-      alertMessage("Can't approve", "This document isn't ready to approve yet.");
-      return;
-    }
-
+  /** One Approve write (trip doc, vehicle vault or entity doc). Alerts on failure; caller owns `busy`. */
+  const writeApproval = async (row: ComplianceDocRow): Promise<boolean> => {
+    if (!summary || !actorId) return false;
     const tripId = summary.trip.id;
-    const row = activeRow;
     const existingExpiry = row.entityDoc?.expiry_date?.trim() ?? "";
     let expiryDate = existingExpiry;
     let enteredNewExpiry = false;
 
     if (reviewScope !== "trip" && documentRequiresExpiry(row.type) && !expiryDate) {
       const entered = await promptExpiryDate(row.type);
-      if (!entered) return;
+      if (!entered) return false;
       const trimmed = entered.trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
         alertMessage("Invalid expiry date", "Use YYYY-MM-DD (for example 2027-03-15).");
-        return;
+        return false;
       }
       expiryDate = trimmed;
       enteredNewExpiry = true;
     }
 
-    setBusy(true);
-    try {
-      if (reviewScope === "trip") {
-        if (!row.doc) {
-          alertMessage("Couldn't approve document", "This trip document has no uploaded file.");
-          return;
-        }
-        const { error } = await setTripDocumentVerification({
-          document: row.doc,
+    if (reviewScope === "trip") {
+      if (!row.doc) {
+        alertMessage("Couldn't approve document", "This trip document has no uploaded file.");
+        return false;
+      }
+      const { error } = await setTripDocumentVerification({
+        document: row.doc,
+        organizationId,
+        actorId,
+        status: "verified",
+      });
+      if (error) {
+        alertMessage("Couldn't approve document", error.message);
+        return false;
+      }
+      onChanged({ type: "tripDocumentDecision", tripId, documentId: row.doc.id, status: "verified", actorId });
+      return true;
+    }
+    if (row.entityDoc?.source === "vehicle-vault" && summary.trip.vehicle_id) {
+      const vehicleId = summary.trip.vehicle_id;
+      if (enteredNewExpiry) {
+        const { error } = await updateVehicleDocumentExpiry(
           organizationId,
-          actorId,
-          status: "verified",
-        });
+          vehicleId,
+          row.type as VehicleComplianceDocType,
+          expiryDate,
+          null,
+        );
         if (error) {
-          alertMessage("Couldn't approve document", error.message);
-          return;
-        }
-        onChanged({ type: "tripDocumentDecision", tripId, documentId: row.doc.id, status: "verified", actorId });
-      } else if (row.entityDoc?.source === "vehicle-vault" && summary.trip.vehicle_id) {
-        const vehicleId = summary.trip.vehicle_id;
-        if (enteredNewExpiry) {
-          const { error } = await updateVehicleDocumentExpiry(
-            organizationId,
+          // Cross-org vault write may fail — retry against the vehicle's owning org.
+          const resolved = await resolveVehicleDocumentsWriteTarget(vehicleId, [organizationId]);
+          if (!resolved) {
+            alertMessage(
+              "Couldn't approve document",
+              error.message ||
+                "Could not save the expiry date on this vehicle. Re-upload with an expiry date, then Approve.",
+            );
+            return false;
+          }
+          const retry = await updateVehicleDocumentExpiry(
+            resolved.orgId,
             vehicleId,
             row.type as VehicleComplianceDocType,
             expiryDate,
-            null,
+            resolved.documents,
           );
-          if (error) {
-            // Cross-org vault write may fail — retry against the vehicle's owning org.
-            const resolved = await resolveVehicleDocumentsWriteTarget(vehicleId, [organizationId]);
-            if (!resolved) {
-              alertMessage(
-                "Couldn't approve document",
-                error.message ||
-                  "Could not save the expiry date on this vehicle. Re-upload with an expiry date, then Approve.",
-              );
-              return;
-            }
-            const retry = await updateVehicleDocumentExpiry(
-              resolved.orgId,
-              vehicleId,
-              row.type as VehicleComplianceDocType,
-              expiryDate,
-              resolved.documents,
-            );
-            if (retry.error) {
-              alertMessage("Couldn't approve document", retry.error.message);
-              return;
-            }
+          if (retry.error) {
+            alertMessage("Couldn't approve document", retry.error.message);
+            return false;
           }
         }
-        const marked = await markVehicleDocumentVerified(organizationId, vehicleId, row.type);
-        if (marked.error) {
-          alertMessage("Couldn't approve document", marked.error.message);
-          return;
-        }
-        onChanged({ type: "vehicleDocuments", vehicleId });
-      } else if (row.entityDoc?.id && row.entityDoc.source !== "driver-kyc") {
-        if (enteredNewExpiry) {
-          const { error: expiryError } = await updateEntityDocumentExpiry(row.entityDoc.id, expiryDate);
-          if (expiryError) {
-            alertMessage("Couldn't approve document", expiryError.message);
-            return;
-          }
-        }
-        const { error } = await verifyDocument(row.entityDoc.id, actorId);
-        if (error) {
-          alertMessage("Couldn't approve document", error.message);
-          return;
-        }
-        onChanged(entityDocumentChange(row.entityDoc));
-      } else {
-        alertMessage("Couldn't approve document", "This document can't be approved from this preview.");
-        return;
       }
+      const marked = await markVehicleDocumentVerified(organizationId, vehicleId, row.type);
+      if (marked.error) {
+        alertMessage("Couldn't approve document", marked.error.message);
+        return false;
+      }
+      onChanged({ type: "vehicleDocuments", vehicleId });
+      return true;
+    }
+    if (row.entityDoc?.id && row.entityDoc.source !== "driver-kyc") {
+      if (enteredNewExpiry) {
+        const { error: expiryError } = await updateEntityDocumentExpiry(row.entityDoc.id, expiryDate);
+        if (expiryError) {
+          alertMessage("Couldn't approve document", expiryError.message);
+          return false;
+        }
+      }
+      const { error } = await verifyDocument(row.entityDoc.id, actorId);
+      if (error) {
+        alertMessage("Couldn't approve document", error.message);
+        return false;
+      }
+      onChanged(entityDocumentChange(row.entityDoc));
+      return true;
+    }
+    alertMessage("Couldn't approve document", "This document can't be approved from this preview.");
+    return false;
+  };
+
+  /** One Decline write. Alerts on failure; caller owns `busy`. */
+  const writeDecline = async (row: ComplianceDocRow, note: string): Promise<boolean> => {
+    if (!summary || !actorId) return false;
+    const tripId = summary.trip.id;
+    if (reviewScope === "trip") {
+      if (!row.doc) {
+        alertMessage("Couldn't decline document", "This trip document has no uploaded file.");
+        return false;
+      }
+      const { error } = await setTripDocumentVerification({
+        document: row.doc,
+        organizationId,
+        actorId,
+        status: "rejected",
+        rejectionReason: note,
+      });
+      if (error) {
+        alertMessage("Couldn't decline document", error.message);
+        return false;
+      }
+      onChanged({
+        type: "tripDocumentDecision",
+        tripId,
+        documentId: row.doc.id,
+        status: "rejected",
+        actorId,
+        rejectionReason: note,
+      });
+      return true;
+    }
+    if (row.entityDoc?.source === "vehicle-vault") {
+      alertMessage(
+        "Couldn't decline document",
+        "Replace this file from the vehicle vault, or upload a new copy.",
+      );
+      return false;
+    }
+    if (row.entityDoc?.id && row.entityDoc.source !== "driver-kyc") {
+      const { error } = await rejectDocument(row.entityDoc.id, note);
+      if (error) {
+        alertMessage("Couldn't decline document", error.message);
+        return false;
+      }
+      onChanged(entityDocumentChange(row.entityDoc));
+      return true;
+    }
+    alertMessage("Couldn't decline document", "This document can't be declined from this preview.");
+    return false;
+  };
+
+  /**
+   * Once every required trip document is approved, move the trip to Verified.
+   * `approvedKeys` covers approvals the pipeline refetch hasn't reflected yet.
+   */
+  const autoVerifyIfRequiredApproved = async (approvedKeys: string[]) => {
+    if (!summary || !onMarkComplianceVerified || summary.complianceVerifiedAt || reviewScope !== "trip") return;
+    const requiredRows = deriveComplianceDocumentRows(summary.documents).filter((row) => row.required);
+    if (requiredRows.length === 0) return;
+    const approved = new Set(approvedKeys);
+    const allApproved = requiredRows.every(
+      (row) =>
+        approved.has(row.key) ||
+        applyOptimisticDecision(row, localDecisionByKey[row.key]).status === "verified",
+    );
+    if (!allApproved) return;
+    const tripLabel = getTripDisplayNumber(summary.trip, summary.trip.organization_id ?? null);
+    setVerifyNotice({ tone: "progress", text: `All required documents approved · moving ${tripLabel} to Verified` });
+    setMarkingVerified(true);
+    try {
+      const result = await onMarkComplianceVerified(summary.trip.id);
+      setVerifyNotice(
+        result === false ? null : { tone: "success", text: `${tripLabel} moved to Verified` },
+      );
+    } catch {
+      setVerifyNotice(null);
+    } finally {
+      setMarkingVerified(false);
+    }
+  };
+
+  const ensureCanModerate = (title: string, verb: string): boolean => {
+    if (!canVerify) {
+      alertMessage(title, "You don't have permission to verify compliance documents.");
+      return false;
+    }
+    if (!actorId) {
+      alertMessage(title, `Sign in again, then try ${verb}.`);
+      return false;
+    }
+    return true;
+  };
+
+  const approve = async () => {
+    if (!summary || !activeRow || busy) return;
+    if (!ensureCanModerate("Can't approve", "Approve")) return;
+    if (!decisions.canApprove || !canModerateComplianceRow(activeRow, reviewScope)) {
+      alertMessage("Can't approve", "This document isn't ready to approve yet.");
+      return;
+    }
+    const row = activeRow;
+    setBusy(true);
+    try {
+      if (!(await writeApproval(row))) return;
       finishDecision(row, "verified");
     } finally {
       setBusy(false);
     }
+    void autoVerifyIfRequiredApproved([row.key]);
+  };
+
+  /** Raw (server) rows behind a group's actionable list — optimistic overlays must not be re-recorded. */
+  const groupActionableRows = (group: ComplianceReviewGroup): ComplianceDocRow[] => {
+    const state = group === "required" ? requiredGroupState : optionalGroupState;
+    if (!state) return [];
+    const keys = new Set(state.actionable.map((row) => row.key));
+    return listRows.filter((row) => keys.has(row.key));
+  };
+
+  const approveGroup = async (group: ComplianceReviewGroup) => {
+    if (!summary || busy) return;
+    if (!ensureCanModerate("Can't approve", "Approve")) return;
+    const targets = groupActionableRows(group).filter(
+      (row) =>
+        complianceReviewDecisionActions(applyOptimisticDecision(row, localDecisionByKey[row.key])).canApprove,
+    );
+    if (targets.length === 0) return;
+    setBusy(true);
+    setGroupBusy({ group, decision: "verified" });
+    const approved: ComplianceDocRow[] = [];
+    try {
+      for (const row of targets) {
+        if (!(await writeApproval(row))) break;
+        approved.push(row);
+      }
+    } finally {
+      if (approved.length > 0) {
+        setLocalDecisionByKey((prev) => {
+          const next = { ...prev };
+          for (const row of approved) next[row.key] = recordOptimisticDecision(row, "verified");
+          return next;
+        });
+      }
+      setGroupBusy(null);
+      setBusy(false);
+    }
+    if (approved.length > 0) void autoVerifyIfRequiredApproved(approved.map((row) => row.key));
+  };
+
+  const openDecline = (target: DeclineTarget) => {
+    setDeclineTarget(target);
+    setDeclineOpen(true);
   };
 
   const declineWithReason = async (reason: string) => {
-    if (!summary || !activeRow || busy) return;
-    if (!canVerify) {
-      alertMessage("Can't decline", "You don't have permission to verify compliance documents.");
-      return;
-    }
-    if (!actorId) {
-      alertMessage("Can't decline", "Sign in again, then try Decline.");
-      return;
-    }
-    if (!decisions.canDecline || !canModerateComplianceRow(activeRow, reviewScope)) {
-      alertMessage("Can't decline", "This document isn't ready to decline yet.");
-      return;
-    }
+    if (!summary || busy) return;
+    const target = declineTarget;
+    if (target === "active" && !activeRow) return;
+    if (!ensureCanModerate("Can't decline", "Decline")) return;
     const note = reason.trim();
     if (!note) {
       alertMessage("Can't decline", "A rejection reason is required.");
       return;
     }
 
-    const tripId = summary.trip.id;
-    const row = activeRow;
-
-    setDeclineOpen(false);
-    setBusy(true);
-    try {
-      if (reviewScope === "trip") {
-        if (!row.doc) {
-          alertMessage("Couldn't decline document", "This trip document has no uploaded file.");
-          return;
-        }
-        const { error } = await setTripDocumentVerification({
-          document: row.doc,
-          organizationId,
-          actorId,
-          status: "rejected",
-          rejectionReason: note,
-        });
-        if (error) {
-          alertMessage("Couldn't decline document", error.message);
-          setDeclineOpen(true);
-          return;
-        }
-        onChanged({
-          type: "tripDocumentDecision",
-          tripId,
-          documentId: row.doc.id,
-          status: "rejected",
-          actorId,
-          rejectionReason: note,
-        });
-      } else if (row.entityDoc?.source === "vehicle-vault") {
-        alertMessage(
-          "Couldn't decline document",
-          "Replace this file from the vehicle vault, or upload a new copy.",
-        );
-        return;
-      } else if (row.entityDoc?.id && row.entityDoc.source !== "driver-kyc") {
-        const { error } = await rejectDocument(row.entityDoc.id, note);
-        if (error) {
-          alertMessage("Couldn't decline document", error.message);
-          setDeclineOpen(true);
-          return;
-        }
-        onChanged(entityDocumentChange(row.entityDoc));
-      } else {
-        alertMessage("Couldn't decline document", "This document can't be declined from this preview.");
+    if (target === "active") {
+      const row = activeRow;
+      if (!row || !decisions.canDecline || !canModerateComplianceRow(row, reviewScope)) {
+        alertMessage("Can't decline", "This document isn't ready to decline yet.");
         return;
       }
-      finishDecision(row, "rejected");
+      setDeclineOpen(false);
+      setBusy(true);
+      try {
+        if (!(await writeDecline(row, note))) {
+          setDeclineOpen(true);
+          return;
+        }
+        finishDecision(row, "rejected");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    const targets = groupActionableRows(target).filter(
+      (row) =>
+        complianceReviewDecisionActions(applyOptimisticDecision(row, localDecisionByKey[row.key])).canDecline,
+    );
+    if (targets.length === 0) {
+      setDeclineOpen(false);
+      return;
+    }
+    setDeclineOpen(false);
+    setBusy(true);
+    setGroupBusy({ group: target, decision: "rejected" });
+    const declined: ComplianceDocRow[] = [];
+    try {
+      for (const row of targets) {
+        if (!(await writeDecline(row, note))) break;
+        declined.push(row);
+      }
     } finally {
+      if (declined.length > 0) {
+        setLocalDecisionByKey((prev) => {
+          const next = { ...prev };
+          for (const row of declined) next[row.key] = recordOptimisticDecision(row, "rejected");
+          return next;
+        });
+      }
+      setGroupBusy(null);
       setBusy(false);
     }
   };
@@ -1376,7 +1547,6 @@ export function ComplianceDocumentWorkspace({
   const showMarkVerified = Boolean(
     onMarkComplianceVerified && summary && !summary.complianceVerifiedAt && readiness?.requiredDocs.markVerifiedReady,
   );
-  const [markingVerified, setMarkingVerified] = useState(false);
   const vaultCopy = TAB_VAULT_COPY[tab];
   const listMissingRows = listRows.filter((row) => row.status === "missing");
   const missingRequiredCount = listMissingRows.filter((row) => row.required).length;
@@ -1494,6 +1664,241 @@ export function ComplianceDocumentWorkspace({
       finance: finance.filter((row) => row.status === "missing").length,
     };
   }, [summary]);
+
+  const renderChecklistRow = (row: ComplianceDocRow, index: number) => {
+    const displayRow = applyOptimisticDecision(row, localDecisionByKey[row.key]);
+    const rowHasFile = hasFile(displayRow);
+    const statusMeta = COMPLIANCE_STATUS_META[displayRow.status];
+    const selected =
+      (checklistPreviewMode === "document" || checklistPreviewMode === "finance") &&
+      checklistKey === displayRow.key;
+    const uploadLabel = displayRow.status === "missing" ? "Upload" : "Replace";
+    const rowLabel = isFinanceMode
+      ? labelForFinanceDocType(displayRow.type)
+      : labelForDocType(displayRow.type);
+    const vaultDetail = isFinanceMode ? financeVaultDetailLine(displayRow) : null;
+    const isBankDocs = isFinanceMode && displayRow.type === "bank_docs";
+    const bankVerified =
+      isBankDocs &&
+      (displayRow.status === "verified" ||
+        (supplierBankProof?.status ?? "").toLowerCase() === "verified");
+    const bankFromSupplier =
+      isBankDocs &&
+      Boolean(
+        displayRow.entityDoc?.source === "supplier-kyc" || supplierBankProof?.onFile,
+      );
+    const statusLabel =
+      displayRow.status === "missing"
+        ? isBankDocs && supplierBankLoading
+          ? "Fetching supplier Banking…"
+          : "Not uploaded"
+        : vaultDetail
+          ? vaultDetail
+          : rowHasFile
+            ? `${statusMeta.label} · ready to preview`
+            : statusMeta.label;
+    return (
+      <View
+        key={displayRow.key}
+        style={[
+          styles.missingRow,
+          index > 0 && styles.missingRowBorder,
+          selected && styles.missingRowSelected,
+        ]}
+      >
+        <Pressable
+          style={styles.missingRowCopy}
+          onPress={() => previewChecklistRow(displayRow)}
+          accessibilityRole="button"
+          accessibilityLabel={`${rowLabel} details`}
+        >
+          <View style={styles.missingTitleRow}>
+            <Text style={styles.missingDocName} numberOfLines={1}>
+              {rowLabel.toUpperCase()}
+            </Text>
+            <View
+              style={[
+                styles.missingScopeTag,
+                displayRow.required
+                  ? styles.missingScopeRequired
+                  : styles.missingScopeOptional,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.missingScopeText,
+                  displayRow.required
+                    ? styles.missingScopeTextRequired
+                    : styles.missingScopeTextOptional,
+                ]}
+              >
+                {requirementScopeLabel(displayRow.required)}
+              </Text>
+            </View>
+            {bankVerified ? (
+              <View style={styles.bankVerifiedChip}>
+                <Text style={styles.bankVerifiedChipText}>Verified</Text>
+              </View>
+            ) : null}
+          </View>
+          {!(bankFromSupplier && displayRow.status !== "missing") ? (
+            <Text
+              style={[
+                styles.missingStatus,
+                displayRow.status === "missing" ? null : { color: statusMeta.color },
+              ]}
+              numberOfLines={2}
+            >
+              {statusLabel}
+            </Text>
+          ) : null}
+          {bankFromSupplier && displayRow.status !== "missing" ? (
+            <Text style={styles.bankSourceHint} numberOfLines={1}>
+              Synced from supplier Banking
+            </Text>
+          ) : null}
+        </Pressable>
+        <View style={styles.missingRowActions}>
+          <TouchableOpacity
+            style={[styles.missingEyeBtn, !rowHasFile && styles.missingEyeBtnDisabled]}
+            activeOpacity={0.75}
+            disabled={!canViewDocuments || !rowHasFile}
+            onPress={() => previewChecklistRow(displayRow)}
+            accessibilityRole="button"
+            accessibilityLabel={`Preview ${rowLabel}`}
+            accessibilityState={{ disabled: !rowHasFile }}
+          >
+            <Eye
+              size={12}
+              color={rowHasFile ? Theme.textPrimaryDark : Theme.textMuted}
+              strokeWidth={2.2}
+            />
+          </TouchableOpacity>
+          {onReviewTripDocs || isFinanceMode ? (
+            <TouchableOpacity
+              style={[
+                styles.missingUploadBtn,
+                uploadingFinanceType === displayRow.key && styles.btnDisabled,
+              ]}
+              activeOpacity={0.8}
+              disabled={Boolean(uploadingFinanceType)}
+              onPress={() => {
+                if (isFinanceMode) {
+                  void uploadFinanceDocument(displayRow.key);
+                  return;
+                }
+                openVaultUpload(displayRow.key);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`${uploadLabel} ${rowLabel}`}
+            >
+              <Upload size={11} color={Theme.cardWhite} strokeWidth={2.4} />
+              <Text style={styles.missingUploadBtnText}>
+                {uploadingFinanceType === displayRow.key ? "Uploading…" : uploadLabel}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
+    );
+  };
+
+  const renderReviewGroupHeader = (group: ComplianceReviewGroup, total: number) => {
+    const state = group === "required" ? requiredGroupState : optionalGroupState;
+    const title = group === "required" ? "REQUIRED DOCUMENTS" : "OPTIONAL DOCUMENTS";
+    const plural = total === 1 ? "" : "s";
+    const meta = !state
+      ? `${total} document${plural}`
+      : state.phase === "awaiting_uploads"
+        ? `${state.total - state.missing} of ${state.total} uploaded · upload all to review`
+        : state.phase === "approved"
+          ? `All ${state.total} approved`
+          : state.phase === "declined"
+            ? "Declined · replace the files or approve"
+            : `${state.total} uploaded · ready for review`;
+    const showActions = Boolean(canVerify && state && (state.phase === "review" || state.phase === "declined"));
+    const approving = groupBusy?.group === group && groupBusy.decision === "verified";
+    const declining = groupBusy?.group === group && groupBusy.decision === "rejected";
+    const declined = state?.phase === "declined";
+    const groupLabel = group === "required" ? "required" : "optional";
+    return (
+      <View style={styles.reviewGroupHeader}>
+        <View style={styles.reviewGroupCopy}>
+          <Text style={styles.reviewGroupTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text
+            style={[
+              styles.reviewGroupMeta,
+              state?.phase === "approved" && styles.reviewGroupMetaApproved,
+              declined && styles.reviewGroupMetaDeclined,
+            ]}
+            numberOfLines={1}
+          >
+            {meta}
+          </Text>
+        </View>
+        {state?.phase === "approved" ? (
+          <View style={styles.reviewGroupApprovedPill} accessibilityLabel={`All ${groupLabel} documents approved`}>
+            <Check size={12} color={Theme.cardWhite} strokeWidth={2.8} />
+            <Text style={styles.reviewGroupApprovedText}>Approved</Text>
+          </View>
+        ) : null}
+        {showActions && state ? (
+          <View style={styles.reviewGroupActions}>
+            <TouchableOpacity
+              style={[
+                styles.reviewGroupDecline,
+                declined && styles.reviewGroupDeclineActive,
+                (!state.canDecline || busy) && !declined && styles.btnDisabled,
+              ]}
+              activeOpacity={0.8}
+              disabled={busy || !state.canDecline}
+              onPress={() => openDecline(group)}
+              hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel={`Decline all ${groupLabel} documents`}
+              accessibilityState={{ disabled: busy || !state.canDecline, selected: declined }}
+            >
+              {declining ? (
+                <ActivityIndicator size="small" color={Theme.complianceStageDocsFg} />
+              ) : (
+                <View style={styles.checklistDecisionLabelRow}>
+                  <X
+                    size={12}
+                    color={declined ? Theme.cardWhite : Theme.complianceStageDocsFg}
+                    strokeWidth={2.6}
+                  />
+                  <Text style={[styles.reviewGroupDeclineText, declined && styles.reviewGroupDeclineTextActive]}>
+                    {declined ? "Declined" : "Decline"}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.reviewGroupApprove, (!state.canApprove || busy) && styles.btnDisabled]}
+              activeOpacity={0.85}
+              disabled={busy || !state.canApprove}
+              onPress={() => void approveGroup(group)}
+              hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel={`Approve all ${groupLabel} documents`}
+              accessibilityState={{ disabled: busy || !state.canApprove }}
+            >
+              {approving ? (
+                <ActivityIndicator size="small" color={Theme.cardWhite} />
+              ) : (
+                <View style={styles.checklistDecisionLabelRow}>
+                  <Check size={12} color={Theme.cardWhite} strokeWidth={2.8} />
+                  <Text style={styles.reviewGroupApproveText}>Approve</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+    );
+  };
 
   return (
     <View style={[styles.workspace, stacked && styles.workspaceStacked, style]}>
@@ -1683,148 +2088,48 @@ export function ComplianceDocumentWorkspace({
                         {missingSubline}
                       </Text>
                     </View>
+                    {verifyNotice ? (
+                      <View
+                        style={[
+                          styles.verifyNotice,
+                          verifyNotice.tone === "success" && styles.verifyNoticeSuccess,
+                        ]}
+                        accessibilityLiveRegion="polite"
+                      >
+                        {verifyNotice.tone === "progress" ? (
+                          <ActivityIndicator size="small" color={Theme.positive} />
+                        ) : (
+                          <View style={styles.verifyNoticeIcon}>
+                            <Check size={11} color={Theme.cardWhite} strokeWidth={3} />
+                          </View>
+                        )}
+                        <Text style={styles.verifyNoticeText} numberOfLines={2}>
+                          {verifyNotice.text}
+                        </Text>
+                      </View>
+                    ) : null}
                     <ScrollView
                       style={styles.checklistListScroll}
                       contentContainerStyle={styles.checklistListContent}
                       showsVerticalScrollIndicator={false}
                     >
-                      {listRows.map((row, index) => {
-                        const displayRow = applyOptimisticDecision(row, localDecisionByKey[row.key]);
-                        const rowHasFile = hasFile(displayRow);
-                        const statusMeta = COMPLIANCE_STATUS_META[displayRow.status];
-                        const selected =
-                          (checklistPreviewMode === "document" || checklistPreviewMode === "finance") &&
-                          checklistKey === displayRow.key;
-                        const uploadLabel = displayRow.status === "missing" ? "Upload" : "Replace";
-                        const rowLabel = isFinanceMode
-                          ? labelForFinanceDocType(displayRow.type)
-                          : labelForDocType(displayRow.type);
-                        const vaultDetail = isFinanceMode ? financeVaultDetailLine(displayRow) : null;
-                        const isBankDocs = isFinanceMode && displayRow.type === "bank_docs";
-                        const bankVerified =
-                          isBankDocs &&
-                          (displayRow.status === "verified" ||
-                            (supplierBankProof?.status ?? "").toLowerCase() === "verified");
-                        const bankFromSupplier =
-                          isBankDocs &&
-                          Boolean(
-                            displayRow.entityDoc?.source === "supplier-kyc" || supplierBankProof?.onFile,
-                          );
-                        const statusLabel =
-                          displayRow.status === "missing"
-                            ? isBankDocs && supplierBankLoading
-                              ? "Fetching supplier Banking…"
-                              : "Not uploaded"
-                            : vaultDetail
-                              ? vaultDetail
-                              : rowHasFile
-                                ? `${statusMeta.label} · ready to preview`
-                                : statusMeta.label;
-                        return (
-                          <View
-                            key={displayRow.key}
-                            style={[
-                              styles.missingRow,
-                              index > 0 && styles.missingRowBorder,
-                              selected && styles.missingRowSelected,
-                            ]}
-                          >
-                            <Pressable
-                              style={styles.missingRowCopy}
-                              onPress={() => previewChecklistRow(displayRow)}
-                              accessibilityRole="button"
-                              accessibilityLabel={`${rowLabel} details`}
-                            >
-                              <View style={styles.missingTitleRow}>
-                                <Text style={styles.missingDocName} numberOfLines={1}>
-                                  {rowLabel.toUpperCase()}
-                                </Text>
-                                <View
-                                  style={[
-                                    styles.missingScopeTag,
-                                    displayRow.required
-                                      ? styles.missingScopeRequired
-                                      : styles.missingScopeOptional,
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      styles.missingScopeText,
-                                      displayRow.required
-                                        ? styles.missingScopeTextRequired
-                                        : styles.missingScopeTextOptional,
-                                    ]}
-                                  >
-                                    {requirementScopeLabel(displayRow.required)}
-                                  </Text>
-                                </View>
-                                {bankVerified ? (
-                                  <View style={styles.bankVerifiedChip}>
-                                    <Text style={styles.bankVerifiedChipText}>Verified</Text>
-                                  </View>
-                                ) : null}
-                              </View>
-                              {!(bankFromSupplier && displayRow.status !== "missing") ? (
-                                <Text
-                                  style={[
-                                    styles.missingStatus,
-                                    displayRow.status === "missing" ? null : { color: statusMeta.color },
-                                  ]}
-                                  numberOfLines={2}
-                                >
-                                  {statusLabel}
-                                </Text>
-                              ) : null}
-                              {bankFromSupplier && displayRow.status !== "missing" ? (
-                                <Text style={styles.bankSourceHint} numberOfLines={1}>
-                                  Synced from supplier Banking
-                                </Text>
-                              ) : null}
-                            </Pressable>
-                            <View style={styles.missingRowActions}>
-                              <TouchableOpacity
-                                style={[styles.missingEyeBtn, !rowHasFile && styles.missingEyeBtnDisabled]}
-                                activeOpacity={0.75}
-                                disabled={!canViewDocuments || !rowHasFile}
-                                onPress={() => previewChecklistRow(displayRow)}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Preview ${rowLabel}`}
-                                accessibilityState={{ disabled: !rowHasFile }}
+                      {showGroupedReview
+                        ? (["required", "optional"] as const).map((group) => {
+                            const groupRows = listRows.filter((row) =>
+                              group === "required" ? row.required : !row.required,
+                            );
+                            if (groupRows.length === 0) return null;
+                            return (
+                              <View
+                                key={group}
+                                style={[styles.reviewGroup, group === "optional" && styles.reviewGroupSpaced]}
                               >
-                                <Eye
-                                  size={12}
-                                  color={rowHasFile ? Theme.textPrimaryDark : Theme.textMuted}
-                                  strokeWidth={2.2}
-                                />
-                              </TouchableOpacity>
-                              {onReviewTripDocs || isFinanceMode ? (
-                                <TouchableOpacity
-                                  style={[
-                                    styles.missingUploadBtn,
-                                    uploadingFinanceType === displayRow.key && styles.btnDisabled,
-                                  ]}
-                                  activeOpacity={0.8}
-                                  disabled={Boolean(uploadingFinanceType)}
-                                  onPress={() => {
-                                    if (isFinanceMode) {
-                                      void uploadFinanceDocument(displayRow.key);
-                                      return;
-                                    }
-                                    openVaultUpload(displayRow.key);
-                                  }}
-                                  accessibilityRole="button"
-                                  accessibilityLabel={`${uploadLabel} ${rowLabel}`}
-                                >
-                                  <Upload size={11} color={Theme.cardWhite} strokeWidth={2.4} />
-                                  <Text style={styles.missingUploadBtnText}>
-                                    {uploadingFinanceType === displayRow.key ? "Uploading…" : uploadLabel}
-                                  </Text>
-                                </TouchableOpacity>
-                              ) : null}
-                            </View>
-                          </View>
-                        );
-                      })}
+                                {renderReviewGroupHeader(group, groupRows.length)}
+                                {groupRows.map(renderChecklistRow)}
+                              </View>
+                            );
+                          })
+                        : listRows.map(renderChecklistRow)}
                     </ScrollView>
                     <View style={styles.checklistPreviewActionsSection}>
                       <Text style={styles.checklistPreviewActionsLabel}>PREVIEW</Text>
@@ -2116,7 +2421,7 @@ export function ComplianceDocumentWorkspace({
                               alertMessage("Can't decline", "This document isn't ready to decline yet.");
                               return;
                             }
-                            setDeclineOpen(true);
+                            openDecline("active");
                           }}
                           accessibilityRole="button"
                           accessibilityState={{
@@ -2256,7 +2561,13 @@ export function ComplianceDocumentWorkspace({
       ) : null}
       <ComplianceInputModal
         visible={declineOpen}
-        title="Decline document"
+        title={
+          declineTarget === "required"
+            ? "Decline required documents"
+            : declineTarget === "optional"
+              ? "Decline optional documents"
+              : "Decline document"
+        }
         fields={DECLINE_FIELDS}
         confirmLabel="Decline with note"
         onCancel={() => setDeclineOpen(false)}
@@ -4133,4 +4444,102 @@ const styles = StyleSheet.create({
   },
   navBtnText: { fontSize: 11, fontWeight: "500", lineHeight: 14, color: Theme.textPrimaryDark },
   btnDisabled: { opacity: 0.45 },
+  reviewGroup: { width: "100%" },
+  reviewGroupSpaced: {
+    marginTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Theme.complianceTripCardBorder,
+  },
+  reviewGroupHeader: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: Theme.compliancePageBg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Theme.complianceTripCardBorder,
+  },
+  reviewGroupCopy: { flex: 1, minWidth: 0, gap: 1 },
+  reviewGroupTitle: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    color: Theme.textMuted,
+  },
+  reviewGroupMeta: { fontSize: 10, fontWeight: "500", color: Theme.textPrimaryDark },
+  reviewGroupMetaApproved: { color: Theme.positive },
+  reviewGroupMetaDeclined: { color: Theme.complianceStageDocsFg },
+  reviewGroupActions: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 },
+  reviewGroupDecline: {
+    minWidth: 80,
+    height: 30,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: Theme.complianceStageDocsFg,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewGroupDeclineActive: {
+    backgroundColor: Theme.complianceStageDocsFg,
+  },
+  reviewGroupDeclineText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    color: Theme.complianceStageDocsFg,
+  },
+  reviewGroupDeclineTextActive: { color: Theme.cardWhite },
+  reviewGroupApprove: {
+    minWidth: 84,
+    height: 30,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: Theme.positive,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewGroupApproveText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    color: Theme.cardWhite,
+  },
+  reviewGroupApprovedPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    height: 26,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: Theme.positive,
+    flexShrink: 0,
+  },
+  reviewGroupApprovedText: { fontSize: 10, fontWeight: "700", color: Theme.cardWhite },
+  verifyNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 10,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.positiveMutedDarkBorder,
+    backgroundColor: Theme.positiveMutedDark,
+  },
+  verifyNoticeSuccess: { backgroundColor: Theme.positiveMuted },
+  verifyNoticeIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Theme.positive,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  verifyNoticeText: { flex: 1, minWidth: 0, fontSize: 11, fontWeight: "600", color: Theme.positive },
 });
