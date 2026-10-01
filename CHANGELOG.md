@@ -1,6 +1,13 @@
 # Changelog — V1 (v0.0.01)
 
 ## sneha/V1.0.2 — 2026-10-01
+- **What:** Export Report now downloads an Excel workbook (`compliance-verified-report_YYYY-MM-DD_HHMM.xlsx`, sheet "Verified Report") instead of a CSV. The 26 columns are unchanged, in the same order (TRIP ID … Margin %). Account No, IFSC No, Driver No., LR No, invoice No, Trip ID, Truck No and every other non-money column are written as **text cells**. Excel can no longer show account numbers as `1.23E+15` or drop leading zeros; the exact value is shown, unmasked. Money and percent columns (C Price, S Price, % of advance, Documentation charges, TDS, Final Advance, Margin, Margin %) stay real numbers with `#,##0.00` / `0.0` formats, so they can be summed. Each column is sized to its longest value and the header row has a filter. "Verification status" now says **Rejected** for verified trips with a Reject remark, matching the cards and the popup. Web downloads the file; iOS and Android open the share sheet with the Excel type.
+- **Why:** In Excel the CSV turned long account numbers into exponential form and lost leading zeros, which breaks bank payouts.
+- **Files/areas:** `features/tripCompliance/utils/complianceVerifiedExport.util.ts` (`buildVerifiedExportWorksheet`, `buildVerifiedExportWorkbook`), `features/tripCompliance/services/complianceExportReport.service.ts` (xlsx download/share)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (449 pass; new test writes and re-reads an .xlsx and checks that `0012345678901234` stays a text cell, IFSC / phone / LR stay text, Final Advance stays a number, Rejected label); `tsc` adds no new errors (141 already in V1); ESLint clean; no new import cycles. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
 - **What:** The Export Report popup no longer shows "N documents ready to be downloaded". It shows two equal tiles, **Verified** (green dot) and **Rejected** (red dot), each with its trip count, and a line below: "N trips will be included in the report". A count is coloured only when it is above zero. Rejected uses the same rule as the red card and the Verified-stage filter. Confirm is enabled when the stage has at least one trip; the empty hint is unchanged. The CSV export itself is unchanged.
 - **Why:** The trip split is what compliance needs before exporting; the document total wasn't useful.
 - **Files/areas:** `features/tripCompliance/components/ComplianceExportConfirmModal.tsx`, `features/tripCompliance/utils/complianceExportReport.util.ts` (`countVerifiedStageTrips`), `app/compliance/index.tsx`
