@@ -1,5 +1,22 @@
 # Changelog — V1 (v0.0.01)
 
+## nihas/V1.0.6 — 2026-10-01
+
+### What
+Compliance Hold lists every trip compliance declined and has not yet verified, including ones still in Pending Docs.
+
+### Why
+The hold chip only looked inside Compliance Pending, so a decline on a trip that was still missing a file never appeared. Gogovan’s earlier declines also had their flags cleared when the decline columns were recreated; those three rows need the flags put back from the decline events.
+
+### Files / areas
+- `app/compliance/index.tsx`
+
+### Migrations
+None. Preprod data: restore `compliance_declined_*` on SAT812GOGTRIP000120, 000396, and 000408 from `compliance.declined` events.
+
+### Tested
+Filter change only. Data restore is a one-off preprod update.
+
 ## nihas/V1.0.5 — 2026-10-01
 
 ### What
