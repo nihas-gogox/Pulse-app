@@ -652,11 +652,19 @@ export function CompliancePaymentConfirmModal({
             {calcCard}
           </View>
         </View>
+        {modeField}
         <View
-          style={[styles.inlineFooter, inlineWide && styles.inlineFooterWide]}
+          style={[
+            styles.inlineActionsRow,
+            inlineWide && styles.inlineColumnsWide,
+          ]}
         >
-          <View style={styles.inlineFooterModes}>{modeField}</View>
-          {actionsRow}
+          {inlineWide ? <View style={styles.inlineColumnWide} /> : null}
+          <View
+            style={[styles.inlineColumn, inlineWide && styles.inlineColumnWide]}
+          >
+            {actionsRow}
+          </View>
         </View>
       </View>
     );
@@ -719,9 +727,13 @@ const styles = StyleSheet.create({
   inlineColumnsWide: { flexDirection: "row", alignItems: "stretch" },
   inlineColumn: { minWidth: 0 },
   inlineColumnWide: { flex: 1, flexBasis: 0 },
-  inlineFooter: { gap: 10 },
-  inlineFooterWide: { flexDirection: "row", alignItems: "flex-end" },
-  inlineFooterModes: { flex: 1, minWidth: 0 },
+  /** Wide: actions sit under the Amount calculation column, same 10pt gutter as the cards. */
+  inlineActionsRow: {
+    gap: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Theme.complianceCardBorder,
+  },
   sheetContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
@@ -980,11 +992,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   actionsInline: {
+    width: "100%",
     justifyContent: "flex-end",
     marginTop: 0,
-    minWidth: 180,
   },
-  actionsInlineWithReject: { minWidth: 300, gap: 10 },
+  actionsInlineWithReject: { gap: 10 },
   rejectBtnInline: {
     width: 108,
     height: 44,
