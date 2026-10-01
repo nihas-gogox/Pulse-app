@@ -1,6 +1,13 @@
 # Changelog — V1 (v0.0.01)
 
 ## sneha/V1.0.1 — 2026-10-01
+- **What:** Compliance workspace: removed the per-document Approve / Decline buttons from the preview footer in every stage. Review now happens only through the Required / Optional group buttons in the document list. The footer keeps trip Reject / Pay and the previous / next arrows, right-aligned, and is hidden when none of them apply.
+- **Why:** Two sets of Approve / Decline on one screen was confusing. One place to decide keeps the flow clean.
+- **Files/areas:** `features/tripCompliance/components/ComplianceDocumentWorkspace.tsx` (footer, plus removal of the single-document approve / decline / auto-advance code and its styles)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.1 — 2026-10-01
 - **What:** Compliance Finance tab: Memo is marked Required (red pill). Other Documents and Bank Docs stay Optional. The headline reads "1 required document not uploaded" while Memo is missing.
 - **Why:** Memo is mandatory paperwork for the advance payment.
 - **Files/areas:** `features/tripCompliance/tripCompliance.types.ts` (`REQUIRED_COMPLIANCE_FINANCE_DOCUMENT_TYPES`), `features/tripCompliance/utils/complianceDocumentRows.util.ts` (`deriveFinanceDocumentRows`)

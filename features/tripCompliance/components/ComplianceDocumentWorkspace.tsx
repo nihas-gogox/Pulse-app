@@ -41,8 +41,6 @@ import {
 import { fetchSupplierBankProofBundle } from "@/features/tripCompliance/utils/supplierBankProof.util";
 import {
   applyOptimisticDecision,
-  canModerateComplianceRow,
-  complianceDecisionButtonState,
   complianceGroupReviewState,
   complianceReviewDecisionActions,
   recordOptimisticDecision,
@@ -140,7 +138,6 @@ function writePreviewCache(cache: Map<string, PreviewCacheEntry>, path: string, 
 type DocTab = "trip" | "vehicle" | "driver";
 type ChecklistPreviewMode = "document" | "trip" | "advance" | "finance";
 type ComplianceReviewGroup = "required" | "optional";
-type DeclineTarget = "active" | ComplianceReviewGroup;
 
 const TABS: { key: DocTab; label: string }[] = [
   { key: "trip", label: "Trip" },
@@ -773,8 +770,7 @@ export function ComplianceDocumentWorkspace({
     Record<string, OptimisticComplianceDecision>
   >({});
   const previewCacheRef = useRef<Map<string, PreviewCacheEntry>>(new Map());
-  const decisionAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [declineTarget, setDeclineTarget] = useState<DeclineTarget>("active");
+  const [declineTarget, setDeclineTarget] = useState<ComplianceReviewGroup>("required");
   /** Group Approve/Decline in flight — drives the spinner on that group's button only. */
   const [groupBusy, setGroupBusy] = useState<{
     group: ComplianceReviewGroup;
@@ -913,22 +909,6 @@ export function ComplianceDocumentWorkspace({
     : checklistSelectedRow && hasFile(checklistSelectedRow)
       ? checklistSelectedRow
       : null;
-  const effectiveActiveRow = useMemo(() => {
-    if (!activeRow) return null;
-    return applyOptimisticDecision(activeRow, localDecisionByKey[activeRow.key]);
-  }, [activeRow, localDecisionByKey]);
-  const decisionButtons = useMemo(
-    () => complianceDecisionButtonState(effectiveActiveRow),
-    [effectiveActiveRow],
-  );
-  const decisions = useMemo(() => {
-    if (!effectiveActiveRow || !canModerateComplianceRow(effectiveActiveRow, reviewScope)) {
-      return { canApprove: false, canDecline: false };
-    }
-    return complianceReviewDecisionActions(effectiveActiveRow);
-  }, [effectiveActiveRow, reviewScope]);
-  const canAct = Boolean(canVerify && actorId && !busy);
-
   useEffect(() => {
     if (selectedTripId && summaries.some((item) => item.trip.id === selectedTripId)) {
       setSelectedId(selectedTripId);
@@ -940,10 +920,6 @@ export function ComplianceDocumentWorkspace({
   }, [summaries, selectedId, selectedTripId]);
 
   useEffect(() => {
-    if (decisionAdvanceTimerRef.current) {
-      clearTimeout(decisionAdvanceTimerRef.current);
-      decisionAdvanceTimerRef.current = null;
-    }
     setDocIndex(0);
     setZoom(1);
     setChecklistPreviewMode("document");
@@ -955,15 +931,6 @@ export function ComplianceDocumentWorkspace({
       return null;
     });
   }, [summary?.trip.id, tab]);
-
-  useEffect(() => {
-    return () => {
-      if (decisionAdvanceTimerRef.current) {
-        clearTimeout(decisionAdvanceTimerRef.current);
-        decisionAdvanceTimerRef.current = null;
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (verifyNotice?.tone !== "success") return;
@@ -1137,50 +1104,6 @@ export function ComplianceDocumentWorkspace({
     setDocIndex((index) => (index - 1 + previewable.length) % previewable.length);
     setZoom(1);
   };
-
-  /** Local UI follow-up only — each approve/decline branch sends its own typed ComplianceChange. */
-  const finishDecision = useCallback(
-    (row: ComplianceDocRow, decision: OptimisticComplianceDecision["decision"]) => {
-      setLocalDecisionByKey((prev) => ({ ...prev, [row.key]: recordOptimisticDecision(row, decision) }));
-      setDeclineOpen(false);
-      setBusy(false);
-
-      const advanceToNext = () => {
-        if (previewable.length <= 1) return;
-        if (showDocumentShell) {
-          const current = Math.max(
-            0,
-            previewable.findIndex((item) => item.key === row.key),
-          );
-          const ordered = [
-            ...previewable.slice(current + 1),
-            ...previewable.slice(0, current),
-          ];
-          const next =
-            ordered.find((item) => {
-              if (item.key === row.key) return false;
-              const status = applyOptimisticDecision(item, localDecisionByKey[item.key]).status;
-              // Prefer the next file that still needs a first decision.
-              return status !== "verified" && status !== "rejected";
-            }) ?? ordered[0];
-          if (next) {
-            setChecklistKey(next.key);
-            setChecklistPreviewMode((mode) => (mode === "finance" ? "finance" : "document"));
-          }
-        } else {
-          setDocIndex((index) => (index + 1) % previewable.length);
-        }
-        setZoom(1);
-      };
-
-      if (decisionAdvanceTimerRef.current) {
-        clearTimeout(decisionAdvanceTimerRef.current);
-      }
-      // Brief pause so Approve/Decline can flip to Approved/Declined before moving on.
-      decisionAdvanceTimerRef.current = setTimeout(advanceToNext, 420);
-    },
-    [previewable, showDocumentShell, localDecisionByKey],
-  );
 
   const promptExpiryDate = useCallback((docType: string) => {
     return new Promise<string | null>((resolve) => {
@@ -1380,24 +1303,6 @@ export function ComplianceDocumentWorkspace({
     return true;
   };
 
-  const approve = async () => {
-    if (!summary || !activeRow || busy) return;
-    if (!ensureCanModerate("Can't approve", "Approve")) return;
-    if (!decisions.canApprove || !canModerateComplianceRow(activeRow, reviewScope)) {
-      alertMessage("Can't approve", "This document isn't ready to approve yet.");
-      return;
-    }
-    const row = activeRow;
-    setBusy(true);
-    try {
-      if (!(await writeApproval(row))) return;
-      finishDecision(row, "verified");
-    } finally {
-      setBusy(false);
-    }
-    void autoVerifyIfRequiredApproved([row.key]);
-  };
-
   /** Raw (server) rows behind a group's actionable list — optimistic overlays must not be re-recorded. */
   const groupActionableRows = (group: ComplianceReviewGroup): ComplianceDocRow[] => {
     const state = group === "required" ? requiredGroupState : optionalGroupState;
@@ -1436,7 +1341,7 @@ export function ComplianceDocumentWorkspace({
     if (approved.length > 0) void autoVerifyIfRequiredApproved(approved.map((row) => row.key));
   };
 
-  const openDecline = (target: DeclineTarget) => {
+  const openDecline = (target: ComplianceReviewGroup) => {
     setDeclineTarget(target);
     setDeclineOpen(true);
   };
@@ -1444,31 +1349,10 @@ export function ComplianceDocumentWorkspace({
   const declineWithReason = async (reason: string) => {
     if (!summary || busy) return;
     const target = declineTarget;
-    if (target === "active" && !activeRow) return;
     if (!ensureCanModerate("Can't decline", "Decline")) return;
     const note = reason.trim();
     if (!note) {
       alertMessage("Can't decline", "A rejection reason is required.");
-      return;
-    }
-
-    if (target === "active") {
-      const row = activeRow;
-      if (!row || !decisions.canDecline || !canModerateComplianceRow(row, reviewScope)) {
-        alertMessage("Can't decline", "This document isn't ready to decline yet.");
-        return;
-      }
-      setDeclineOpen(false);
-      setBusy(true);
-      try {
-        if (!(await writeDecline(row, note))) {
-          setDeclineOpen(true);
-          return;
-        }
-        finishDecision(row, "rejected");
-      } finally {
-        setBusy(false);
-      }
       return;
     }
 
@@ -2391,108 +2275,13 @@ export function ComplianceDocumentWorkspace({
                 {(() => {
                   const previewingDocument =
                     checklistPreviewMode === "document" || checklistPreviewMode === "finance";
-                  const canModerateActive =
-                    Boolean(activeRow) &&
-                    activeRow!.status !== "missing" &&
-                    canModerateComplianceRow(activeRow!, reviewScope);
-                  const showApproveDecline =
-                    previewingDocument && canModerateActive && !isPendingDocsTrip;
                   const showPrimaryAction = showReject || showPay;
                   const showDocNav = previewingDocument && previewable.length >= 2;
                   const showDecisionBar =
-                    previewingDocument &&
-                    Boolean(activeRow) &&
-                    (showApproveDecline || showPrimaryAction || showDocNav);
+                    previewingDocument && Boolean(activeRow) && (showPrimaryAction || showDocNav);
                   if (!showDecisionBar) return null;
-                  const declineDisabled = !decisions.canDecline || !canAct;
-                  const approveDisabled = !decisions.canApprove || !canAct;
-                  const approveBusy = busy && decisions.canApprove;
-                  const declineBusy = busy && decisions.canDecline;
                   return (
                   <View style={styles.checklistDecisionBar}>
-                    {showApproveDecline ? (
-                      <View style={styles.checklistDecisionActions}>
-                        <TouchableOpacity
-                          style={[
-                            styles.checklistDecisionDecline,
-                            decisionButtons.declineActive && styles.checklistDecisionDeclineActive,
-                            declineDisabled && !decisionButtons.declineActive && styles.btnDisabled,
-                          ]}
-                          disabled={busy || declineDisabled}
-                          activeOpacity={0.85}
-                          onPress={() => {
-                            if (!canVerify) {
-                              alertMessage(
-                                "Can't decline",
-                                "You don't have permission to verify compliance documents.",
-                              );
-                              return;
-                            }
-                            if (!actorId) {
-                              alertMessage("Can't decline", "Sign in again, then try Decline.");
-                              return;
-                            }
-                            if (!decisions.canDecline || !canModerateComplianceRow(activeRow!, reviewScope)) {
-                              alertMessage("Can't decline", "This document isn't ready to decline yet.");
-                              return;
-                            }
-                            openDecline("active");
-                          }}
-                          accessibilityRole="button"
-                          accessibilityState={{
-                            disabled: busy || declineDisabled,
-                            selected: decisionButtons.declineActive,
-                          }}
-                          accessibilityLabel={
-                            decisionButtons.declineActive ? "Document declined" : "Decline document"
-                          }
-                        >
-                          {decisionButtons.declineActive ? (
-                            <View style={styles.checklistDecisionLabelRow}>
-                              <X size={14} color={Theme.cardWhite} strokeWidth={2.5} />
-                              <Text style={styles.checklistDecisionDeclineTextActive}>
-                                {declineBusy ? "Saving…" : decisionButtons.declineLabel}
-                              </Text>
-                            </View>
-                          ) : (
-                            <Text style={styles.checklistDecisionDeclineText}>
-                              {declineBusy ? "Saving…" : decisionButtons.declineLabel}
-                            </Text>
-                          )}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[
-                            styles.checklistDecisionApprove,
-                            decisionButtons.approveActive && styles.checklistDecisionApproveActive,
-                            approveDisabled && !decisionButtons.approveActive && styles.btnDisabled,
-                          ]}
-                          disabled={busy || approveDisabled}
-                          activeOpacity={0.85}
-                          onPress={() => void approve()}
-                          accessibilityRole="button"
-                          accessibilityState={{
-                            disabled: busy || approveDisabled,
-                            selected: decisionButtons.approveActive,
-                          }}
-                          accessibilityLabel={
-                            decisionButtons.approveActive ? "Document approved" : "Approve document"
-                          }
-                        >
-                          {decisionButtons.approveActive ? (
-                            <View style={styles.checklistDecisionLabelRow}>
-                              <Check size={14} color={Theme.cardWhite} strokeWidth={2.5} />
-                              <Text style={styles.checklistDecisionApproveText}>
-                                {approveBusy ? "Saving…" : decisionButtons.approveLabel}
-                              </Text>
-                            </View>
-                          ) : (
-                            <Text style={styles.checklistDecisionApproveText}>
-                              {approveBusy ? "Saving…" : decisionButtons.approveLabel}
-                            </Text>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    ) : null}
                     <View style={styles.checklistDecisionSpacer} />
                     {showReject && summary ? (
                       <TouchableOpacity
@@ -2576,13 +2365,7 @@ export function ComplianceDocumentWorkspace({
       ) : null}
       <ComplianceInputModal
         visible={declineOpen}
-        title={
-          declineTarget === "required"
-            ? "Decline required documents"
-            : declineTarget === "optional"
-              ? "Decline optional documents"
-              : "Decline document"
-        }
+        title={declineTarget === "required" ? "Decline required documents" : "Decline optional documents"}
         fields={DECLINE_FIELDS}
         confirmLabel="Decline with note"
         onCancel={() => setDeclineOpen(false)}
@@ -4204,63 +3987,11 @@ const styles = StyleSheet.create({
     borderTopColor: Theme.complianceTripCardBorder,
     backgroundColor: Theme.cardWhite,
   },
-  checklistDecisionActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexShrink: 0,
-  },
   checklistDecisionNavGroup: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     flexShrink: 0,
-  },
-  checklistDecisionDecline: {
-    minWidth: 104,
-    minHeight: 40,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: Theme.complianceStageDocsFg,
-    backgroundColor: Theme.cardWhite,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checklistDecisionDeclineActive: {
-    backgroundColor: Theme.complianceStageDocsFg,
-    borderColor: Theme.complianceStageDocsFg,
-  },
-  checklistDecisionDeclineText: {
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-    color: Theme.complianceStageDocsFg,
-  },
-  checklistDecisionDeclineTextActive: {
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-    color: Theme.cardWhite,
-  },
-  checklistDecisionApprove: {
-    minWidth: 104,
-    minHeight: 40,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: Theme.positive,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checklistDecisionApproveActive: {
-    backgroundColor: Theme.positive,
-    opacity: 1,
-  },
-  checklistDecisionApproveText: {
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-    color: Theme.cardWhite,
   },
   checklistDecisionLabelRow: {
     flexDirection: "row",
