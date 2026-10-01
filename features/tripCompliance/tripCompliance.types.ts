@@ -154,6 +154,10 @@ export type ComplianceTripSummary = {
     courier: string | null;
     awbNumber: string | null;
     receivedBy: string | null;
+    /** Every LR number on this trip. */
+    lrNumbers?: string[];
+    /** Subset of `lrNumbers` whose hard copy has been received. */
+    receivedLrNumbers?: string[];
   };
 };
 
@@ -172,6 +176,11 @@ export type ComplianceTripFlags = {
   pod_hard_copy_received_by: string | null;
   /** The hard-copy-POD-received gate (courier/AWB/received-by are display metadata). */
   pod_received_at: string | null;
+  /**
+   * LR numbers already logged as hard-copy received.
+   * Read from the courier workflow event, not a trips column.
+   */
+  received_lr_numbers?: string[];
 };
 
 /**

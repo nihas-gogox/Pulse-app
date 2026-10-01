@@ -1,106 +1,101 @@
 import { PartyAvatar } from "@/components/PartyAvatar";
-import { TripVaultFilePreview } from "@/features/trips/components/trip-detail/TripVaultFilePreview";
 import Theme from "@/constants/Theme";
 import { rejectDocument, updateEntityDocumentExpiry, verifyDocument } from "@/features/compliance/services/documents.service";
-import {
-  guessCompliancePreviewMime,
-  signCompliancePreviewUrl,
-} from "@/features/tripCompliance/services/complianceDocumentView.service";
+import { getSupplierBankAccount } from "@/features/suppliers/services/supplierVendorOnboarding.service";
 import { NoDocumentPreviewEmpty, NoTripsFoundEmpty } from "@/features/tripCompliance/components/ComplianceEmptyState";
-import { COMPLIANCE_STATUS_META } from "@/features/tripCompliance/components/ComplianceStatusIcon";
 import { ComplianceInputModal, type ComplianceInputField } from "@/features/tripCompliance/components/ComplianceInputModal";
 import {
-  CompliancePaymentConfirmModal,
-  type CompliancePaymentConfirmValues,
+    CompliancePaymentConfirmModal,
+    type CompliancePaymentConfirmValues,
 } from "@/features/tripCompliance/components/CompliancePaymentConfirmModal";
 import { ComplianceRejectRemarkModal } from "@/features/tripCompliance/components/ComplianceRejectRemarkModal";
-import { setTripDocumentVerification } from "@/features/tripCompliance/services/tripComplianceWrite.service";
-import type { ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import { COMPLIANCE_STATUS_META } from "@/features/tripCompliance/components/ComplianceStatusIcon";
+import { useComplianceListTripFacts } from "@/features/tripCompliance/hooks/useComplianceListTripFacts";
 import {
-  COMPLIANCE_DRIVER_DOCUMENT_TYPES,
-  COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
-  documentRequiresExpiry,
-  type ComplianceTripSummary,
+    guessCompliancePreviewMime,
+    signCompliancePreviewUrl,
+} from "@/features/tripCompliance/services/complianceDocumentView.service";
+import type { ComplianceChange } from "@/features/tripCompliance/services/compliancePipelineSync.service";
+import type { ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import { setTripDocumentVerification } from "@/features/tripCompliance/services/tripComplianceWrite.service";
+import {
+    COMPLIANCE_DRIVER_DOCUMENT_TYPES,
+    COMPLIANCE_VEHICLE_DOCUMENT_TYPES,
+    documentRequiresExpiry,
+    type ComplianceTripSummary,
 } from "@/features/tripCompliance/tripCompliance.types";
 import {
-  formatComplianceTimestamp,
-  verificationStatusVisual,
+    formatComplianceTimestamp,
+    verificationStatusVisual,
 } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import {
-  deriveComplianceDocumentRows,
-  deriveEntityComplianceRows,
-  deriveFinanceDocumentRows,
-  financeVaultDetailLine,
-  labelForDocType,
-  labelForFinanceDocType,
-  mergeFinanceBankDocsFromSupplier,
-  requirementScopeLabel,
-  type ComplianceDocRow,
+    deriveComplianceDocumentRows,
+    deriveEntityComplianceRows,
+    deriveFinanceDocumentRows,
+    financeVaultDetailLine,
+    labelForDocType,
+    labelForFinanceDocType,
+    mergeFinanceBankDocsFromSupplier,
+    requirementScopeLabel,
+    type ComplianceDocRow,
 } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
-import { fetchSupplierBankProofBundle } from "@/features/tripCompliance/utils/supplierBankProof.util";
-import {
-  applyOptimisticDecision,
-  canModerateComplianceRow,
-  complianceDecisionButtonState,
-  complianceReviewDecisionActions,
-  recordOptimisticDecision,
-  type OptimisticComplianceDecision,
-} from "@/features/tripCompliance/utils/complianceReviewActions.util";
-import type { ComplianceChange } from "@/features/tripCompliance/services/compliancePipelineSync.service";
-import { classifyTripDocument, readTypedDetails } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
-import { getSupplierBankAccount } from "@/features/suppliers/services/supplierVendorOnboarding.service";
-import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
 import {
-  COMPLIANCE_TRIP_DOC_PICKER_TYPES,
-  validateComplianceTripDocumentFile,
+    applyOptimisticDecision,
+    canModerateComplianceRow,
+    complianceDecisionButtonState,
+    complianceReviewDecisionActions,
+    recordOptimisticDecision,
+    type OptimisticComplianceDecision,
+} from "@/features/tripCompliance/utils/complianceReviewActions.util";
+import {
+    COMPLIANCE_TRIP_DOC_PICKER_TYPES,
+    validateComplianceTripDocumentFile,
 } from "@/features/tripCompliance/utils/complianceTripDocumentFormat.util";
-import { markTripHardCopyPodReceived } from "@/features/trips/services/tripDocumentLrPod.service";
+import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
+import { fetchSupplierBankProofBundle } from "@/features/tripCompliance/utils/supplierBankProof.util";
+import { classifyTripDocument, readTypedDetails } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
 import {
-  formatInvoiceVaultNumberLabel,
-  formatLrVaultNumberLabel,
+    formatInvoiceVaultNumberLabel,
+    formatLrVaultNumberLabel,
 } from "@/features/trips/components/trip-detail/tripDocTypes";
-import { uploadTripDocument, type TripDocumentType } from "@/features/trips/services/tripDocuments.service";
-import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
+import { LogHardCopyPodModal, type HardCopyPodLrOption } from "@/features/trips/components/trip-detail/LogHardCopyPodModal";
+import { TripVaultFilePreview } from "@/features/trips/components/trip-detail/TripVaultFilePreview";
 import { getTripExecutionModel } from "@/features/trips/domain/tripExecutionModel";
+import { uploadTripDocument, type TripDocumentType } from "@/features/trips/services/tripDocuments.service";
+import { getTripDisplayNumber } from "@/features/trips/services/trips.service";
+import { lrReceiptForTrip } from "@/features/trips/utils/lrReceiptStatus.util";
+import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
 import {
-  markVehicleDocumentVerified,
-  resolveVehicleDocumentsWriteTarget,
-  updateVehicleDocumentExpiry,
+    markVehicleDocumentVerified,
+    resolveVehicleDocumentsWriteTarget,
+    updateVehicleDocumentExpiry,
 } from "@/features/vehicles/services/vehicleDocuments.service";
 import type { VehicleComplianceDocType } from "@/features/vehicles/utils/vehicleDocuments.util";
 import { formatIndianVehicleNumber } from "@/lib/format";
 import { ROUTES } from "@/lib/routes";
 import { SIGNED_URL_CACHE_TTL_MS, SIGNED_URL_EXPIRY_SEC } from "@/lib/storageSignedUrlCache";
-import { useComplianceListTripFacts } from "@/features/tripCompliance/hooks/useComplianceListTripFacts";
-import { getTripDisplayNumber } from "@/features/trips/services/trips.service";
-import { ChevronLeft, ChevronRight, Check, Eye, Minus, Plus, RotateCcw, Upload, X } from "lucide-react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { useRouter, type Href } from "expo-router";
+import { Check, ChevronLeft, ChevronRight, Eye, Minus, Plus, RotateCcw, Upload, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
-  type GestureResponderEvent,
-  type StyleProp,
-  type ViewStyle,
+    ActivityIndicator,
+    Image,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
+    type GestureResponderEvent,
+    type StyleProp,
+    type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const HARD_COPY_POD_FIELDS: ComplianceInputField[] = [
-  { key: "courier", label: "Courier", placeholder: "e.g. BlueDart", required: true },
-  { key: "awb", label: "AWB / tracking number", required: true },
-  { key: "receivedBy", label: "Received by", required: true },
-];
 
 const DECLINE_FIELDS: ComplianceInputField[] = [
   {
@@ -696,6 +691,9 @@ export function ComplianceDocumentWorkspace({
   style,
   canManageFinance = false,
   canManagePod = false,
+  showHardCopyPodLog = false,
+  logHardCopyPodRequest = 0,
+  courierLrOptions = [],
   onPay,
   onConfirmPayment,
   paymentSubmitting = false,
@@ -716,6 +714,15 @@ export function ComplianceDocumentWorkspace({
   canManageFinance?: boolean;
   /** Log hard-copy POD — Compliance role (and owner/admin) only. */
   canManagePod?: boolean;
+  /** True only while the Compliance queue filter is Awaiting POD. */
+  showHardCopyPodLog?: boolean;
+  /**
+   * Increments when the page bar asks to create a hard-copy POD log
+   * for the selected Awaiting POD trip.
+   */
+  logHardCopyPodRequest?: number;
+  /** Awaiting POD LRs that can share one courier docket. Trip IDs come from these rows. */
+  courierLrOptions?: HardCopyPodLrOption[];
   onPay?: (summary: ComplianceTripSummary) => void;
   /** Inline Confirm payment from Advance Payment panel (no popup). */
   onConfirmPayment?: (
@@ -768,8 +775,18 @@ export function ComplianceDocumentWorkspace({
   >({});
   const previewCacheRef = useRef<Map<string, PreviewCacheEntry>>(new Map());
   const decisionAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const podRequestSeen = useRef(0);
 
   const summary = summaries.find((item) => item.trip.id === selectedId) ?? summaries[0] ?? null;
+  const showLogHardCopyPod =
+    showHardCopyPodLog && summary?.stage === "hard_copy_pod_received";
+
+  useEffect(() => {
+    if (!logHardCopyPodRequest || logHardCopyPodRequest === podRequestSeen.current) return;
+    if (!showLogHardCopyPod) return;
+    podRequestSeen.current = logHardCopyPodRequest;
+    setPodOpen(true);
+  }, [logHardCopyPodRequest, showLogHardCopyPod]);
   const isPendingDocsTrip = Boolean(summary && verificationStatusVisual(summary).kind === "pending_docs");
   const rows = useMemo(() => (summary ? rowsForTab(summary, tab) : []), [summary, tab]);
   const entityUnassigned =
@@ -1655,14 +1672,16 @@ export function ComplianceDocumentWorkspace({
                       );
                     })}
                   </View>
-                  <View style={[styles.missingNavPill, styles.checklistUploadPill]}>
-                    <Text style={[styles.missingNavLabel, styles.checklistUploadPillText]} numberOfLines={1}>
-                      {showEntityUnassigned
-                        ? "Unassigned"
-                        : listMissingRows.length > 0
-                          ? `${listMissingRows.length} to upload`
-                          : `${uploadedCount} on file`}
-                    </Text>
+                  <View style={styles.checklistToolbarActions}>
+                    <View style={[styles.missingNavPill, styles.checklistUploadPill]}>
+                      <Text style={[styles.missingNavLabel, styles.checklistUploadPillText]} numberOfLines={1}>
+                        {showEntityUnassigned
+                          ? "Unassigned"
+                          : listMissingRows.length > 0
+                            ? `${listMissingRows.length} to upload`
+                            : `${uploadedCount} on file`}
+                      </Text>
+                    </View>
                   </View>
                 </View>
                 {showEntityUnassigned ? (
@@ -1871,20 +1890,6 @@ export function ComplianceDocumentWorkspace({
                             Advance Payment
                           </Text>
                         </TouchableOpacity>
-                        {canManagePod && !isPendingDocsTrip ? (
-                          <TouchableOpacity
-                            style={styles.checklistModeBtn}
-                            activeOpacity={0.8}
-                            disabled={!summary}
-                            onPress={() => setPodOpen(true)}
-                            accessibilityRole="button"
-                            accessibilityLabel="Log hardcopy POD"
-                          >
-                            <Text style={styles.checklistModeBtnText} numberOfLines={1}>
-                              Hardcopy POD
-                            </Text>
-                          </TouchableOpacity>
-                        ) : null}
                         {showMarkVerified && summary ? (
                           <TouchableOpacity
                             style={[styles.checklistModeBtn, styles.checklistModeBtnActive]}
@@ -2299,33 +2304,31 @@ export function ComplianceDocumentWorkspace({
           setExpiryPrompt(null);
         }}
       />
-      <ComplianceInputModal
-        visible={podOpen}
-        title="Log hardcopy POD"
-        fields={HARD_COPY_POD_FIELDS}
-        confirmLabel="Log hardcopy POD"
-        onCancel={() => setPodOpen(false)}
-        onSubmit={(values) => {
-          if (!summary) return;
-          void (async () => {
-            const { error, alreadyReceived } = await markTripHardCopyPodReceived(summary.trip.id, {
-              courier: values.courier,
-              awbNumber: values.awb,
-              receivedBy: values.receivedBy,
-            });
-            if (error) {
-              alertMessage("Couldn't log hardcopy POD", error.message);
-              return;
+      {summary ? (
+        <LogHardCopyPodModal
+          visible={podOpen && showLogHardCopyPod}
+          onClose={() => setPodOpen(false)}
+          tripId={summary.trip.id}
+          organizationId={organizationId || summary.trip.organization_id}
+          canManage={canManagePod || showLogHardCopyPod}
+          initialMode="create"
+          onUpdated={(tripIds) => {
+            const ids = tripIds?.length ? tripIds : [summary.trip.id];
+            for (const tripId of ids) {
+              onChanged({ type: "tripFlags", tripId });
             }
-            setPodOpen(false);
-            if (alreadyReceived) {
-              alertMessage("Hardcopy POD", "This trip already has a hardcopy POD logged.");
-              return;
-            }
-            onChanged({ type: "tripFlags", tripId: summary.trip.id });
-          })();
-        }}
-      />
+          }}
+          lrOptions={courierLrOptions}
+          summary={{
+            manifestId: getTripDisplayNumber(summary.trip, organizationId || null),
+            clientName: summary.trip.client_name?.trim() || "—",
+            pickup: summary.trip.pickup_area?.trim() || "—",
+            delivery: summary.trip.drop_location?.trim() || "—",
+            driverName: summary.trip.driver_display_name?.trim() || "Unassigned",
+            vehicleLabel: summary.trip.vehicle_display_number?.trim() || "Pending",
+          }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -2722,6 +2725,13 @@ function TripListRow({
   const truckLabel = truckType?.trim() || "—";
   const inTransitAt = formatComplianceTimestamp(trip.started_at);
   const executionModel = getTripExecutionModel(trip);
+  const lrReceipt = lrReceiptForTrip(
+    summary.hardCopyPod.lrNumbers ?? [],
+    summary.hardCopyPod.receivedLrNumbers ?? [],
+  );
+  const showLrReceipt =
+    (summary.hardCopyPod.lrNumbers?.length ?? 0) > 0 &&
+    (summary.stage === "hard_copy_pod_received" || lrReceipt.kind !== "none");
   const isAsset = executionModel === "asset";
   const headerName = supplierLabel !== "—" ? supplierLabel : customerName;
   const headerSeed = trip.supplier_id ?? trip.client_id ?? trip.id;
@@ -2864,6 +2874,29 @@ function TripListRow({
         </View>
       </View>
 
+      {showLrReceipt ? (
+        <View style={styles.lrReceipt}>
+          <Text
+            style={[styles.lrReceiptLine, selected && styles.lrReceiptLineSelected]}
+            numberOfLines={2}
+          >
+            <Text style={[styles.lrReceiptLabel, selected && styles.lrReceiptLabelSelected]}>
+              Received LRs{" "}
+            </Text>
+            {lrReceipt.received.join(", ") || "—"}
+          </Text>
+          <Text
+            style={[styles.lrReceiptLine, selected && styles.lrReceiptLineSelected]}
+            numberOfLines={2}
+          >
+            <Text style={[styles.lrReceiptLabel, selected && styles.lrReceiptLabelSelected]}>
+              Pending LRs{" "}
+            </Text>
+            {lrReceipt.pending.join(", ") || "—"}
+          </Text>
+        </View>
+      ) : null}
+
       <View style={[styles.facts, selected && styles.factsSelected, isRejected && styles.factsRejected]}>
         <View style={styles.factCell}>
           <Text style={[styles.factLabel, selected && styles.factLabelSelected]}>Customer</Text>
@@ -2949,6 +2982,19 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     maxWidth: 132,
   },
+  lrReceipt: { gap: 2, paddingTop: 6 },
+  lrReceiptLine: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: Theme.textPrimaryDark,
+  },
+  lrReceiptLineSelected: { color: Theme.complianceTripCardOnSelected },
+  lrReceiptLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Theme.textMuted,
+  },
+  lrReceiptLabelSelected: { color: Theme.complianceTripCardMutedOnSelected },
   rejectReasonLine: {
     fontSize: 10,
     fontWeight: "500",
@@ -3336,6 +3382,12 @@ const styles = StyleSheet.create({
   checklistPanelTabBadgeText: {
     fontSize: 8,
     lineHeight: 10,
+  },
+  checklistToolbarActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 0,
+    gap: 6,
   },
   checklistUploadPill: {
     flexShrink: 0,

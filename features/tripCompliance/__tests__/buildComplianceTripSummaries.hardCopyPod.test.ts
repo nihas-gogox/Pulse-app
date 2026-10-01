@@ -28,6 +28,7 @@ jest.mock("@/lib/supabase", () => ({
       if (table === "trip_documents") return mockMakeThenable(mockTripDocsResult);
       if (table === "trips") return mockMakeThenable(mockFlagsResult);
       if (table === "transactions") return mockMakeThenable(mockTxnsResult);
+      if (table === "trip_workflow_events") return mockMakeThenable({ data: [], error: null });
       throw new Error(`unexpected table ${table}`);
     },
   }),

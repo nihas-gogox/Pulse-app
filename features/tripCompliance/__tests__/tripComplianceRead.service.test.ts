@@ -4,8 +4,10 @@ import {
     canApproveComplianceWithException,
     canMarkComplianceVerified,
     deriveComplianceStage,
+    summarizeComplianceTrip,
 } from "@/features/tripCompliance/services/tripComplianceRead.service";
-import type { ComplianceDocumentRow } from "@/features/tripCompliance/tripCompliance.types";
+import type { ComplianceDocumentRow, ComplianceTripInputs } from "@/features/tripCompliance/tripCompliance.types";
+import type { TripRow } from "@/features/trips/services/trips.service";
 
 const PAYMENT = {
   amount: 1000,
@@ -69,7 +71,7 @@ describe("deriveComplianceStage", () => {
     ).toBe("compliance_verified");
   });
 
-  it("is AWAITING_POD once advance posted (even if trip is not yet delivered)", () => {
+  it("does not put a trip in AWAITING_POD just because an advance was posted before delivery", () => {
     expect(
       deriveComplianceStage({
         documentCount: 3,
@@ -79,7 +81,7 @@ describe("deriveComplianceStage", () => {
         hardCopyReceived: false,
         balance: null,
       }),
-    ).toBe("hard_copy_pod_received");
+    ).toBe("compliance_verified");
   });
 
   it("moves to PENDING_FOR_DOCS when required vehicle docs are expired (even with advance)", () => {
@@ -90,11 +92,53 @@ describe("deriveComplianceStage", () => {
         hasExpiredRequiredVehicleDocs: true,
         complianceVerifiedAt: "2026-09-01T00:00:00Z",
         advance: PAYMENT,
-        tripStatus: "completed",
+        tripStatus: "in_transit",
         hardCopyReceived: false,
         balance: null,
       }),
     ).toBe("pending_for_docs");
+  });
+
+  it("keeps a Delivered trip in Awaiting POD even when vehicle docs are expired", () => {
+    expect(
+      deriveComplianceStage({
+        documentCount: 3,
+        missingRequiredCount: 0,
+        hasExpiredRequiredVehicleDocs: true,
+        complianceVerifiedAt: null,
+        advance: null,
+        tripStatus: "delivered",
+        hardCopyReceived: false,
+        balance: null,
+      }),
+    ).toBe("hard_copy_pod_received");
+  });
+
+  it("is AWAITING_POD for every delivered trip even without an advance or complete documents", () => {
+    expect(
+      deriveComplianceStage({
+        documentCount: 0,
+        missingRequiredCount: 3,
+        complianceVerifiedAt: null,
+        advance: null,
+        tripStatus: "completed",
+        hardCopyReceived: false,
+        balance: null,
+      }),
+    ).toBe("hard_copy_pod_received");
+  });
+
+  it("moves a delivered trip to BALANCE_PENDING once hard-copy POD is received, without requiring an advance", () => {
+    expect(
+      deriveComplianceStage({
+        documentCount: 0,
+        complianceVerifiedAt: null,
+        advance: null,
+        tripStatus: "done",
+        hardCopyReceived: true,
+        balance: null,
+      }),
+    ).toBe("balance_pending");
   });
 
   it("keeps PAYMENT_SETTLED when balance exists even if vehicle docs expired", () => {
@@ -111,7 +155,7 @@ describe("deriveComplianceStage", () => {
     ).toBe("payment_settled");
   });
 
-  it("is AWAITING_POD when Finance already collected amount_paid but docs/verification are incomplete", () => {
+  it("keeps an undelivered trip with amount_paid in Pending Docs instead of Awaiting POD", () => {
     expect(
       deriveComplianceStage({
         documentCount: 0,
@@ -121,7 +165,7 @@ describe("deriveComplianceStage", () => {
         hardCopyReceived: false,
         balance: null,
       }),
-    ).toBe("hard_copy_pod_received");
+    ).toBe("pending_for_docs");
   });
 
   it("is HARD_COPY_POD_RECEIVED for completed trips with advance (Ops Delivered status)", () => {
@@ -175,6 +219,63 @@ describe("deriveComplianceStage", () => {
         balance: PAYMENT,
       }),
     ).toBe("payment_settled");
+  });
+});
+
+describe("summarizeComplianceTrip — Delivered trips enter Awaiting POD", () => {
+  function inputs(partial: Partial<ComplianceTripInputs> & Pick<ComplianceTripInputs, "trip">): ComplianceTripInputs {
+    return {
+      documents: [],
+      flags: null,
+      taggedAdvance: null,
+      balance: null,
+      vehicleDocuments: [],
+      driverDocuments: [],
+      vaultVehicleId: null,
+      ...partial,
+    };
+  }
+
+  it("includes an at-destination trip once a soft POD is on file, even with no advance", () => {
+    const summary = summarizeComplianceTrip(
+      inputs({
+        trip: {
+          id: "trip-drop",
+          organization_id: "org-1",
+          status: "at_drop",
+          driver_id: "driver-1",
+        } as TripRow,
+        documents: [
+          {
+            id: "pod-1",
+            trip_id: "trip-drop",
+            document_type: "pod",
+            file_name: "pod.pdf",
+            storage_path: "pod.pdf",
+            uploaded_at: "2026-09-20",
+            status: "pending",
+            verified_by: null,
+            verified_at: null,
+            rejection_reason: null,
+          },
+        ],
+      }),
+    );
+    expect(summary.stage).toBe("hard_copy_pod_received");
+  });
+
+  it("leaves an at-destination trip without a soft POD out of Awaiting POD", () => {
+    const summary = summarizeComplianceTrip(
+      inputs({
+        trip: {
+          id: "trip-drop",
+          organization_id: "org-1",
+          status: "unloading",
+          driver_id: "driver-1",
+        } as TripRow,
+      }),
+    );
+    expect(summary.stage).not.toBe("hard_copy_pod_received");
   });
 });
 

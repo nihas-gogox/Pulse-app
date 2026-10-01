@@ -210,19 +210,31 @@ describe("mark verified / POD", () => {
     const patch = await patchForComplianceChange(loaded, { type: "complianceVerified", tripId: "t1", actorId: "u1" });
     expect(reads()).toBe(0);
     expect(patch(loaded)[0].flags).toMatchObject({ compliance_decision: "approved", compliance_verified_by: "u1" });
-    expect(summarizeComplianceTrip(patch(loaded)[0]).stage).toBe("compliance_verified");
+    expect(summarizeComplianceTrip(patch(loaded)[0]).stage).toBe("hard_copy_pod_received");
   });
 
-  it("POD / exception: 1 flags read for that trip", async () => {
+  it("POD / exception: flags plus received-LR event for that trip", async () => {
     await patchForComplianceChange(loaded, { type: "tripFlags", tripId: "t1" });
-    expect(mockOps).toEqual([{ kind: "from", name: "trips", filters: ["id in 1"] }]);
+    expect(mockOps).toEqual([
+      { kind: "from", name: "trips", filters: ["id in 1"] },
+      {
+        kind: "from",
+        name: "trip_workflow_events",
+        filters: ["event_type=pod.hard_copy_courier_dispatched", "trip_id in 1"],
+      },
+    ]);
   });
 });
 
 describe("focus / incremental pipeline refetch", () => {
   it("re-reads only trip-scoped inputs; no vehicle, driver, entity or viewer reads", async () => {
     await loadCompliancePipelineInputs(loaded, TRIPS, { full: false });
-    expect(mockOps.map((op) => op.name).sort()).toEqual(["transactions", "trip_documents", "trips"]);
+    expect(mockOps.map((op) => op.name).sort()).toEqual([
+      "transactions",
+      "trip_documents",
+      "trip_workflow_events",
+      "trips",
+    ]);
     expect(count("get_vehicle_for_trip_viewer")).toBe(0);
   });
 });
