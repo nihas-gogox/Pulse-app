@@ -1,6 +1,7 @@
 import {
   buildVerifiedExportCsvRow,
   buildVerifiedExportWorkbook,
+  formatExportPhone,
   verifiedExportRowsToCsv,
   VERIFIED_EXPORT_CSV_HEADERS,
 } from "@/features/tripCompliance/utils/complianceVerifiedExport.util";
@@ -127,7 +128,7 @@ describe("complianceVerifiedExport.util", () => {
     expect(row.Source).toContain("Durgapur");
     expect(row.Destination).toContain("Kolkata");
     expect(row["Truck Type"]).toBe("32 FT");
-    expect(row["Driver No."]).toBe("9876543210");
+    expect(row["Driver No."]).toBe("+919876543210");
     expect(row["C Price"]).toBe("100000");
     expect(row["S Price"]).toBe("80000");
     expect(row["% of advance"]).toBe("90");
@@ -186,6 +187,17 @@ describe("complianceVerifiedExport.util", () => {
     expect(sheet[`${col("LR No")}2`]).toMatchObject({ t: "s", v: "3277" });
     expect(sheet[`${col("Final Advance")}2`]).toMatchObject({ t: "n", v: 70400 });
     expect(sheet["!ref"]).toBe(`A1:${col("Margin %")}2`);
+  });
+
+  it("writes driver numbers in the Driver Profile format", () => {
+    expect(formatExportPhone("+919876567000")).toBe("+919876567000");
+    expect(formatExportPhone("9876567000")).toBe("+919876567000");
+    expect(formatExportPhone("91 98765 67000")).toBe("+919876567000");
+    expect(formatExportPhone("09876567000")).toBe("+919876567000");
+    expect(formatExportPhone("")).toBe("");
+    expect(formatExportPhone("+1 415 555 0100")).toBe("+1 415 555 0100");
+    const row = buildVerifiedExportCsvRow(summary({}), { driverPhone: "9876567000" });
+    expect(row["Driver No."]).toBe("+919876567000");
   });
 
   it("serializes CSV with escaped commas", () => {

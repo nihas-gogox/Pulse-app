@@ -86,6 +86,17 @@ function blank(value: string | null | undefined): string {
   return trimmed || "";
 }
 
+/** Indian mobiles as "+91XXXXXXXXXX" (Driver Profile → Phone); anything else kept as stored. */
+export function formatExportPhone(raw: string | null | undefined): string {
+  const value = (raw ?? "").trim();
+  if (!value) return "";
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  if (digits.length === 11 && digits.startsWith("0")) return `+91${digits.slice(1)}`;
+  return value;
+}
+
 function formatMoney(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "";
   return String(Math.round(value * 100) / 100);
@@ -227,7 +238,7 @@ export function buildVerifiedExportCsvRow(
     "Truck No": truckNo,
     "Truck Type": blank(enrichment.truckType),
     "Driver name": driverName,
-    "Driver No.": blank(enrichment.driverPhone),
+    "Driver No.": formatExportPhone(enrichment.driverPhone),
     "C Price": Number.isFinite(cPrice) && cPrice > 0 ? formatMoney(cPrice) : "",
     "S Price": formatMoney(sPrice),
     "% of advance": formatMoney(advancePercent),

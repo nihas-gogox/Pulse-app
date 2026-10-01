@@ -2,7 +2,10 @@
  * CSV download for Compliance Export Report (Verified stage only).
  * Builds the payment-sheet columns from trip + supplier vault + vehicle facts.
  */
-import { getDriverPhonesByIds } from "@/features/drivers/services/drivers.service";
+import {
+  getDriverDetailBundle,
+  getDriverPhonesByIds,
+} from "@/features/drivers/services/drivers.service";
 import { getDocumentChargeConfig } from "@/features/organization/services/documentCharges.service";
 import {
   getSupplierBankAccount,
@@ -219,6 +222,22 @@ export async function buildVerifiedExportEnrichment(
   });
 
   const [{ phoneByDriverId }] = await Promise.all([phonesPromise, Promise.all(enrichmentJobs)]);
+
+  // Bulk read is RLS-scoped; fill gaps from the Driver Profile source (Contact Registry → Phone).
+  const missingDriverOrg = new Map<string, string>();
+  for (const summary of summaries) {
+    const driverId = summary.trip.driver_id?.trim() || "";
+    if (driverId && !phoneByDriverId.get(driverId) && !missingDriverOrg.has(driverId)) {
+      missingDriverOrg.set(driverId, (summary.trip.organization_id ?? orgId).trim() || orgId);
+    }
+  }
+  await Promise.all(
+    Array.from(missingDriverOrg, async ([driverId, driverOrgId]) => {
+      const { driver } = await getDriverDetailBundle(driverOrgId, driverId);
+      const phone = (driver?.phone ?? "").trim();
+      if (phone) phoneByDriverId.set(driverId, phone);
+    }),
+  );
 
   for (const summary of summaries) {
     const enrichment = byTrip.get(summary.trip.id) ?? {};

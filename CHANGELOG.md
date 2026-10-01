@@ -1,6 +1,13 @@
 # Changelog — V1 (v0.0.01)
 
 ## sneha/V1.0.2 — 2026-10-01
+- **What:** Export Report "Driver No." now always comes from the trip driver's Driver Profile phone (Contact Registry → Phone Registry, `drivers.phone`). The bulk lookup by `trips.driver_id` still runs first. Any driver it returns without a phone (RLS-hidden or failed read) is filled from `get_driver_detail_bundle`, the same source the Driver Profile page uses. Numbers are written in the profile's format, `+91XXXXXXXXXX`, whether stored as 10 digits, `91…` or `0…`; non-Indian numbers are kept as stored. In the .xlsx they are text cells, so Excel never shows `9.19877E+11`. Account No is still written as a text cell with the exact stored value: no masking, no exponential form, leading zeros kept.
+- **Why:** Driver No. was missing or garbled in the downloaded report. Driver No. and Account No must open in Excel exactly as they are on file.
+- **Files/areas:** `features/tripCompliance/services/complianceExportReport.service.ts` (driver phone fallback), `features/tripCompliance/utils/complianceVerifiedExport.util.ts` (`formatExportPhone`)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (450 pass; phone formats, Driver No. cell, .xlsx text cells for Account No / IFSC / phone); `tsc` adds no new errors (141 already in V1); ESLint clean; no new import cycles. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
 - **What:** Export Report now downloads an Excel workbook (`compliance-verified-report_YYYY-MM-DD_HHMM.xlsx`, sheet "Verified Report") instead of a CSV. The 26 columns are unchanged, in the same order (TRIP ID … Margin %). Account No, IFSC No, Driver No., LR No, invoice No, Trip ID, Truck No and every other non-money column are written as **text cells**. Excel can no longer show account numbers as `1.23E+15` or drop leading zeros; the exact value is shown, unmasked. Money and percent columns (C Price, S Price, % of advance, Documentation charges, TDS, Final Advance, Margin, Margin %) stay real numbers with `#,##0.00` / `0.0` formats, so they can be summed. Each column is sized to its longest value and the header row has a filter. "Verification status" now says **Rejected** for verified trips with a Reject remark, matching the cards and the popup. Web downloads the file; iOS and Android open the share sheet with the Excel type.
 - **Why:** In Excel the CSV turned long account numbers into exponential form and lost leading zeros, which breaks bank payouts.
 - **Files/areas:** `features/tripCompliance/utils/complianceVerifiedExport.util.ts` (`buildVerifiedExportWorksheet`, `buildVerifiedExportWorkbook`), `features/tripCompliance/services/complianceExportReport.service.ts` (xlsx download/share)
