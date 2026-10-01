@@ -1,3 +1,11 @@
+## V1 merge fix — 2026-10-01
+
+- **What:** Mobile load detail accepts the per-MT and trip-total rate lines from the indent card.
+- **Why:** Praveen's partial-POD merge passed those rates into the stacked card, and the mobile detail type did not have them.
+- **Files/areas:** `features/indents/components/IndentMobileLoadDetail.tsx`
+- **Migrations:** none
+- **Tested:** `tsc` back to the 141 baseline.
+
 ## praveen/V1.0.1 — 2026-10-01
 
 - **What:** A trip stays in Partial Received POD while any LR is still pending, and moves to the fully received POD stage only after every LR is received. Awaiting POD shows Received LRs and Pending LRs, matches Trip Operations Delivered, and keeps Log Hard Copy POD on that tab.
