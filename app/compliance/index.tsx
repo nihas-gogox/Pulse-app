@@ -12,6 +12,12 @@ import { ComplianceExportConfirmModal } from "@/features/tripCompliance/componen
 import { CompliancePaymentConfirmModal } from "@/features/tripCompliance/components/CompliancePaymentConfirmModal";
 import { ComplianceDocumentWorkspace } from "@/features/tripCompliance/components/ComplianceDocumentWorkspace";
 import { ComplianceTripsTable } from "@/features/tripCompliance/components/ComplianceTripsTable";
+import { ComplianceVerifiedOutcomeFilter } from "@/features/tripCompliance/components/ComplianceVerifiedOutcomeFilter";
+import {
+  isComplianceVerifiedRejected,
+  matchesComplianceVerifiedOutcome,
+  type ComplianceVerifiedOutcomeFilter as VerifiedOutcome,
+} from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import { useComplianceProductEnabled } from "@/features/tripCompliance/hooks/useComplianceProductEnabled";
 import { useComplianceListTripFacts } from "@/features/tripCompliance/hooks/useComplianceListTripFacts";
 import {
@@ -35,7 +41,7 @@ import {
   supplierComplianceSearchLabels,
 } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import {
-  countVerifiedStageDocuments,
+  countVerifiedStageTrips,
 } from "@/features/tripCompliance/utils/complianceExportReport.util";
 import { exportVerifiedStageComplianceReport } from "@/features/tripCompliance/services/complianceExportReport.service";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
@@ -271,11 +277,34 @@ export default function ComplianceScreen() {
     if (pendingSlice === "hold") return (summaries ?? []).filter(isComplianceDeclineActive);
     return (summaries ?? []).filter(isFinanceDeclinedTrip);
   }, [filtered, pendingSlice, stage, summaries]);
+  /** Export Report covers the Verified stage only, so it is offered only on that chip. */
+  const isVerifiedStage = stage === "compliance_verified";
+  useEffect(() => {
+    if (!isVerifiedStage && !exporting) setExportOpen(false);
+  }, [isVerifiedStage, exporting]);
+  /** Verified-stage card view only: All / Verified / Rejected above the trip cards. */
+  const [outcomeFilter, setOutcomeFilter] = useState<VerifiedOutcome>("all");
+  const showOutcomeFilter = isVerifiedStage && viewMode === "card";
+  useEffect(() => {
+    if (!showOutcomeFilter) setOutcomeFilter("all");
+  }, [showOutcomeFilter]);
+  const outcomeCounts = useMemo(() => {
+    if (!showOutcomeFilter) return { all: 0, verified: 0, rejected: 0 };
+    const rejected = filtered.filter(isComplianceVerifiedRejected).length;
+    return { all: filtered.length, verified: filtered.length - rejected, rejected };
+  }, [showOutcomeFilter, filtered]);
+  const outcomePool = useMemo(
+    () =>
+      showOutcomeFilter && outcomeFilter !== "all"
+        ? stagePool.filter((s) => matchesComplianceVerifiedOutcome(s, outcomeFilter))
+        : stagePool,
+    [showOutcomeFilter, outcomeFilter, stagePool],
+  );
 
   const searched = useMemo(() => {
     // With an active query, search the full Compliance queue (not only the
     // selected stage chip) so supplier / trip matches aren't hidden by filter.
-    const pool = search.trim() ? summaries : stagePool;
+    const pool = search.trim() ? summaries : outcomePool;
     return pool.filter((summary) => {
       const supplierId = (summary.trip.supplier_id ?? "").trim();
       const resolved = supplierNameByTripId[summary.trip.id];
@@ -284,7 +313,7 @@ export default function ComplianceScreen() {
         resolved && resolved !== "—" ? resolved : null,
       ]);
     });
-  }, [stagePool, summaries, search, supplierSearchById, supplierNameByTripId]);
+  }, [outcomePool, summaries, search, supplierSearchById, supplierNameByTripId]);
   const {
     page,
     setPage,
@@ -296,7 +325,7 @@ export default function ComplianceScreen() {
     pageSize,
   } = useComplianceListPagination(searched, {
     pageSize: COMPLIANCE_QUEUE_PAGE_SIZE,
-    resetKey: `${stage}|${pendingSlice}|${search.trim()}`,
+    resetKey: `${stage}|${pendingSlice}|${outcomeFilter}|${search.trim()}`,
   });
 
   useEffect(() => {
@@ -333,8 +362,8 @@ export default function ComplianceScreen() {
     setPay({ summary, category: readiness.readyCategory });
   }, []);
 
-  const verifiedExportDocumentCount = useMemo(
-    () => countVerifiedStageDocuments(summaries),
+  const verifiedExportTripCounts = useMemo(
+    () => countVerifiedStageTrips(summaries),
     [summaries],
   );
 
@@ -621,6 +650,15 @@ export default function ComplianceScreen() {
           selectedTripId={cardTripId}
           focusTab={cardFocus?.tab ?? null}
           focusToken={cardFocus?.token ?? 0}
+          listHeader={
+            showOutcomeFilter && !search.trim() ? (
+              <ComplianceVerifiedOutcomeFilter
+                value={outcomeFilter}
+                counts={outcomeCounts}
+                onChange={setOutcomeFilter}
+              />
+            ) : null
+          }
           stacked={isNarrow}
           onChanged={(change) => void syncChange(change)}
           onReviewTripDocs={(tripId, _documentKey, scope = "trip") => {
@@ -708,7 +746,7 @@ export default function ComplianceScreen() {
           <View style={styles.footerCenter} />
         )}
         <View style={[styles.footerSide, styles.footerSideEnd]}>
-          {canViewFinance ? (
+          {canViewFinance && isVerifiedStage ? (
             <TouchableOpacity
               style={[styles.reportBtn, compactActions && styles.actionBtnCompact]}
               onPress={() => setExportOpen(true)}
@@ -741,8 +779,9 @@ export default function ComplianceScreen() {
       </View>
 
       <ComplianceExportConfirmModal
-        visible={exportOpen}
-        documentCount={verifiedExportDocumentCount}
+        visible={exportOpen && isVerifiedStage}
+        verifiedCount={verifiedExportTripCounts.verified}
+        rejectedCount={verifiedExportTripCounts.rejected}
         exporting={exporting}
         onCancel={() => {
           if (!exporting) setExportOpen(false);

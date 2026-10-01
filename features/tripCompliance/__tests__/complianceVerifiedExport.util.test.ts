@@ -1,13 +1,18 @@
 import {
   buildVerifiedExportCsvRow,
+  buildVerifiedExportWorkbook,
+  formatExportPhone,
   verifiedExportRowsToCsv,
   VERIFIED_EXPORT_CSV_HEADERS,
 } from "@/features/tripCompliance/utils/complianceVerifiedExport.util";
+import * as XLSX from "xlsx";
 import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 
 function summary(overrides: {
   trip?: Partial<ComplianceTripSummary["trip"]>;
   documents?: ComplianceTripSummary["documents"];
+  complianceVerifiedAt?: string | null;
+  complianceDeclinedAt?: string | null;
 }): ComplianceTripSummary {
   return {
     stage: "compliance_verified",
@@ -61,6 +66,8 @@ function summary(overrides: {
       },
     ],
     documentCounts: { total: 2, verified: 2, rejected: 0, pending: 0 },
+    complianceVerifiedAt: overrides.complianceVerifiedAt ?? null,
+    complianceDeclinedAt: overrides.complianceDeclinedAt ?? null,
   } as ComplianceTripSummary;
 }
 
@@ -121,7 +128,7 @@ describe("complianceVerifiedExport.util", () => {
     expect(row.Source).toContain("Durgapur");
     expect(row.Destination).toContain("Kolkata");
     expect(row["Truck Type"]).toBe("32 FT");
-    expect(row["Driver No."]).toBe("9876543210");
+    expect(row["Driver No."]).toBe("+919876543210");
     expect(row["C Price"]).toBe("100000");
     expect(row["S Price"]).toBe("80000");
     expect(row["% of advance"]).toBe("90");
@@ -130,6 +137,67 @@ describe("complianceVerifiedExport.util", () => {
     expect(row["Final Advance"]).toBe("70400");
     expect(row.Margin).toBe("20000");
     expect(row["Margin %"]).toBe("20");
+  });
+
+  it("deducts the org slab charge for S Price from Final Advance", () => {
+    const row = buildVerifiedExportCsvRow(summary({}), {
+      advancePercent: 90,
+      tdsRatePercent: 2,
+      documentChargeConfig: {
+        enabled: true,
+        slabs: [
+          { id: "a", from: 25001, to: 60000, charge: 500 },
+          { id: "b", from: 60001, to: 100000, charge: 600 },
+        ],
+      },
+    });
+    expect(row["Documentation charges"]).toBe("600");
+    expect(row["Final Advance"]).toBe("69800");
+  });
+
+  it("labels a verified trip with a Reject remark as Rejected", () => {
+    const row = buildVerifiedExportCsvRow(
+      summary({
+        complianceVerifiedAt: "2026-09-28T10:00:00Z",
+        complianceDeclinedAt: "2026-09-29T10:00:00Z",
+      }),
+    );
+    expect(row["Verification status"]).toBe("Rejected");
+  });
+
+  it("writes Excel cells so account numbers keep every digit and leading zero", () => {
+    const row = buildVerifiedExportCsvRow(summary({}), {
+      accountNumber: "0012345678901234",
+      ifsc: "HDFC0001234",
+      driverPhone: "+919876543210",
+      advancePercent: 90,
+      tdsRatePercent: 2,
+    });
+    const workbook = buildVerifiedExportWorkbook([row]);
+    const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+    const sheet = XLSX.read(bytes, { type: "array" }).Sheets["Verified Report"];
+
+    const col = (header: (typeof VERIFIED_EXPORT_CSV_HEADERS)[number]) =>
+      XLSX.utils.encode_col(VERIFIED_EXPORT_CSV_HEADERS.indexOf(header));
+
+    expect(sheet[`${col("Account No")}1`].v).toBe("Account No");
+    expect(sheet[`${col("Account No")}2`]).toMatchObject({ t: "s", v: "0012345678901234" });
+    expect(sheet[`${col("IFSC No")}2`]).toMatchObject({ t: "s", v: "HDFC0001234" });
+    expect(sheet[`${col("Driver No.")}2`]).toMatchObject({ t: "s", v: "+919876543210" });
+    expect(sheet[`${col("LR No")}2`]).toMatchObject({ t: "s", v: "3277" });
+    expect(sheet[`${col("Final Advance")}2`]).toMatchObject({ t: "n", v: 70400 });
+    expect(sheet["!ref"]).toBe(`A1:${col("Margin %")}2`);
+  });
+
+  it("writes driver numbers in the Driver Profile format", () => {
+    expect(formatExportPhone("+919876567000")).toBe("+919876567000");
+    expect(formatExportPhone("9876567000")).toBe("+919876567000");
+    expect(formatExportPhone("91 98765 67000")).toBe("+919876567000");
+    expect(formatExportPhone("09876567000")).toBe("+919876567000");
+    expect(formatExportPhone("")).toBe("");
+    expect(formatExportPhone("+1 415 555 0100")).toBe("+1 415 555 0100");
+    const row = buildVerifiedExportCsvRow(summary({}), { driverPhone: "9876567000" });
+    expect(row["Driver No."]).toBe("+919876567000");
   });
 
   it("serializes CSV with escaped commas", () => {

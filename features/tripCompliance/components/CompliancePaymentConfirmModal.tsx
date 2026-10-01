@@ -6,12 +6,15 @@ import {
 import type { ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
+import { getDocumentChargeConfig } from "@/features/organization/services/documentCharges.service";
+import { formatSlabRange } from "@/features/organization/utils/documentChargeSlabs.util";
 import {
   COMPLIANCE_DEFAULT_ADVANCE_PERCENT,
-  COMPLIANCE_PAYMENT_DOC_CHARGES_PLACEHOLDER,
   computeCompliancePaymentAmount,
   computeComplianceTdsAmount,
+  resolveComplianceDocumentationCharge,
   resolveComplianceTdsRate,
+  type ComplianceDocumentChargeConfig,
 } from "@/features/tripCompliance/utils/compliancePaymentAmount.util";
 import { classifyTripDocument } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
 import {
@@ -88,6 +91,8 @@ function baseFreightAmount(
 }
 
 const INLINE_TWO_COLUMN_MIN_WIDTH = 600;
+/** Inline action buttons are drawn 36pt tall; keep the touch target at 44pt. */
+const INLINE_ACTION_HIT_SLOP = { top: 4, bottom: 4, left: 0, right: 0 };
 
 function FactRow({
   label,
@@ -143,6 +148,7 @@ export function CompliancePaymentConfirmModal({
   submitting,
   onCancel,
   onConfirm,
+  onReject,
   presentation = "modal",
 }: {
   visible: boolean;
@@ -151,6 +157,8 @@ export function CompliancePaymentConfirmModal({
   submitting: boolean;
   onCancel?: () => void;
   onConfirm: (values: CompliancePaymentConfirmValues) => void;
+  /** Inline only: trip-level Reject shown beside Confirm payment. */
+  onReject?: () => void;
   /** `inline` embeds the form in the Advance Payment panel (no popup). */
   presentation?: "modal" | "inline";
 }) {
@@ -166,6 +174,9 @@ export function CompliancePaymentConfirmModal({
   const [tdsRatePercent, setTdsRatePercent] = useState<number | null>(null);
   const [tdsRateFy, setTdsRateFy] = useState<string | null>(null);
   const [tdsLoading, setTdsLoading] = useState(false);
+  const [docChargeConfig, setDocChargeConfig] =
+    useState<ComplianceDocumentChargeConfig | null>(null);
+  const [docChargeLoading, setDocChargeLoading] = useState(false);
   const [inlineWidth, setInlineWidth] = useState(0);
   const inlineWide = inlineWidth >= INLINE_TWO_COLUMN_MIN_WIDTH;
 
@@ -178,7 +189,25 @@ export function CompliancePaymentConfirmModal({
     [trip, category, summary?.advance?.amount],
   );
   const baseFreightLabel = baseFreight != null ? formatInr(baseFreight) : "—";
-  const documentationCharges = COMPLIANCE_PAYMENT_DOC_CHARGES_PLACEHOLDER;
+  const docCharge = useMemo(
+    () =>
+      isAdvance
+        ? resolveComplianceDocumentationCharge(docChargeConfig, baseFreight)
+        : null,
+    [isAdvance, docChargeConfig, baseFreight],
+  );
+  const documentationCharges = docCharge?.amount ?? 0;
+  const docChargeApplied =
+    docCharge?.reason === "slab" && documentationCharges > 0;
+  const docChargeMeta = !docCharge
+    ? "Deducted with the advance"
+    : docCharge.reason === "slab" && docCharge.slab
+      ? `Slab ₹${formatSlabRange(docCharge.slab)} · on base freight`
+      : docCharge.reason === "no_slab"
+        ? "No slab covers this base freight"
+        : docCharge.reason === "no_freight"
+          ? "Base freight not set"
+          : "Document charges are off for this org";
   const tdsAmount = useMemo(
     () => computeComplianceTdsAmount(baseFreight ?? 0, tdsRatePercent),
     [baseFreight, tdsRatePercent],
@@ -310,10 +339,36 @@ export function CompliancePaymentConfirmModal({
     };
   }, [visible, trip?.supplier_id, trip?.organization_id, isAdvance]);
 
+  /** Org Document Charge Slabs (Workspace → Settings → Document Charges). */
+  useEffect(() => {
+    const orgId = trip?.organization_id?.trim();
+    if (!visible || !orgId || !isAdvance) {
+      setDocChargeConfig(null);
+      setDocChargeLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setDocChargeLoading(true);
+    void (async () => {
+      const { data } = await getDocumentChargeConfig(orgId);
+      if (cancelled) return;
+      setDocChargeConfig(data);
+      setDocChargeLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, trip?.organization_id, isAdvance]);
+
   const amountOk = computedAmount > 0;
   const mode = PAYMENT_MODES.find((item) => item.id === modeId);
   const canSubmit =
-    amountOk && !!mode && !submitting && !!summary && !!category;
+    amountOk &&
+    !!mode &&
+    !submitting &&
+    !docChargeLoading &&
+    !!summary &&
+    !!category;
 
   const openMemoPreview = async () => {
     const path = memoDocument?.storage_path?.trim();
@@ -468,13 +523,28 @@ export function CompliancePaymentConfirmModal({
         </View>
       </View>
 
-      <View style={calcRowStyle}>
-        <Text style={[styles.calcLabel, styles.calcLabelGrow]}>
-          Documentation charges
-        </Text>
-        <Text style={styles.calcValueMuted}>
-          {formatInr(documentationCharges)}
-        </Text>
+      <View style={[styles.calcRowTds, isInline && styles.calcRowCompact]}>
+        <View style={styles.calcLabelBlock}>
+          <Text style={styles.calcLabel}>Documentation charges</Text>
+          <Text style={styles.calcMeta} numberOfLines={1}>
+            {docChargeLoading ? "Fetching charge slabs…" : docChargeMeta}
+          </Text>
+        </View>
+        <View style={styles.tdsValueBlock}>
+          {docChargeLoading ? (
+            <ActivityIndicator size="small" color={Theme.textMuted} />
+          ) : (
+            <Text
+              style={[
+                styles.calcValue,
+                styles.tdsAmountValue,
+                !docChargeApplied && styles.calcValueMuted,
+              ]}
+            >
+              {formatInr(documentationCharges)}
+            </Text>
+          )}
+        </View>
       </View>
 
       <View style={[styles.calcRowTds, isInline && styles.calcRowCompact]}>
@@ -565,16 +635,42 @@ export function CompliancePaymentConfirmModal({
   );
 
   const actionsRow = (
-    <View style={[styles.actions, isInline && styles.actionsInline]}>
-      {!isInline && onCancel ? (
+    <View
+      style={[
+        styles.actions,
+        isInline && styles.actionsInline,
+        isInline && (onReject || onCancel) && styles.actionsInlineWithReject,
+      ]}
+    >
+      {onCancel && !(isInline && onReject) ? (
         <Pressable
-          style={styles.cancelBtn}
+          style={[
+            styles.cancelBtn,
+            isInline && submitting && styles.confirmBtnDisabled,
+          ]}
           onPress={onCancel}
           disabled={submitting}
+          hitSlop={isInline ? INLINE_ACTION_HIT_SLOP : undefined}
           accessibilityRole="button"
           accessibilityLabel="Cancel"
         >
           <Text style={styles.cancelText}>Cancel</Text>
+        </Pressable>
+      ) : null}
+      {isInline && onReject ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.rejectBtnInline,
+            pressed && styles.rejectBtnInlinePressed,
+            submitting && styles.confirmBtnDisabled,
+          ]}
+          onPress={onReject}
+          disabled={submitting}
+          hitSlop={INLINE_ACTION_HIT_SLOP}
+          accessibilityRole="button"
+          accessibilityLabel="Reject trip compliance"
+        >
+          <Text style={styles.rejectTextInline}>Reject</Text>
         </Pressable>
       ) : null}
       <Pressable
@@ -584,6 +680,7 @@ export function CompliancePaymentConfirmModal({
           !canSubmit && styles.confirmBtnDisabled,
         ]}
         disabled={!canSubmit}
+        hitSlop={isInline ? INLINE_ACTION_HIT_SLOP : undefined}
         accessibilityRole="button"
         accessibilityLabel={confirmText}
         onPress={() => {
@@ -628,12 +725,8 @@ export function CompliancePaymentConfirmModal({
             {calcCard}
           </View>
         </View>
-        <View
-          style={[styles.inlineFooter, inlineWide && styles.inlineFooterWide]}
-        >
-          <View style={styles.inlineFooterModes}>{modeField}</View>
-          {actionsRow}
-        </View>
+        {modeField}
+        <View style={styles.inlineActionsRow}>{actionsRow}</View>
       </View>
     );
   }
@@ -695,9 +788,12 @@ const styles = StyleSheet.create({
   inlineColumnsWide: { flexDirection: "row", alignItems: "stretch" },
   inlineColumn: { minWidth: 0 },
   inlineColumnWide: { flex: 1, flexBasis: 0 },
-  inlineFooter: { gap: 10 },
-  inlineFooterWide: { flexDirection: "row", alignItems: "flex-end" },
-  inlineFooterModes: { flex: 1, minWidth: 0 },
+  inlineActionsRow: {
+    alignItems: "center",
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Theme.complianceCardBorder,
+  },
   sheetContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
@@ -956,9 +1052,26 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   actionsInline: {
-    justifyContent: "flex-end",
+    justifyContent: "center",
     marginTop: 0,
-    minWidth: 180,
+  },
+  actionsInlineWithReject: { gap: 10 },
+  rejectBtnInline: {
+    width: 96,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: Theme.complianceStageDocsFg,
+    backgroundColor: Theme.complianceStageDocsBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rejectBtnInlinePressed: { opacity: 0.8 },
+  rejectTextInline: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    color: Theme.complianceStageDocsFg,
   },
   cancelBtn: {
     minWidth: 96,
@@ -982,11 +1095,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   confirmBtnInline: {
-    flex: 1,
+    width: 168,
     minWidth: 0,
-    minHeight: 44,
-    height: 44,
-    borderRadius: 12,
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 10,
   },
   confirmBtnDisabled: { opacity: 0.45 },
   confirmText: {

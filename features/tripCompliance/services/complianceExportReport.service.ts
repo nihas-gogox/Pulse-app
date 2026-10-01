@@ -2,7 +2,11 @@
  * CSV download for Compliance Export Report (Verified stage only).
  * Builds the payment-sheet columns from trip + supplier vault + vehicle facts.
  */
-import { getDriverPhonesByIds } from "@/features/drivers/services/drivers.service";
+import {
+  getDriverDetailBundle,
+  getDriverPhonesByIds,
+} from "@/features/drivers/services/drivers.service";
+import { getDocumentChargeConfig } from "@/features/organization/services/documentCharges.service";
 import {
   getSupplierBankAccount,
   getVendorOnboardingProfile,
@@ -11,10 +15,13 @@ import {
 import { getSupplierById, getSupplierDetails } from "@/features/suppliers/services/suppliers.service";
 import { buildComplianceTripSummaries } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
-import { resolveComplianceTdsRate } from "@/features/tripCompliance/utils/compliancePaymentAmount.util";
+import {
+  resolveComplianceTdsRate,
+  type ComplianceDocumentChargeConfig,
+} from "@/features/tripCompliance/utils/compliancePaymentAmount.util";
 import {
   buildVerifiedExportCsvRow,
-  verifiedExportRowsToCsv,
+  buildVerifiedExportWorkbook,
   type VerifiedExportEnrichment,
 } from "@/features/tripCompliance/utils/complianceVerifiedExport.util";
 import { selectCompliancePipelineTrips } from "@/features/tripCompliance/utils/compliancePipelineTrips.util";
@@ -23,6 +30,7 @@ import { getTripsForOrg } from "@/features/trips/services/trips.service";
 import { getVehicleById, getVehicleForTripViewer } from "@/features/vehicles/services/vehicles.service";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import * as XLSX from "xlsx";
 import { Platform, Share } from "react-native";
 
 function triggerWebDownload(blob: Blob, fileName: string): void {
@@ -36,24 +44,34 @@ function triggerWebDownload(blob: Blob, fileName: string): void {
   URL.revokeObjectURL(objectUrl);
 }
 
-async function exportComplianceCsv(csv: string, fileName: string): Promise<void> {
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+async function exportComplianceWorkbook(workbook: XLSX.WorkBook, fileName: string): Promise<void> {
   if (Platform.OS === "web") {
-    triggerWebDownload(new Blob([csv], { type: "text/csv;charset=utf-8" }), fileName);
+    const arrayBuffer = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+    triggerWebDownload(new Blob([arrayBuffer], { type: XLSX_MIME }), fileName);
     return;
   }
   const cacheDirectory = (FileSystem as { cacheDirectory?: string }).cacheDirectory;
   if (!cacheDirectory) throw new Error("No cache directory available");
   const uri = `${cacheDirectory}${fileName}`;
-  await FileSystem.writeAsStringAsync(uri, csv, { encoding: "utf8" });
+  const base64 = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
+  await FileSystem.writeAsStringAsync(uri, base64, { encoding: "base64" });
   const sharingAvailable = await Sharing.isAvailableAsync();
   if (sharingAvailable) {
     await Sharing.shareAsync(uri, {
-      mimeType: "text/csv",
+      mimeType: XLSX_MIME,
       dialogTitle: "Save or share Compliance report",
+      UTI: "org.openxmlformats.spreadsheetml.sheet",
     });
   } else {
     await Share.share({ url: uri, title: "Compliance Report" });
   }
+}
+
+function exportFileStamp(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
 }
 
 async function fetchVerifiedStageSummaries(orgId: string): Promise<ComplianceTripSummary[]> {
@@ -122,8 +140,8 @@ async function loadSupplierVaultBundle(
   const adv = profile.profile?.advance_percentage;
   return {
     name,
-    accountNumber: bank.account?.account_number?.trim() || "",
-    ifsc: bank.account?.ifsc_code?.trim() || "",
+    accountNumber: String(bank.account?.account_number ?? "").trim(),
+    ifsc: String(bank.account?.ifsc_code ?? "").trim().toUpperCase(),
     branchName: bank.account?.bank_name?.trim() || "",
     advancePercent:
       adv != null && Number.isFinite(Number(adv)) ? Number(adv) : null,
@@ -151,6 +169,15 @@ export async function buildVerifiedExportEnrichment(
     ),
   );
   const phonesPromise = getDriverPhonesByIds(driverIds);
+  const docChargeCache = new Map<string, Promise<ComplianceDocumentChargeConfig | null>>();
+  const docChargeConfigFor = (id: string) => {
+    let pending = docChargeCache.get(id);
+    if (!pending) {
+      pending = getDocumentChargeConfig(id).then(({ data }) => data);
+      docChargeCache.set(id, pending);
+    }
+    return pending;
+  };
 
   const enrichmentJobs = summaries.map(async (summary) => {
     const trip = summary.trip;
@@ -158,7 +185,9 @@ export async function buildVerifiedExportEnrichment(
     const supplierId = trip.supplier_id?.trim() || "";
     const vehicleId = trip.vehicle_id?.trim() || "";
     const isAsset = getTripExecutionModel(trip) === "asset";
-    const enrichment: VerifiedExportEnrichment = {};
+    const enrichment: VerifiedExportEnrichment = {
+      documentChargeConfig: await docChargeConfigFor(tripOrgId),
+    };
 
     if (isAsset && !supplierId) {
       enrichment.supplierName = "Own fleet";
@@ -194,6 +223,22 @@ export async function buildVerifiedExportEnrichment(
 
   const [{ phoneByDriverId }] = await Promise.all([phonesPromise, Promise.all(enrichmentJobs)]);
 
+  // Bulk read is RLS-scoped; fill gaps from the Driver Profile source (Contact Registry → Phone).
+  const missingDriverOrg = new Map<string, string>();
+  for (const summary of summaries) {
+    const driverId = summary.trip.driver_id?.trim() || "";
+    if (driverId && !phoneByDriverId.get(driverId) && !missingDriverOrg.has(driverId)) {
+      missingDriverOrg.set(driverId, (summary.trip.organization_id ?? orgId).trim() || orgId);
+    }
+  }
+  await Promise.all(
+    Array.from(missingDriverOrg, async ([driverId, driverOrgId]) => {
+      const { driver } = await getDriverDetailBundle(driverOrgId, driverId);
+      const phone = (driver?.phone ?? "").trim();
+      if (phone) phoneByDriverId.set(driverId, phone);
+    }),
+  );
+
   for (const summary of summaries) {
     const enrichment = byTrip.get(summary.trip.id) ?? {};
     const driverId = summary.trip.driver_id?.trim() || "";
@@ -206,7 +251,7 @@ export async function buildVerifiedExportEnrichment(
   return byTrip;
 }
 
-/** Download Verified-stage CSV. Returns trip row count exported. */
+/** Download Verified-stage Excel report (.xlsx). Returns trip row count exported. */
 export async function exportVerifiedStageComplianceReport(orgId: string): Promise<number> {
   const summaries = await fetchVerifiedStageSummaries(orgId);
   if (summaries.length === 0) return 0;
@@ -215,7 +260,9 @@ export async function exportVerifiedStageComplianceReport(orgId: string): Promis
   const rows = summaries.map((summary) =>
     buildVerifiedExportCsvRow(summary, enrichmentByTrip.get(summary.trip.id) ?? {}),
   );
-  const csv = verifiedExportRowsToCsv(rows);
-  await exportComplianceCsv(csv, `compliance-verified-report-${Date.now()}.csv`);
+  await exportComplianceWorkbook(
+    buildVerifiedExportWorkbook(rows),
+    `compliance-verified-report_${exportFileStamp()}.xlsx`,
+  );
   return rows.length;
 }

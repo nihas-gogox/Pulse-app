@@ -17,6 +17,83 @@ None. Preprod data: restore `compliance_declined_*` on SAT812GOGTRIP000120, 0003
 ### Tested
 Filter change only. Data restore is a one-off preprod update.
 
+## sneha/V1.0.2 — 2026-10-01
+- **What:** Advance Payment panel, Verified-stage **Rejected** trips: the status still shows Blocked with the reasons, and below the reasons box there is now a compact row: a muted hint "Trip is rejected. You can still post the advance." on the left and a small dark **Confirm payment** button (32pt high) on the right. Pressing it opens the usual inline payment form (supplier facts, amount calculation with slab doc charges and TDS, payment mode) with **Cancel** and **Confirm payment** centered below. Cancel closes the form; switching trips resets it. Shown only when no advance is posted yet and the user can manage finance. The existing posting path is used, so duplicate-advance and amount checks still apply. Non-rejected trips and the normal Ready-to-pay form are unchanged.
+- **Why:** Finance needs to be able to pay the advance on a trip even after compliance has rejected it.
+- **Files/areas:** `features/tripCompliance/components/ComplianceDocumentWorkspace.tsx` (`ChecklistAdvancePaymentPanel`), `features/tripCompliance/components/CompliancePaymentConfirmModal.tsx` (inline Cancel, only when `onCancel` is passed)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (450 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
+- **What:** Export Report "Driver No." now always comes from the trip driver's Driver Profile phone (Contact Registry → Phone Registry, `drivers.phone`). The bulk lookup by `trips.driver_id` still runs first. Any driver it returns without a phone (RLS-hidden or failed read) is filled from `get_driver_detail_bundle`, the same source the Driver Profile page uses. Numbers are written in the profile's format, `+91XXXXXXXXXX`, whether stored as 10 digits, `91…` or `0…`; non-Indian numbers are kept as stored. In the .xlsx they are text cells, so Excel never shows `9.19877E+11`. Account No is still written as a text cell with the exact stored value: no masking, no exponential form, leading zeros kept.
+- **Why:** Driver No. was missing or garbled in the downloaded report. Driver No. and Account No must open in Excel exactly as they are on file.
+- **Files/areas:** `features/tripCompliance/services/complianceExportReport.service.ts` (driver phone fallback), `features/tripCompliance/utils/complianceVerifiedExport.util.ts` (`formatExportPhone`)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (450 pass; phone formats, Driver No. cell, .xlsx text cells for Account No / IFSC / phone); `tsc` adds no new errors (141 already in V1); ESLint clean; no new import cycles. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
+- **What:** Export Report now downloads an Excel workbook (`compliance-verified-report_YYYY-MM-DD_HHMM.xlsx`, sheet "Verified Report") instead of a CSV. The 26 columns are unchanged, in the same order (TRIP ID … Margin %). Account No, IFSC No, Driver No., LR No, invoice No, Trip ID, Truck No and every other non-money column are written as **text cells**. Excel can no longer show account numbers as `1.23E+15` or drop leading zeros; the exact value is shown, unmasked. Money and percent columns (C Price, S Price, % of advance, Documentation charges, TDS, Final Advance, Margin, Margin %) stay real numbers with `#,##0.00` / `0.0` formats, so they can be summed. Each column is sized to its longest value and the header row has a filter. "Verification status" now says **Rejected** for verified trips with a Reject remark, matching the cards and the popup. Web downloads the file; iOS and Android open the share sheet with the Excel type.
+- **Why:** In Excel the CSV turned long account numbers into exponential form and lost leading zeros, which breaks bank payouts.
+- **Files/areas:** `features/tripCompliance/utils/complianceVerifiedExport.util.ts` (`buildVerifiedExportWorksheet`, `buildVerifiedExportWorkbook`), `features/tripCompliance/services/complianceExportReport.service.ts` (xlsx download/share)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (449 pass; new test writes and re-reads an .xlsx and checks that `0012345678901234` stays a text cell, IFSC / phone / LR stay text, Final Advance stays a number, Rejected label); `tsc` adds no new errors (141 already in V1); ESLint clean; no new import cycles. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
+- **What:** The Export Report popup no longer shows "N documents ready to be downloaded". It shows two equal tiles, **Verified** (green dot) and **Rejected** (red dot), each with its trip count, and a line below: "N trips will be included in the report". A count is coloured only when it is above zero. Rejected uses the same rule as the red card and the Verified-stage filter. Confirm is enabled when the stage has at least one trip; the empty hint is unchanged. The CSV export itself is unchanged.
+- **Why:** The trip split is what compliance needs before exporting; the document total wasn't useful.
+- **Files/areas:** `features/tripCompliance/components/ComplianceExportConfirmModal.tsx`, `features/tripCompliance/utils/complianceExportReport.util.ts` (`countVerifiedStageTrips`), `app/compliance/index.tsx`
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (447 pass); `tsc` adds no new errors (141 already in V1); ESLint clean; no new import cycles. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
+- **What:** Compliance Verified stage (card view): a segmented filter with All / Verified / Rejected and a count on each sits pinned above the trip cards. The green and red dots match the card pills. "Rejected" uses the same rule as the red card (verified trip with a Reject remark). "Verified" covers every other trip in the stage, including Exception. The filter runs before pagination, so pages stay full. It resets to All when you leave the Verified stage or switch to Table, and it is hidden while searching, because search covers the whole queue. Other stages and the table view are unchanged.
+- **Why:** Let compliance quickly separate rejected trips from clean verified ones in the Verified stage.
+- **Files/areas:** `features/tripCompliance/components/ComplianceVerifiedOutcomeFilter.tsx` (new), `ComplianceDocumentWorkspace.tsx` (optional `listHeader` slot, nothing rendered unless passed), `utils/complianceCardVisual.util.ts` (`isComplianceVerifiedRejected`, `matchesComplianceVerifiedOutcome`), `app/compliance/index.tsx`
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (446 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
+- **What:** Advance Payment panel: Documentation charges now come from the org's Document Charge Slabs (Workspace → Settings → Document Charges) instead of a fixed ₹0. The slab is matched on **base freight only**; slab edges are inclusive and the last slab means "and above". Example: base freight ₹5,250 falls in the ₹1,000–₹15,000 slab, so the charge is ₹200 and the payable at 90% is ₹4,725 − ₹200 = ₹4,525. The row now has the same layout as TDS: a hint under the label (e.g. "Slab ₹1,000 – 15,000 · on base freight", "No slab covers this base freight", "Document charges are off for this org") and a loader while the slabs are fetched. Confirm payment is disabled until the slabs load. On a balance payment the charge is ₹0 with the hint "Deducted with the advance", so it is never taken twice. The Verified Export Report CSV uses the same lookup for "Documentation charges" and "Final Advance".
+- **Why:** The form always showed ₹0 for documentation charges. It should charge the configured slab for the trip's freight.
+- **Files/areas:** `features/tripCompliance/utils/compliancePaymentAmount.util.ts` (`resolveComplianceDocumentationCharge`), `features/tripCompliance/components/CompliancePaymentConfirmModal.tsx` (slab fetch + Documentation charges row), `features/tripCompliance/utils/complianceVerifiedExport.util.ts`, `features/tripCompliance/services/complianceExportReport.service.ts`, tests
+- **Migrations:** none. Reads the existing `org_document_charge_settings` / `org_document_charge_slabs` tables (RLS: org members).
+- **Tested:** Jest `features/tripCompliance` (444 pass; new cases for slab edges, open-ended slab, off / no match, and the CSV Final Advance); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
+- **What:** Compliance footer: Export Report shows only when the Verified stage chip is selected and is hidden on every other stage. Bulk Payment stays right-aligned. If the stage changes while the export popup is open, the popup closes (unless an export is already running). The popup, its count and the CSV export are unchanged.
+- **Why:** The report exports Verified-stage trips only, so offering it on other stages was misleading.
+- **Files/areas:** `app/compliance/index.tsx` (footer Export Report button, `ComplianceExportConfirmModal` visibility)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
+- **What:** Advance Payment panel: Reject and Confirm payment are centered under the cards (below the divider) and smaller: Reject 96×36, Confirm payment 168×36, radius 10, 10pt gap. Touch targets stay 44pt through `hitSlop`.
+- **Why:** The full-width, right-heavy buttons looked oversized and off-center against the cards.
+- **Files/areas:** `features/tripCompliance/components/CompliancePaymentConfirmModal.tsx` (inline action row)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
+- **What:** Advance Payment panel: the Payment mode chips now span the full width under the Supplier and Amount calculation cards, lining up with both cards' edges. Reject and Confirm payment move to their own row below, under a hairline divider. On wide panels that row sits exactly under the Amount calculation column (same 10pt gutter); on narrow panels it spans the full width.
+- **Why:** The mode chips and action buttons were squeezed into one row and didn't line up with the cards above.
+- **Files/areas:** `features/tripCompliance/components/CompliancePaymentConfirmModal.tsx` (inline layout)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
+- **What:** Compliance workspace: removed the Pay button from the footer under the document preview. That footer now shows only the previous / next arrows, right-aligned, and is hidden when there is only one document. Payment is still done from the Advance Payment panel.
+- **Why:** Duplicate entry point. Payment already lives in the Advance Payment panel next to Reject.
+- **Files/areas:** `features/tripCompliance/components/ComplianceDocumentWorkspace.tsx` (preview footer)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
+- **What:** Compliance workspace: moved the trip Reject button from under the document preview into the Advance Payment panel. It sits in the same row as Confirm payment: Reject (108pt) then Confirm payment, both 44pt tall. When the payment form isn't shown (advance already paid or not ready), Reject sits on its own right-aligned row in the panel. The preview footer now keeps only Pay and the previous / next arrows.
+- **Why:** Rejecting a verified trip is a payment-stage decision, so it belongs next to Confirm payment, not under the document viewer.
+- **Files/areas:** `features/tripCompliance/components/CompliancePaymentConfirmModal.tsx` (inline `onReject` slot), `features/tripCompliance/components/ComplianceDocumentWorkspace.tsx` (Advance Payment panel actions, preview footer)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
 ## nihas/V1.0.5 — 2026-10-01
 
 ### What

@@ -96,12 +96,34 @@ export type ComplianceVerificationStatusVisual = {
   kind: "pending_docs" | "compliance_pending" | "verified" | "exception";
 };
 
+/**
+ * Verified trip rejected by finance (decline at/after verify) — stays in Verified,
+ * shown as Rejected (red). Same rule as isFinanceDeclinedTrip; drives the card pill,
+ * Verified / Rejected filter, Export counts and report status.
+ */
+export function isComplianceVerifiedRejected(
+  summary: Pick<ComplianceTripSummary, "complianceVerifiedAt" | "complianceDeclinedAt">,
+): boolean {
+  return isFinanceDeclinedTrip(summary as ComplianceTripSummary);
+}
+
+/** Verified-stage outcome filter: All / Verified (incl. Exception) / Rejected. */
+export type ComplianceVerifiedOutcomeFilter = "all" | "verified" | "rejected";
+
+export function matchesComplianceVerifiedOutcome(
+  summary: ComplianceTripSummary,
+  filter: ComplianceVerifiedOutcomeFilter,
+): boolean {
+  if (filter === "all") return true;
+  return isComplianceVerifiedRejected(summary) === (filter === "rejected");
+}
+
 export function verificationStatusVisual(
   summary: ComplianceTripSummary,
 ): ComplianceVerificationStatusVisual {
   // Finance reject after verify: stay in Verified stage, show Rejected (red).
   // A compliance decline that was later verified is history, not a reject.
-  if (isFinanceDeclinedTrip(summary)) {
+  if (isComplianceVerifiedRejected(summary)) {
     return {
       label: "Rejected",
       tone: COMPLIANCE_STAGE_TONE.pending_for_docs,

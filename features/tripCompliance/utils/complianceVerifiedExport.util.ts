@@ -6,9 +6,10 @@ import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompli
 import { COMPLIANCE_STAGE_FILTER_LABEL } from "@/features/tripCompliance/tripCompliance.types";
 import {
   COMPLIANCE_DEFAULT_ADVANCE_PERCENT,
-  COMPLIANCE_PAYMENT_DOC_CHARGES_PLACEHOLDER,
   computeCompliancePaymentAmount,
   computeComplianceTdsAmount,
+  resolveComplianceDocumentationCharge,
+  type ComplianceDocumentChargeConfig,
 } from "@/features/tripCompliance/utils/compliancePaymentAmount.util";
 import { formatComplianceTimestamp } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
@@ -16,6 +17,8 @@ import { getTripDisplayNumber } from "@/features/trips/services/trips.service";
 import { formatIndianVehicleNumber } from "@/lib/format";
 import { parseLrFieldValues } from "@/features/trips/services/lrDocumentOcr.util";
 import { readStoredInvoiceNumber } from "@/features/trips/components/trip-detail/tripDocTypes";
+import { isComplianceVerifiedRejected } from "@/features/tripCompliance/utils/complianceCardVisual.util";
+import * as XLSX from "xlsx";
 
 export const VERIFIED_EXPORT_CSV_HEADERS = [
   "TRIP ID",
@@ -61,6 +64,8 @@ export type VerifiedExportEnrichment = {
   advancePercent?: number | null;
   /** Supplier TDS rate % for current (or prior) FY. */
   tdsRatePercent?: number | null;
+  /** Trip org's Document Charge Slabs; charge is looked up on S Price (base freight). */
+  documentChargeConfig?: ComplianceDocumentChargeConfig | null;
 };
 
 type CommercialTrip = {
@@ -79,6 +84,17 @@ function csvEscape(value: string): string {
 function blank(value: string | null | undefined): string {
   const trimmed = (value ?? "").trim();
   return trimmed || "";
+}
+
+/** Indian mobiles as "+91XXXXXXXXXX" (Driver Profile → Phone); anything else kept as stored. */
+export function formatExportPhone(raw: string | null | undefined): string {
+  const value = (raw ?? "").trim();
+  if (!value) return "";
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  if (digits.length === 11 && digits.startsWith("0")) return `+91${digits.slice(1)}`;
+  return value;
 }
 
 function formatMoney(value: number | null | undefined): string {
@@ -183,7 +199,10 @@ export function buildVerifiedExportCsvRow(
     enrichment.advancePercent != null && Number.isFinite(Number(enrichment.advancePercent))
       ? Number(enrichment.advancePercent)
       : COMPLIANCE_DEFAULT_ADVANCE_PERCENT;
-  const documentationCharges = COMPLIANCE_PAYMENT_DOC_CHARGES_PLACEHOLDER;
+  const documentationCharges = resolveComplianceDocumentationCharge(
+    enrichment.documentChargeConfig,
+    sPrice,
+  ).amount;
   const tdsAmount = computeComplianceTdsAmount(sPrice ?? 0, enrichment.tdsRatePercent);
   const finalAdvance =
     sPrice != null
@@ -198,7 +217,9 @@ export function buildVerifiedExportCsvRow(
 
   return {
     "TRIP ID": getTripDisplayNumber(trip, trip.organization_id ?? null),
-    "Verification status": COMPLIANCE_STAGE_FILTER_LABEL.compliance_verified,
+    "Verification status": isComplianceVerifiedRejected(summary)
+      ? "Rejected"
+      : COMPLIANCE_STAGE_FILTER_LABEL.compliance_verified,
     "Loading date": formatLoadingDate(trip.pickup_date),
     "Intransit date":
       formatComplianceTimestamp(trip.started_at) === "—"
@@ -217,7 +238,7 @@ export function buildVerifiedExportCsvRow(
     "Truck No": truckNo,
     "Truck Type": blank(enrichment.truckType),
     "Driver name": driverName,
-    "Driver No.": blank(enrichment.driverPhone),
+    "Driver No.": formatExportPhone(enrichment.driverPhone),
     "C Price": Number.isFinite(cPrice) && cPrice > 0 ? formatMoney(cPrice) : "",
     "S Price": formatMoney(sPrice),
     "% of advance": formatMoney(advancePercent),
@@ -227,6 +248,73 @@ export function buildVerifiedExportCsvRow(
     Margin: formatMoney(margin),
     "Margin %": formatPercent(marginPercent),
   };
+}
+
+/** Money / percent columns stay real numbers so Excel can sum and sort them. */
+const VERIFIED_EXPORT_NUMERIC_COLUMNS: Partial<Record<VerifiedExportCsvHeader, string>> = {
+  "C Price": "#,##0.00",
+  "S Price": "#,##0.00",
+  "% of advance": "0.0",
+  "Documentation charges": "#,##0.00",
+  TDS: "#,##0.00",
+  "Final Advance": "#,##0.00",
+  Margin: "#,##0.00",
+  "Margin %": "0.0",
+};
+
+function excelColumnName(index: number): string {
+  let n = index + 1;
+  let name = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    name = String.fromCharCode(65 + rem) + name;
+    n = Math.floor((n - 1) / 26);
+  }
+  return name;
+}
+
+/**
+ * Excel sheet for the Verified report. Every non-money column is written as a
+ * text cell ("@"), so Account No / IFSC / phone / LR keep leading zeros and
+ * full length instead of turning into 1.23E+15.
+ */
+export function buildVerifiedExportWorksheet(rows: VerifiedExportCsvRow[]): XLSX.WorkSheet {
+  const sheet: XLSX.WorkSheet = {};
+  const widths = VERIFIED_EXPORT_CSV_HEADERS.map((header) => header.length);
+
+  VERIFIED_EXPORT_CSV_HEADERS.forEach((header, c) => {
+    sheet[`${excelColumnName(c)}1`] = { t: "s", v: header };
+  });
+
+  rows.forEach((row, r) => {
+    VERIFIED_EXPORT_CSV_HEADERS.forEach((header, c) => {
+      const raw = (row[header] ?? "").trim();
+      if (!raw) return;
+      const ref = `${excelColumnName(c)}${r + 2}`;
+      const numberFormat = VERIFIED_EXPORT_NUMERIC_COLUMNS[header];
+      const num = numberFormat ? Number(raw) : Number.NaN;
+      if (numberFormat && Number.isFinite(num)) {
+        sheet[ref] = { t: "n", v: num, z: numberFormat };
+        widths[c] = Math.max(widths[c], num.toLocaleString("en-IN").length + 3);
+      } else {
+        sheet[ref] = { t: "s", v: raw, z: "@" };
+        widths[c] = Math.max(widths[c], raw.length);
+      }
+    });
+  });
+
+  const lastCol = excelColumnName(VERIFIED_EXPORT_CSV_HEADERS.length - 1);
+  const lastRow = Math.max(1, rows.length + 1);
+  sheet["!ref"] = `A1:${lastCol}${lastRow}`;
+  sheet["!autofilter"] = { ref: `A1:${lastCol}${lastRow}` };
+  sheet["!cols"] = widths.map((w) => ({ wch: Math.min(48, Math.max(10, w + 2)) }));
+  return sheet;
+}
+
+export function buildVerifiedExportWorkbook(rows: VerifiedExportCsvRow[]): XLSX.WorkBook {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, buildVerifiedExportWorksheet(rows), "Verified Report");
+  return workbook;
 }
 
 export function verifiedExportRowsToCsv(rows: VerifiedExportCsvRow[]): string {

@@ -2,6 +2,7 @@
  * Compact confirm card for Compliance → Export Report (Verified stage only).
  */
 import Theme from "@/constants/Theme";
+import { COMPLIANCE_STAGE_TONE } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import { Download } from "lucide-react-native";
 import React from "react";
 import {
@@ -16,22 +17,31 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export type ComplianceExportConfirmModalProps = {
   visible: boolean;
-  documentCount: number;
+  /** Verified-stage trips without a Reject remark. */
+  verifiedCount: number;
+  /** Verified-stage trips carrying a Reject remark. */
+  rejectedCount: number;
   exporting?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 };
 
+const VERIFIED_TONE = COMPLIANCE_STAGE_TONE.compliance_verified;
+const REJECTED_TONE = COMPLIANCE_STAGE_TONE.pending_for_docs;
+
 export function ComplianceExportConfirmModal({
   visible,
-  documentCount,
+  verifiedCount,
+  rejectedCount,
   exporting = false,
   onCancel,
   onConfirm,
 }: ComplianceExportConfirmModalProps) {
   const insets = useSafeAreaInsets();
-  const count = Math.max(0, Math.floor(documentCount));
-  const ready = count > 0;
+  const verified = Math.max(0, Math.floor(verifiedCount));
+  const rejected = Math.max(0, Math.floor(rejectedCount));
+  const total = verified + rejected;
+  const ready = total > 0;
   const confirmDisabled = !ready || exporting;
 
   return (
@@ -64,14 +74,36 @@ export function ComplianceExportConfirmModal({
             </View>
           </View>
 
-          <View style={styles.body}>
-            <Text style={styles.count} accessibilityRole="text">
-              {count}
-            </Text>
-            <Text style={styles.message}>
-              {count === 1 ? "document ready to be downloaded" : "documents ready to be downloaded"}
-            </Text>
+          <View style={styles.stats}>
+            {(
+              [
+                { key: "verified", label: "Verified", value: verified, tone: VERIFIED_TONE },
+                { key: "rejected", label: "Rejected", value: rejected, tone: REJECTED_TONE },
+              ] as const
+            ).map((stat) => (
+              <View
+                key={stat.key}
+                style={styles.statTile}
+                accessible
+                accessibilityLabel={`${stat.value} ${stat.label.toLowerCase()} ${stat.value === 1 ? "trip" : "trips"}`}
+              >
+                <View style={styles.statLabelRow}>
+                  <View style={[styles.statDot, { backgroundColor: stat.tone.fg }]} />
+                  <Text style={styles.statLabel}>{stat.label}</Text>
+                </View>
+                <Text style={[styles.statValue, stat.value > 0 && { color: stat.tone.fg }]}>
+                  {stat.value}
+                </Text>
+                <Text style={styles.statUnit}>{stat.value === 1 ? "trip" : "trips"}</Text>
+              </View>
+            ))}
           </View>
+
+          {ready ? (
+            <Text style={styles.message}>
+              {total} {total === 1 ? "trip" : "trips"} will be included in the report
+            </Text>
+          ) : null}
 
           {!ready ? (
             <Text style={styles.emptyHint}>Nothing in Verified stage to export yet.</Text>
@@ -163,21 +195,52 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     color: Theme.textMuted,
   },
-  body: {
-    gap: 4,
-    paddingVertical: 4,
+  stats: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 8,
   },
-  count: {
-    fontSize: 28,
+  statTile: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Theme.complianceTripCardBorder,
+    backgroundColor: Theme.cardWhite,
+    gap: 2,
+  },
+  statLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  statDot: { width: 7, height: 7, borderRadius: 4 },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    color: Theme.textSecondary,
+  },
+  statValue: {
+    marginTop: 2,
+    fontSize: 24,
+    lineHeight: 28,
     fontWeight: "800",
-    color: Theme.textPrimaryDark,
+    color: Theme.textMuted,
     fontVariant: ["tabular-nums"],
     letterSpacing: -0.4,
   },
+  statUnit: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: Theme.textMuted,
+  },
   message: {
-    fontSize: 13,
-    fontWeight: "600",
-    lineHeight: 18,
+    fontSize: 12,
+    fontWeight: "500",
+    lineHeight: 16,
     color: Theme.textMuted,
   },
   emptyHint: {
