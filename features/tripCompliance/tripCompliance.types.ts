@@ -228,6 +228,9 @@ export const COMPLIANCE_FINANCE_DOCUMENT_TYPES: readonly string[] = [
   "bank_docs",
 ];
 
+/** Finance slots marked Required in the Finance list (labelling only — not a Verified gate). */
+export const REQUIRED_COMPLIANCE_FINANCE_DOCUMENT_TYPES: readonly string[] = ["memo"];
+
 /** Vehicle checklist — RC, insurance, FC, permit, pollution, tax. */
 export const REQUIRED_VEHICLE_DOCUMENT_TYPES: readonly string[] = [
   "rc",

@@ -109,7 +109,7 @@ describe("deriveFinanceDocumentRows", () => {
   it("always includes Memo, Other Documents, and Bank Docs slots", () => {
     const rows = deriveFinanceDocumentRows([]);
     expect(rows.map((r) => r.type)).toEqual(["memo", "other", "bank_docs"]);
-    expect(rows.every((r) => !r.required)).toBe(true);
+    expect(rows.filter((r) => r.required).map((r) => r.type)).toEqual(["memo"]);
     expect(rows.every((r) => r.status === "missing")).toBe(true);
   });
 

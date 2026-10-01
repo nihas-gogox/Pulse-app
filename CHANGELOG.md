@@ -1,6 +1,13 @@
 # Changelog — V1 (v0.0.01)
 
 ## sneha/V1.0.1 — 2026-10-01
+- **What:** Compliance Finance tab: Memo is marked Required (red pill). Other Documents and Bank Docs stay Optional. The headline reads "1 required document not uploaded" while Memo is missing.
+- **Why:** Memo is mandatory paperwork for the advance payment.
+- **Files/areas:** `features/tripCompliance/tripCompliance.types.ts` (`REQUIRED_COMPLIANCE_FINANCE_DOCUMENT_TYPES`), `features/tripCompliance/utils/complianceDocumentRows.util.ts` (`deriveFinanceDocumentRows`)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.1 — 2026-10-01
 - **What:** Compliance Trip tab lists only LR, E-way Bill and Invoice. POD and Memo are removed from it (Memo stays under Finance, POD under Hardcopy POD). Rows under a Required / Optional group header no longer repeat a "Required" / "Optional" pill.
 - **Why:** POD and Memo cluttered the Trip vault and showed an "Optional documents · 0 of 2 uploaded" block that wasn't actionable there.
 - **Files/areas:** `features/tripCompliance/utils/complianceDocumentRows.util.ts` (new `deriveTripVaultReviewRows`), `ComplianceDocumentWorkspace.tsx` (Trip list + Trip tab badge), `ComplianceDocumentReviewSheet.tsx` (Trip scope)
