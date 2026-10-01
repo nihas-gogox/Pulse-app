@@ -88,6 +88,8 @@ function baseFreightAmount(
 }
 
 const INLINE_TWO_COLUMN_MIN_WIDTH = 600;
+/** Inline action buttons are drawn 36pt tall; keep the touch target at 44pt. */
+const INLINE_ACTION_HIT_SLOP = { top: 4, bottom: 4, left: 0, right: 0 };
 
 function FactRow({
   label,
@@ -595,6 +597,7 @@ export function CompliancePaymentConfirmModal({
           ]}
           onPress={onReject}
           disabled={submitting}
+          hitSlop={INLINE_ACTION_HIT_SLOP}
           accessibilityRole="button"
           accessibilityLabel="Reject trip compliance"
         >
@@ -608,6 +611,7 @@ export function CompliancePaymentConfirmModal({
           !canSubmit && styles.confirmBtnDisabled,
         ]}
         disabled={!canSubmit}
+        hitSlop={isInline ? INLINE_ACTION_HIT_SLOP : undefined}
         accessibilityRole="button"
         accessibilityLabel={confirmText}
         onPress={() => {
@@ -653,19 +657,7 @@ export function CompliancePaymentConfirmModal({
           </View>
         </View>
         {modeField}
-        <View
-          style={[
-            styles.inlineActionsRow,
-            inlineWide && styles.inlineColumnsWide,
-          ]}
-        >
-          {inlineWide ? <View style={styles.inlineColumnWide} /> : null}
-          <View
-            style={[styles.inlineColumn, inlineWide && styles.inlineColumnWide]}
-          >
-            {actionsRow}
-          </View>
-        </View>
+        <View style={styles.inlineActionsRow}>{actionsRow}</View>
       </View>
     );
   }
@@ -727,10 +719,9 @@ const styles = StyleSheet.create({
   inlineColumnsWide: { flexDirection: "row", alignItems: "stretch" },
   inlineColumn: { minWidth: 0 },
   inlineColumnWide: { flex: 1, flexBasis: 0 },
-  /** Wide: actions sit under the Amount calculation column, same 10pt gutter as the cards. */
   inlineActionsRow: {
-    gap: 10,
-    paddingTop: 10,
+    alignItems: "center",
+    paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Theme.complianceCardBorder,
   },
@@ -992,15 +983,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   actionsInline: {
-    width: "100%",
-    justifyContent: "flex-end",
+    justifyContent: "center",
     marginTop: 0,
   },
   actionsInlineWithReject: { gap: 10 },
   rejectBtnInline: {
-    width: 108,
-    height: 44,
-    borderRadius: 12,
+    width: 96,
+    height: 36,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: Theme.complianceStageDocsFg,
     backgroundColor: Theme.complianceStageDocsBg,
@@ -1009,7 +999,7 @@ const styles = StyleSheet.create({
   },
   rejectBtnInlinePressed: { opacity: 0.8 },
   rejectTextInline: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.2,
     color: Theme.complianceStageDocsFg,
@@ -1036,11 +1026,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   confirmBtnInline: {
-    flex: 1,
+    width: 168,
     minWidth: 0,
-    minHeight: 44,
-    height: 44,
-    borderRadius: 12,
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 10,
   },
   confirmBtnDisabled: { opacity: 0.45 },
   confirmText: {

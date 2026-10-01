@@ -1,6 +1,13 @@
 # Changelog — V1 (v0.0.01)
 
 ## sneha/V1.0.2 — 2026-10-01
+- **What:** Advance Payment panel: Reject and Confirm payment are centered under the cards (below the divider) and smaller: Reject 96×36, Confirm payment 168×36, radius 10, 10pt gap. Touch targets stay 44pt through `hitSlop`.
+- **Why:** The full-width, right-heavy buttons looked oversized and off-center against the cards.
+- **Files/areas:** `features/tripCompliance/components/CompliancePaymentConfirmModal.tsx` (inline action row)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (439 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
 - **What:** Advance Payment panel: the Payment mode chips now span the full width under the Supplier and Amount calculation cards, lining up with both cards' edges. Reject and Confirm payment move to their own row below, under a hairline divider. On wide panels that row sits exactly under the Amount calculation column (same 10pt gutter); on narrow panels it spans the full width.
 - **Why:** The mode chips and action buttons were squeezed into one row and didn't line up with the cards above.
 - **Files/areas:** `features/tripCompliance/components/CompliancePaymentConfirmModal.tsx` (inline layout)
