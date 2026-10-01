@@ -8,6 +8,7 @@ import {
   MEMBER_SECTION_SURFACES,
   memberHasSurface,
   orgAllowsSurface,
+  sectionMasterOn,
   surfaceGroupsForDomains,
   surfaceGroupsForIds,
   type MemberSectionKey,
@@ -149,8 +150,14 @@ export function DomainPermissionToggleRow({
     memberHasSurface(orgCaps, surfaces, r.id, false),
   ).length;
   const availableCount = rows.filter((r) => orgAllowsSurface(orgCaps, r.id)).length;
-  /** Section switch reads "everything in here is on". */
-  const sectionAllOn = availableCount > 0 && enabledCount === availableCount;
+  /**
+   * Compliance follows the Compliance preset (verify / mark verified / POD),
+   * not "every row", so payments can stay off while the switch stays on.
+   * Other sections still require every org-allowed row.
+   */
+  const sectionOn = isSectionKey(def.key)
+    ? sectionMasterOn(def.key, surfaces, orgCaps)
+    : false;
 
   /**
    * Bulk-apply a group header checkbox across its org-allowed surfaces.
@@ -203,7 +210,7 @@ export function DomainPermissionToggleRow({
           )}
         </Pressable>
         <Switch
-          value={isSection ? sectionAllOn : switchOn}
+          value={isSection ? sectionOn : switchOn}
           disabled={!canEdit || (isSection ? availableCount === 0 : lockedByOrg)}
           onValueChange={onToggleDomain}
           trackColor={{ false: "#E8E8E8", true: accent }}
@@ -331,7 +338,8 @@ export const DOMAIN_TOGGLE_ROWS: DomainToggleRowDef[] = [
     label: "Team / Workspace",
     hint: "Access control, invites, audit, settings, KYC",
   },
-  // Sections below regroup surfaces owned by the domains above — no new grants.
+  // Supply / vendor / IT regroup surfaces from the domains above.
+  // Compliance lists the trip-compliance actions (same set as the preset).
   {
     key: "supply",
     label: "Supply",
@@ -340,7 +348,7 @@ export const DOMAIN_TOGGLE_ROWS: DomainToggleRowDef[] = [
   {
     key: "compliance",
     label: "Compliance",
-    hint: "KYC, audit trail, trip & vehicle documents, POD",
+    hint: "Verify trip documents, mark verified, settlement, hard-copy POD",
   },
   {
     key: "vendor_support",

@@ -18,16 +18,19 @@ import {
 } from "@/lib/capabilities";
 import {
   MEMBER_SURFACE_CATALOG,
+  applySectionToggle,
   capabilitiesFromMemberSurfaces,
   defaultSurfacesForRole,
   domainsFromSurfaces,
   hydrateMemberSurfaces,
   memberHasSurface,
   orgAllowsSurface,
+  sectionMasterOn,
   surfaceGroupsForDomains,
   type MemberSurfaceId,
   type MemberSurfaceMap,
 } from "@/lib/memberSurfaces";
+import { platformRoleAfterAccessEdit } from "@/features/organization/utils/teamInviteRoles.util";
 
 // ── org fixtures ──────────────────────────────────────────────────────────
 const capsFor = (model: string): Capability[] =>
@@ -479,6 +482,52 @@ describe("Compliance vs Finance — split of the Compliance page", () => {
     expect(caps).not.toContain("dispatch_for_own_fleet");
     expect(caps).not.toContain("fleet_management");
     expect(caps).not.toContain("finance_manage");
+  });
+
+  it("Compliance preset turns the Compliance switch on and does not grant payments", () => {
+    const surfaces = defaultSurfacesForRole("compliance", HYBRID);
+    expect(sectionMasterOn("compliance", surfaces, HYBRID)).toBe(true);
+    expect(memberHasSurface(HYBRID, surfaces, "trip_compliance.finance.manage")).toBe(false);
+  });
+
+  it("turning the Compliance switch on keeps the Compliance label", () => {
+    const preset = defaultSurfacesForRole("compliance", HYBRID);
+    const cleared = applySectionToggle(preset, "compliance", false, HYBRID);
+    expect(sectionMasterOn("compliance", cleared, HYBRID)).toBe(false);
+    expect(
+      platformRoleAfterAccessEdit("compliance", domainsFromSurfaces(cleared), cleared, HYBRID),
+    ).toBe("tripops");
+
+    const restored = applySectionToggle(cleared, "compliance", true, HYBRID);
+    expect(sectionMasterOn("compliance", restored, HYBRID)).toBe(true);
+    expect(memberHasSurface(HYBRID, restored, "trip_compliance.documents.verify")).toBe(true);
+    expect(memberHasSurface(HYBRID, restored, "trip_compliance.finance.manage")).toBe(false);
+    expect(
+      platformRoleAfterAccessEdit(
+        "compliance",
+        domainsFromSurfaces(restored),
+        restored,
+        HYBRID,
+      ),
+    ).toBe("compliance");
+  });
+
+  it("a section edit does not retitle Ground Ops or Admin as TripOps", () => {
+    const ground = defaultSurfacesForRole("ground_ops", HYBRID);
+    const withCompliance = applySectionToggle(ground, "compliance", true, HYBRID);
+    expect(
+      platformRoleAfterAccessEdit(
+        "ground_ops",
+        domainsFromSurfaces(withCompliance),
+        withCompliance,
+        HYBRID,
+      ),
+    ).toBe("ground_ops");
+
+    const admin = defaultSurfacesForRole("admin", HYBRID);
+    expect(
+      platformRoleAfterAccessEdit("admin", domainsFromSurfaces(admin), admin, HYBRID),
+    ).toBe("admin");
   });
 
   it("only compliance (of the functional presets) logs hard-copy POD", () => {

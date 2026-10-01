@@ -1119,13 +1119,32 @@ export function surfaceGroupsForIds(
 }
 
 /**
+ * Surfaces the Compliance preset turns on. The permissions-page Compliance
+ * switch follows this list — not "every trip_compliance row", so
+ * `trip_compliance.finance.manage` (payments) can stay off while the switch
+ * still reads on. Keep this in sync with `defaultSurfacesForRole("compliance")`.
+ */
+export const COMPLIANCE_ROLE_SURFACE_IDS: readonly MemberSurfaceId[] = [
+  "trip_compliance.tab",
+  "trip_compliance.documents.view",
+  "trip_compliance.documents.verify",
+  "trip_compliance.trip.mark_verified",
+  "trip_compliance.pod.manage",
+  "trip_compliance.finance.view",
+];
+
+/**
  * Presentational sections for the member-permissions page.
  *
  * These are VIEWS over the existing catalog — every id below is already a real,
  * enforced surface. A section does not grant anything on its own and is not
  * persisted; only the underlying surface ids are stored. A surface may appear in
- * more than one section (e.g. trip docs under both Operations and Compliance) —
- * toggling it anywhere flips the same single grant.
+ * more than one section — toggling it anywhere flips the same single grant.
+ *
+ * Supply / Vendor support / IT regroup surfaces that already sit under Finance,
+ * Sales, Operations, or Team. Compliance is the exception: it lists the trip
+ * compliance actions (verify, mark verified, POD). Those are not owned by the
+ * domain rows above, which is why the Compliance preset used to light no switch.
  */
 export type MemberSectionKey =
   | "supply"
@@ -1149,15 +1168,9 @@ export const MEMBER_SECTION_SURFACES: Record<
     "tripops.indents.award",
     "tripops.indents.allocate",
   ],
-  compliance: [
-    "workspace.kyc",
-    "team.audit",
-    "tripops.trips.docs",
-    "tripops.trips.verification",
-    "fleet.vehicles.documents",
-    "finance.pod_reconciliation",
-    "finance.documents_center",
-  ],
+  compliance: MEMBER_SURFACE_CATALOG.filter(
+    (surface) => surface.domain === "trip_compliance",
+  ).map((surface) => surface.id),
   vendor_support: [
     "sales.chat",
     "sales.network.connect",
@@ -1413,12 +1426,7 @@ export function defaultSurfacesForRole(
         "tripops.trips.view",
         "tripops.trips.detail",
         "tripops.trips.docs",
-        "trip_compliance.tab",
-        "trip_compliance.documents.view",
-        "trip_compliance.documents.verify",
-        "trip_compliance.trip.mark_verified",
-        "trip_compliance.pod.manage",
-        "trip_compliance.finance.view",
+        ...COMPLIANCE_ROLE_SURFACE_IDS,
       ]);
     case "ground_ops":
       return allOn([
@@ -1524,15 +1532,42 @@ export function applySurfaceToggle(
  * Off is applied in reverse so a parent's cascade cannot re-disable a row that
  * was already handled.
  */
+/**
+ * Whether a section's master switch should read on.
+ *
+ * Compliance follows `COMPLIANCE_ROLE_SURFACE_IDS` (the preset), so payments
+ * (`trip_compliance.finance.manage`) can stay off without killing the switch.
+ * Other sections stay "every org-allowed row in the section is on".
+ */
+export function sectionMasterOn(
+  section: MemberSectionKey,
+  surfaces: MemberSurfaceMap | null | undefined,
+  orgCaps: Capability[],
+): boolean {
+  const ids = (
+    section === "compliance"
+      ? COMPLIANCE_ROLE_SURFACE_IDS
+      : MEMBER_SECTION_SURFACES[section]
+  ).filter((id) => orgAllowsSurface(orgCaps, id));
+  return (
+    ids.length > 0 &&
+    ids.every((id) => memberHasSurface(orgCaps, surfaces, id))
+  );
+}
+
 export function applySectionToggle(
   current: MemberSurfaceMap,
   section: MemberSectionKey,
   next: boolean,
   orgCaps: Capability[],
 ): MemberSurfaceMap {
-  const ids = MEMBER_SECTION_SURFACES[section].filter((id) =>
-    orgAllowsSurface(orgCaps, id),
-  );
+  // On: grant the Compliance preset only — never payments.
+  // Off: clear every trip-compliance row, including payments.
+  const ids = (
+    section === "compliance" && next
+      ? COMPLIANCE_ROLE_SURFACE_IDS
+      : MEMBER_SECTION_SURFACES[section]
+  ).filter((id) => orgAllowsSurface(orgCaps, id));
   let out: MemberSurfaceMap = { ...current };
   for (const id of next ? ids : [...ids].reverse()) {
     out = applySurfaceToggle(out, id, next, orgCaps);
