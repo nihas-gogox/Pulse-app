@@ -1,6 +1,13 @@
 # Changelog — V1 (v0.0.01)
 
 ## sneha/V1.0.1 — 2026-10-01
+- **What:** Compliance workspace: Upload / Replace on the Trip, Vehicle and Driver tabs now opens the file picker and uploads in place, with a spinner on the row. It no longer pops up the full "Compliance Review" sheet.
+- **Why:** Clicking Upload opened the cramped review sheet instead of letting the user pick a file.
+- **Files/areas:** new `features/tripCompliance/services/complianceVaultUpload.service.ts` (pick + validate + trip / vehicle-vault / entity-doc write, moved out of the review sheet), `ComplianceDocumentWorkspace.tsx` (inline upload), `ComplianceDocumentReviewSheet.tsx` (uses the shared service)
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (438 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web upload not yet clicked through.
+
+## sneha/V1.0.1 — 2026-10-01
 - **What:** Compliance workspace: one Approve / Decline pair per Required and Optional group under the Trip, Vehicle and Driver tabs. It appears once every doc in that group is uploaded. When the last required trip doc is approved, the trip moves to Verified automatically, with an inline "moving to Verified" notice.
 - **Why:** Ops had to approve each doc separately from the preview footer and then press Mark verified by hand.
 - **Files/areas:** `features/tripCompliance/components/ComplianceDocumentWorkspace.tsx` (grouped list, shared approve/decline writers, auto-verify), `features/tripCompliance/utils/complianceReviewActions.util.ts` (`complianceGroupReviewState`), `app/compliance/index.tsx` (`markTripVerified` returns success), `ComplianceTripsTable.tsx` (prop type)

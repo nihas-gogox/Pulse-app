@@ -53,16 +53,17 @@ import { classifyTripDocument, readTypedDetails } from "@/features/tripComplianc
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
 import { getSupplierBankAccount } from "@/features/suppliers/services/supplierVendorOnboarding.service";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
-import {
-  COMPLIANCE_TRIP_DOC_PICKER_TYPES,
-  validateComplianceTripDocumentFile,
-} from "@/features/tripCompliance/utils/complianceTripDocumentFormat.util";
+
+
 import { markTripHardCopyPodReceived } from "@/features/trips/services/tripDocumentLrPod.service";
 import {
   formatInvoiceVaultNumberLabel,
   formatLrVaultNumberLabel,
 } from "@/features/trips/components/trip-detail/tripDocTypes";
-import { uploadTripDocument, type TripDocumentType } from "@/features/trips/services/tripDocuments.service";
+import {
+  pickComplianceVaultFile,
+  uploadComplianceVaultFile,
+} from "@/features/tripCompliance/services/complianceVaultUpload.service";
 import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
 import { getTripExecutionModel } from "@/features/trips/domain/tripExecutionModel";
 import {
@@ -77,7 +78,6 @@ import { SIGNED_URL_CACHE_TTL_MS, SIGNED_URL_EXPIRY_SEC } from "@/lib/storageSig
 import { useComplianceListTripFacts } from "@/features/tripCompliance/hooks/useComplianceListTripFacts";
 import { getTripDisplayNumber } from "@/features/trips/services/trips.service";
 import { ChevronLeft, ChevronRight, Check, Eye, Minus, Plus, RotateCcw, Upload, X } from "lucide-react-native";
-import * as DocumentPicker from "expo-document-picker";
 import { useRouter, type Href } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -1576,61 +1576,64 @@ export function ComplianceDocumentWorkspace({
       : missingOptionalCount > 0 && missingRequiredCount > 0
         ? `Plus ${missingOptionalCount} optional from this ${vaultCopy.vaultLabel.toLowerCase()}`
         : vaultCopy.vaultHint;
-  const openVaultUpload = useCallback(
-    (documentKey: string | null) => {
-      if (!summary || !onReviewTripDocs) return;
-      const uploadTab: DocTab = checklistPreviewMode === "finance" ? "trip" : tab;
-      if (checklistPreviewMode !== "finance") setChecklistPreviewMode("document");
-      if (documentKey) setChecklistKey(documentKey);
-      onReviewTripDocs(summary.trip.id, documentKey, uploadTab);
-    },
-    [onReviewTripDocs, summary, tab, checklistPreviewMode],
-  );
-  const uploadFinanceDocument = useCallback(
-    async (type: string) => {
+  /** Upload / Replace in place: file picker → vault write → refetch. No review sheet. */
+  const uploadVaultDocument = useCallback(
+    async (row: ComplianceDocRow) => {
       if (!summary) return;
       if (!actorId) {
         alertMessage("Can't upload", "Sign in again, then try Upload.");
         return;
       }
       if (uploadingFinanceType) return;
-      setUploadingFinanceType(type);
-      setChecklistPreviewMode("finance");
-      setChecklistKey(type);
+      const scope: DocTab = isFinanceMode ? "trip" : tab;
+      const entityId =
+        scope === "vehicle" ? summary.trip.vehicle_id : scope === "driver" ? summary.trip.driver_id : null;
+      if (scope !== "trip" && !entityId) {
+        alertMessage("Nothing to upload", vaultCopy.unassignedHint);
+        return;
+      }
+      setUploadingFinanceType(row.key);
+      setChecklistKey(row.key);
       try {
-        const res = await DocumentPicker.getDocumentAsync({
-          type: [...COMPLIANCE_TRIP_DOC_PICKER_TYPES],
-          copyToCacheDirectory: true,
-        });
-        if (res.canceled || !res.assets[0]) return;
-        const asset = res.assets[0];
-        const fileName = asset.name ?? `${type}.pdf`;
-        if (typeof asset.size === "number") {
-          const early = validateComplianceTripDocumentFile({
-            fileName,
-            mimeType: asset.mimeType,
-            byteLength: asset.size,
-          });
-          if (!early.ok) throw new Error(early.reason);
+        const file = await pickComplianceVaultFile(row.type);
+        if (!file) return;
+
+        let expiryDate: string | null = null;
+        if (scope !== "trip") {
+          const current = row.entityDoc?.expiry_date?.trim() ?? "";
+          if (/^\d{4}-\d{2}-\d{2}$/.test(current)) {
+            expiryDate = current;
+          } else if (documentRequiresExpiry(row.type)) {
+            const entered = (await promptExpiryDate(row.type))?.trim() ?? "";
+            if (!entered) return;
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(entered)) {
+              alertMessage("Invalid expiry date", "Use YYYY-MM-DD (for example 2027-03-15).");
+              return;
+            }
+            expiryDate = entered;
+          }
         }
-        const arrayBuffer = await fetch(asset.uri).then((r) => r.arrayBuffer());
-        const format = validateComplianceTripDocumentFile({
-          fileName,
-          mimeType: asset.mimeType,
-          byteLength: arrayBuffer.byteLength,
-        });
-        if (!format.ok) throw new Error(format.reason);
-        const { error } = await uploadTripDocument(
-          summary.trip.id,
+
+        await uploadComplianceVaultFile({
+          scope,
+          type: row.type,
+          tripId: summary.trip.id,
+          organizationId,
           actorId,
-          { arrayBuffer, fileName, mimeType: format.mimeType },
-          type as TripDocumentType,
-          undefined,
-          { replaceExistingOfType: true },
-        );
-        if (error) throw error;
+          vehicleId: summary.trip.vehicle_id ?? null,
+          entityId,
+          existing: row.entityDoc,
+          file,
+          expiryDate,
+        });
         setZoom(1);
-        onChanged({ type: "tripDocuments", tripId: summary.trip.id });
+        onChanged(
+          scope === "vehicle" && entityId
+            ? { type: "vehicleDocuments", vehicleId: entityId }
+            : scope === "driver" && entityId
+              ? { type: "driverDocuments", driverId: entityId }
+              : { type: "tripDocuments", tripId: summary.trip.id },
+        );
       } catch (err) {
         const message = err instanceof Error ? err.message : "Upload failed. Try again.";
         alertMessage("Couldn't upload document", message);
@@ -1638,7 +1641,17 @@ export function ComplianceDocumentWorkspace({
         setUploadingFinanceType(null);
       }
     },
-    [actorId, onChanged, summary, uploadingFinanceType],
+    [
+      actorId,
+      isFinanceMode,
+      onChanged,
+      organizationId,
+      promptExpiryDate,
+      summary,
+      tab,
+      uploadingFinanceType,
+      vaultCopy.unassignedHint,
+    ],
   );
   const previewChecklistRow = useCallback((row: ComplianceDocRow) => {
     setChecklistPreviewMode((prev) => (prev === "finance" ? "finance" : "document"));
@@ -1782,17 +1795,16 @@ export function ComplianceDocumentWorkspace({
               ]}
               activeOpacity={0.8}
               disabled={Boolean(uploadingFinanceType)}
-              onPress={() => {
-                if (isFinanceMode) {
-                  void uploadFinanceDocument(displayRow.key);
-                  return;
-                }
-                openVaultUpload(displayRow.key);
-              }}
+              onPress={() => void uploadVaultDocument(row)}
               accessibilityRole="button"
               accessibilityLabel={`${uploadLabel} ${rowLabel}`}
+              accessibilityState={{ busy: uploadingFinanceType === displayRow.key }}
             >
-              <Upload size={11} color={Theme.cardWhite} strokeWidth={2.4} />
+              {uploadingFinanceType === displayRow.key ? (
+                <ActivityIndicator size="small" color={Theme.cardWhite} />
+              ) : (
+                <Upload size={11} color={Theme.cardWhite} strokeWidth={2.4} />
+              )}
               <Text style={styles.missingUploadBtnText}>
                 {uploadingFinanceType === displayRow.key ? "Uploading…" : uploadLabel}
               </Text>

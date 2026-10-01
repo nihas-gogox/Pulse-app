@@ -8,9 +8,7 @@ import { HUB_MOBILE_TICKET_REF } from "@/components/hub/hubMobileTicketTokens";
 import Theme from "@/constants/Theme";
 import {
     rejectDocument,
-    replaceComplianceDocument,
     updateEntityDocumentExpiry,
-    uploadComplianceDocument,
     verifyDocument,
 } from "@/features/compliance/services/documents.service";
 import { describeStopProofDocument, type StopProofDocumentSummary } from "@/features/driver/job-card/deliveryProof";
@@ -52,23 +50,22 @@ import {
     complianceReviewDecisionActions,
 } from "@/features/tripCompliance/utils/complianceReviewActions.util";
 import {
-    COMPLIANCE_TRIP_DOC_PICKER_TYPES,
     complianceTripDocFormatHint,
-    validateComplianceTripDocumentFile,
 } from "@/features/tripCompliance/utils/complianceTripDocumentFormat.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
-import { isTripDocumentsStoragePathConflict, uploadTripDocument, type TripDocumentType } from "@/features/trips/services/tripDocuments.service";
+import { isTripDocumentsStoragePathConflict } from "@/features/trips/services/tripDocuments.service";
 import { TripVaultFilePreview } from "@/features/trips/components/trip-detail/TripVaultFilePreview";
+import {
+    pickComplianceVaultFile,
+    uploadComplianceVaultFile,
+} from "@/features/tripCompliance/services/complianceVaultUpload.service";
 import { DocumentScreen } from "@/features/tripCompliance/components/ComplianceDocumentWorkspace";
 import {
     markVehicleDocumentVerified,
     resolveVehicleDocumentsWriteTarget,
     updateVehicleDocumentExpiry,
-    uploadAndSaveVehicleDocument,
 } from "@/features/vehicles/services/vehicleDocuments.service";
-import { getVehicleById } from "@/features/vehicles/services/vehicles.service";
 import type { VehicleComplianceDocType } from "@/features/vehicles/utils/vehicleDocuments.util";
-import * as DocumentPicker from "expo-document-picker";
 import { ChevronLeft, ChevronRight, Eye, Upload, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -110,8 +107,6 @@ function formatDate(iso: string | null | undefined): string {
     return "—";
   }
 }
-
-const VAULT_VEHICLE_TYPES = new Set(["rc", "insurance", "fitness", "pollution", "permit", "road_tax"]);
 
 export type ComplianceReviewScope = ComplianceChecklistGroup["key"];
 
@@ -643,28 +638,8 @@ export function ComplianceDocumentReviewSheet({
       setRetryType(type);
       setUploadingMissing(true);
       try {
-        const res = await DocumentPicker.getDocumentAsync({
-          type: [...COMPLIANCE_TRIP_DOC_PICKER_TYPES],
-          copyToCacheDirectory: true,
-        });
-        if (res.canceled || !res.assets[0]) return;
-        const asset = res.assets[0];
-        const fileName = asset.name ?? `${type}.pdf`;
-        if (typeof asset.size === "number") {
-          const early = validateComplianceTripDocumentFile({
-            fileName,
-            mimeType: asset.mimeType,
-            byteLength: asset.size,
-          });
-          if (!early.ok) throw new Error(early.reason);
-        }
-        const arrayBuffer = await fetch(asset.uri).then((r) => r.arrayBuffer());
-        const format = validateComplianceTripDocumentFile({
-          fileName,
-          mimeType: asset.mimeType,
-          byteLength: arrayBuffer.byteLength,
-        });
-        if (!format.ok) throw new Error(format.reason);
+        const file = await pickComplianceVaultFile(type);
+        if (!file) return;
 
         let expiryDate: string | null = null;
         if (scope === "vehicle" || scope === "driver") {
@@ -672,106 +647,18 @@ export function ComplianceDocumentReviewSheet({
           if (documentRequiresExpiry(type) && !expiryDate) return;
         }
 
-        if (scope === "trip") {
-          const { error } = await uploadTripDocument(
-            tripId,
-            actorId,
-            { arrayBuffer, fileName, mimeType: format.mimeType },
-            type as TripDocumentType,
-            undefined,
-            { replaceExistingOfType: true },
-          );
-          if (error) throw error;
-        } else if (scope === "vehicle" && VAULT_VEHICLE_TYPES.has(type) && vehicleId) {
-          // Prefer the vehicle vault (vehicles.documents) when this org owns the
-          // truck. Cross-org / RLS-blocked vault writes fall back to
-          // entity_documents so Compliance can still collect mandatory RC/FC/etc.
-          const owned = await getVehicleById(organizationId, vehicleId);
-          if (owned.error) throw owned.error;
-
-          let savedToVault = false;
-          if (owned.vehicle) {
-            const { error: vaultError } = await uploadAndSaveVehicleDocument(
-              organizationId,
-              vehicleId,
-              type as VehicleComplianceDocType,
-              {
-                arrayBuffer,
-                fileName,
-                mimeType: format.mimeType,
-              },
-              expiryDate ?? "",
-              owned.vehicle.documents ?? null,
-            );
-            savedToVault = !vaultError;
-          } else {
-            // Vehicle may live on a supplier-linked org — resolve owning org then retry vault write.
-            const resolved = await resolveVehicleDocumentsWriteTarget(vehicleId, [organizationId]);
-            if (resolved) {
-              const { error: vaultError } = await uploadAndSaveVehicleDocument(
-                resolved.orgId,
-                vehicleId,
-                type as VehicleComplianceDocType,
-                {
-                  arrayBuffer,
-                  fileName,
-                  mimeType: format.mimeType,
-                },
-                expiryDate ?? "",
-                resolved.documents,
-              );
-              savedToVault = !vaultError;
-            }
-          }
-
-          if (!savedToVault) {
-            const existing = rows.find((row) => row.type === type)?.entityDoc;
-            if (existing?.source === "driver-kyc") {
-              throw new Error("Replace this file from Trip Operations Asset Vault.");
-            }
-            const upload = {
-              orgId: organizationId,
-              entityType: "vehicle" as const,
-              entityId: vehicleId,
-              docType: type,
-              file: {
-                arrayBuffer,
-                mimeType: format.mimeType,
-                fileName,
-              },
-              uploadedBy: actorId,
-              expiryDate: expiryDate || null,
-            };
-            const canReplaceEntity =
-              Boolean(existing?.id) && (existing?.source === "entity" || !existing?.source);
-            const { error } = canReplaceEntity
-              ? await replaceComplianceDocument({ existingDocId: existing!.id, upload })
-              : await uploadComplianceDocument(upload);
-            if (error) throw error;
-          }
-        } else {
-          const existing = rows.find((row) => row.type === type)?.entityDoc;
-          if (existing?.source === "vehicle-vault" || existing?.source === "driver-kyc") {
-            throw new Error("Replace this file from Trip Operations Asset Vault.");
-          }
-          const upload = {
-            orgId: organizationId,
-            entityType: scope,
-            entityId: entityId as string,
-            docType: type,
-            file: {
-              arrayBuffer,
-              mimeType: format.mimeType,
-              fileName,
-            },
-            uploadedBy: actorId,
-            expiryDate: expiryDate || null,
-          };
-          const { error } = existing?.id
-            ? await replaceComplianceDocument({ existingDocId: existing.id, upload })
-            : await uploadComplianceDocument(upload);
-          if (error) throw error;
-        }
+        await uploadComplianceVaultFile({
+          scope,
+          type,
+          tripId,
+          organizationId,
+          actorId,
+          vehicleId: vehicleId ?? null,
+          entityId: scope === "trip" ? null : (entityId ?? null),
+          existing: rows.find((row) => row.type === type)?.entityDoc,
+          file,
+          expiryDate,
+        });
         onChanged();
         setRetryType(null);
       } catch (e) {
