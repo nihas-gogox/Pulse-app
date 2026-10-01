@@ -3,7 +3,7 @@ import type { ComplianceDocRow } from "@/features/tripCompliance/utils/complianc
 export function canModerateComplianceRow(row: ComplianceDocRow, scope: "trip" | "vehicle" | "driver"): boolean {
   if (row.status === "missing") return false;
   if (scope === "trip") return Boolean(row.doc);
-  // Driver KYC / supplier bank proof is moderated elsewhere; vehicle vault can Approve (set expiry) but not Decline.
+  // Driver KYC / supplier bank proof is moderated elsewhere; vehicle vault can Approve but not Decline.
   if (row.entityDoc?.source === "driver-kyc" || row.entityDoc?.source === "supplier-kyc") return false;
   return Boolean(row.entityDoc);
 }

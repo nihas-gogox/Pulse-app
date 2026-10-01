@@ -1,7 +1,7 @@
 import { PartyAvatar } from "@/components/PartyAvatar";
 import { TripVaultFilePreview } from "@/features/trips/components/trip-detail/TripVaultFilePreview";
 import Theme from "@/constants/Theme";
-import { rejectDocument, updateEntityDocumentExpiry, verifyDocument } from "@/features/compliance/services/documents.service";
+import { rejectDocument, verifyDocument } from "@/features/compliance/services/documents.service";
 import {
   guessCompliancePreviewMime,
   signCompliancePreviewUrl,
@@ -67,12 +67,7 @@ import {
 } from "@/features/tripCompliance/services/complianceVaultUpload.service";
 import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
 import { getTripExecutionModel } from "@/features/trips/domain/tripExecutionModel";
-import {
-  markVehicleDocumentVerified,
-  resolveVehicleDocumentsWriteTarget,
-  updateVehicleDocumentExpiry,
-} from "@/features/vehicles/services/vehicleDocuments.service";
-import type { VehicleComplianceDocType } from "@/features/vehicles/utils/vehicleDocuments.util";
+import { markVehicleDocumentVerified } from "@/features/vehicles/services/vehicleDocuments.service";
 import { formatIndianVehicleNumber } from "@/lib/format";
 import { ROUTES } from "@/lib/routes";
 import { SIGNED_URL_CACHE_TTL_MS, SIGNED_URL_EXPIRY_SEC } from "@/lib/storageSignedUrlCache";
@@ -1136,21 +1131,6 @@ export function ComplianceDocumentWorkspace({
   const writeApproval = async (row: ComplianceDocRow): Promise<boolean> => {
     if (!summary || !actorId) return false;
     const tripId = summary.trip.id;
-    const existingExpiry = row.entityDoc?.expiry_date?.trim() ?? "";
-    let expiryDate = existingExpiry;
-    let enteredNewExpiry = false;
-
-    if (reviewScope !== "trip" && documentRequiresExpiry(row.type) && !expiryDate) {
-      const entered = await promptExpiryDate(row.type);
-      if (!entered) return false;
-      const trimmed = entered.trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-        alertMessage("Invalid expiry date", "Use YYYY-MM-DD (for example 2027-03-15).");
-        return false;
-      }
-      expiryDate = trimmed;
-      enteredNewExpiry = true;
-    }
 
     if (reviewScope === "trip") {
       if (!row.doc) {
@@ -1172,38 +1152,6 @@ export function ComplianceDocumentWorkspace({
     }
     if (row.entityDoc?.source === "vehicle-vault" && summary.trip.vehicle_id) {
       const vehicleId = summary.trip.vehicle_id;
-      if (enteredNewExpiry) {
-        const { error } = await updateVehicleDocumentExpiry(
-          organizationId,
-          vehicleId,
-          row.type as VehicleComplianceDocType,
-          expiryDate,
-          null,
-        );
-        if (error) {
-          // Cross-org vault write may fail — retry against the vehicle's owning org.
-          const resolved = await resolveVehicleDocumentsWriteTarget(vehicleId, [organizationId]);
-          if (!resolved) {
-            alertMessage(
-              "Couldn't approve document",
-              error.message ||
-                "Could not save the expiry date on this vehicle. Re-upload with an expiry date, then Approve.",
-            );
-            return false;
-          }
-          const retry = await updateVehicleDocumentExpiry(
-            resolved.orgId,
-            vehicleId,
-            row.type as VehicleComplianceDocType,
-            expiryDate,
-            resolved.documents,
-          );
-          if (retry.error) {
-            alertMessage("Couldn't approve document", retry.error.message);
-            return false;
-          }
-        }
-      }
       const marked = await markVehicleDocumentVerified(organizationId, vehicleId, row.type);
       if (marked.error) {
         alertMessage("Couldn't approve document", marked.error.message);
@@ -1213,13 +1161,6 @@ export function ComplianceDocumentWorkspace({
       return true;
     }
     if (row.entityDoc?.id && row.entityDoc.source !== "driver-kyc") {
-      if (enteredNewExpiry) {
-        const { error: expiryError } = await updateEntityDocumentExpiry(row.entityDoc.id, expiryDate);
-        if (expiryError) {
-          alertMessage("Couldn't approve document", expiryError.message);
-          return false;
-        }
-      }
       const { error } = await verifyDocument(row.entityDoc.id, actorId);
       if (error) {
         alertMessage("Couldn't approve document", error.message);
