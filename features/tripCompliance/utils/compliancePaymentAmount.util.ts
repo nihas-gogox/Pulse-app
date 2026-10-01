@@ -1,3 +1,4 @@
+import type { DocumentChargeSlab } from "@/features/organization/utils/documentChargeSlabs.util";
 import { financialYearOf } from "@/features/suppliers/utils/supplierVendorOnboarding.util";
 
 /**
@@ -5,7 +6,8 @@ import { financialYearOf } from "@/features/suppliers/utils/supplierVendorOnboar
  * (Base freight × Advance %) − documentation charges − TDS
  *
  * TDS amount = Base freight × supplier TDS rate % for the current financial year
- * (vendor vault → supplier_tds_rates). Documentation charges stay 0 until wired.
+ * (vendor vault → supplier_tds_rates). Documentation charges come from the org's
+ * Document Charge Slabs on base freight (see resolveComplianceDocumentationCharge).
  */
 export function computeCompliancePaymentAmount(input: {
   baseFreight: number;
@@ -66,5 +68,35 @@ export function resolveComplianceTdsRate(
 
 /** Placeholder until Compliance wires real documentation-charge source. */
 export const COMPLIANCE_PAYMENT_DOC_CHARGES_PLACEHOLDER = 0;
+
+export type ComplianceDocumentChargeConfig = {
+  enabled: boolean;
+  slabs: readonly DocumentChargeSlab[];
+};
+
+export type ComplianceDocumentationCharge = {
+  amount: number;
+  /** Why the amount is what it is — drives the hint under "Documentation charges". */
+  reason: "slab" | "disabled" | "no_slab" | "no_freight";
+  slab: Pick<DocumentChargeSlab, "from" | "to"> | null;
+};
+
+/**
+ * Documentation charge from the org's Document Charge Slabs, looked up on base
+ * freight only (never on advance %, TDS or any derived amount). Inclusive range:
+ * from ≤ freight ≤ to, `to: null` = and above. Off / no match → ₹0.
+ */
+export function resolveComplianceDocumentationCharge(
+  config: ComplianceDocumentChargeConfig | null | undefined,
+  baseFreight: number | null | undefined,
+): ComplianceDocumentationCharge {
+  const freight = Number(baseFreight);
+  if (!config?.enabled) return { amount: 0, reason: "disabled", slab: null };
+  if (!Number.isFinite(freight) || freight <= 0) return { amount: 0, reason: "no_freight", slab: null };
+  const hit = config.slabs.find((s) => freight >= s.from && (s.to === null || freight <= s.to));
+  if (!hit) return { amount: 0, reason: "no_slab", slab: null };
+  const amount = Math.max(0, Number(hit.charge) || 0);
+  return { amount, reason: "slab", slab: { from: hit.from, to: hit.to } };
+}
 
 export const COMPLIANCE_DEFAULT_ADVANCE_PERCENT = 90;

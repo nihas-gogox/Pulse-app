@@ -3,6 +3,7 @@
  * Builds the payment-sheet columns from trip + supplier vault + vehicle facts.
  */
 import { getDriverPhonesByIds } from "@/features/drivers/services/drivers.service";
+import { getDocumentChargeConfig } from "@/features/organization/services/documentCharges.service";
 import {
   getSupplierBankAccount,
   getVendorOnboardingProfile,
@@ -11,7 +12,10 @@ import {
 import { getSupplierById, getSupplierDetails } from "@/features/suppliers/services/suppliers.service";
 import { buildComplianceTripSummaries } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
-import { resolveComplianceTdsRate } from "@/features/tripCompliance/utils/compliancePaymentAmount.util";
+import {
+  resolveComplianceTdsRate,
+  type ComplianceDocumentChargeConfig,
+} from "@/features/tripCompliance/utils/compliancePaymentAmount.util";
 import {
   buildVerifiedExportCsvRow,
   verifiedExportRowsToCsv,
@@ -151,6 +155,15 @@ export async function buildVerifiedExportEnrichment(
     ),
   );
   const phonesPromise = getDriverPhonesByIds(driverIds);
+  const docChargeCache = new Map<string, Promise<ComplianceDocumentChargeConfig | null>>();
+  const docChargeConfigFor = (id: string) => {
+    let pending = docChargeCache.get(id);
+    if (!pending) {
+      pending = getDocumentChargeConfig(id).then(({ data }) => data);
+      docChargeCache.set(id, pending);
+    }
+    return pending;
+  };
 
   const enrichmentJobs = summaries.map(async (summary) => {
     const trip = summary.trip;
@@ -158,7 +171,9 @@ export async function buildVerifiedExportEnrichment(
     const supplierId = trip.supplier_id?.trim() || "";
     const vehicleId = trip.vehicle_id?.trim() || "";
     const isAsset = getTripExecutionModel(trip) === "asset";
-    const enrichment: VerifiedExportEnrichment = {};
+    const enrichment: VerifiedExportEnrichment = {
+      documentChargeConfig: await docChargeConfigFor(tripOrgId),
+    };
 
     if (isAsset && !supplierId) {
       enrichment.supplierName = "Own fleet";

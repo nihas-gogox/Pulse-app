@@ -6,9 +6,10 @@ import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompli
 import { COMPLIANCE_STAGE_FILTER_LABEL } from "@/features/tripCompliance/tripCompliance.types";
 import {
   COMPLIANCE_DEFAULT_ADVANCE_PERCENT,
-  COMPLIANCE_PAYMENT_DOC_CHARGES_PLACEHOLDER,
   computeCompliancePaymentAmount,
   computeComplianceTdsAmount,
+  resolveComplianceDocumentationCharge,
+  type ComplianceDocumentChargeConfig,
 } from "@/features/tripCompliance/utils/compliancePaymentAmount.util";
 import { formatComplianceTimestamp } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import { splitHubRouteLocationDisplay } from "@/features/trips/utils/tripLocationDisplay.util";
@@ -61,6 +62,8 @@ export type VerifiedExportEnrichment = {
   advancePercent?: number | null;
   /** Supplier TDS rate % for current (or prior) FY. */
   tdsRatePercent?: number | null;
+  /** Trip org's Document Charge Slabs; charge is looked up on S Price (base freight). */
+  documentChargeConfig?: ComplianceDocumentChargeConfig | null;
 };
 
 type CommercialTrip = {
@@ -183,7 +186,10 @@ export function buildVerifiedExportCsvRow(
     enrichment.advancePercent != null && Number.isFinite(Number(enrichment.advancePercent))
       ? Number(enrichment.advancePercent)
       : COMPLIANCE_DEFAULT_ADVANCE_PERCENT;
-  const documentationCharges = COMPLIANCE_PAYMENT_DOC_CHARGES_PLACEHOLDER;
+  const documentationCharges = resolveComplianceDocumentationCharge(
+    enrichment.documentChargeConfig,
+    sPrice,
+  ).amount;
   const tdsAmount = computeComplianceTdsAmount(sPrice ?? 0, enrichment.tdsRatePercent);
   const finalAdvance =
     sPrice != null

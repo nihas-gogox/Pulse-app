@@ -132,6 +132,22 @@ describe("complianceVerifiedExport.util", () => {
     expect(row["Margin %"]).toBe("20");
   });
 
+  it("deducts the org slab charge for S Price from Final Advance", () => {
+    const row = buildVerifiedExportCsvRow(summary({}), {
+      advancePercent: 90,
+      tdsRatePercent: 2,
+      documentChargeConfig: {
+        enabled: true,
+        slabs: [
+          { id: "a", from: 25001, to: 60000, charge: 500 },
+          { id: "b", from: 60001, to: 100000, charge: 600 },
+        ],
+      },
+    });
+    expect(row["Documentation charges"]).toBe("600");
+    expect(row["Final Advance"]).toBe("69800");
+  });
+
   it("serializes CSV with escaped commas", () => {
     const row = buildVerifiedExportCsvRow(
       summary({

@@ -6,12 +6,15 @@ import {
 import type { ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import type { ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
+import { getDocumentChargeConfig } from "@/features/organization/services/documentCharges.service";
+import { formatSlabRange } from "@/features/organization/utils/documentChargeSlabs.util";
 import {
   COMPLIANCE_DEFAULT_ADVANCE_PERCENT,
-  COMPLIANCE_PAYMENT_DOC_CHARGES_PLACEHOLDER,
   computeCompliancePaymentAmount,
   computeComplianceTdsAmount,
+  resolveComplianceDocumentationCharge,
   resolveComplianceTdsRate,
+  type ComplianceDocumentChargeConfig,
 } from "@/features/tripCompliance/utils/compliancePaymentAmount.util";
 import { classifyTripDocument } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
 import {
@@ -171,6 +174,9 @@ export function CompliancePaymentConfirmModal({
   const [tdsRatePercent, setTdsRatePercent] = useState<number | null>(null);
   const [tdsRateFy, setTdsRateFy] = useState<string | null>(null);
   const [tdsLoading, setTdsLoading] = useState(false);
+  const [docChargeConfig, setDocChargeConfig] =
+    useState<ComplianceDocumentChargeConfig | null>(null);
+  const [docChargeLoading, setDocChargeLoading] = useState(false);
   const [inlineWidth, setInlineWidth] = useState(0);
   const inlineWide = inlineWidth >= INLINE_TWO_COLUMN_MIN_WIDTH;
 
@@ -183,7 +189,25 @@ export function CompliancePaymentConfirmModal({
     [trip, category, summary?.advance?.amount],
   );
   const baseFreightLabel = baseFreight != null ? formatInr(baseFreight) : "—";
-  const documentationCharges = COMPLIANCE_PAYMENT_DOC_CHARGES_PLACEHOLDER;
+  const docCharge = useMemo(
+    () =>
+      isAdvance
+        ? resolveComplianceDocumentationCharge(docChargeConfig, baseFreight)
+        : null,
+    [isAdvance, docChargeConfig, baseFreight],
+  );
+  const documentationCharges = docCharge?.amount ?? 0;
+  const docChargeApplied =
+    docCharge?.reason === "slab" && documentationCharges > 0;
+  const docChargeMeta = !docCharge
+    ? "Deducted with the advance"
+    : docCharge.reason === "slab" && docCharge.slab
+      ? `Slab ₹${formatSlabRange(docCharge.slab)} · on base freight`
+      : docCharge.reason === "no_slab"
+        ? "No slab covers this base freight"
+        : docCharge.reason === "no_freight"
+          ? "Base freight not set"
+          : "Document charges are off for this org";
   const tdsAmount = useMemo(
     () => computeComplianceTdsAmount(baseFreight ?? 0, tdsRatePercent),
     [baseFreight, tdsRatePercent],
@@ -315,10 +339,36 @@ export function CompliancePaymentConfirmModal({
     };
   }, [visible, trip?.supplier_id, trip?.organization_id, isAdvance]);
 
+  /** Org Document Charge Slabs (Workspace → Settings → Document Charges). */
+  useEffect(() => {
+    const orgId = trip?.organization_id?.trim();
+    if (!visible || !orgId || !isAdvance) {
+      setDocChargeConfig(null);
+      setDocChargeLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setDocChargeLoading(true);
+    void (async () => {
+      const { data } = await getDocumentChargeConfig(orgId);
+      if (cancelled) return;
+      setDocChargeConfig(data);
+      setDocChargeLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, trip?.organization_id, isAdvance]);
+
   const amountOk = computedAmount > 0;
   const mode = PAYMENT_MODES.find((item) => item.id === modeId);
   const canSubmit =
-    amountOk && !!mode && !submitting && !!summary && !!category;
+    amountOk &&
+    !!mode &&
+    !submitting &&
+    !docChargeLoading &&
+    !!summary &&
+    !!category;
 
   const openMemoPreview = async () => {
     const path = memoDocument?.storage_path?.trim();
@@ -473,13 +523,28 @@ export function CompliancePaymentConfirmModal({
         </View>
       </View>
 
-      <View style={calcRowStyle}>
-        <Text style={[styles.calcLabel, styles.calcLabelGrow]}>
-          Documentation charges
-        </Text>
-        <Text style={styles.calcValueMuted}>
-          {formatInr(documentationCharges)}
-        </Text>
+      <View style={[styles.calcRowTds, isInline && styles.calcRowCompact]}>
+        <View style={styles.calcLabelBlock}>
+          <Text style={styles.calcLabel}>Documentation charges</Text>
+          <Text style={styles.calcMeta} numberOfLines={1}>
+            {docChargeLoading ? "Fetching charge slabs…" : docChargeMeta}
+          </Text>
+        </View>
+        <View style={styles.tdsValueBlock}>
+          {docChargeLoading ? (
+            <ActivityIndicator size="small" color={Theme.textMuted} />
+          ) : (
+            <Text
+              style={[
+                styles.calcValue,
+                styles.tdsAmountValue,
+                !docChargeApplied && styles.calcValueMuted,
+              ]}
+            >
+              {formatInr(documentationCharges)}
+            </Text>
+          )}
+        </View>
       </View>
 
       <View style={[styles.calcRowTds, isInline && styles.calcRowCompact]}>

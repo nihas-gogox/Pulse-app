@@ -1,6 +1,13 @@
 # Changelog — V1 (v0.0.01)
 
 ## sneha/V1.0.2 — 2026-10-01
+- **What:** Advance Payment panel: Documentation charges now come from the org's Document Charge Slabs (Workspace → Settings → Document Charges) instead of a fixed ₹0. The slab is matched on **base freight only**; slab edges are inclusive and the last slab means "and above". Example: base freight ₹5,250 falls in the ₹1,000–₹15,000 slab, so the charge is ₹200 and the payable at 90% is ₹4,725 − ₹200 = ₹4,525. The row now has the same layout as TDS: a hint under the label (e.g. "Slab ₹1,000 – 15,000 · on base freight", "No slab covers this base freight", "Document charges are off for this org") and a loader while the slabs are fetched. Confirm payment is disabled until the slabs load. On a balance payment the charge is ₹0 with the hint "Deducted with the advance", so it is never taken twice. The Verified Export Report CSV uses the same lookup for "Documentation charges" and "Final Advance".
+- **Why:** The form always showed ₹0 for documentation charges. It should charge the configured slab for the trip's freight.
+- **Files/areas:** `features/tripCompliance/utils/compliancePaymentAmount.util.ts` (`resolveComplianceDocumentationCharge`), `features/tripCompliance/components/CompliancePaymentConfirmModal.tsx` (slab fetch + Documentation charges row), `features/tripCompliance/utils/complianceVerifiedExport.util.ts`, `features/tripCompliance/services/complianceExportReport.service.ts`, tests
+- **Migrations:** none. Reads the existing `org_document_charge_settings` / `org_document_charge_slabs` tables (RLS: org members).
+- **Tested:** Jest `features/tripCompliance` (444 pass; new cases for slab edges, open-ended slab, off / no match, and the CSV Final Advance); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
 - **What:** Compliance footer: Export Report shows only when the Verified stage chip is selected and is hidden on every other stage. Bulk Payment stays right-aligned. If the stage changes while the export popup is open, the popup closes (unless an export is already running). The popup, its count and the CSV export are unchanged.
 - **Why:** The report exports Verified-stage trips only, so offering it on other stages was misleading.
 - **Files/areas:** `app/compliance/index.tsx` (footer Export Report button, `ComplianceExportConfirmModal` visibility)
