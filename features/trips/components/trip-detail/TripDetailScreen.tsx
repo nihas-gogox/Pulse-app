@@ -335,6 +335,37 @@ import {
 
 type Tab = "trip" | "finance" | "expenses" | "tracking" | "docs";
 
+function tripExtraVehicleNumber(
+  trip: { vehicle_number?: string | null } | null | undefined,
+): string | null {
+  return trip?.vehicle_number ?? null;
+}
+
+/** Same plate the manifest vehicle card shows. Pending / Unassigned are not a vehicle. */
+function visibleAssignedVehiclePlate(input: {
+  displayVehicleFromInput?: string | null;
+  vehicleLabel?: string | null;
+  vehicleDisplayNumber?: string | null;
+  vehicleNumber?: string | null;
+}): string {
+  const raw =
+    input.displayVehicleFromInput?.trim() ||
+    input.vehicleLabel?.trim() ||
+    input.vehicleDisplayNumber?.trim() ||
+    input.vehicleNumber?.trim() ||
+    "";
+  const head = raw.split(/[·•]/)[0]?.trim() ?? "";
+  if (
+    !head ||
+    head === "—" ||
+    /^pending$/i.test(head) ||
+    /^unassigned$/i.test(head)
+  ) {
+    return "";
+  }
+  return head;
+}
+
 type TripWebExtra = {
   pickup_state?: string | null;
   drop_state?: string | null;
@@ -1378,6 +1409,7 @@ export default function TripDetailScreen({
 
   const [lrOcrReading, setLrOcrReading] = useState(false);
   const lrOcrAttemptedRef = useRef<string | null>(null);
+  const vaultUploadInFlightRef = useRef(false);
   const [addDocChooserVisible, setAddDocChooserVisible] = useState(false);
   const [tripDetailsVisible, setTripDetailsVisible] = useState(false);
   const [supplierBankProof, setSupplierBankProof] =
@@ -1511,7 +1543,7 @@ export default function TripDetailScreen({
     const pending = pendingVaultUpload;
     const tripIdForUpload = detail.trip?.id;
     const uploaderId = detail.currentUserId;
-    if (!pending || uploadingDocId) return;
+    if (!pending || uploadingDocId || vaultUploadInFlightRef.current) return;
     if (!tripIdForUpload) {
       showAppAlert("Upload failed", "Trip is still loading. Try again in a moment.");
       return;
@@ -1533,6 +1565,7 @@ export default function TripDetailScreen({
       }
     }
 
+    vaultUploadInFlightRef.current = true;
     setUploadingDocId(pending.slotId);
     try {
       const files = [
@@ -1555,16 +1588,16 @@ export default function TripDetailScreen({
       } | null = null;
 
       if (pending.docType === "vehicle_extra") {
-        const orgId =
-          detail.trip?.organization_id ?? currentOrganization?.id ?? null;
-        const vehicleId = detail.trip?.vehicle_id ?? null;
-        if (!orgId || !vehicleId) {
+        // Trips linked by owner vehicle or plate only have no vehicle_id.
+        const target = await detail.resolveVaultVehicle();
+        if (!target) {
           showAppAlert(
             "Assign a vehicle",
-            "Assign a vehicle to this trip before adding vehicle documents.",
+            "Assign a vehicle on this trip before uploading RC, Fitness, Insurance, or PUC.",
           );
           return;
         }
+        const { orgId, vehicleId } = target;
         const buffers: {
           arrayBuffer: ArrayBuffer;
           fileName: string;
@@ -1845,6 +1878,7 @@ export default function TripDetailScreen({
         e instanceof Error ? e.message : "Something went wrong.",
       );
     } finally {
+      vaultUploadInFlightRef.current = false;
       setUploadingDocId(null);
     }
   }, [
@@ -1860,6 +1894,7 @@ export default function TripDetailScreen({
     detail.currentUserId,
     detail.vehicleDocs,
     detail.setVehicleDocs,
+    detail.resolveVaultVehicle,
     detail.driverIdentityDocs,
     detail.setDriverIdentityDocs,
     detail.handleRefresh,
@@ -2228,13 +2263,24 @@ export default function TripDetailScreen({
     async (kind: VehicleComplianceDocType | "extra") => {
       const tripIdForUpload = detail.trip?.id;
       const uploaderId = detail.currentUserId;
-      const vehicleId = detail.trip?.vehicle_id ?? null;
+      const plateOnScreen = visibleAssignedVehiclePlate({
+        displayVehicleFromInput: detail.displayVehicleFromInput,
+        vehicleLabel: detail.vehicleLabel,
+        vehicleDisplayNumber: detail.trip?.vehicle_display_number,
+        vehicleNumber: tripExtraVehicleNumber(detail.trip),
+      });
+      const vehicleReady = Boolean(
+        detail.trip?.vehicle_id?.trim() ||
+          detail.trip?.owner_vehicle_id?.trim() ||
+          detail.trip?.vehicle_display_number?.trim() ||
+          plateOnScreen,
+      );
       if (!tripIdForUpload || !uploaderId || uploadingDocId || pendingVaultUpload)
         return;
-      if (!vehicleId) {
+      if (!vehicleReady) {
         showAppAlert(
           "Assign a vehicle",
-          "Assign a vehicle to this trip before adding vehicle documents.",
+          "Assign a vehicle on this trip before uploading RC, Fitness, Insurance, or PUC.",
         );
         return;
       }
@@ -2281,6 +2327,10 @@ export default function TripDetailScreen({
     [
       detail.trip?.id,
       detail.trip?.vehicle_id,
+      detail.trip?.owner_vehicle_id,
+      detail.trip?.vehicle_display_number,
+      detail.displayVehicleFromInput,
+      detail.vehicleLabel,
       detail.currentUserId,
       uploadingDocId,
       pendingVaultUpload,
@@ -2289,15 +2339,34 @@ export default function TripDetailScreen({
 
   const openVehicleDocChooser = useCallback(() => {
     if (uploadingDocId || pendingVaultUpload) return;
-    if (!detail.trip?.vehicle_id) {
+    const plateOnScreen = visibleAssignedVehiclePlate({
+      displayVehicleFromInput: detail.displayVehicleFromInput,
+      vehicleLabel: detail.vehicleLabel,
+      vehicleDisplayNumber: detail.trip?.vehicle_display_number,
+      vehicleNumber: tripExtraVehicleNumber(detail.trip),
+    });
+    if (
+      !detail.trip?.vehicle_id?.trim() &&
+      !detail.trip?.owner_vehicle_id?.trim() &&
+      !detail.trip?.vehicle_display_number?.trim() &&
+      !plateOnScreen
+    ) {
       showAppAlert(
         "Assign a vehicle",
-        "Assign a vehicle to this trip before adding vehicle documents.",
+        "Assign a vehicle on this trip before uploading RC, Fitness, Insurance, or PUC.",
       );
       return;
     }
     setVehicleDocChooserVisible(true);
-  }, [detail.trip?.vehicle_id, uploadingDocId, pendingVaultUpload]);
+  }, [
+    detail.trip?.vehicle_id,
+    detail.trip?.owner_vehicle_id,
+    detail.trip?.vehicle_display_number,
+    detail.displayVehicleFromInput,
+    detail.vehicleLabel,
+    uploadingDocId,
+    pendingVaultUpload,
+  ]);
 
   const chooseVehicleDocKind = useCallback(
     (kind: VehicleComplianceDocType | "extra") => {

@@ -670,10 +670,11 @@ export function __resetTripDocumentLrPodRpcProbeForTests(): void {
 async function fetchLrPodRowsViaRest(
   tripIds: string[],
   documentTypes: string[],
+  concurrency: number = CHUNK_CONCURRENCY,
 ): Promise<TripDocumentLrPodRow[]> {
   const chunks = chunkIds(tripIds, TRIP_ID_CHUNK_REST);
   if (chunks.length === 0) return [];
-  const results = await runWithConcurrencyLimit(chunks, CHUNK_CONCURRENCY, async (chunk) => {
+  const results = await runWithConcurrencyLimit(chunks, concurrency, async (chunk) => {
     try {
       const { data, error } = await supabase()
         .from("trip_documents")
@@ -742,7 +743,11 @@ export async function loadHubPodReceiptFlags(
   const viaRpc = await fetchLrPodRowsViaRpc(wanted);
   const rows =
     viaRpc ??
-    (await fetchLrPodRowsViaRest(wanted, ["pod", "soft_pod", "pod_soft", "eway_bill"]));
+    (await fetchLrPodRowsViaRest(
+      wanted,
+      ["pod", "soft_pod", "pod_soft", "eway_bill"],
+      1,
+    ));
 
   for (const row of rows) {
     const id = normalizeTripPodId(row.trip_id);

@@ -4711,6 +4711,7 @@ export type Database = {
           assigned_supplier_id: string | null
           assigned_supplier_rate: number | null
           award_revoked_at: string | null
+          cancel_reason: string | null
           circulation_target: string | null
           client_id: string | null
           client_name: string
@@ -4749,6 +4750,7 @@ export type Database = {
           assigned_supplier_id?: string | null
           assigned_supplier_rate?: number | null
           award_revoked_at?: string | null
+          cancel_reason?: string | null
           circulation_target?: string | null
           client_id?: string | null
           client_name: string
@@ -4787,6 +4789,7 @@ export type Database = {
           assigned_supplier_id?: string | null
           assigned_supplier_rate?: number | null
           award_revoked_at?: string | null
+          cancel_reason?: string | null
           circulation_target?: string | null
           client_id?: string | null
           client_name?: string
@@ -17289,6 +17292,14 @@ export type Database = {
         Args: { p_trip_ids: string[] }
         Returns: {
           total_distance_m: number
+          trip_id: string
+        }[]
+      }
+      get_trip_documents_lr_pod_batch: {
+        Args: { p_trip_ids: string[] }
+        Returns: {
+          document_number: string
+          document_type: string
           trip_id: string
         }[]
       }

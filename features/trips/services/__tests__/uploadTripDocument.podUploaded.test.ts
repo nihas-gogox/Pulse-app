@@ -117,6 +117,39 @@ describe('uploadTripDocument — PODUploaded event', () => {
     expect(published.correlationId.length).toBeGreaterThan(0);
   });
 
+  it('does not look up trips when organizationId is already known', async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'trip_documents') {
+        return insertBuilder({
+          data: {
+            id: 'doc-1',
+            trip_id: 'trip-1',
+            file_name: 'pod.jpg',
+            storage_path: 'trip-1/pod/uuid.jpg',
+            mime_type: 'image/jpeg',
+            size_bytes: 10,
+            uploaded_at: '2026-07-10T12:00:00.000Z',
+            uploaded_by: 'user-1',
+            document_type: 'pod',
+          },
+          error: null,
+        });
+      }
+      if (table === 'trip_workflow_events') {
+        return workflowEventInsertBuilder();
+      }
+      throw new Error(`unexpected table: ${table}`);
+    });
+
+    const { error } = await uploadTripDocument('trip-1', 'user-1', file, 'pod', undefined, {
+      organizationId: 'org-1',
+    });
+    expect(error).toBeNull();
+    await flushPromises();
+    expect(mockFrom).not.toHaveBeenCalledWith('trips');
+    expect(mockPublish).toHaveBeenCalledTimes(1);
+  });
+
   it('also records a pod.uploaded workflow event alongside the platform event', async () => {
     mockFrom.mockImplementation((table: string) => {
       if (table === 'trip_documents') {

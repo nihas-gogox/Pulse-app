@@ -25,10 +25,6 @@ interface PdfViewerProps {
   page?: number;
 }
 
-function isLocalPreviewUri(uri: string): boolean {
-  return /^(blob:|data:|file:)/i.test(uri);
-}
-
 function withPdfViewerHash(
   uri: string,
   showToolbar: boolean,
@@ -64,45 +60,12 @@ export function PdfViewer({
       return;
     }
 
-    let objectUrl: string | null = null;
-    let cancelled = false;
-
-    if (isLocalPreviewUri(pdfUri) || sizing === "original" || page != null) {
-      // Keep the real https URL. Chrome drops #zoom and #page on blob: copies.
-      setSrc(pdfUri);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setSrc(null);
-
-    void (async () => {
-      try {
-        const res = await fetch(pdfUri);
-        if (!res.ok) throw new Error(`PDF fetch failed (${res.status})`);
-        const buf = await res.arrayBuffer();
-        const blob = new Blob([buf], { type: "application/pdf" });
-        objectUrl = URL.createObjectURL(blob);
-        if (cancelled) {
-          URL.revokeObjectURL(objectUrl);
-          return;
-        }
-        setSrc(objectUrl);
-        setLoading(false);
-      } catch {
-        if (cancelled) return;
-        // CORS / network: still try the original URL in the iframe.
-        setSrc(pdfUri);
-        setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [pdfUri, sizing, page]);
+    // Signed storage URLs render directly; the hash (zoom/page/toolbar) is added
+    // at render. Downloading the file into a blob first held the preview on a
+    // spinner for the whole transfer, and Chrome drops #zoom/#page on blob: copies.
+    setSrc(pdfUri);
+    setLoading(false);
+  }, [pdfUri]);
 
   if (!pdfUri) {
     return (

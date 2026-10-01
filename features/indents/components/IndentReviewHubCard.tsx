@@ -349,11 +349,11 @@ export const IndentReviewHubCard = memo(function IndentReviewHubCard({
                 onPress={onCancelLoad}
                 disabled={cancelling}
                 activeOpacity={0.7}
-                accessibilityLabel="Cancel load"
+                accessibilityLabel="Cancel indent"
                 hitSlop={Layout.touchTargetHitSlop}
               >
                 <Text style={styles.cancelLinkText}>
-                  {cancelling ? "Cancelling…" : "Cancel load"}
+                  {cancelling ? "Cancelling…" : "Cancel indent"}
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -665,8 +665,8 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   cancelLinkText: {
-    fontSize: 9,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
     color: Theme.negative,
     letterSpacing: 0.15,
   },

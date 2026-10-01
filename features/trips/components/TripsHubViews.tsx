@@ -1032,6 +1032,14 @@ export type TripsHubTableViewProps = {
     selected: boolean;
     onPress: () => void;
     accessibilityLabel?: string;
+    /** Shown under the row when this tag is selected. */
+    subTags?: ReadonlyArray<{
+      id: string;
+      label: string;
+      selected: boolean;
+      onPress: () => void;
+      accessibilityLabel?: string;
+    }>;
   }>;
   /** Controlled hub search. When omitted, the table keeps internal search state. */
   searchQuery?: string;
@@ -1120,6 +1128,18 @@ function indentStatusTagTone(id: string): {
       selectedBorder: Theme.brandBlueInk,
       selectedText: Theme.brandBlueInk,
       selectedDot: Theme.brandBlueInk,
+    };
+  }
+  if (id === "failed") {
+    return {
+      bg: Theme.screenBackground,
+      border: Theme.negative,
+      text: Theme.negative,
+      dot: Theme.negative,
+      selectedBg: Theme.negative,
+      selectedBorder: Theme.negative,
+      selectedText: Theme.buttonDarkText,
+      selectedDot: Theme.buttonDarkText,
     };
   }
   if (id === "awarded") {
@@ -1373,43 +1393,74 @@ export function TripsHubTableView({
         {toolbarTags.map((tag) => {
           const tone = indentStatusTagTone(tag.id);
           return (
-            <TouchableOpacity
-              key={tag.id}
-              style={[
-                styles.indentStatusTag,
-                {
-                  backgroundColor: tag.selected ? tone.selectedBg : tone.bg,
-                  borderColor: tag.selected ? tone.selectedBorder : tone.border,
-                },
-              ]}
-              onPress={tag.onPress}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityState={{ selected: tag.selected }}
-              accessibilityLabel={tag.accessibilityLabel ?? tag.label}
-            >
-              <View
+            <View key={tag.id} style={styles.indentStatusTagInline}>
+              <TouchableOpacity
                 style={[
-                  styles.indentStatusTagDot,
+                  styles.indentStatusTag,
                   {
-                    backgroundColor: tag.selected
-                      ? tone.selectedDot
-                      : tone.dot,
+                    backgroundColor: tag.selected ? tone.selectedBg : tone.bg,
+                    borderColor: tag.selected ? tone.selectedBorder : tone.border,
                   },
                 ]}
-              />
-              <Text
-                style={[
-                  styles.indentStatusTagText,
-                  {
-                    color: tag.selected ? tone.selectedText : tone.text,
-                  },
-                ]}
-                numberOfLines={1}
+                onPress={tag.onPress}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ selected: tag.selected }}
+                accessibilityLabel={tag.accessibilityLabel ?? tag.label}
               >
-                {tag.label}
-              </Text>
-            </TouchableOpacity>
+                <View
+                  style={[
+                    styles.indentStatusTagDot,
+                    {
+                      backgroundColor: tag.selected
+                        ? tone.selectedDot
+                        : tone.dot,
+                    },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.indentStatusTagText,
+                    {
+                      color: tag.selected ? tone.selectedText : tone.text,
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {tag.label}
+                </Text>
+              </TouchableOpacity>
+              {tag.selected
+                ? tag.subTags?.map((sub) => (
+                    <TouchableOpacity
+                      key={sub.id}
+                      style={[
+                        styles.indentStatusTag,
+                        sub.selected
+                          ? styles.indentStatusSubTagSelected
+                          : styles.indentStatusSubTag,
+                      ]}
+                      onPress={sub.onPress}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: sub.selected }}
+                      accessibilityLabel={sub.accessibilityLabel ?? sub.label}
+                    >
+                      <Text
+                        style={[
+                          styles.indentStatusTagText,
+                          sub.selected
+                            ? styles.indentStatusSubTagTextSelected
+                            : styles.indentStatusSubTagText,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {sub.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                : null}
+            </View>
           );
         })}
       </View>
@@ -3987,6 +4038,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     flexShrink: 0,
+    flexWrap: "nowrap",
+  },
+  indentStatusTagInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 0,
+  },
+  indentStatusSubTag: {
+    backgroundColor: Theme.screenBackground,
+    borderColor: Theme.negative,
+  },
+  indentStatusSubTagSelected: {
+    backgroundColor: Theme.negativeMuted,
+    borderColor: Theme.negative,
+  },
+  indentStatusSubTagText: {
+    color: Theme.negative,
+  },
+  indentStatusSubTagTextSelected: {
+    color: Theme.negative,
+    fontWeight: "700",
   },
   indentStatusTag: {
     minHeight: 26,
