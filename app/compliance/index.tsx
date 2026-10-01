@@ -8,7 +8,6 @@ import Layout from "@/constants/Layout";
 import Theme from "@/constants/Theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOptionalOrganization } from "@/contexts/OrganizationContext";
-import { ComplianceDocumentReviewSheet } from "@/features/tripCompliance/components/ComplianceDocumentReviewSheet";
 import { ComplianceExportConfirmModal } from "@/features/tripCompliance/components/ComplianceExportConfirmModal";
 import { CompliancePaymentConfirmModal } from "@/features/tripCompliance/components/CompliancePaymentConfirmModal";
 import { ComplianceDocumentWorkspace } from "@/features/tripCompliance/components/ComplianceDocumentWorkspace";
@@ -20,7 +19,6 @@ import {
   useComplianceListPagination,
   useComplianceStageFilter,
   useComplianceTripsQuery,
-  useComplianceTripQuery,
   useComplianceChangeSync,
 } from "@/features/tripCompliance/hooks/useComplianceTripsQuery";
 import {
@@ -48,9 +46,9 @@ import { useLayoutInsets } from "@/lib/layoutInsets";
 import { useSuppliersQuery } from "@/lib/queries/useSuppliersQuery";
 import { ROUTES } from "@/lib/routes";
 import { useMemberAccess } from "@/lib/useMemberAccess";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Download, LayoutGrid, Search, Table2, Wallet } from "lucide-react-native";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View, type TextStyle } from "react-native";
 
 function StageChip({
@@ -241,16 +239,16 @@ export default function ComplianceScreen() {
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   // Selected trip in the Cards workspace; Table Verify (not ready) hands off here.
   const [cardTripId, setCardTripId] = useState<string | null>(null);
+  const [cardFocus, setCardFocus] = useState<{
+    tab: "trip" | "vehicle" | "driver";
+    token: number;
+  } | null>(null);
   const [search, setSearch] = useState("");
   const [pay, setPay] = useState<{ summary: ComplianceTripSummary; category: ComplianceLedgerCategory } | null>(null);
   const [paying, setPaying] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [review, setReview] = useState<{
-    tripId: string;
-    documentKey: string | null;
-    scope: "trip" | "vehicle" | "driver";
-  } | null>(null);
+  const routeFocus = useLocalSearchParams<{ trip?: string; tab?: string }>();
 
   const searched = useMemo(() => {
     // With an active query, search the full Compliance queue (not only the
@@ -278,6 +276,14 @@ export default function ComplianceScreen() {
     pageSize: COMPLIANCE_QUEUE_PAGE_SIZE,
     resetKey: `${stage}|${search.trim()}`,
   });
+
+  useEffect(() => {
+    if (viewMode !== "card" || !cardTripId) return;
+    const index = searched.findIndex((item) => item.trip.id === cardTripId);
+    if (index < 0) return;
+    const target = Math.floor(index / COMPLIANCE_QUEUE_PAGE_SIZE);
+    setPage((current) => (current === target ? current : target));
+  }, [cardTripId, searched, setPage, viewMode]);
 
   const contentTopInset = layout.isDesktopWeb ? Layout.desktopTopNavOffset : layout.top;
   const pagePad = Layout.screenPaddingHorizontal;
@@ -326,6 +332,12 @@ export default function ComplianceScreen() {
     }
   }, [currentOrganization?.id, exporting]);
 
+  const openComplianceCard = useCallback((tripId: string, tab: "trip" | "vehicle" | "driver" = "trip") => {
+    setCardTripId(tripId);
+    setCardFocus({ tab, token: Date.now() });
+    setViewMode("card");
+  }, []);
+
   const openDetails = useCallback(
     (tripId: string) => {
       router.push(ROUTES.complianceDetail(tripId) as Parameters<typeof router.push>[0]);
@@ -333,12 +345,23 @@ export default function ComplianceScreen() {
     [router],
   );
 
-  const reviewingSummaryFromList = useMemo(
-    () => (review ? summaries.find((s) => s.trip.id === review.tripId) ?? null : null),
-    [review, summaries],
-  );
-  const freshReview = useComplianceTripQuery(review?.tripId);
-  const reviewingSummary = freshReview.data ?? reviewingSummaryFromList;
+  const appliedRouteFocus = useRef("");
+  const routeTripId = typeof routeFocus.trip === "string" ? routeFocus.trip : "";
+  const routeTab =
+    routeFocus.tab === "vehicle" || routeFocus.tab === "driver" || routeFocus.tab === "trip"
+      ? routeFocus.tab
+      : "trip";
+
+  useEffect(() => {
+    if (!routeTripId) return;
+    const key = `${routeTripId}:${routeTab}`;
+    if (appliedRouteFocus.current === key) return;
+    const row = summaries.find((item) => item.trip.id === routeTripId);
+    if (!row) return;
+    appliedRouteFocus.current = key;
+    setStage(row.stage);
+    openComplianceCard(routeTripId, routeTab);
+  }, [openComplianceCard, routeTab, routeTripId, setStage, summaries]);
 
   if (orgCtx === undefined || accessLoading || productsLoading) {
     return <ChromeBelowTopNavLoadingScreen variant="preparing" />;
@@ -486,12 +509,11 @@ export default function ComplianceScreen() {
             summaries={visible}
             onOpenTrip={openTrip}
             onOpenDetails={openDetails}
-            onReview={(tripId, documentKey, scope = "trip") => setReview({ tripId, documentKey, scope })}
-            onMarkComplianceVerified={canMarkVerified ? markTripVerified : undefined}
-            onVerifyDocs={(tripId) => {
-              setCardTripId(tripId);
-              setViewMode("card");
+            onReview={(tripId, _documentKey, scope = "trip") => {
+              openComplianceCard(tripId, scope);
             }}
+            onMarkComplianceVerified={canMarkVerified ? markTripVerified : undefined}
+            onVerifyDocs={(tripId) => openComplianceCard(tripId, "trip")}
             onDeclineCompliance={canMarkVerified ? declineTrip : undefined}
             onPay={(tripId) => {
               const summary = visible.find((s) => s.trip.id === tripId) ?? summaries.find((s) => s.trip.id === tripId);
@@ -536,14 +558,16 @@ export default function ComplianceScreen() {
               : undefined
           }
           onRejectCompliance={canMarkVerified ? rejectTrip : undefined}
+          onDeclineCompliance={canMarkVerified ? declineTrip : undefined}
           onMarkComplianceVerified={canMarkVerified ? markTripVerified : undefined}
           canManagePod={canManagePod}
           selectedTripId={cardTripId}
+          focusTab={cardFocus?.tab ?? null}
+          focusToken={cardFocus?.token ?? 0}
           stacked={isNarrow}
           onChanged={(change) => void syncChange(change)}
-          onReviewTripDocs={(tripId, documentKey, scope = "trip") => {
-            setCardTripId(tripId);
-            setReview({ tripId, documentKey, scope });
+          onReviewTripDocs={(tripId, _documentKey, scope = "trip") => {
+            openComplianceCard(tripId, scope);
           }}
         />
       )}
@@ -658,41 +682,6 @@ export default function ComplianceScreen() {
         </View>
       </View>
       </View>
-
-      {reviewingSummary ? (
-        <ComplianceDocumentReviewSheet
-          visible={review != null}
-          onClose={() => setReview(null)}
-          tripId={reviewingSummary.trip.id}
-          tripLabel={`${reviewingSummary.trip.booking_ref ?? reviewingSummary.trip.id.slice(0, 8)} · ${reviewingSummary.trip.client_name || "Client"}`}
-          organizationId={currentOrganization?.id ?? ""}
-          actorId={user?.uid ?? null}
-          documents={reviewingSummary.documents}
-          canViewDocuments={canViewDocuments}
-          canVerify={canVerifyDocuments}
-          canMarkVerified={canMarkVerified}
-          canManageFinance={canManageFinance}
-          summary={reviewingSummary}
-          initialSelectedKey={review?.documentKey ?? null}
-          onChanged={(changed) => {
-            const trip = reviewingSummary.trip;
-            const scope = review?.scope ?? "trip";
-            const vehicleId = trip.vehicle_id ?? trip.owner_vehicle_id;
-            if (changed === "flags") void syncChange({ type: "tripFlags", tripId: trip.id });
-            else if (scope === "vehicle" && vehicleId) void syncChange({ type: "vehicleDocuments", vehicleId });
-            else if (scope === "driver" && trip.driver_id) void syncChange({ type: "driverDocuments", driverId: trip.driver_id });
-            else void syncChange({ type: "tripDocuments", tripId: trip.id });
-          }}
-          onPay={() => openPay(reviewingSummary)}
-          scope={review?.scope ?? "trip"}
-          vehicleId={reviewingSummary.trip.vehicle_id}
-          driverId={reviewingSummary.trip.driver_id}
-          vehicleDocuments={reviewingSummary.vehicleDocuments ?? []}
-          driverDocuments={reviewingSummary.driverDocuments ?? []}
-          vehicleLabel={reviewingSummary.trip.vehicle_display_number?.trim() || "Unassigned"}
-          driverLabel={reviewingSummary.trip.driver_display_name?.trim() || "Unassigned"}
-        />
-      ) : null}
 
       <ComplianceExportConfirmModal
         visible={exportOpen}

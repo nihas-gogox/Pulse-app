@@ -4,6 +4,7 @@ import {
   complianceGroupDecisionActions,
   complianceGroupReviewState,
   complianceReviewDecisionActions,
+  complianceTabMarkedApproved,
   complianceDecisionButtonState,
   recordOptimisticDecision,
 } from "@/features/tripCompliance/utils/complianceReviewActions.util";
@@ -70,6 +71,45 @@ describe("complianceReviewDecisionActions", () => {
       approveActive: false,
       declineActive: true,
     });
+  });
+});
+
+describe("complianceTabMarkedApproved", () => {
+  const verified = (key: string, required = true): ComplianceDocRow =>
+    row({ status: "verified", key, type: key, required });
+
+  it("is approved once the required group is approved, even if optional docs are missing", () => {
+    expect(
+      complianceTabMarkedApproved(
+        [verified("lr"), verified("eway_bill"), verified("invoice")],
+        "trip",
+      ),
+    ).toBe(true);
+    expect(
+      complianceTabMarkedApproved(
+        [
+          verified("lr"),
+          verified("eway_bill"),
+          verified("invoice"),
+          row({ status: "missing", key: "pod", type: "pod", required: false, doc: null }),
+        ],
+        "trip",
+      ),
+    ).toBe(true);
+  });
+
+  it("stays unapproved while a document is still waiting for Approve", () => {
+    expect(
+      complianceTabMarkedApproved(
+        [
+          verified("lr"),
+          row({ status: "pending", key: "eway_bill", type: "eway_bill" }),
+          verified("invoice"),
+        ],
+        "trip",
+      ),
+    ).toBe(false);
+    expect(complianceTabMarkedApproved([], "vehicle")).toBe(false);
   });
 });
 

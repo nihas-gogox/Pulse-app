@@ -1,5 +1,19 @@
 # Changelog — V1 (v0.0.01)
 
+## nihas/V1.0.2 — 2026-10-01
+- **What:** The Compliance Review modal is removed. Pending, document review, and the trip details screen all open the card view on the Trip, Vehicle, or Driver tab. The Compliance Pending preview row keeps Trip Detail and always shows Verify and Decline. Verify moves the trip only after required documents on those three tabs are approved.
+- **Why:** Approving the trip documents was sending the trip to Verified on its own, before the other tabs were done.
+- **Files/areas:** `ComplianceDocumentWorkspace.tsx`, `complianceReviewActions.util.ts`
+- **Migrations:** none
+- **Tested:** Jest `complianceReviewActions.util.test.ts`
+
+## nihas/V1.0.2 — 2026-10-01
+- **What:** Member access: the Compliance preset now turns the Compliance switch on. Turning that switch on no longer relabels the member as TripOps. The switch lists verify / mark verified / settlement / hard-copy POD. Payments stay off unless toggled on their own.
+- **Why:** The Compliance switch was a different list (KYC, audit, trip docs). Selecting the preset left it off, and flipping it rewrote the role to TripOps because Compliance is not derived from the Operations domain.
+- **Files/areas:** `lib/memberSurfaces.ts`, `features/organization/utils/teamInviteRoles.util.ts`, `MemberPermissionsPanel`, `DomainPermissionToggleRow`
+- **Migrations:** none
+- **Tested:** Jest `lib/__tests__/rbac.memberAccess.test.ts`
+
 ## sneha/V1.0.1 — 2026-10-01
 - **What:** Compliance workspace: removed the per-document Approve / Decline buttons from the preview footer in every stage. Review now happens only through the Required / Optional group buttons in the document list. The footer keeps trip Reject / Pay and the previous / next arrows, right-aligned, and is hidden when none of them apply.
 - **Why:** Two sets of Approve / Decline on one screen was confusing. One place to decide keeps the flow clean.

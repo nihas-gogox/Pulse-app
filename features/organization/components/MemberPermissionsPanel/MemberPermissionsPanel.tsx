@@ -34,7 +34,7 @@ import {
   domainsFromMember,
   domainsFromPlatformRole,
   memberDisplayRoleLabel,
-  platformRoleFromDomains,
+  platformRoleAfterAccessEdit,
   platformRoleLabel,
   platformRoleFromMember,
   surfacesFromMember,
@@ -302,9 +302,12 @@ export function MemberPermissionsPanel({ memberId, onBack, embedded = false }: P
       const nextDomains = domainsFromSurfaces(resolved);
       setDomains(nextDomains);
       setPlatformRole(
-        preset.platformRole === "admin"
-          ? "admin"
-          : platformRoleFromDomains(nextDomains),
+        platformRoleAfterAccessEdit(
+          preset.platformRole,
+          nextDomains,
+          resolved,
+          orgCaps,
+        ),
       );
       setAppliedPresetId(preset.id);
       setPresetsOpen(false);
@@ -381,13 +384,9 @@ export function MemberPermissionsPanel({ memberId, onBack, embedded = false }: P
           // Turning a domain off can no longer leave an admin labelled as such.
           // Zero domains degrades to `restricted`, not a silent tripops grant.
           if (!next) {
-            setPlatformRole((role) => {
-              const stillCovered =
-                role === "finance" || role === "sales" || role === "tripops"
-                  ? nextDomains[role]
-                  : false;
-              return stillCovered ? role : platformRoleFromDomains(nextDomains);
-            });
+            setPlatformRole((role) =>
+              platformRoleAfterAccessEdit(role, nextDomains, updated, orgCaps),
+            );
           }
         }
         return updated;
@@ -402,7 +401,11 @@ export function MemberPermissionsPanel({ memberId, onBack, embedded = false }: P
     (id: MemberSurfaceId, next: boolean) => {
       setSurfaces((prev) => {
         const updated = applySurfaceToggle(prev, id, next, orgCaps);
-        setDomains(domainsFromSurfaces(updated));
+        const nextDomains = domainsFromSurfaces(updated);
+        setDomains(nextDomains);
+        setPlatformRole((role) =>
+          platformRoleAfterAccessEdit(role, nextDomains, updated, orgCaps),
+        );
         return updated;
       });
       setAppliedPresetId(null);
@@ -422,13 +425,9 @@ export function MemberPermissionsPanel({ memberId, onBack, embedded = false }: P
         const updated = applySectionToggle(prev, section, next, orgCaps);
         const nextDomains = domainsFromSurfaces(updated);
         setDomains(nextDomains);
-        setPlatformRole((role) => {
-          const stillCovered =
-            role === "finance" || role === "sales" || role === "tripops"
-              ? nextDomains[role]
-              : false;
-          return stillCovered ? role : platformRoleFromDomains(nextDomains);
-        });
+        setPlatformRole((role) =>
+          platformRoleAfterAccessEdit(role, nextDomains, updated, orgCaps),
+        );
         return updated;
       });
       setAppliedPresetId(null);

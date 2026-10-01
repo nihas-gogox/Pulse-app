@@ -2,8 +2,7 @@
  * Table workbench for the Compliance workbench — trip is the primary row,
  * expandable to reveal its documents inline. Same already-fetched
  * `ComplianceTripSummary[]`, no extra query. Trip/Vehicle/Driver cells show a
- * single Pending/Approved status that opens the same
- * ComplianceDocumentReviewSheet used by the card view (no duplicate
+ * single Pending/Approved status that opens the card view on that tab (no review
  * approve/reject wiring). E-way Bill column + Verify/Decline actions per
  * docs/compliance/dinesh/CONTRACT.md.
  */

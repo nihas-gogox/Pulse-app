@@ -5,7 +5,6 @@ import Layout from "@/constants/Layout";
 import Theme from "@/constants/Theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOptionalOrganization } from "@/contexts/OrganizationContext";
-import { ComplianceDocumentReviewSheet } from "@/features/tripCompliance/components/ComplianceDocumentReviewSheet";
 import { CompliancePaymentConfirmModal } from "@/features/tripCompliance/components/CompliancePaymentConfirmModal";
 import { ComplianceTripCard } from "@/features/tripCompliance/components/ComplianceTripCard";
 import { useComplianceProductEnabled } from "@/features/tripCompliance/hooks/useComplianceProductEnabled";
@@ -33,8 +32,6 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
   const { can: canSurface, isLoading: accessLoading } = useMemberAccess();
   const { enabled: complianceEnabled, isLoading: productsLoading } = useComplianceProductEnabled();
   const canViewCompliance = complianceEnabled && canSurface("trip_compliance.tab");
-  const canViewDocuments = canSurface("trip_compliance.documents.view");
-  const canVerifyDocuments = canSurface("trip_compliance.documents.verify");
   const canMarkVerified = canSurface("trip_compliance.trip.mark_verified");
   const canManageFinance = canSurface("trip_compliance.finance.manage");
   const { user } = useAuth();
@@ -59,10 +56,6 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
     invalidate(tripId);
     void refetch();
   }, [canMarkVerified, invalidate, refetch, tripId, user?.uid]);
-  const [review, setReview] = useState<{
-    open: boolean;
-    scope: "trip" | "vehicle" | "driver";
-  }>({ open: false, scope: "trip" });
   const [pay, setPay] = useState<{ summary: ComplianceTripSummary; category: ComplianceLedgerCategory } | null>(null);
   const [paying, setPaying] = useState(false);
   const contentTopInset = layout.isDesktopWeb ? Layout.desktopTopNavOffset : layout.top;
@@ -109,7 +102,11 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
 
       <ComplianceTripCard
         summary={summary}
-        onReviewDocuments={(scope) => setReview({ open: true, scope })}
+        onReviewDocuments={(scope) => {
+          router.push(
+            `${ROUTES.COMPLIANCE}?trip=${encodeURIComponent(trip.id)}&tab=${scope}` as Parameters<typeof router.push>[0],
+          );
+        }}
         onViewTrip={() => router.push(ROUTES.tripDetail(trip.id) as Parameters<typeof router.push>[0])}
         onPay={() => {
           const readiness = deriveComplianceQueueReadiness(summary);
@@ -163,36 +160,6 @@ export function ComplianceDetailsScreen({ tripId }: { tripId: string }) {
         <DetailRow label="AWB" value={summary.hardCopyPod.awbNumber} />
       </DetailSection>
 
-      <ComplianceDocumentReviewSheet
-        visible={review.open}
-        onClose={() => setReview({ open: false, scope: "trip" })}
-        tripId={trip.id}
-        tripLabel={`${trip.booking_ref ?? trip.id.slice(0, 8)} · ${trip.client_name || "Client"}`}
-        organizationId={currentOrganization?.id ?? ""}
-        actorId={user?.uid ?? null}
-        documents={summary.documents}
-        canViewDocuments={canViewDocuments}
-        canVerify={canVerifyDocuments}
-        canMarkVerified={canMarkVerified}
-        canManageFinance={canManageFinance}
-        summary={summary}
-        onChanged={() => {
-          invalidate(trip.id);
-          void refetch();
-        }}
-        onPay={() => {
-          const readiness = deriveComplianceQueueReadiness(summary);
-          if (!readiness.readyCategory) return;
-          setPay({ summary, category: readiness.readyCategory });
-        }}
-        scope={review.scope}
-        vehicleId={trip.vehicle_id}
-        driverId={trip.driver_id}
-        vehicleDocuments={summary.vehicleDocuments ?? []}
-        driverDocuments={summary.driverDocuments ?? []}
-        vehicleLabel={trip.vehicle_display_number?.trim() || "Unassigned"}
-        driverLabel={trip.driver_display_name?.trim() || "Unassigned"}
-      />
       <CompliancePaymentConfirmModal
         visible={pay != null}
         summary={pay?.summary ?? null}

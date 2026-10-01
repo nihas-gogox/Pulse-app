@@ -5,9 +5,11 @@
 import type { OrgMember, OrgMemberRole } from "@/types/organization";
 import type { Capability } from "@/lib/capabilities";
 import {
+  COMPLIANCE_ROLE_SURFACE_IDS,
   defaultSurfacesForRole,
   domainsFromSurfaces,
   hydrateMemberSurfaces,
+  memberHasSurface,
   normalizeSurfaces,
   type MemberSurfaceMap,
 } from "@/lib/memberSurfaces";
@@ -258,6 +260,43 @@ export function platformRoleFromDomains(
   if (domains.finance) return "finance";
   if (domains.sales) return "sales";
   return "restricted";
+}
+
+/**
+ * Role label after a domain, section, or single-surface edit.
+ *
+ * Finance / Sales / TripOps / Admin are derived from domain flags.
+ * Compliance and Ground Ops are not — a section toggle used to drop them
+ * onto TripOps whenever Operations stayed on. Keep the label while its
+ * grants are still there; re-derive only once those grants are gone.
+ */
+export function platformRoleAfterAccessEdit(
+  role: PlatformTeamRole,
+  domains: MemberDomainFlags,
+  surfaces: MemberSurfaceMap,
+  orgCaps: Capability[],
+): PlatformTeamRole {
+  if (role === "admin") {
+    return domains.finance && domains.sales && domains.tripops
+      ? "admin"
+      : platformRoleFromDomains(domains);
+  }
+  if (role === "compliance") {
+    const stillHasCompliance = COMPLIANCE_ROLE_SURFACE_IDS.some((id) =>
+      memberHasSurface(orgCaps, surfaces, id),
+    );
+    return stillHasCompliance ? "compliance" : platformRoleFromDomains(domains);
+  }
+  if (role === "ground_ops") {
+    return domains.tripops ? "ground_ops" : platformRoleFromDomains(domains);
+  }
+  if (
+    (role === "finance" || role === "sales" || role === "tripops") &&
+    domains[role]
+  ) {
+    return role;
+  }
+  return platformRoleFromDomains(domains);
 }
 
 /** Union of grant strings for every enabled domain (+ org:read baseline). */

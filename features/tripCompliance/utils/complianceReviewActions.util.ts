@@ -140,6 +140,21 @@ export function complianceGroupReviewState(
   };
 }
 
+/**
+ * A tab is marked approved once its required-group Approve is done.
+ * Optional documents (permit, pollution, tax, aadhaar) do not block it.
+ */
+export function complianceTabMarkedApproved(
+  rows: ComplianceDocRow[],
+  scope: "trip" | "vehicle" | "driver",
+): boolean {
+  const required = complianceGroupReviewState(
+    rows.filter((row) => row.required),
+    scope,
+  );
+  return required?.phase === "approved";
+}
+
 /** Optimistic Approve/Decline recorded against the exact row version it was made on. */
 export type OptimisticComplianceDecision = {
   decision: "verified" | "rejected";

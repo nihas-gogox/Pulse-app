@@ -13,6 +13,7 @@ import {
   CompliancePaymentConfirmModal,
   type CompliancePaymentConfirmValues,
 } from "@/features/tripCompliance/components/CompliancePaymentConfirmModal";
+import { ComplianceDeclineModal } from "@/features/tripCompliance/components/ComplianceDeclineModal";
 import { ComplianceRejectRemarkModal } from "@/features/tripCompliance/components/ComplianceRejectRemarkModal";
 import { setTripDocumentVerification } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import type { ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
@@ -43,6 +44,7 @@ import {
   applyOptimisticDecision,
   complianceGroupReviewState,
   complianceReviewDecisionActions,
+  complianceTabMarkedApproved,
   recordOptimisticDecision,
   type ComplianceGroupReviewState,
   type OptimisticComplianceDecision,
@@ -702,8 +704,11 @@ export function ComplianceDocumentWorkspace({
   onConfirmPayment,
   paymentSubmitting = false,
   onRejectCompliance,
+  onDeclineCompliance,
   onMarkComplianceVerified,
   selectedTripId = null,
+  focusTab = null,
+  focusToken = 0,
   onReviewTripDocs,
 }: {
   summaries: ComplianceTripSummary[];
@@ -728,11 +733,16 @@ export function ComplianceDocumentWorkspace({
   paymentSubmitting?: boolean;
   /** Reject a verified trip with a remark (keeps Verified stage, red card). */
   onRejectCompliance?: (tripId: string, reason: string) => Promise<void>;
+  /** Decline the whole trip while it is still in Compliance Pending. */
+  onDeclineCompliance?: (tripId: string, reason: string) => Promise<void>;
   /** Marks the trip Compliance Verified once all required docs are approved. */
   /** Resolves `false` when verification failed (the handler already alerted). */
   onMarkComplianceVerified?: (tripId: string) => Promise<boolean | void>;
   /** Trip to show when opening the card view from the table. */
   selectedTripId?: string | null;
+  /** Tab to open with that trip. Applied once per `focusToken`. */
+  focusTab?: "trip" | "vehicle" | "driver" | null;
+  focusToken?: number;
   /** Open document review for upload — trip / vehicle / driver vault. */
   onReviewTripDocs?: (
     tripId: string,
@@ -742,6 +752,7 @@ export function ComplianceDocumentWorkspace({
 }) {
   const listRef = useRef<ScrollView>(null);
   const scrolledTripId = useRef<string | null>(null);
+  const appliedFocusToken = useRef(0);
   const { truckTypeByVehicleId, supplierNameByTripId } = useComplianceListTripFacts(
     summaries,
     organizationId,
@@ -759,6 +770,7 @@ export function ComplianceDocumentWorkspace({
   const [busy, setBusy] = useState(false);
   const [uploadingFinanceType, setUploadingFinanceType] = useState<string | null>(null);
   const [declineOpen, setDeclineOpen] = useState(false);
+  const [tripDeclineOpen, setTripDeclineOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [podOpen, setPodOpen] = useState(false);
   const [expiryPrompt, setExpiryPrompt] = useState<{
@@ -857,15 +869,15 @@ export function ComplianceDocumentWorkspace({
     const base = deriveFinanceDocumentRows(summary.documents);
     return mergeFinanceBankDocsFromSupplier(base, supplierBankProof);
   }, [summary, supplierBankProof]);
-  const isFinanceMode = checklistPreviewMode === "finance";
+  const isFinanceMode = checklistPreviewMode === "finance" && summary?.stage !== "compliance_pending";
   const listRows = isFinanceMode ? financeRows : checklistRows;
   const reviewScope: DocTab = isFinanceMode ? "trip" : tab;
   const displayListRows = useMemo(
     () => listRows.map((row) => applyOptimisticDecision(row, localDecisionByKey[row.key])),
     [listRows, localDecisionByKey],
   );
-  /** Trip / Vehicle / Driver vaults review in two groups; Finance stays per-document. */
-  const showGroupedReview = !isFinanceMode && !showEntityUnassigned;
+  /** Each tab (Finance, Trip, Vehicle, Driver) uses the same group Approve. */
+  const showGroupedReview = !showEntityUnassigned;
   const requiredGroupState = useMemo<ComplianceGroupReviewState | null>(
     () =>
       showGroupedReview
@@ -918,6 +930,15 @@ export function ComplianceDocumentWorkspace({
       setSelectedId(summaries[0]?.trip.id ?? null);
     }
   }, [summaries, selectedId, selectedTripId]);
+
+  useEffect(() => {
+    if (!focusToken || !focusTab || appliedFocusToken.current === focusToken) return;
+    appliedFocusToken.current = focusToken;
+    setTab(focusTab);
+    setChecklistPreviewMode("document");
+    setZoom(1);
+    setScreenOpen(false);
+  }, [focusTab, focusToken]);
 
   useEffect(() => {
     setDocIndex(0);
@@ -1266,6 +1287,8 @@ export function ComplianceDocumentWorkspace({
    * `approvedKeys` covers approvals the pipeline refetch hasn't reflected yet.
    */
   const autoVerifyIfRequiredApproved = async (approvedKeys: string[]) => {
+    // Compliance Pending moves on only when the user presses Verify.
+    if (summary?.stage === "compliance_pending") return;
     if (!summary || !onMarkComplianceVerified || summary.complianceVerifiedAt || reviewScope !== "trip") return;
     const requiredRows = deriveComplianceDocumentRows(summary.documents).filter((row) => row.required);
     if (requiredRows.length === 0) return;
@@ -1429,8 +1452,42 @@ export function ComplianceDocumentWorkspace({
       onRejectCompliance &&
       canVerify,
   );
+  const isCompliancePendingStage = summary?.stage === "compliance_pending";
+  const tabMarkedApproved = useMemo(() => {
+    const none = { finance: false, trip: false, vehicle: false, driver: false };
+    if (!summary || !isCompliancePendingStage || summary.complianceVerifiedAt) return none;
+    const overlay = (rows: ComplianceDocRow[]) =>
+      rows.map((row) => applyOptimisticDecision(row, localDecisionByKey[row.key]));
+    return {
+      finance: false,
+      trip: complianceTabMarkedApproved(overlay(deriveTripVaultReviewRows(summary.documents)), "trip"),
+      vehicle: summary.trip.vehicle_id
+        ? complianceTabMarkedApproved(
+            overlay(deriveEntityComplianceRows(COMPLIANCE_VEHICLE_DOCUMENT_TYPES, summary.vehicleDocuments)),
+            "vehicle",
+          )
+        : false,
+      driver: summary.trip.driver_id
+        ? complianceTabMarkedApproved(
+            overlay(deriveEntityComplianceRows(COMPLIANCE_DRIVER_DOCUMENT_TYPES, summary.driverDocuments)),
+            "driver",
+          )
+        : false,
+    };
+  }, [isCompliancePendingStage, localDecisionByKey, summary]);
+  const allTabsApproved =
+    tabMarkedApproved.trip &&
+    tabMarkedApproved.vehicle &&
+    tabMarkedApproved.driver;
+  const showPendingTripActions = Boolean(
+    isCompliancePendingStage && summary && !summary.complianceVerifiedAt,
+  );
   const showMarkVerified = Boolean(
-    onMarkComplianceVerified && summary && !summary.complianceVerifiedAt && readiness?.requiredDocs.markVerifiedReady,
+    !isCompliancePendingStage &&
+      onMarkComplianceVerified &&
+      summary &&
+      !summary.complianceVerifiedAt &&
+      readiness?.requiredDocs.markVerifiedReady,
   );
   const vaultCopy = TAB_VAULT_COPY[tab];
   const listMissingRows = listRows.filter((row) => row.status === "missing");
@@ -1860,6 +1917,7 @@ export function ComplianceDocumentWorkspace({
               <View style={[styles.checklistListPane, stacked && styles.checklistListPaneStacked]}>
                 <View style={styles.checklistPanelToolbar}>
                   <View style={styles.checklistPanelTabs}>
+                    {isCompliancePendingStage ? null : (
                     <Pressable
                       onPress={() => {
                         setTab("trip");
@@ -1906,6 +1964,7 @@ export function ComplianceDocumentWorkspace({
                         </View>
                       ) : null}
                     </Pressable>
+                    )}
                     {TABS.map((item) => {
                       const active = tab === item.key && checklistPreviewMode !== "finance";
                       const missingCount = tabMissingCounts[item.key];
@@ -1936,7 +1995,13 @@ export function ComplianceDocumentWorkspace({
                           >
                             {item.label}
                           </Text>
-                          {missingCount > 0 ? (
+                          {isCompliancePendingStage && tabMarkedApproved[item.key] ? (
+                            <View style={[styles.tabBadge, styles.checklistPanelTabBadge, styles.tabApprovedBadge]}>
+                              <Text style={[styles.tabBadgeText, styles.checklistPanelTabBadgeText, styles.tabApprovedBadgeText]}>
+                                Approved
+                              </Text>
+                            </View>
+                          ) : missingCount > 0 ? (
                             <View
                               style={[
                                 styles.tabBadge,
@@ -2054,6 +2119,7 @@ export function ComplianceDocumentWorkspace({
                             Trip Detail
                           </Text>
                         </TouchableOpacity>
+                        {isCompliancePendingStage ? null : (
                         <TouchableOpacity
                           style={[
                             styles.checklistModeBtn,
@@ -2075,7 +2141,8 @@ export function ComplianceDocumentWorkspace({
                             Advance Payment
                           </Text>
                         </TouchableOpacity>
-                        {canManagePod && !isPendingDocsTrip ? (
+                        )}
+                        {canManagePod && !isPendingDocsTrip && !isCompliancePendingStage ? (
                           <TouchableOpacity
                             style={styles.checklistModeBtn}
                             activeOpacity={0.8}
@@ -2111,6 +2178,45 @@ export function ComplianceDocumentWorkspace({
                             </Text>
                           </TouchableOpacity>
                         ) : null}
+                        {showPendingTripActions && onMarkComplianceVerified && summary ? (
+                          <TouchableOpacity
+                            style={[styles.verifyTripBtn, markingVerified && styles.btnDisabled]}
+                            activeOpacity={0.85}
+                            disabled={markingVerified}
+                            onPress={() => {
+                              if (!allTabsApproved) {
+                                alertMessage(
+                                  "Can't verify",
+                                  "Approve the required documents on Trip, Vehicle, and Driver first.",
+                                );
+                                return;
+                              }
+                              setMarkingVerified(true);
+                              void onMarkComplianceVerified(summary.trip.id).finally(() =>
+                                setMarkingVerified(false),
+                              );
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Verify trip and move to the next stage"
+                          >
+                            {markingVerified ? (
+                              <ActivityIndicator size="small" color={Theme.cardWhite} />
+                            ) : (
+                              <Text style={styles.verifyTripBtnText}>Verify</Text>
+                            )}
+                          </TouchableOpacity>
+                        ) : null}
+                        {showPendingTripActions && onDeclineCompliance && summary ? (
+                          <TouchableOpacity
+                            style={styles.declineTripBtn}
+                            activeOpacity={0.85}
+                            onPress={() => setTripDeclineOpen(true)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Decline trip compliance"
+                          >
+                            <Text style={styles.declineTripBtnText}>Decline</Text>
+                          </TouchableOpacity>
+                        ) : null}
                       </View>
                     </View>
                     <View style={styles.checklistListFooter}>
@@ -2137,7 +2243,7 @@ export function ComplianceDocumentWorkspace({
                       }
                       supplierName={supplierNameByTripId[summary.trip.id] ?? null}
                     />
-                  ) : checklistPreviewMode === "advance" && summary ? (
+                  ) : checklistPreviewMode === "advance" && summary && !isCompliancePendingStage ? (
                     <ChecklistAdvancePaymentPanel
                       summary={summary}
                       readiness={readiness}
@@ -2371,6 +2477,20 @@ export function ComplianceDocumentWorkspace({
         onCancel={() => setDeclineOpen(false)}
         onSubmit={(values) => {
           void declineWithReason(values.reason ?? "");
+        }}
+      />
+      <ComplianceDeclineModal
+        visible={tripDeclineOpen}
+        tripLabel={
+          summary
+            ? getTripDisplayNumber(summary.trip, summary.trip.organization_id ?? null)
+            : "Trip"
+        }
+        onCancel={() => setTripDeclineOpen(false)}
+        onSubmit={async (reason) => {
+          if (!summary || !onDeclineCompliance) return;
+          await onDeclineCompliance(summary.trip.id, reason);
+          setTripDeclineOpen(false);
         }}
       />
       <ComplianceRejectRemarkModal
@@ -3490,6 +3610,43 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+  },
+  tabApprovedBadge: {
+    height: 16,
+    paddingHorizontal: 6,
+    backgroundColor: Theme.positive,
+  },
+  tabApprovedBadgeText: {
+    color: Theme.cardWhite,
+    fontSize: 8,
+  },
+  verifyTripBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: Theme.positive,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  verifyTripBtnText: {
+    color: Theme.cardWhite,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  declineTripBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.negative,
+    backgroundColor: Theme.cardWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  declineTripBtnText: {
+    color: Theme.negative,
+    fontSize: 13,
+    fontWeight: "700",
   },
   checklistModeBtn: {
     flex: 1,
