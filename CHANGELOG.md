@@ -1,6 +1,13 @@
 # Changelog — V1 (v0.0.01)
 
 ## sneha/V1.0.2 — 2026-10-01
+- **What:** Compliance Verified stage (card view): a segmented filter with All / Verified / Rejected and a count on each sits pinned above the trip cards. The green and red dots match the card pills. "Rejected" uses the same rule as the red card (verified trip with a Reject remark). "Verified" covers every other trip in the stage, including Exception. The filter runs before pagination, so pages stay full. It resets to All when you leave the Verified stage or switch to Table, and it is hidden while searching, because search covers the whole queue. Other stages and the table view are unchanged.
+- **Why:** Let compliance quickly separate rejected trips from clean verified ones in the Verified stage.
+- **Files/areas:** `features/tripCompliance/components/ComplianceVerifiedOutcomeFilter.tsx` (new), `ComplianceDocumentWorkspace.tsx` (optional `listHeader` slot, nothing rendered unless passed), `utils/complianceCardVisual.util.ts` (`isComplianceVerifiedRejected`, `matchesComplianceVerifiedOutcome`), `app/compliance/index.tsx`
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (446 pass); `tsc` adds no new errors (141 already in V1); ESLint clean. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
 - **What:** Advance Payment panel: Documentation charges now come from the org's Document Charge Slabs (Workspace → Settings → Document Charges) instead of a fixed ₹0. The slab is matched on **base freight only**; slab edges are inclusive and the last slab means "and above". Example: base freight ₹5,250 falls in the ₹1,000–₹15,000 slab, so the charge is ₹200 and the payable at 90% is ₹4,725 − ₹200 = ₹4,525. The row now has the same layout as TDS: a hint under the label (e.g. "Slab ₹1,000 – 15,000 · on base freight", "No slab covers this base freight", "Document charges are off for this org") and a loader while the slabs are fetched. Confirm payment is disabled until the slabs load. On a balance payment the charge is ₹0 with the hint "Deducted with the advance", so it is never taken twice. The Verified Export Report CSV uses the same lookup for "Documentation charges" and "Final Advance".
 - **Why:** The form always showed ₹0 for documentation charges. It should charge the configured slab for the trip's freight.
 - **Files/areas:** `features/tripCompliance/utils/compliancePaymentAmount.util.ts` (`resolveComplianceDocumentationCharge`), `features/tripCompliance/components/CompliancePaymentConfirmModal.tsx` (slab fetch + Documentation charges row), `features/tripCompliance/utils/complianceVerifiedExport.util.ts`, `features/tripCompliance/services/complianceExportReport.service.ts`, tests

@@ -709,8 +709,11 @@ export function ComplianceDocumentWorkspace({
   focusTab = null,
   focusToken = 0,
   onReviewTripDocs,
+  listHeader = null,
 }: {
   summaries: ComplianceTripSummary[];
+  /** Pinned above the trip cards (e.g. Verified-stage outcome filter). */
+  listHeader?: React.ReactNode;
   organizationId: string;
   actorId: string | null;
   canVerify: boolean;
@@ -1804,6 +1807,7 @@ export function ComplianceDocumentWorkspace({
   return (
     <View style={[styles.workspace, stacked && styles.workspaceStacked, style]}>
       <View style={[styles.listPane, stacked && styles.listPaneStacked]}>
+        {listHeader}
         {summaries.length === 0 ? (
           <View style={styles.listEmpty}>
             <NoTripsFoundEmpty compact={stacked} />

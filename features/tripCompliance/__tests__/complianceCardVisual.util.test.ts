@@ -1,4 +1,6 @@
 import {
+  isComplianceVerifiedRejected,
+  matchesComplianceVerifiedOutcome,
   paymentStatusVisual,
   pendingDocumentsCopy,
   splitPlace,
@@ -171,6 +173,28 @@ describe("complianceCardVisual", () => {
 
   it("formats timestamps as 14 Oct 2026, 03:20 PM", () => {
     expect(formatComplianceTimestamp("2026-10-14T15:20:00")).toBe("14 Oct 2026, 03:20 PM");
+  });
+});
+
+describe("matchesComplianceVerifiedOutcome", () => {
+  const verified = summary({ complianceVerifiedAt: "2026-09-28T10:00:00Z", complianceDeclinedAt: null });
+  const rejected = summary({
+    complianceVerifiedAt: "2026-09-28T10:00:00Z",
+    complianceDeclinedAt: "2026-09-29T10:00:00Z",
+  });
+
+  it("splits Verified-stage trips by the same rule as the card pill", () => {
+    expect(isComplianceVerifiedRejected(rejected)).toBe(true);
+    expect(isComplianceVerifiedRejected(verified)).toBe(false);
+    expect(matchesComplianceVerifiedOutcome(rejected, "rejected")).toBe(true);
+    expect(matchesComplianceVerifiedOutcome(rejected, "verified")).toBe(false);
+    expect(matchesComplianceVerifiedOutcome(verified, "verified")).toBe(true);
+    expect(matchesComplianceVerifiedOutcome(verified, "rejected")).toBe(false);
+  });
+
+  it("keeps every trip on All", () => {
+    expect(matchesComplianceVerifiedOutcome(verified, "all")).toBe(true);
+    expect(matchesComplianceVerifiedOutcome(rejected, "all")).toBe(true);
   });
 });
 
