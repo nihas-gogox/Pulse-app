@@ -1,6 +1,13 @@
 # Changelog — V1 (v0.0.01)
 
 ## sneha/V1.0.2 — 2026-10-01
+- **What:** The Export Report popup no longer shows "N documents ready to be downloaded". It shows two equal tiles, **Verified** (green dot) and **Rejected** (red dot), each with its trip count, and a line below: "N trips will be included in the report". A count is coloured only when it is above zero. Rejected uses the same rule as the red card and the Verified-stage filter. Confirm is enabled when the stage has at least one trip; the empty hint is unchanged. The CSV export itself is unchanged.
+- **Why:** The trip split is what compliance needs before exporting; the document total wasn't useful.
+- **Files/areas:** `features/tripCompliance/components/ComplianceExportConfirmModal.tsx`, `features/tripCompliance/utils/complianceExportReport.util.ts` (`countVerifiedStageTrips`), `app/compliance/index.tsx`
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (447 pass); `tsc` adds no new errors (141 already in V1); ESLint clean; no new import cycles. Web UI not yet clicked through.
+
+## sneha/V1.0.2 — 2026-10-01
 - **What:** Compliance Verified stage (card view): a segmented filter with All / Verified / Rejected and a count on each sits pinned above the trip cards. The green and red dots match the card pills. "Rejected" uses the same rule as the red card (verified trip with a Reject remark). "Verified" covers every other trip in the stage, including Exception. The filter runs before pagination, so pages stay full. It resets to All when you leave the Verified stage or switch to Table, and it is hidden while searching, because search covers the whole queue. Other stages and the table view are unchanged.
 - **Why:** Let compliance quickly separate rejected trips from clean verified ones in the Verified stage.
 - **Files/areas:** `features/tripCompliance/components/ComplianceVerifiedOutcomeFilter.tsx` (new), `ComplianceDocumentWorkspace.tsx` (optional `listHeader` slot, nothing rendered unless passed), `utils/complianceCardVisual.util.ts` (`isComplianceVerifiedRejected`, `matchesComplianceVerifiedOutcome`), `app/compliance/index.tsx`

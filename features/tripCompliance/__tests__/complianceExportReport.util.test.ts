@@ -1,5 +1,6 @@
 import {
   countVerifiedStageDocuments,
+  countVerifiedStageTrips,
   formatVerifiedStageExportCopy,
   verifiedStageSummaries,
 } from "@/features/tripCompliance/utils/complianceExportReport.util";
@@ -24,6 +25,18 @@ describe("complianceExportReport.util", () => {
     ];
     expect(verifiedStageSummaries(rows)).toHaveLength(1);
     expect(countVerifiedStageDocuments(rows)).toBe(4);
+  });
+
+  it("counts verified and rejected trips in the Verified stage only", () => {
+    const at = "2026-09-28T10:00:00Z";
+    const rows = [
+      { stage: "compliance_verified", complianceVerifiedAt: at, complianceDeclinedAt: null },
+      { stage: "compliance_verified", complianceVerifiedAt: at, complianceDeclinedAt: null },
+      { stage: "compliance_verified", complianceVerifiedAt: at, complianceDeclinedAt: at },
+      { stage: "compliance_pending", complianceVerifiedAt: null, complianceDeclinedAt: at },
+    ] as ComplianceTripSummary[];
+    expect(countVerifiedStageTrips(rows)).toEqual({ verified: 2, rejected: 1, total: 3 });
+    expect(countVerifiedStageTrips([])).toEqual({ verified: 0, rejected: 0, total: 0 });
   });
 
   it("sums present documents across verified trips", () => {

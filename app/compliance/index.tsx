@@ -41,7 +41,7 @@ import {
   supplierComplianceSearchLabels,
 } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import {
-  countVerifiedStageDocuments,
+  countVerifiedStageTrips,
 } from "@/features/tripCompliance/utils/complianceExportReport.util";
 import { exportVerifiedStageComplianceReport } from "@/features/tripCompliance/services/complianceExportReport.service";
 import { deriveComplianceQueueReadiness } from "@/features/tripCompliance/utils/complianceReadiness.util";
@@ -362,8 +362,8 @@ export default function ComplianceScreen() {
     setPay({ summary, category: readiness.readyCategory });
   }, []);
 
-  const verifiedExportDocumentCount = useMemo(
-    () => countVerifiedStageDocuments(summaries),
+  const verifiedExportTripCounts = useMemo(
+    () => countVerifiedStageTrips(summaries),
     [summaries],
   );
 
@@ -780,7 +780,8 @@ export default function ComplianceScreen() {
 
       <ComplianceExportConfirmModal
         visible={exportOpen && isVerifiedStage}
-        documentCount={verifiedExportDocumentCount}
+        verifiedCount={verifiedExportTripCounts.verified}
+        rejectedCount={verifiedExportTripCounts.rejected}
         exporting={exporting}
         onCancel={() => {
           if (!exporting) setExportOpen(false);
