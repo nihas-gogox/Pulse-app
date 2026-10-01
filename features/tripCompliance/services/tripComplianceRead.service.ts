@@ -3,6 +3,8 @@ import { getDocumentsForEntities } from "@/features/compliance/services/document
 import { interpretLedgerRowStructured } from "@/features/finance/ledger/ledgerEntryModel";
 import {
     REQUIRED_COMPLIANCE_DOCUMENT_TYPES,
+    REQUIRED_DRIVER_DOCUMENT_TYPES,
+    REQUIRED_VEHICLE_DOCUMENT_TYPES,
     type ComplianceDecision,
     type ComplianceDocumentRow,
     type ComplianceEntityDocument,
@@ -15,6 +17,7 @@ import {
 } from "@/features/tripCompliance/tripCompliance.types";
 import { buildComplianceChecklist, listExpiredRequiredVehicleDocTypes } from "@/features/tripCompliance/utils/complianceChecklist.util";
 import { classifyTripDocument } from "@/features/tripCompliance/utils/tripDocumentClassification.util";
+import { deriveEntityComplianceRows } from "@/features/tripCompliance/utils/complianceDocumentRows.util";
 import {
     mergeComplianceEntityDocs,
     normalizeTripDocumentType,
@@ -318,6 +321,11 @@ export function deriveComplianceStage(input: {
   /** Required trip types still missing (LR / E-way / Invoice). Prefer over raw count. */
   missingRequiredCount?: number;
   /**
+   * Required vehicle (RC / Insurance / FC) and driver (licence) files still
+   * missing. Optional docs do not count. Keeps the trip in Pending Docs.
+   */
+  missingRequiredEntityCount?: number;
+  /**
    * Required vehicle docs (RC / Insurance / FC) that are on file but past
    * expiry. Forces Pending Docs so Ops renews the vault before settlement.
    */
@@ -341,7 +349,19 @@ export function deriveComplianceStage(input: {
     input.missingRequiredCount ??
     (input.documentCount === 0 ? REQUIRED_COMPLIANCE_DOCUMENT_TYPES.length : 0);
   if (missingRequired > 0) return "pending_for_docs";
+  if ((input.missingRequiredEntityCount ?? 0) > 0) return "pending_for_docs";
   return "compliance_pending";
+}
+
+function missingRequiredEntityDocumentCount(
+  vehicleDocuments: ComplianceEntityDocument[],
+  driverDocuments: ComplianceEntityDocument[],
+): number {
+  const rows = [
+    ...deriveEntityComplianceRows(REQUIRED_VEHICLE_DOCUMENT_TYPES, vehicleDocuments),
+    ...deriveEntityComplianceRows(REQUIRED_DRIVER_DOCUMENT_TYPES, driverDocuments),
+  ];
+  return rows.filter((row) => row.required && row.status === "missing").length;
 }
 
 /**
@@ -658,6 +678,7 @@ export function summarizeComplianceTrip(inputs: ComplianceTripInputs): Complianc
   const stage = deriveComplianceStage({
     documentCount: documentCounts.total,
     missingRequiredCount,
+    missingRequiredEntityCount: missingRequiredEntityDocumentCount(vehicleDocuments, driverDocuments),
     hasExpiredRequiredVehicleDocs,
     complianceVerifiedAt: flags?.compliance_verified_at ?? null,
     advance,

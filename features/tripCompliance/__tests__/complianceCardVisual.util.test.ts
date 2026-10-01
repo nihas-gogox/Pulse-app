@@ -46,6 +46,19 @@ describe("complianceCardVisual", () => {
     expect(paymentStatusVisual(summary({ stage: "balance_pending" })).label).toBe("Balance Pending");
   });
 
+  it("shows Compliance Hold when compliance declines before verify", () => {
+    const visual = verificationStatusVisual(
+      summary({
+        complianceDeclinedAt: "2026-09-30",
+        complianceDeclineReason: "LR unreadable",
+        stage: "compliance_pending",
+        documentCounts: { total: 3, verified: 0, rejected: 0, pending: 3 },
+      }),
+    );
+    expect(visual.label).toBe("Compliance Hold");
+    expect(visual.kind).toBe("compliance_pending");
+  });
+
   it("shows Rejected when a verified trip has a decline remark", () => {
     const visual = verificationStatusVisual(
       summary({
@@ -57,6 +70,19 @@ describe("complianceCardVisual", () => {
     );
     expect(visual.label).toBe("Rejected");
     expect(visual.kind).toBe("verified");
+  });
+
+  it("shows Verified when a compliance decline was later verified", () => {
+    const visual = verificationStatusVisual(
+      summary({
+        complianceDeclinedAt: "2026-10-01T10:07:50Z",
+        complianceDeclineReason: "test",
+        complianceVerifiedAt: "2026-10-01T10:26:36Z",
+        complianceDecision: "approved",
+        stage: "compliance_verified",
+      }),
+    );
+    expect(visual.label).toBe("Verified");
   });
 
   it("prefers derived stage over missing-docs for header pill (payment progress wins)", () => {

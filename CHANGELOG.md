@@ -1,5 +1,31 @@
 # Changelog — V1 (v0.0.01)
 
+## nihas/V1.0.5 — 2026-10-01
+
+### What
+A compliance decline that was later verified no longer shows as finance Rejected.
+
+### Why
+SAT812GOGTRIP000526 was declined by compliance (Dinesh, reason "test") and then verified. The old decline timestamp was kept as history, so the card said Rejected and the Declined-by-finance filter included it.
+
+### Files / areas
+- `features/tripCompliance/utils/complianceTableStatus.util.ts`
+- `features/tripCompliance/utils/complianceCardVisual.util.ts`
+- `features/tripCompliance/components/ComplianceDocumentWorkspace.tsx`
+
+### Migrations
+None.
+
+### Tested
+`npx jest features/tripCompliance/__tests__/complianceTableStatus.util.test.ts features/tripCompliance/__tests__/complianceCardVisual.util.test.ts --ci --silent`
+
+## nihas/V1.0.4 — 2026-10-01
+- **What:** A compliance decline shows a Compliance Hold tag and the remark on the trip card. Compliance Pending has sub-filters for Compliance Hold and Declined by finance. A trip stays in Pending Docs until LR, E-way, Invoice, RC, Insurance, Fitness, and Licence are all on file. The search box lines up with the stage tabs.
+- **Why:** Declined trips were hard to spot, and Compliance Pending included trips that were still missing required files.
+- **Files/areas:** `app/compliance/index.tsx`, `complianceCardVisual.util.ts`, `tripComplianceRead.service.ts`, `ComplianceDocumentWorkspace.tsx`
+- **Migrations:** none
+- **Tested:** Jest `features/tripCompliance` (445 pass); full Jest still the 5 known failing suites; typecheck still 141 errors
+
 ## nihas/V1.0.3 — 2026-10-01
 - **What:** Approving a vehicle or driver document no longer asks for an expiry date. A verified insurance, fitness, or licence stays verified when no date is stored.
 - **Why:** Compliance was blocked on an expiry prompt before Approve could finish.

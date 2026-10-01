@@ -30,6 +30,36 @@ describe("deriveComplianceStage", () => {
     ).toBe("pending_for_docs");
   });
 
+  it("stays PENDING_FOR_DOCS when a required vehicle or driver file is still missing", () => {
+    expect(
+      deriveComplianceStage({
+        documentCount: 3,
+        missingRequiredCount: 0,
+        missingRequiredEntityCount: 1,
+        complianceVerifiedAt: null,
+        advance: null,
+        tripStatus: "loading",
+        hardCopyReceived: false,
+        balance: null,
+      }),
+    ).toBe("pending_for_docs");
+  });
+
+  it("is COMPLIANCE_PENDING once required trip, vehicle, and driver files are on file", () => {
+    expect(
+      deriveComplianceStage({
+        documentCount: 3,
+        missingRequiredCount: 0,
+        missingRequiredEntityCount: 0,
+        complianceVerifiedAt: null,
+        advance: null,
+        tripStatus: "loading",
+        hardCopyReceived: false,
+        balance: null,
+      }),
+    ).toBe("compliance_pending");
+  });
+
   it("is COMPLIANCE_PENDING once docs exist but none are verified", () => {
     expect(
       deriveComplianceStage({

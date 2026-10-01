@@ -4,6 +4,7 @@ import type {
     ComplianceStage,
     ComplianceTripSummary,
 } from "@/features/tripCompliance/tripCompliance.types";
+import { isFinanceDeclinedTrip } from "@/features/tripCompliance/utils/complianceTableStatus.util";
 
 export type ComplianceTone = {
   fg: string;
@@ -98,8 +99,9 @@ export type ComplianceVerificationStatusVisual = {
 export function verificationStatusVisual(
   summary: ComplianceTripSummary,
 ): ComplianceVerificationStatusVisual {
-  // Verified + rejected remark: stay in Verified stage, show Rejected (red).
-  if (summary.complianceVerifiedAt && summary.complianceDeclinedAt) {
+  // Finance reject after verify: stay in Verified stage, show Rejected (red).
+  // A compliance decline that was later verified is history, not a reject.
+  if (isFinanceDeclinedTrip(summary)) {
     return {
       label: "Rejected",
       tone: COMPLIANCE_STAGE_TONE.pending_for_docs,
@@ -118,6 +120,16 @@ export function verificationStatusVisual(
       label: "Verified",
       tone: COMPLIANCE_STAGE_TONE.compliance_verified,
       kind: "verified",
+    };
+  }
+  // Decline before verify: same kind of status tag as finance Rejected.
+  if (summary.complianceDeclinedAt) {
+    const stillPendingDocs =
+      summary.stage === "pending_for_docs" || summary.documentCounts.total === 0;
+    return {
+      label: "Compliance Hold",
+      tone: COMPLIANCE_STAGE_TONE.pending_for_docs,
+      kind: stillPendingDocs ? "pending_docs" : "compliance_pending",
     };
   }
   if (summary.stage === "hard_copy_pod_received") {

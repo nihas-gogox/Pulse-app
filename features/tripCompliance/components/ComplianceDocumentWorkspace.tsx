@@ -28,6 +28,10 @@ import {
   verificationStatusVisual,
 } from "@/features/tripCompliance/utils/complianceCardVisual.util";
 import {
+  isComplianceDeclineActive,
+  isFinanceDeclinedTrip,
+} from "@/features/tripCompliance/utils/complianceTableStatus.util";
+import {
   deriveComplianceDocumentRows,
   deriveTripVaultReviewRows,
   deriveEntityComplianceRows,
@@ -2880,7 +2884,11 @@ function TripListRow({
   const router = useRouter();
   const trip = summary.trip;
   const verification = verificationStatusVisual(summary);
-  const isRejected = Boolean(summary.complianceVerifiedAt && summary.complianceDeclinedAt);
+  const isRejected = isFinanceDeclinedTrip(summary);
+  const declineRemark =
+    isRejected || isComplianceDeclineActive(summary)
+      ? summary.complianceDeclineReason?.trim() || ""
+      : "";
   const customerName = trip.client_name?.trim() || "—";
   const supplierLabel = (supplierName ?? trip.supplier_name)?.trim() || "—";
   const origin = splitHubRouteLocationDisplay(trip.pickup_area ?? "");
@@ -3006,9 +3014,9 @@ function TripListRow({
         </View>
       </View>
 
-      {isRejected && summary.complianceDeclineReason?.trim() ? (
+      {declineRemark ? (
         <Text style={styles.rejectReasonLine} numberOfLines={2}>
-          {summary.complianceDeclineReason.trim()}
+          {declineRemark}
         </Text>
       ) : null}
 
