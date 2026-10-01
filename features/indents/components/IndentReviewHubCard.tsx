@@ -52,6 +52,14 @@ export type IndentReviewHubCardProps = {
   onEditAll?: () => void;
   primaryAmount: string;
   supplierRate?: string;
+  /** ₹/MT line under the supplier target, when the main figure is the trip total. */
+  supplierPerMt?: string | null;
+  /** Trip total under the supplier target, when the main figure is ₹/MT. */
+  supplierOverall?: string | null;
+  /** ₹/MT line under the client rate, when the main figure is the trip total. */
+  clientPerMt?: string | null;
+  /** Trip total under the client rate, when the main figure is ₹/MT. */
+  clientOverall?: string | null;
   marginPct?: number | null;
   client: IndentFreightCardClientProps;
   quoteStatus?: string | null;
@@ -159,6 +167,10 @@ export const IndentReviewHubCard = memo(function IndentReviewHubCard({
   onEditAll,
   primaryAmount,
   supplierRate = "—",
+  supplierPerMt = null,
+  supplierOverall = null,
+  clientPerMt = null,
+  clientOverall = null,
   marginPct = null,
   client,
   quoteStatus,
@@ -212,6 +224,10 @@ export const IndentReviewHubCard = memo(function IndentReviewHubCard({
         onEditAll={onEditAll}
         primaryAmount={primaryAmount}
         supplierRate={supplierRate}
+        clientPerMt={clientPerMt}
+        clientOverall={clientOverall}
+        supplierPerMt={supplierPerMt}
+        supplierOverall={supplierOverall}
         marginPct={marginPct}
         clientPriceInr={clientPriceInr}
         supplierTargetInr={supplierTargetInr}
@@ -349,11 +365,11 @@ export const IndentReviewHubCard = memo(function IndentReviewHubCard({
                 onPress={onCancelLoad}
                 disabled={cancelling}
                 activeOpacity={0.7}
-                accessibilityLabel="Cancel indent"
+                accessibilityLabel="Cancel load"
                 hitSlop={Layout.touchTargetHitSlop}
               >
                 <Text style={styles.cancelLinkText}>
-                  {cancelling ? "Cancelling…" : "Cancel indent"}
+                  {cancelling ? "Cancelling…" : "Cancel load"}
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -411,12 +427,21 @@ export const IndentReviewHubCard = memo(function IndentReviewHubCard({
                 style={[
                   styles.financeValueDark,
                   compact && styles.financeValueDarkCompact,
+                  supplierPerMt && supplierOverall && styles.financeValueWithSub,
                 ]}
                 numberOfLines={1}
                 adjustsFontSizeToFit
               >
-                {supplierRate}
+                {supplierPerMt ?? supplierRate}
               </Text>
+              {supplierPerMt && supplierOverall ? (
+                <Text
+                  style={styles.financeSubDark}
+                  numberOfLines={1}
+                >
+                  {supplierOverall}
+                </Text>
+              ) : null}
               {marginPct != null ? (
                 <View style={styles.marginChip}>
                   <Text style={styles.marginChipText}>
@@ -435,16 +460,24 @@ export const IndentReviewHubCard = memo(function IndentReviewHubCard({
                 <Text style={styles.financeLabelLight}>CLIENT RATE</Text>
               </View>
               {ownerInlineFreight ? (
-                <Text
-                  style={[
-                    styles.financeValueLight,
-                    compact && styles.financeValueLightCompact,
-                  ]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                >
-                  {primaryAmount}
-                </Text>
+                <View>
+                  <Text
+                    style={[
+                      styles.financeValueLight,
+                      compact && styles.financeValueLightCompact,
+                      clientPerMt && clientOverall && styles.financeValueWithSub,
+                    ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                  >
+                    {clientPerMt ?? primaryAmount}
+                  </Text>
+                  {clientPerMt && clientOverall ? (
+                    <Text style={styles.financeSubLight} numberOfLines={1}>
+                      {clientOverall}
+                    </Text>
+                  ) : null}
+                </View>
               ) : (
                 heroBlock
               )}
@@ -665,8 +698,8 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   cancelLinkText: {
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 9,
+    fontWeight: "600",
     color: Theme.negative,
     letterSpacing: 0.15,
   },
@@ -828,6 +861,25 @@ const styles = StyleSheet.create({
   },
   financeValueDarkCompact: {
     fontSize: 13,
+  },
+  financeValueWithSub: {
+    marginBottom: 0,
+  },
+  financeSubDark: {
+    fontSize: 11,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+    color: Theme.textOnDarkMuted,
+    marginTop: 2,
+    marginBottom: 6,
+  },
+  financeSubLight: {
+    fontSize: 11,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+    color: Theme.textSecondary,
+    marginTop: 2,
+    marginBottom: 6,
   },
   financeValueLight: {
     fontSize: 14,

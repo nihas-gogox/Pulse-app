@@ -1,3 +1,11 @@
+## praveen/V1.0.1 — 2026-10-01
+
+- **What:** A trip stays in Partial Received POD while any LR is still pending, and moves to the fully received POD stage only after every LR is received. Awaiting POD shows Received LRs and Pending LRs, matches Trip Operations Delivered, and keeps Log Hard Copy POD on that tab.
+- **Why:** Receiving some LRs was marking the whole trip received.
+- **Files/areas:** Compliance Awaiting POD, Log Hard Copy POD, trip hub delivered count
+- **Migrations:** none
+- **Tested:** Jest — LR receipt, awaiting-POD groups, hard-copy POD pipeline. Web session was not signed in here, so the live Compliance screen was not clicked through.
+
 # Changelog — V1 (v0.0.01)
 
 ## nihas/V1.0.6 — 2026-10-01

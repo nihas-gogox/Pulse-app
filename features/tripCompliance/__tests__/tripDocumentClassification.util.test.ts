@@ -26,6 +26,7 @@ jest.mock("@/lib/supabase", () => ({
       if (table === "trip_documents") return mockMakeThenable(mockTripDocsResult);
       if (table === "trips") return mockMakeThenable({ data: [], error: null });
       if (table === "transactions") return mockMakeThenable({ data: [], error: null });
+      if (table === "trip_workflow_events") return mockMakeThenable({ data: [], error: null });
       throw new Error(`unexpected table ${table}`);
     },
   }),
@@ -214,7 +215,7 @@ describe("rows / checklist / stage agree on the classification", () => {
     return {
       id: "trip-1",
       organization_id: "org-1",
-      status: "delivered",
+      status: "in_transit",
       vehicle_id: null,
       owner_vehicle_id: null,
       driver_id: null,

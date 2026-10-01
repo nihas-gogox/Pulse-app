@@ -36,6 +36,14 @@ import {
 } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import { COMPLIANCE_STAGE_FILTER_LABEL, COMPLIANCE_STAGES, type ComplianceTripSummary } from "@/features/tripCompliance/tripCompliance.types";
 import {
+  AWAITING_POD_SUBVIEW_LABEL,
+  AWAITING_POD_SUBVIEW_TONE,
+  AWAITING_POD_SUBVIEWS,
+  countAwaitingPodSubviews,
+  matchesAwaitingPodSubview,
+  type AwaitingPodSubview,
+} from "@/features/tripCompliance/utils/awaitingPodSubview.util";
+import {
   COMPLIANCE_FILTER_COUNT_TONE,
   matchesComplianceTripSearch,
   supplierComplianceSearchLabels,
@@ -51,13 +59,16 @@ import {
 } from "@/features/tripCompliance/utils/complianceTableStatus.util";
 import { formatMarkComplianceVerifiedError } from "@/features/tripCompliance/utils/complianceMarkVerifiedError.util";
 import { alertMessage } from "@/features/tripCompliance/utils/crossPlatformAlert.util";
+import { getTripDisplayNumber } from "@/features/trips/services/trips.service";
+import { normalizeOrgLrNumber } from "@/features/trips/services/orgLrNumber.util";
+import { hardCopyPodLrOptionsFromDocuments } from "@/features/trips/utils/hardCopyPodLrSelection.util";
 import { EMPTY_STATE_LOTTIE } from "@/lib/emptyStateLottieAssets";
 import { useLayoutInsets } from "@/lib/layoutInsets";
 import { useSuppliersQuery } from "@/lib/queries/useSuppliersQuery";
 import { ROUTES } from "@/lib/routes";
 import { useMemberAccess } from "@/lib/useMemberAccess";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Download, LayoutGrid, Search, Table2, Wallet } from "lucide-react-native";
+import { Download, FileText, LayoutGrid, Search, Table2, Wallet } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View, type TextStyle } from "react-native";
 
@@ -139,6 +150,52 @@ export default function ComplianceScreen() {
   useEffect(() => {
     setPendingSlice("all");
   }, [stage]);
+  const [awaitingPodSubview, setAwaitingPodSubview] = useState<AwaitingPodSubview>("all");
+  const awaitingPodCounts = useMemo(
+    () =>
+      stage === "hard_copy_pod_received"
+        ? countAwaitingPodSubviews(filtered)
+        : null,
+    [stage, filtered],
+  );
+  const stageQueue = useMemo(() => {
+    if (stage !== "hard_copy_pod_received" || awaitingPodSubview === "all") return filtered;
+    return filtered.filter((summary) => matchesAwaitingPodSubview(summary, awaitingPodSubview));
+  }, [filtered, stage, awaitingPodSubview]);
+  const selectStage = useCallback((next: Parameters<typeof setStage>[0]) => {
+    setStage(next);
+    if (next !== "hard_copy_pod_received") setAwaitingPodSubview("all");
+  }, [setStage]);
+  const courierLrOptions = useMemo(() => {
+    if (stage !== "hard_copy_pod_received") return [];
+    const tripDisplayById = new Map(
+      filtered.map((summary) => [
+        summary.trip.id,
+        getTripDisplayNumber(summary.trip, currentOrganization?.id ?? null),
+      ]),
+    );
+    const receivedByTrip = new Map(
+      filtered.map((summary) => [
+        summary.trip.id,
+        new Set((summary.hardCopyPod.receivedLrNumbers ?? []).map((lr) => normalizeOrgLrNumber(lr))),
+      ]),
+    );
+    return hardCopyPodLrOptionsFromDocuments(
+      filtered.flatMap((summary) =>
+        summary.documents
+          .filter((doc) => (doc.document_type ?? "").toLowerCase() === "lr")
+          .map((doc) => ({
+            tripId: doc.trip_id || summary.trip.id,
+            documentNumber: doc.document_number,
+            storagePath: doc.storage_path,
+          })),
+      ),
+      tripDisplayById,
+    ).map((option) => ({
+      ...option,
+      alreadyReceived: receivedByTrip.get(option.tripId)?.has(normalizeOrgLrNumber(option.lrNumber)) ?? false,
+    }));
+  }, [stage, filtered, currentOrganization?.id]);
   const suppliersQuery = useSuppliersQuery(currentOrganization?.id ?? null);
   const supplierSearchById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -261,6 +318,7 @@ export default function ComplianceScreen() {
   const [pay, setPay] = useState<{ summary: ComplianceTripSummary; category: ComplianceLedgerCategory } | null>(null);
   const [paying, setPaying] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [logHardCopyPodRequest, setLogHardCopyPodRequest] = useState(0);
   const [exporting, setExporting] = useState(false);
   const routeFocus = useLocalSearchParams<{ trip?: string; tab?: string }>();
 
@@ -304,7 +362,7 @@ export default function ComplianceScreen() {
   const searched = useMemo(() => {
     // With an active query, search the full Compliance queue (not only the
     // selected stage chip) so supplier / trip matches aren't hidden by filter.
-    const pool = search.trim() ? summaries : outcomePool;
+    const pool = search.trim() ? summaries : stage === "hard_copy_pod_received" ? stageQueue : outcomePool;
     return pool.filter((summary) => {
       const supplierId = (summary.trip.supplier_id ?? "").trim();
       const resolved = supplierNameByTripId[summary.trip.id];
@@ -313,7 +371,7 @@ export default function ComplianceScreen() {
         resolved && resolved !== "—" ? resolved : null,
       ]);
     });
-  }, [outcomePool, summaries, search, supplierSearchById, supplierNameByTripId]);
+  }, [outcomePool, stageQueue, stage, summaries, search, supplierSearchById, supplierNameByTripId]);
   const {
     page,
     setPage,
@@ -325,7 +383,7 @@ export default function ComplianceScreen() {
     pageSize,
   } = useComplianceListPagination(searched, {
     pageSize: COMPLIANCE_QUEUE_PAGE_SIZE,
-    resetKey: `${stage}|${pendingSlice}|${outcomeFilter}|${search.trim()}`,
+    resetKey: `${stage}|${pendingSlice}|${outcomeFilter}|${awaitingPodSubview}|${search.trim()}`,
   });
 
   useEffect(() => {
@@ -477,7 +535,7 @@ export default function ComplianceScreen() {
               count={counts.all}
               countColor={COMPLIANCE_FILTER_COUNT_TONE.all}
               active={stage === "all"}
-              onPress={() => setStage("all")}
+              onPress={() => selectStage("all")}
             />
             {COMPLIANCE_STAGES.flatMap((s) => {
               const chip = (
@@ -487,7 +545,7 @@ export default function ComplianceScreen() {
                   count={counts[s]}
                   countColor={COMPLIANCE_FILTER_COUNT_TONE[s]}
                   active={stage === s}
-                  onPress={() => setStage(s)}
+                  onPress={() => selectStage(s)}
                 />
               );
               if (s === "advance_payment_processed") {
@@ -499,7 +557,7 @@ export default function ComplianceScreen() {
                     count={paymentPendingCount}
                     countColor={Theme.complianceStageBalanceFg}
                     active={stage === "payment_pending"}
-                    onPress={() => setStage("payment_pending")}
+                    onPress={() => selectStage("payment_pending")}
                   />,
                 ];
               }
@@ -512,7 +570,7 @@ export default function ComplianceScreen() {
                   count={podReceivedCount}
                   countColor={Theme.complianceStageSuccessFg}
                   active={stage === "pod_received"}
-                  onPress={() => setStage("pod_received")}
+                  onPress={() => selectStage("pod_received")}
                 />,
               ];
             })}
@@ -550,6 +608,45 @@ export default function ComplianceScreen() {
           ) : null}
         </View>
       </View>
+      {awaitingPodCounts ? (
+        <View style={styles.subchipRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.subchipScroll}
+            contentContainerStyle={styles.chipWrap}
+            keyboardShouldPersistTaps="handled"
+          >
+            {AWAITING_POD_SUBVIEWS.map((subview) => (
+              <StageChip
+                key={subview}
+                label={AWAITING_POD_SUBVIEW_LABEL[subview]}
+                count={awaitingPodCounts[subview]}
+                countColor={AWAITING_POD_SUBVIEW_TONE[subview]}
+                active={awaitingPodSubview === subview}
+                onPress={() => setAwaitingPodSubview(subview)}
+              />
+            ))}
+          </ScrollView>
+          {stageQueue.length > 0 ? (
+            <TouchableOpacity
+              style={styles.logHardCopyPodBtn}
+              onPress={() => {
+                if (viewMode !== "card") setViewMode("card");
+                setLogHardCopyPodRequest((n) => n + 1);
+              }}
+              hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+              accessibilityRole="button"
+              accessibilityLabel="Log Hard Copy POD"
+            >
+              <FileText size={12} color={Theme.textSecondary} strokeWidth={2} />
+              <Text style={styles.logHardCopyPodBtnText} numberOfLines={1}>
+                LOG HARD COPY POD
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
       </View>
 
       <View style={styles.queueBody}>
@@ -585,7 +682,9 @@ export default function ComplianceScreen() {
                     ? "No trips declined by finance."
                     : pendingSlice === "hold"
                       ? "No trips on compliance hold."
-                      : "No trips in this stage."
+                      : stage === "hard_copy_pod_received" && awaitingPodSubview !== "all"
+                        ? "No trips in this Awaiting POD group."
+                        : "No trips in this stage."
                 : "No Loading→Completed trips in the Compliance queue yet."}
           </Text>
         </View>
@@ -647,6 +746,9 @@ export default function ComplianceScreen() {
           onDeclineCompliance={canMarkVerified ? declineTrip : undefined}
           onMarkComplianceVerified={canMarkVerified ? markTripVerified : undefined}
           canManagePod={canManagePod}
+          showHardCopyPodLog={stage === "hard_copy_pod_received"}
+          logHardCopyPodRequest={logHardCopyPodRequest}
+          courierLrOptions={courierLrOptions}
           selectedTripId={cardTripId}
           focusTab={cardFocus?.tab ?? null}
           focusToken={cardFocus?.token ?? 0}
@@ -891,6 +993,27 @@ const styles = StyleSheet.create({
   },
   bulkBtnText: { fontSize: 11, fontWeight: "600", lineHeight: 14, color: Theme.complianceBulkText },
   reportBtnText: { fontSize: 11, fontWeight: "500", lineHeight: 14, color: Theme.textPrimary },
+  logHardCopyPodBtn: {
+    flexShrink: 0,
+    height: 24,
+    marginLeft: 8,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: Theme.cardWhite,
+    borderWidth: 1,
+    borderColor: Theme.complianceCardBorder,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  logHardCopyPodBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    lineHeight: 13,
+    color: Theme.textSecondary,
+  },
   toolbarRow: {
     width: "100%",
     flexDirection: "row",
@@ -914,6 +1037,17 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     width: "100%",
     marginTop: 6,
+  },
+  subchipRow: {
+    width: "100%",
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  subchipScroll: {
+    flex: 1,
+    flexGrow: 1,
+    minWidth: 0,
   },
   chipWrap: {
     flexDirection: "row",

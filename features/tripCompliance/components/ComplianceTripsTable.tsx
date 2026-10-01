@@ -7,6 +7,7 @@
  * docs/compliance/dinesh/CONTRACT.md.
  */
 import Theme from "@/constants/Theme";
+import { lrReceiptForTrip } from "@/features/trips/utils/lrReceiptStatus.util";
 import { ComplianceDeclineModal } from "@/features/tripCompliance/components/ComplianceDeclineModal";
 import { COMPLIANCE_STATUS_META, ComplianceStatusChip } from "@/features/tripCompliance/components/ComplianceStatusIcon";
 import {
@@ -230,6 +231,13 @@ function TripRowContent({
   const payment = paymentStatusVisual(summary);
   const showPaymentPill = shouldShowPaymentStatusPill(summary);
   const tripIdLabel = getTripDisplayNumber(summary.trip);
+  const lrReceipt = lrReceiptForTrip(
+    summary.hardCopyPod.lrNumbers ?? [],
+    summary.hardCopyPod.receivedLrNumbers ?? [],
+  );
+  const showLrReceipt =
+    (summary.hardCopyPod.lrNumbers?.length ?? 0) > 0 &&
+    (summary.stage === "hard_copy_pod_received" || lrReceipt.kind !== "none");
   const tripId = summary.trip.id;
   const isVerified = Boolean(summary.complianceVerifiedAt);
   const verifyEligibility = useMemo(() => canVerifyTrip(summary), [summary]);
@@ -280,6 +288,16 @@ function TripRowContent({
           <Text style={[styles.cell, styles.muted]} numberOfLines={1}>
             {summary.trip.client_name || "—"}
           </Text>
+          {showLrReceipt ? (
+            <>
+              <Text style={[styles.cell, styles.lrReceipt]} numberOfLines={1}>
+                Received LRs {lrReceipt.received.join(", ") || "—"}
+              </Text>
+              <Text style={[styles.cell, styles.lrReceipt]} numberOfLines={1}>
+                Pending LRs {lrReceipt.pending.join(", ") || "—"}
+              </Text>
+            </>
+          ) : null}
         </TouchableOpacity>
         <Text style={[styles.cell, styles.colDate]} numberOfLines={1}>
           {formatRequiredDate(summary)}
@@ -560,6 +578,7 @@ const styles = StyleSheet.create({
   expandToggle: { width: 18, alignItems: "center", justifyContent: "center" },
   cell: { fontSize: 12, color: Theme.textPrimary, fontWeight: "500" },
   muted: { color: Theme.textMuted, fontSize: 10, lineHeight: 13 },
+  lrReceipt: { color: Theme.textPrimaryDark, fontSize: 10, lineHeight: 13, fontWeight: "600" },
   colTripId: { width: 156, maxWidth: 156, flexGrow: 0, flexShrink: 1, minWidth: 0 },
   colDate: { flex: 0.8, minWidth: 0 },
   colLoc: { flex: 1, minWidth: 0 },

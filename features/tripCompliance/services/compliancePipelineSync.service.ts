@@ -10,7 +10,7 @@
  *   tripDocumentDecision → 0 (patch mirrors verify_trip_document); 1 read of
  *                          that trip's documents only if the doc isn't cached
  *   tripDocuments        → 1 (trip_documents for one trip)
- *   tripFlags            → 1 (trips compliance/POD columns for one trip)
+ *   tripFlags            → 2 (trips compliance/POD columns + courier received-LR event)
  *   complianceVerified   → 0 (patch mirrors mark_trip_compliance_verified)
  *   complianceDeclined   → 0 (patch mirrors decline_trip_compliance)
  *   payment              → 2 (compliance transactions + trips.amount_paid for one trip)
@@ -19,6 +19,7 @@
  */
 import {
   fetchComplianceTripFlags,
+  fetchHardCopyReceivedLrNumbers,
   fetchComplianceTripInputs,
   fetchDriverDocumentsForTrips,
   fetchTripDocumentsForTrips,
@@ -88,9 +89,15 @@ export async function patchForComplianceChange(
       return (cur) => replaceTripDocuments(cur, change.tripId, documents);
     }
     case "tripFlags": {
-      const flags = await fetchComplianceTripFlags([change.tripId]);
+      const [flags, received] = await Promise.all([
+        fetchComplianceTripFlags([change.tripId]),
+        fetchHardCopyReceivedLrNumbers([change.tripId]),
+      ]);
       const tripFlags = flags.get(change.tripId) ?? null;
-      return (cur) => replaceTripFlags(cur, change.tripId, tripFlags);
+      const numbers = received.get(change.tripId) ?? [];
+      const merged =
+        tripFlags && numbers.length > 0 ? { ...tripFlags, received_lr_numbers: numbers } : tripFlags;
+      return (cur) => replaceTripFlags(cur, change.tripId, merged);
     }
     case "complianceVerified": {
       const at = now();

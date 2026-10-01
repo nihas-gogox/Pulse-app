@@ -24,7 +24,17 @@ import {
     normalizeVaultVehicleNumber,
     vehicleVaultDocumentsToEntityDocs,
 } from "@/features/tripCompliance/utils/complianceVaultDocuments.util";
-import { runWithConcurrencyLimit, tripPodIsReceived } from "@/features/trips/services/tripDocumentLrPod.service";
+import {
+  isSoftPodDocumentType,
+  runWithConcurrencyLimit,
+  tripPodIsReceived,
+} from "@/features/trips/services/tripDocumentLrPod.service";
+import { lrNumbersFromDocumentNumber } from "@/features/trips/utils/hardCopyPodLrSelection.util";
+import { decodeCourierLrRemarks, lrReceiptForTrip } from "@/features/trips/utils/lrReceiptStatus.util";
+import {
+  isCompletedTripStatus,
+  isOperationsDeliveredTrip,
+} from "@/features/trips/utils/tripHubMetrics";
 import type { TripRow } from "@/features/trips/services/trips.service";
 import { getVehicleForTripViewer } from "@/features/vehicles/services/vehicles.service";
 import type { VehicleDocuments } from "@/features/vehicles/utils/vehicleDocuments.util";
@@ -187,6 +197,45 @@ export async function fetchComplianceTripFlags(
   return byTrip;
 }
 
+/** LR numbers logged as received on the courier workflow event (one row per trip). */
+export async function fetchHardCopyReceivedLrNumbers(
+  tripIds: string[],
+): Promise<Map<string, string[]>> {
+  const byTrip = new Map<string, string[]>();
+  if (tripIds.length === 0) return byTrip;
+  const { data, error } = await supabase()
+    .from("trip_workflow_events")
+    .select("trip_id, payload")
+    .eq("event_type", "pod.hard_copy_courier_dispatched")
+    .in("trip_id", tripIds);
+  if (error) {
+    if (isMissingColumnOrRelation(error)) return byTrip;
+    throw new Error(error.message);
+  }
+  for (const row of data ?? []) {
+    const record = row as { trip_id?: string; payload?: { remarks?: string | null } | null };
+    const tripId = String(record.trip_id ?? "").trim();
+    if (!tripId) continue;
+    const received = decodeCourierLrRemarks(record.payload?.remarks).receivedLrs;
+    if (received.length > 0) byTrip.set(tripId, received);
+  }
+  return byTrip;
+}
+
+function attachReceivedLrNumbers(
+  flagsByTrip: Map<string, ComplianceTripFlags>,
+  receivedByTrip: Map<string, string[]>,
+): Map<string, ComplianceTripFlags> {
+  if (receivedByTrip.size === 0) return flagsByTrip;
+  const next = new Map(flagsByTrip);
+  for (const [tripId, numbers] of receivedByTrip) {
+    const flags = next.get(tripId);
+    if (!flags || numbers.length === 0) continue;
+    next.set(tripId, { ...flags, received_lr_numbers: numbers });
+  }
+  return next;
+}
+
 type RawTxnRow = {
   id: string;
   trip_id: string | null;
@@ -304,17 +353,20 @@ export function advanceFromTripReceipts(
  * must not disappear from the post-payment queue just because trip_documents is
  * empty or Compliance Verified was never stamped.
  *
- * Flow after verification: Payment Pending (filter) → advance posted →
- * AWAITING POD (`hard_copy_pod_received`) → hard-copy marked → BALANCE_PENDING
- * → balance posted → SETTLED. Advance without POD always lands in Awaiting POD
- * (not a separate Advance Processed bucket) so Ops can collect hard-copy next.
+ * Awaiting POD is exactly Trip Operations → Delivered, until hard-copy is
+ * marked. An advance on a trip that is not delivered yet does not enter this
+ * stage, so the two counts stay the same.
+ *
+ * Every delivered trip stays in Awaiting POD even when advance, required docs,
+ * or vehicle expiry are still open. Marking hard-copy still moves the trip to
+ * Balance Pending, then Settled once balance is posted.
  *
  * Documented interpretation of a genuine spec ambiguity: "HARD_COPY_POD_RECEIVED"
  * and "BALANCE_PENDING" describe what is, functionally, the same instant (Phase 11:
  * "once hard copy POD received, show BALANCE PENDING"). Since a trip can only sit
- * in one filter bucket at a time, HARD_COPY_POD_RECEIVED is "advance posted,
- * physical POD not yet marked" and BALANCE_PENDING begins when Ops marks it
- * received.
+ * in one filter bucket at a time, HARD_COPY_POD_RECEIVED means a delivered trip
+ * whose physical POD is not yet marked, and BALANCE_PENDING begins when Ops
+ * marks it received.
  */
 export function deriveComplianceStage(input: {
   documentCount: number;
@@ -327,23 +379,31 @@ export function deriveComplianceStage(input: {
   missingRequiredEntityCount?: number;
   /**
    * Required vehicle docs (RC / Insurance / FC) that are on file but past
-   * expiry. Forces Pending Docs so Ops renews the vault before settlement.
+   * expiry. Forces Pending Docs so Ops renews the vault before settlement,
+   * except on Trip Operations Delivered trips — those stay in the POD lane.
    */
   hasExpiredRequiredVehicleDocs?: boolean;
   complianceVerifiedAt: string | null;
   advance: CompliancePaymentSummary | null;
   tripStatus: string;
+  /**
+   * Trip Operations Delivered, including at-destination trips that have a soft
+   * POD but are not yet status=delivered. Completed statuses are detected from
+   * `tripStatus` when this flag is omitted.
+   */
+  opsDelivered?: boolean;
   hardCopyReceived: boolean;
   balance: CompliancePaymentSummary | null;
 }): ComplianceStage {
-  void input.tripStatus;
-
   if (input.balance) return "payment_settled";
-  // Expired RC / Insurance / FC override payment-progress chips — Ops must renew.
-  if (input.hasExpiredRequiredVehicleDocs) return "pending_for_docs";
-  if (input.advance) {
+  if (input.opsDelivered || isCompletedTripStatus(input.tripStatus)) {
     return input.hardCopyReceived ? "balance_pending" : "hard_copy_pod_received";
   }
+  // Expired RC / Insurance / FC override payment-progress chips — Ops must renew.
+  if (input.hasExpiredRequiredVehicleDocs) return "pending_for_docs";
+  // Hard-copy already marked on a trip that is not Delivered yet still opens
+  // balance. Advance alone does not — that trip is not in the Delivered count.
+  if (input.advance && input.hardCopyReceived) return "balance_pending";
   if (input.complianceVerifiedAt) return "compliance_verified";
   const missingRequired =
     input.missingRequiredCount ??
@@ -623,18 +683,21 @@ export async function fetchComplianceTripInputs(trips: TripRow[]): Promise<Compl
   if (trips.length === 0) return [];
   const tripIds = trips.map((t) => t.id);
   const entityIds = trips.flatMap((trip) => [trip.vehicle_id, trip.driver_id].filter((id): id is string => Boolean(id)));
-  const [docsByTrip, flagsByTrip, txnsByTrip, entityDocsById, vault, driverKycDocs] = await Promise.all([
-    fetchTripDocumentsForTrips(tripIds),
-    fetchComplianceTripFlags(tripIds),
-    fetchComplianceTransactions(tripIds),
-    fetchEntityDocumentsByIds(orgIdOf(trips), entityIds, ["vehicle", "driver"]),
-    fetchVehicleVaultDocumentsForTrips(trips),
-    fetchDriverKycDocumentsForTrips(trips),
-  ]);
+  const [docsByTrip, flagsByTrip, receivedLrsByTrip, txnsByTrip, entityDocsById, vault, driverKycDocs] =
+    await Promise.all([
+      fetchTripDocumentsForTrips(tripIds),
+      fetchComplianceTripFlags(tripIds),
+      fetchHardCopyReceivedLrNumbers(tripIds),
+      fetchComplianceTransactions(tripIds),
+      fetchEntityDocumentsByIds(orgIdOf(trips), entityIds, ["vehicle", "driver"]),
+      fetchVehicleVaultDocumentsForTrips(trips),
+      fetchDriverKycDocumentsForTrips(trips),
+    ]);
+  const flagsWithLrs = attachReceivedLrNumbers(flagsByTrip, receivedLrsByTrip);
   return trips.map((trip) => ({
     trip,
     documents: docsByTrip.get(trip.id) ?? [],
-    flags: flagsByTrip.get(trip.id) ?? null,
+    flags: flagsWithLrs.get(trip.id) ?? null,
     ...paymentInputs(txnsByTrip.get(trip.id)),
     ...assembleVehicleDocuments(trip, entityDocsById, vault),
     driverDocuments: assembleDriverDocuments(trip, entityDocsById, driverKycDocs),
@@ -674,6 +737,10 @@ export function summarizeComplianceTrip(inputs: ComplianceTripInputs): Complianc
   ).length;
   const hasExpiredRequiredVehicleDocs =
     listExpiredRequiredVehicleDocTypes(vehicleDocuments).length > 0;
+  const opsDelivered = isOperationsDeliveredTrip(
+    trip,
+    documents.some((doc) => isSoftPodDocumentType(doc.document_type)),
+  );
 
   const stage = deriveComplianceStage({
     documentCount: documentCounts.total,
@@ -683,9 +750,19 @@ export function summarizeComplianceTrip(inputs: ComplianceTripInputs): Complianc
     complianceVerifiedAt: flags?.compliance_verified_at ?? null,
     advance,
     tripStatus: trip.status,
+    opsDelivered,
     hardCopyReceived,
     balance,
   });
+
+  const lrReceipt = lrReceiptForTrip(
+    documents.flatMap((doc) =>
+      (doc.document_type ?? "").toLowerCase() === "lr"
+        ? lrNumbersFromDocumentNumber(doc.document_number)
+        : [],
+    ),
+    flags?.received_lr_numbers ?? [],
+  );
 
   return {
     trip,
@@ -711,6 +788,8 @@ export function summarizeComplianceTrip(inputs: ComplianceTripInputs): Complianc
       courier: flags?.pod_hard_copy_courier ?? null,
       awbNumber: flags?.pod_hard_copy_awb_number ?? null,
       receivedBy: flags?.pod_hard_copy_received_by ?? null,
+      lrNumbers: [...lrReceipt.received, ...lrReceipt.pending],
+      receivedLrNumbers: lrReceipt.received,
     },
   };
 }
@@ -766,15 +845,17 @@ export async function fetchTripScopedInputs(
 ): Promise<Map<string, Pick<ComplianceTripInputs, "documents" | "flags" | "taggedAdvance" | "balance">>> {
   const byTrip = new Map<string, Pick<ComplianceTripInputs, "documents" | "flags" | "taggedAdvance" | "balance">>();
   if (tripIds.length === 0) return byTrip;
-  const [docsByTrip, flagsByTrip, txnsByTrip] = await Promise.all([
+  const [docsByTrip, flagsByTrip, receivedLrsByTrip, txnsByTrip] = await Promise.all([
     fetchTripDocumentsForTrips(tripIds),
     fetchComplianceTripFlags(tripIds),
+    fetchHardCopyReceivedLrNumbers(tripIds),
     fetchComplianceTransactions(tripIds),
   ]);
+  const flagsWithLrs = attachReceivedLrNumbers(flagsByTrip, receivedLrsByTrip);
   for (const id of tripIds) {
     byTrip.set(id, {
       documents: docsByTrip.get(id) ?? [],
-      flags: flagsByTrip.get(id) ?? null,
+      flags: flagsWithLrs.get(id) ?? null,
       ...paymentInputs(txnsByTrip.get(id)),
     });
   }

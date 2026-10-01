@@ -190,7 +190,7 @@ const FLAGS: ComplianceTripFlags = {
 
 function inputs(tripId: string, flags: ComplianceTripFlags | null = FLAGS): ComplianceTripInputs {
   return {
-    trip: { id: tripId, organization_id: "org-1", status: "delivered", pod_received_at: null } as unknown as TripRow,
+    trip: { id: tripId, organization_id: "org-1", status: "in_transit", pod_received_at: null } as unknown as TripRow,
     documents: ["lr", "eway_bill", "invoice"].map((type) => ({
       id: `${tripId}-${type}`,
       trip_id: tripId,

@@ -69,6 +69,8 @@ it("POD logged outside Compliance → pipeline row derives received=true and Bal
     courier: "BlueDart",
     awbNumber: "AWB1",
     receivedBy: "Ravi",
+    lrNumbers: [],
+    receivedLrNumbers: [],
   });
   expect(patched.stage).toBe("balance_pending");
   expect(pipeline[1]).toBe(inputs[1]);
