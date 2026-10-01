@@ -2327,30 +2327,11 @@ export function ComplianceDocumentWorkspace({
                 {(() => {
                   const previewingDocument =
                     checklistPreviewMode === "document" || checklistPreviewMode === "finance";
-                  const showPrimaryAction = showPay;
                   const showDocNav = previewingDocument && previewable.length >= 2;
-                  const showDecisionBar =
-                    previewingDocument && Boolean(activeRow) && (showPrimaryAction || showDocNav);
-                  if (!showDecisionBar) return null;
+                  if (!showDocNav || !activeRow) return null;
                   return (
                   <View style={styles.checklistDecisionBar}>
                     <View style={styles.checklistDecisionSpacer} />
-                    {showPay && summary ? (
-                      <TouchableOpacity
-                        style={styles.checklistDecisionPay}
-                        onPress={() => {
-                          if (onConfirmPayment && readyPaymentCategory === "compliance_advance") {
-                            setChecklistPreviewMode("advance");
-                            return;
-                          }
-                          onPay?.(summary);
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel="Pay"
-                      >
-                        <Text style={styles.checklistDecisionPayText}>Pay</Text>
-                      </TouchableOpacity>
-                    ) : null}
                     {showDocNav ? (
                       <View style={styles.checklistDecisionNavGroup}>
                         <TouchableOpacity
@@ -4143,19 +4124,6 @@ const styles = StyleSheet.create({
     color: Theme.complianceStageDocsFg,
   },
   checklistAdvancePayFallback: { flex: 1, height: 44, borderRadius: 12 },
-  checklistDecisionPay: {
-    minHeight: 40,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: Theme.brandBlueSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checklistDecisionPayText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: Theme.textPrimaryDark,
-  },
   checklistDecisionNav: {
     width: 40,
     height: 40,
