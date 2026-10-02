@@ -349,17 +349,16 @@ export function advanceFromTripReceipts(
  * Derives the single displayed compliance stage for a trip from independent
  * signals — never a persisted status column (Phase 4's explicit instruction).
  *
- * Payment progress wins over missing documents: a trip with client receipts
- * must not disappear from the post-payment queue just because trip_documents is
- * empty or Compliance Verified was never stamped.
+ * The exclusive stage is the doc / verify lane. An unverified trip stays in
+ * Pending Docs while a required file is missing, and in Compliance Pending
+ * once every required file is on file, including holds. Delivery does not
+ * take it out of that lane.
  *
- * Awaiting POD is exactly Trip Operations → Delivered, until hard-copy is
- * marked. An advance on a trip that is not delivered yet does not enter this
- * stage, so the two counts stay the same.
- *
- * Every delivered trip stays in Awaiting POD even when advance, required docs,
- * or vehicle expiry are still open. Marking hard-copy still moves the trip to
- * Balance Pending, then Settled once balance is posted.
+ * Awaiting POD is parallel: a completed (Trip Operations Delivered) trip
+ * also appears there until hard-copy is marked, even while it is still in
+ * Pending Docs or Compliance Pending. See tripAppearsInAwaitingPod.
+ * After Verify, the exclusive stage itself becomes Awaiting POD, then
+ * Balance Pending once hard-copy is marked, then Settled once balance is posted.
  *
  * Documented interpretation of a genuine spec ambiguity: "HARD_COPY_POD_RECEIVED"
  * and "BALANCE_PENDING" describe what is, functionally, the same instant (Phase 11:
@@ -379,8 +378,8 @@ export function deriveComplianceStage(input: {
   missingRequiredEntityCount?: number;
   /**
    * Required vehicle docs (RC / Insurance / FC) that are on file but past
-   * expiry. Forces Pending Docs so Ops renews the vault before settlement,
-   * except on Trip Operations Delivered trips — those stay in the POD lane.
+   * expiry. Forces Pending Docs until the trip is compliance-verified.
+   * A verified Delivered trip still stays in the POD lane.
    */
   hasExpiredRequiredVehicleDocs?: boolean;
   complianceVerifiedAt: string | null;
@@ -395,7 +394,19 @@ export function deriveComplianceStage(input: {
   hardCopyReceived: boolean;
   balance: CompliancePaymentSummary | null;
 }): ComplianceStage {
-  if (input.balance) return "payment_settled";
+  if (input.balance && input.complianceVerifiedAt) return "payment_settled";
+  const missingRequired =
+    input.missingRequiredCount ??
+    (input.documentCount === 0 ? REQUIRED_COMPLIANCE_DOCUMENT_TYPES.length : 0);
+  const docsStillOpen =
+    Boolean(input.hasExpiredRequiredVehicleDocs) ||
+    missingRequired > 0 ||
+    (input.missingRequiredEntityCount ?? 0) > 0;
+  // Unverified trips stay on the doc lane. Delivery does not pull them into
+  // Awaiting POD. Holds (decline) do not change this stage.
+  if (!input.complianceVerifiedAt) {
+    return docsStillOpen ? "pending_for_docs" : "compliance_pending";
+  }
   if (input.opsDelivered || isCompletedTripStatus(input.tripStatus)) {
     return input.hardCopyReceived ? "balance_pending" : "hard_copy_pod_received";
   }
@@ -404,13 +415,24 @@ export function deriveComplianceStage(input: {
   // Hard-copy already marked on a trip that is not Delivered yet still opens
   // balance. Advance alone does not — that trip is not in the Delivered count.
   if (input.advance && input.hardCopyReceived) return "balance_pending";
-  if (input.complianceVerifiedAt) return "compliance_verified";
-  const missingRequired =
-    input.missingRequiredCount ??
-    (input.documentCount === 0 ? REQUIRED_COMPLIANCE_DOCUMENT_TYPES.length : 0);
-  if (missingRequired > 0) return "pending_for_docs";
-  if ((input.missingRequiredEntityCount ?? 0) > 0) return "pending_for_docs";
-  return "compliance_pending";
+  return "compliance_verified";
+}
+
+/**
+ * Awaiting POD membership, independent of the exclusive doc/verify stage.
+ * Completed trips stay listed here until hard-copy POD is marked, including
+ * ones that also sit in Pending Docs or Compliance Pending.
+ */
+export function tripAppearsInAwaitingPod(
+  summary: Pick<ComplianceTripSummary, "trip" | "stage" | "documents" | "balance" | "hardCopyPod">,
+): boolean {
+  if (summary.balance || summary.hardCopyPod.received) return false;
+  if (summary.stage === "balance_pending" || summary.stage === "payment_settled") return false;
+  if (summary.stage === "hard_copy_pod_received") return true;
+  return isOperationsDeliveredTrip(
+    summary.trip,
+    summary.documents.some((doc) => isSoftPodDocumentType(doc.document_type)),
+  );
 }
 
 function missingRequiredEntityDocumentCount(

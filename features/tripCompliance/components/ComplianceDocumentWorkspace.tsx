@@ -16,6 +16,7 @@ import {
     signCompliancePreviewUrl,
 } from "@/features/tripCompliance/services/complianceDocumentView.service";
 import type { ComplianceChange } from "@/features/tripCompliance/services/compliancePipelineSync.service";
+import { tripAppearsInAwaitingPod } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import type { ComplianceLedgerCategory } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import { setTripDocumentVerification } from "@/features/tripCompliance/services/tripComplianceWrite.service";
 import {
@@ -804,7 +805,7 @@ export function ComplianceDocumentWorkspace({
 
   const summary = summaries.find((item) => item.trip.id === selectedId) ?? summaries[0] ?? null;
   const showLogHardCopyPod =
-    showHardCopyPodLog && summary?.stage === "hard_copy_pod_received";
+    showHardCopyPodLog && summary != null && tripAppearsInAwaitingPod(summary);
 
   useEffect(() => {
     if (!logHardCopyPodRequest || logHardCopyPodRequest === podRequestSeen.current) return;
@@ -2966,7 +2967,7 @@ function TripListRow({
   );
   const showLrReceipt =
     (summary.hardCopyPod.lrNumbers?.length ?? 0) > 0 &&
-    (summary.stage === "hard_copy_pod_received" || lrReceipt.kind !== "none");
+    (tripAppearsInAwaitingPod(summary) || lrReceipt.kind !== "none");
   const isAsset = executionModel === "asset";
   const headerName = supplierLabel !== "—" ? supplierLabel : customerName;
   const headerSeed = trip.supplier_id ?? trip.client_id ?? trip.id;

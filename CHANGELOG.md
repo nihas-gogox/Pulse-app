@@ -1,3 +1,11 @@
+## nihas/V1.0.8 — 2026-10-02
+
+- **What:** Unverified trips stay in Pending Docs while a required file is missing, and in Compliance Pending once every required file is in, including holds. A completed trip also stays listed in Awaiting POD until hard-copy is marked.
+- **Why:** Delivered trips were only in Awaiting POD, so Compliance Pending showed a couple of rows. The doc lane and the POD lane now overlap.
+- **Files/areas:** Compliance stage derivation
+- **Migrations:** none
+- **Tested:** Jest on compliance stage derivation.
+
 ## V1 merge fix — 2026-10-01
 
 - **What:** Mobile load detail accepts the per-MT and trip-total rate lines from the indent card.

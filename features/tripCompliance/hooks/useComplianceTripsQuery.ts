@@ -26,6 +26,7 @@ import {
 import {
   buildComplianceTripSummaries,
   summarizeComplianceTrip,
+  tripAppearsInAwaitingPod,
 } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import type {
   ComplianceStage,
@@ -257,6 +258,7 @@ export function useComplianceStageFilter(summaries: ComplianceTripSummary[] | un
     if (stage === "all") return summaries;
     if (stage === "pod_received") return summaries.filter((summary) => summary.hardCopyPod?.received);
     if (stage === "payment_pending") return summaries.filter(isCompliancePaymentPending);
+    if (stage === "hard_copy_pod_received") return summaries.filter(tripAppearsInAwaitingPod);
     return summaries.filter((s) => s.stage === stage);
   }, [summaries, stage]);
 
@@ -273,6 +275,9 @@ export function useComplianceStageFilter(summaries: ComplianceTripSummary[] | un
     };
     for (const summary of summaries ?? []) {
       if (summary.stage in next) next[summary.stage] += 1;
+      if (summary.stage !== "hard_copy_pod_received" && tripAppearsInAwaitingPod(summary)) {
+        next.hard_copy_pod_received += 1;
+      }
     }
     return next;
   }, [summaries]);
