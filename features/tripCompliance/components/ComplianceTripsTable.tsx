@@ -8,6 +8,7 @@
  */
 import Theme from "@/constants/Theme";
 import { lrReceiptForTrip } from "@/features/trips/utils/lrReceiptStatus.util";
+import { tripAppearsInAwaitingPod } from "@/features/tripCompliance/services/tripComplianceRead.service";
 import { ComplianceDeclineModal } from "@/features/tripCompliance/components/ComplianceDeclineModal";
 import { COMPLIANCE_STATUS_META, ComplianceStatusChip } from "@/features/tripCompliance/components/ComplianceStatusIcon";
 import {
@@ -237,7 +238,7 @@ function TripRowContent({
   );
   const showLrReceipt =
     (summary.hardCopyPod.lrNumbers?.length ?? 0) > 0 &&
-    (summary.stage === "hard_copy_pod_received" || lrReceipt.kind !== "none");
+    (tripAppearsInAwaitingPod(summary) || lrReceipt.kind !== "none");
   const tripId = summary.trip.id;
   const isVerified = Boolean(summary.complianceVerifiedAt);
   const verifyEligibility = useMemo(() => canVerifyTrip(summary), [summary]);
